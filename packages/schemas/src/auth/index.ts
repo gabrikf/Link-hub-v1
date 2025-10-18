@@ -10,36 +10,39 @@ export const createUserSchemaInput = z.object({
     .min(6, "Password must be at least 6 characters")
     .max(100, "Password must be less than 100 characters"),
   description: z.string().optional(),
-  avatarUrl: z.string().url("Invalid URL format").optional(),
+  avatarUrl: z.url("Invalid URL format").optional(),
 });
 
 // User response without password (for general user data)
 export const userResponseSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: z.email("Invalid email format"),
   login: z.string(),
   name: z.string(),
   description: z.string().nullable(),
   avatarUrl: z.string().nullable(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  googleId: z.string().nullable(),
+  createdAt: z.coerce.date(), // Accepts Date objects and coerces to proper format
+  updatedAt: z.coerce.date(), // Accepts Date objects and coerces to proper format
 });
 
-// Output schema for user response (using camelCase for API)
+// Output schema for user registration response
 export const createUserSchemaOutput = z.object({
   user: userResponseSchema,
-  token: z.string(),
+  accessToken: z.string(),
+  refreshToken: z.string(),
 });
 
 // Login schema
 export const loginSchemaInput = z.object({
-  email: z.string().email("Invalid email format"),
+  email: z.email("Invalid email format"),
   password: z.string().min(1, "Password is required"),
 });
 
 export const loginSchemaOutput = z.object({
   user: userResponseSchema,
-  token: z.string(),
+  accessToken: z.string(),
+  refreshToken: z.string(),
 });
 
 // Types

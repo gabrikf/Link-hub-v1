@@ -9,8 +9,16 @@ import {
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import { routes } from "./routes/index.js";
+import { setupContainer } from "../di/container.js";
+import { errorHandler } from "./middleware/global-error-handler.js";
+
+// Initialize the DI container
+setupContainer();
 
 const server = fastify();
+
+// Register global error handler
+server.setErrorHandler(errorHandler);
 
 server.register(fastifyCors, {
   origin: "*",
@@ -22,8 +30,8 @@ server.setSerializerCompiler(serializerCompiler);
 server.register(fastifySwagger, {
   openapi: {
     info: {
-      title: "API de Ifound",
-      description: "Documentação da API de Ifound",
+      title: "Linkhub v1 API",
+      description: "Documentation of Linkhub v1",
       version: "1.0.0",
     },
     components: {
@@ -54,9 +62,9 @@ server.register(routes);
 
 const startServer = async () => {
   try {
-    await server.listen({ port: 3000 });
-    console.log("Server listening on http://localhost:3000");
-    console.log("Docs on http://localhost:3000/docs");
+    await server.listen({ port: 3333 });
+    console.log("Server listening on http://localhost:3333");
+    console.log("Docs on http://localhost:3333/docs");
   } catch (err) {
     server.log.error(err);
     process.exit(1);

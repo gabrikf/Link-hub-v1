@@ -7,7 +7,15 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p .",
     "start": "node dist/index.js",
-    "test": "vitest"
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "drizzle-kit": "drizzle-kit",
+    "db:studio": "drizzle-kit studio",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "migrate:dev": "drizzle-kit generate && drizzle-kit migrate"
   },
   "keywords": [],
   "author": "",
@@ -37,6 +45,7 @@
     "fastify-type-provider-zod": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "postgres": "^3.4.7",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "tsyringe": "^4.10.0"
   }
 }

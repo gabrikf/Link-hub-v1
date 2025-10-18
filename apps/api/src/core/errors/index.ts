@@ -104,6 +104,12 @@ export class ResourceNotFoundError extends NotFoundError {
   }
 }
 
+export class InvalidCredentialsError extends UnauthorizedError {
+  constructor(message: string = "Invalid email or password", cause?: Error) {
+    super(message, cause);
+  }
+}
+
 // Legacy compatibility
 export class AppError extends BaseError {
   readonly statusCode: number;

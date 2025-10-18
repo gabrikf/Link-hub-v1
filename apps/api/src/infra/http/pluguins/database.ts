@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fp from "fastify-plugin";
-import { db } from "../../database/index.js";
+import { db } from "../../database/drizzle/index.js";
 
 // This function will be executed by Fastify to register the plugin
 async function databasePlugin(fastify: FastifyInstance) {

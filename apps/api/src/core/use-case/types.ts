@@ -6,6 +6,12 @@ export interface ICreateUserUseCaseInput {
   description?: string | null;
   avatarUrl?: string | null;
 }
+
+export interface ILoginUseCaseInput {
+  email: string;
+  password: string;
+}
+
 export interface ICreateUserUseCaseOutput {
   user: {
     id: string;
