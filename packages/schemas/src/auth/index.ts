@@ -45,9 +45,22 @@ export const loginSchemaOutput = z.object({
   refreshToken: z.string(),
 });
 
+// Google sign-in schema
+export const googleSignInSchemaInput = z.object({
+  idToken: z.string().min(1, "Google ID token is required"),
+});
+
+export const googleSignInSchemaOutput = z.object({
+  user: userResponseSchema,
+  accessToken: z.string(),
+  refreshToken: z.string(),
+});
+
 // Types
 export type CreateUserInput = z.infer<typeof createUserSchemaInput>;
 export type CreateUserOutput = z.infer<typeof createUserSchemaOutput>;
 export type UserResponse = z.infer<typeof userResponseSchema>;
 export type LoginInput = z.infer<typeof loginSchemaInput>;
 export type LoginOutput = z.infer<typeof loginSchemaOutput>;
+export type GoogleSignInInput = z.infer<typeof googleSignInSchemaInput>;
+export type GoogleSignInOutput = z.infer<typeof googleSignInSchemaOutput>;

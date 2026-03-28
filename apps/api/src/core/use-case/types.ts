@@ -12,6 +12,19 @@ export interface ILoginUseCaseInput {
   password: string;
 }
 
+export interface IGoogleSignInUseCaseInput {
+  idToken: string;
+}
+
+export interface IOAuthSignInUseCaseInput {
+  provider: string;
+  providerAccountId: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  emailVerified: boolean;
+}
+
 export interface ICreateUserUseCaseOutput {
   user: {
     id: string;

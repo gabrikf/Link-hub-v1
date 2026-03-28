@@ -4,8 +4,8 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import App from "./App";
+import { AuthPage } from "./features/auth/pages/auth-page";
 import { queryClient } from "./lib/query-client";
-import { HomePage } from "./routes/home-page";
 
 const rootRoute = createRootRoute({
   component: App,
@@ -14,7 +14,7 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: HomePage,
+  component: AuthPage,
 });
 
 const routeTree = rootRoute.addChildren([indexRoute]);

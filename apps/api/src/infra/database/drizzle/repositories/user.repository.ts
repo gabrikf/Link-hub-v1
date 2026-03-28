@@ -28,6 +28,100 @@ export class DrizzleUserRepository implements IUsersRepository {
     });
   }
 
+  async findByEmail(email: string): Promise<UserEntity | null> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+
+    if (!user) return null;
+
+    return new UserEntity({
+      id: user.id,
+      email: user.email,
+      login: user.login,
+      name: user.name,
+      password: user.password,
+      description: user.description,
+      avatarUrl: user.avatarUrl,
+      googleId: user.googleId,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    });
+  }
+
+  async findById(id: string): Promise<UserEntity | null> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+
+    if (!user) return null;
+
+    return new UserEntity({
+      id: user.id,
+      email: user.email,
+      login: user.login,
+      name: user.name,
+      password: user.password,
+      description: user.description,
+      avatarUrl: user.avatarUrl,
+      googleId: user.googleId,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    });
+  }
+
+  async findByGoogleId(googleId: string): Promise<UserEntity | null> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.googleId, googleId));
+
+    if (!user) return null;
+
+    return new UserEntity({
+      id: user.id,
+      email: user.email,
+      login: user.login,
+      name: user.name,
+      password: user.password,
+      description: user.description,
+      avatarUrl: user.avatarUrl,
+      googleId: user.googleId,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    });
+  }
+
+  async update(user: UserEntity): Promise<UserEntity> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        email: user.email,
+        login: user.login,
+        name: user.name,
+        description: user.description,
+        avatarUrl: user.avatarUrl,
+        password: user.password,
+        googleId: user.googleId,
+        updatedAt: user.updatedAt,
+      })
+      .where(eq(users.id, user.id))
+      .returning();
+
+    if (!updatedUser) {
+      throw new Error(`User with id '${user.id}' not found`);
+    }
+
+    return new UserEntity({
+      id: updatedUser.id,
+      email: updatedUser.email,
+      login: updatedUser.login,
+      name: updatedUser.name,
+      password: updatedUser.password,
+      description: updatedUser.description,
+      avatarUrl: updatedUser.avatarUrl,
+      googleId: updatedUser.googleId,
+      createdAt: updatedUser.createdAt,
+      updatedAt: updatedUser.updatedAt,
+    });
+  }
+
   async create(user: UserEntity): Promise<UserEntity> {
     // Map entity fields (camelCase) to database fields (snake_case)
     const [createdUser] = await db

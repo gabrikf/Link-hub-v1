@@ -6,13 +6,41 @@ export class InMemoryUsersRepository implements IUsersRepository {
 
   async findByEmailOrLogin(emailOrLogin: string): Promise<UserEntity | null> {
     const user = this.users.find(
-      (user) => user.email === emailOrLogin || user.login === emailOrLogin
+      (user) => user.email === emailOrLogin || user.login === emailOrLogin,
     );
     return user || null;
   }
 
   async create(user: UserEntity): Promise<UserEntity> {
     this.users.push(user);
+    return user;
+  }
+
+  async findByEmail(email: string): Promise<UserEntity | null> {
+    const user = this.users.find((candidate) => candidate.email === email);
+    return user || null;
+  }
+
+  async findById(id: string): Promise<UserEntity | null> {
+    const user = this.users.find((candidate) => candidate.id === id);
+    return user || null;
+  }
+
+  async findByGoogleId(googleId: string): Promise<UserEntity | null> {
+    const user = this.users.find(
+      (candidate) => candidate.googleId === googleId,
+    );
+    return user || null;
+  }
+
+  async update(user: UserEntity): Promise<UserEntity> {
+    const index = this.users.findIndex((candidate) => candidate.id === user.id);
+
+    if (index === -1) {
+      throw new Error(`User with id '${user.id}' not found`);
+    }
+
+    this.users[index] = user;
     return user;
   }
 

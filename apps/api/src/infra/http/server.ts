@@ -1,6 +1,7 @@
 import fastify from "fastify";
 import database from "./pluguins/database.js";
 import fastifyCors from "@fastify/cors";
+import fastifyCookie from "@fastify/cookie";
 import {
   jsonSchemaTransform,
   serializerCompiler,
@@ -23,6 +24,8 @@ server.setErrorHandler(errorHandler);
 server.register(fastifyCors, {
   origin: "*",
 });
+
+server.register(fastifyCookie);
 
 server.setValidatorCompiler(validatorCompiler);
 server.setSerializerCompiler(serializerCompiler);

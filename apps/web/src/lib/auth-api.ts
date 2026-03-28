@@ -1,10 +1,14 @@
 import {
   createUserSchemaInput,
   createUserSchemaOutput,
+  googleSignInSchemaInput,
+  googleSignInSchemaOutput,
   loginSchemaInput,
   loginSchemaOutput,
   type CreateUserInput,
   type CreateUserOutput,
+  type GoogleSignInInput,
+  type GoogleSignInOutput,
   type LoginInput,
   type LoginOutput,
 } from "@repo/schemas";
@@ -22,6 +26,11 @@ const getApiBaseUrl = (): string => {
   return configuredBaseUrl && configuredBaseUrl.length > 0
     ? configuredBaseUrl
     : DEFAULT_API_BASE_URL;
+};
+
+export const getLinkedInSignInUrl = (): string => {
+  const apiBaseUrl = getApiBaseUrl();
+  return `${apiBaseUrl}/auth/linkedin`;
 };
 
 type ApiErrorShape = {
@@ -75,6 +84,19 @@ export async function registerRequest(
   try {
     const response = await apiClient.post("/auth/register", body);
     return createUserSchemaOutput.parse(response.data);
+  } catch (error) {
+    throw new Error(readErrorMessage(error));
+  }
+}
+
+export async function googleSignInRequest(
+  payload: GoogleSignInInput,
+): Promise<GoogleSignInOutput> {
+  const body = googleSignInSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/google", body);
+    return googleSignInSchemaOutput.parse(response.data);
   } catch (error) {
     throw new Error(readErrorMessage(error));
   }

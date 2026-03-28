@@ -7,4 +7,5 @@ export async function routes(fastify: FastifyInstance) {
   });
 
   fastify.register(authRoutes, { prefix: "/auth" });
+  fastify.register(authRoutes, { prefix: "/api/v1/auth" });
 }
