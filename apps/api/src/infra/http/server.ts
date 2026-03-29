@@ -23,6 +23,8 @@ server.setErrorHandler(errorHandler);
 
 server.register(fastifyCors, {
   origin: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-refresh-token"],
 });
 
 server.register(fastifyCookie);

@@ -39,4 +39,39 @@ export class GoogleOAuthProvider implements IGoogleOAuthProvider {
       emailVerified: payload.email_verified === true,
     };
   }
+
+  async verifyAccessToken(accessToken: string): Promise<GoogleUserInfo> {
+    const userInfoResponse = await fetch(
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+
+    if (!userInfoResponse.ok) {
+      throw new Error("Invalid Google access token");
+    }
+
+    const userInfo = (await userInfoResponse.json()) as {
+      sub?: string;
+      email?: string;
+      name?: string;
+      picture?: string;
+      email_verified?: boolean;
+    };
+
+    if (!userInfo.sub || !userInfo.email) {
+      throw new Error("Invalid Google user info payload");
+    }
+
+    return {
+      googleId: userInfo.sub,
+      email: userInfo.email,
+      name: userInfo.name || userInfo.email.split("@")[0],
+      avatarUrl: userInfo.picture || null,
+      emailVerified: userInfo.email_verified === true,
+    };
+  }
 }

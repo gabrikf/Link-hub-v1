@@ -1,21 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GoogleSignInUseCase } from "./google-sign-in.use-case.js";
-import { InMemoryUsersRepository } from "../../repositories/user/in-memory-users-repository.js";
-import { InMemoryRefreshTokenRepository } from "../../repositories/refresh-token/in-memory-refresh-token-repository.js";
-import { InMemoryOAuthAccountRepository } from "../../repositories/oauth-account/in-memory-oauth-account-repository.js";
-import { InMemoryJwtProvider } from "../../providers/jwt/in-memory-jwt-provider.js";
-import { InMemoryHashProvider } from "../../providers/hash/in-memory-hash-provider.js";
+import { InMemoryUsersRepository } from "../../../repositories/user/in-memory-users-repository.js";
+import { InMemoryRefreshTokenRepository } from "../../../repositories/refresh-token/in-memory-refresh-token-repository.js";
+import { InMemoryOAuthAccountRepository } from "../../../repositories/oauth-account/in-memory-oauth-account-repository.js";
+import { InMemoryJwtProvider } from "../../../providers/jwt/in-memory-jwt-provider.js";
+import { InMemoryHashProvider } from "../../../providers/hash/in-memory-hash-provider.js";
 import { OAuthSignInUseCase } from "../oauth-sign-in-use-case/oauth-sign-in.use-case.js";
 import {
   GoogleUserInfo,
   IGoogleOAuthProvider,
-} from "../../providers/oauth/google-oauth-provider.js";
-import { IGoogleSignInUseCaseInput } from "../types.js";
-import { UserEntity } from "../../entity/user/user-entity.js";
+} from "../../../providers/oauth/google-oauth-provider.js";
+import { IGoogleSignInUseCaseInput } from "../../types.js";
+import { UserEntity } from "../../../entity/user/user-entity.js";
 import {
   InvalidCredentialsError,
   UnauthorizedError,
-} from "../../errors/index.js";
+} from "../../../errors/index.js";
 
 class InMemoryGoogleOAuthProvider implements IGoogleOAuthProvider {
   private userInfo: GoogleUserInfo | null = null;
@@ -30,6 +30,14 @@ class InMemoryGoogleOAuthProvider implements IGoogleOAuthProvider {
   }
 
   async verifyIdToken(): Promise<GoogleUserInfo> {
+    if (this.shouldThrow || !this.userInfo) {
+      throw new Error("Invalid Google token");
+    }
+
+    return this.userInfo;
+  }
+
+  async verifyAccessToken(): Promise<GoogleUserInfo> {
     if (this.shouldThrow || !this.userInfo) {
       throw new Error("Invalid Google token");
     }

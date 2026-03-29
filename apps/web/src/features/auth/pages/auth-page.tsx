@@ -1,7 +1,11 @@
 import type { CreateUserInput, LoginInput } from "@repo/schemas";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { GoogleLogin } from "@react-oauth/google";
+import { useNavigate } from "@tanstack/react-router";
+import { useGoogleLogin } from "@react-oauth/google";
+import { FaLinkedinIn } from "react-icons/fa6";
+import { FcGoogle } from "react-icons/fc";
+import { FiLink2 } from "react-icons/fi";
 import {
   getLinkedInSignInUrl,
   googleSignInRequest,
@@ -19,6 +23,7 @@ import type { AuthTab } from "../types/auth-tab";
 export function AuthPage() {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
+  const navigate = useNavigate();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const setUserInfo = useUserInfoStore((state) => state.setUserInfo);
 
@@ -76,6 +81,12 @@ export function AuthPage() {
     window.history.replaceState(null, "", window.location.pathname);
   }, [setUserInfo]);
 
+  useEffect(() => {
+    if (userInfo) {
+      navigate({ to: "/dashboard" });
+    }
+  }, [navigate, userInfo]);
+
   const loginMutation = useMutation({
     mutationFn: loginRequest,
     onSuccess: (response) => {
@@ -117,79 +128,100 @@ export function AuthPage() {
     await registerMutation.mutateAsync(data);
   };
 
+  const googleLogin = useGoogleLogin({
+    scope: "openid email profile",
+    onSuccess: async (tokenResponse) => {
+      if (!tokenResponse.access_token) {
+        return;
+      }
+
+      await googleSignInMutation.mutateAsync({
+        accessToken: tokenResponse.access_token,
+      });
+    },
+    onError: () => {
+      googleSignInMutation.reset();
+    },
+  });
+
   return (
-    <section className="space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold">LinkHub</h1>
-        <p className="text-sm text-zinc-600">
-          Access your account or create a new one.
-        </p>
-      </header>
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <section className="w-full max-w-md space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <header className="space-y-1">
+          <h1 className="flex items-center gap-2 text-xl font-semibold">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-sm">
+              <FiLink2 aria-hidden="true" className="h-4 w-4" />
+            </span>
+            LinkHub
+          </h1>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Access your account or create a new one.
+          </p>
+        </header>
 
-      <AuthTabs activeTab={activeTab} onTabChange={setActiveTab} />
+        <AuthTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {activeTab === "login" ? (
-        <LoginForm
-          isPending={loginMutation.isPending}
-          errorMessage={loginMutation.error?.message}
-          onSubmit={onLoginSubmit}
-        />
-      ) : (
-        <RegisterForm
-          isPending={registerMutation.isPending}
-          errorMessage={registerMutation.error?.message}
-          onSubmit={onRegisterSubmit}
-        />
-      )}
-
-      <div className="space-y-2">
-        {googleClientId && (
-          <>
-            <p className="text-xs text-zinc-500">or continue with</p>
-            <GoogleLogin
-              onSuccess={async (credentialResponse) => {
-                if (!credentialResponse.credential) {
-                  return;
-                }
-
-                await googleSignInMutation.mutateAsync({
-                  idToken: credentialResponse.credential,
-                });
-              }}
-              onError={() => {
-                googleSignInMutation.reset();
-              }}
-            />
-            {googleSignInMutation.error?.message && (
-              <FeedbackMessage
-                message={googleSignInMutation.error.message}
-                tone="error"
-              />
-            )}
-          </>
+        {activeTab === "login" ? (
+          <LoginForm
+            isPending={loginMutation.isPending}
+            errorMessage={loginMutation.error?.message}
+            onSubmit={onLoginSubmit}
+          />
+        ) : (
+          <RegisterForm
+            isPending={registerMutation.isPending}
+            errorMessage={registerMutation.error?.message}
+            onSubmit={onRegisterSubmit}
+          />
         )}
 
-        <a
-          href={getLinkedInSignInUrl()}
-          className="relative flex h-10 w-full items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
-        >
-          <span className="absolute left-3 inline-flex h-5 w-5 items-center justify-center rounded-sm bg-[#0A66C2] text-[10px] font-bold text-white">
-            in
-          </span>
-          Sign in with LinkedIn
-        </a>
+        <div className="space-y-2">
+          {googleClientId && (
+            <>
+              <p className="text-xs text-zinc-500">or continue with</p>
 
-        {linkedInErrorMessage && (
-          <FeedbackMessage message={linkedInErrorMessage} tone="error" />
+              <button
+                type="button"
+                onClick={() => googleLogin()}
+                className="relative flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <span className="absolute left-3 inline-flex h-5 w-5 items-center justify-center text-base">
+                  <FcGoogle aria-hidden="true" />
+                </span>
+                Sign in with Google
+              </button>
+
+              {googleSignInMutation.error?.message && (
+                <FeedbackMessage
+                  message={googleSignInMutation.error.message}
+                  tone="error"
+                />
+              )}
+            </>
+          )}
+
+          <a
+            href={getLinkedInSignInUrl()}
+            className="relative flex h-10 w-full items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            <span className="absolute left-3 inline-flex h-5 w-5 items-center justify-center text-base text-[#0A66C2]">
+              <FaLinkedinIn aria-hidden="true" />
+            </span>
+            Sign in with LinkedIn
+          </a>
+
+          {linkedInErrorMessage && (
+            <FeedbackMessage message={linkedInErrorMessage} tone="error" />
+          )}
+        </div>
+
+        {userInfo && (
+          <FeedbackMessage
+            message={`Authenticated as ${userInfo.email}`}
+            tone="success"
+          />
         )}
-      </div>
-
-      {userInfo && (
-        <FeedbackMessage
-          message={`Authenticated as ${userInfo.email}`}
-          tone="success"
-        />
-      )}
-    </section>
+      </section>
+    </div>
   );
 }

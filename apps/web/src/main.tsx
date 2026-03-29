@@ -8,6 +8,9 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import "./index.css";
 import { queryClient } from "./lib/query-client";
 import { router } from "./router";
+import { initializeTheme } from "./lib/theme";
+
+initializeTheme();
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 

@@ -6,7 +6,7 @@ import {
   googleSignInSchemaOutput,
 } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
-import { GoogleSignInUseCase } from "../../../../core/use-case/google-sign-in-use-case/google-sign-in.use-case.js";
+import { GoogleSignInUseCase } from "../../../../core/use-case/auth/google-sign-in-use-case/google-sign-in.use-case.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
 
 export class GoogleSignInController {

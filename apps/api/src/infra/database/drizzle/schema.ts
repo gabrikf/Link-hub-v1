@@ -1,10 +1,18 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  integer,
+} from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
-  login: text("login").notNull(),
+  login: text("login").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
   avatarUrl: text("avatar_url"),
@@ -58,6 +66,22 @@ export const oauthAccounts = pgTable(
   ],
 );
 
+export const links = pgTable("links", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  isPublic: boolean("is_public").notNull().default(true),
+  order: integer("order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdateFn(() => new Date()),
+});
+
 export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   user: one(users, {
     fields: [refreshTokens.userId],
@@ -68,11 +92,19 @@ export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
 export const userRelations = relations(users, ({ many }) => ({
   refreshTokens: many(refreshTokens),
   oauthAccounts: many(oauthAccounts),
+  links: many(links),
 }));
 
 export const oauthAccountRelations = relations(oauthAccounts, ({ one }) => ({
   user: one(users, {
     fields: [oauthAccounts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const linksRelations = relations(links, ({ one }) => ({
+  user: one(users, {
+    fields: [links.userId],
     references: [users.id],
   }),
 }));

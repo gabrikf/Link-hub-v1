@@ -46,9 +46,17 @@ export const loginSchemaOutput = z.object({
 });
 
 // Google sign-in schema
-export const googleSignInSchemaInput = z.object({
-  idToken: z.string().min(1, "Google ID token is required"),
-});
+export const googleSignInSchemaInput = z
+  .object({
+    idToken: z.string().min(1, "Google ID token is required").optional(),
+    accessToken: z
+      .string()
+      .min(1, "Google access token is required")
+      .optional(),
+  })
+  .refine((value) => Boolean(value.idToken || value.accessToken), {
+    message: "Either idToken or accessToken is required",
+  });
 
 export const googleSignInSchemaOutput = z.object({
   user: userResponseSchema,

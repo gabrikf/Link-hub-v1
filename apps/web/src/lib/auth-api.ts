@@ -1,16 +1,32 @@
 import {
+  createLinkSchemaInput,
   createUserSchemaInput,
   createUserSchemaOutput,
   googleSignInSchemaInput,
   googleSignInSchemaOutput,
+  linkSchema,
   loginSchemaInput,
   loginSchemaOutput,
+  profileSchema,
+  reorderLinksSchemaInput,
+  toggleLinkVisibilitySchemaInput,
+  updateLinkSchemaInput,
+  updateProfileSchemaInput,
+  updateProfileSchemaOutput,
   type CreateUserInput,
   type CreateUserOutput,
+  type CreateLinkInput,
   type GoogleSignInInput,
   type GoogleSignInOutput,
+  type LinkResponse,
   type LoginInput,
   type LoginOutput,
+  type ProfileResponse,
+  type ReorderLinksInput,
+  type ToggleLinkVisibilityInput,
+  type UpdateLinkInput,
+  type UpdateProfileInput,
+  type UpdateProfileOutput,
 } from "@repo/schemas";
 import axios, {
   AxiosHeaders,
@@ -118,4 +134,98 @@ export async function fetchWithTokens(
     url: path,
     headers: AxiosHeaders.from(Object.fromEntries(headers.entries())),
   });
+}
+
+export async function fetchMyProfile(): Promise<ProfileResponse> {
+  const response = await fetchWithTokens("/me", { method: "GET" });
+  return profileSchema.parse(response.data);
+}
+
+export async function fetchPublicProfile(
+  username: string,
+): Promise<ProfileResponse> {
+  const response = await apiClient.get(`/profile/${username}`);
+  return profileSchema.parse(response.data);
+}
+
+export async function fetchLinks(): Promise<LinkResponse[]> {
+  const response = await fetchWithTokens("/links", { method: "GET" });
+  return linkSchema.array().parse(response.data);
+}
+
+export async function fetchLinkById(linkId: string): Promise<LinkResponse> {
+  const response = await fetchWithTokens(`/links/${linkId}`, { method: "GET" });
+  return linkSchema.parse(response.data);
+}
+
+export async function createLink(
+  payload: CreateLinkInput,
+): Promise<LinkResponse> {
+  const body = createLinkSchemaInput.parse(payload);
+  const response = await fetchWithTokens("/links", {
+    method: "POST",
+    data: body,
+  });
+
+  return linkSchema.parse(response.data);
+}
+
+export async function updateLink(
+  linkId: string,
+  payload: UpdateLinkInput,
+): Promise<LinkResponse> {
+  const body = updateLinkSchemaInput.parse(payload);
+  const response = await fetchWithTokens(`/links/${linkId}`, {
+    method: "PUT",
+    data: body,
+  });
+
+  return linkSchema.parse(response.data);
+}
+
+export async function deleteLink(
+  linkId: string,
+): Promise<{ success: boolean }> {
+  const response = await fetchWithTokens(`/links/${linkId}`, {
+    method: "DELETE",
+  });
+
+  return response.data as { success: boolean };
+}
+
+export async function reorderLinks(
+  payload: ReorderLinksInput,
+): Promise<{ success: boolean }> {
+  const body = reorderLinksSchemaInput.parse(payload);
+  const response = await fetchWithTokens("/links/reorder", {
+    method: "PATCH",
+    data: body,
+  });
+
+  return response.data as { success: boolean };
+}
+
+export async function toggleLinkVisibility(
+  linkId: string,
+  payload: ToggleLinkVisibilityInput,
+): Promise<LinkResponse> {
+  const body = toggleLinkVisibilitySchemaInput.parse(payload);
+  const response = await fetchWithTokens(`/links/${linkId}/visibility`, {
+    method: "PATCH",
+    data: body,
+  });
+
+  return linkSchema.parse(response.data);
+}
+
+export async function updateProfile(
+  payload: UpdateProfileInput,
+): Promise<UpdateProfileOutput> {
+  const body = updateProfileSchemaInput.parse(payload);
+  const response = await fetchWithTokens("/profile", {
+    method: "PUT",
+    data: body,
+  });
+
+  return updateProfileSchemaOutput.parse(response.data);
 }

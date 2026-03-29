@@ -7,7 +7,7 @@ import {
   CreateUserInput,
 } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
-import { CreateUserUseCase } from "../../../../core/use-case/create-user-use-case/create-user.use-case.js";
+import { CreateUserUseCase } from "../../../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
 
 export class CreateUserController {
@@ -35,7 +35,7 @@ export class CreateUserController {
       async (request: FastifyRequest<{ Body: CreateUserInput }>, reply) => {
         // Resolve the use case from the DI container
         const createUserUseCase = resolve<CreateUserUseCase>(
-          TOKENS.CreateUserUseCase
+          TOKENS.CreateUserUseCase,
         );
         console.log(request.body);
         // Execute the use case - errors are automatically caught by global error handler
@@ -47,7 +47,7 @@ export class CreateUserController {
           accessToken: result.accessToken,
           refreshToken: result.refreshToken,
         });
-      }
+      },
     );
   }
 }

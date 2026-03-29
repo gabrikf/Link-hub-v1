@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createUserSchemaInput } from "@repo/schemas";
 import type { CreateUserInput } from "@repo/schemas";
 import { useForm } from "react-hook-form";
+import { FiLoader, FiUserPlus } from "react-icons/fi";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { Button } from "../../../shared-components/button";
 import { Input } from "../../../shared-components/input";
@@ -73,7 +74,17 @@ export function RegisterForm({
       {errorMessage && <FeedbackMessage message={errorMessage} tone="error" />}
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Creating account..." : "Create account"}
+        {isPending ? (
+          <>
+            <FiLoader className="h-4 w-4 animate-spin" />
+            Creating account...
+          </>
+        ) : (
+          <>
+            <FiUserPlus className="h-4 w-4" />
+            Create account
+          </>
+        )}
       </Button>
     </form>
   );

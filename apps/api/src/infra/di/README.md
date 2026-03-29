@@ -44,14 +44,14 @@ All dependencies are registered as **singletons** by default:
 
 ```typescript
 import { resolve, TOKENS } from "../../../di/container.js";
-import { CreateUserUseCase } from "../../../../core/use-case/create-user-use-case/create-user.use-case.js";
+import { CreateUserUseCase } from "../../../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 
 export class CreateUserController {
   static async handle(server: FastifyInstance) {
     app.post("/register", async (request, reply) => {
       // Resolve the use case from the DI container
       const createUserUseCase = resolve<CreateUserUseCase>(
-        TOKENS.CreateUserUseCase
+        TOKENS.CreateUserUseCase,
       );
 
       // Execute the use case

@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { loginSchemaInput, loginSchemaOutput, LoginInput } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
-import { LoginUseCase } from "../../../../core/use-case/login-use-case/login.use-case.js";
+import { LoginUseCase } from "../../../../core/use-case/auth/login-use-case/login.use-case.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
 
 export class LoginController {
@@ -41,7 +41,7 @@ export class LoginController {
           accessToken: result.accessToken,
           refreshToken: result.refreshToken,
         });
-      }
+      },
     );
   }
 }

@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { resolve, TOKENS } from "../../../di/container.js";
 import { ILinkedInOAuthProvider } from "../../../../core/providers/oauth/linkedin-oauth-provider.js";
-import { OAuthSignInUseCase } from "../../../../core/use-case/oauth-sign-in-use-case/oauth-sign-in.use-case.js";
+import { OAuthSignInUseCase } from "../../../../core/use-case/auth/oauth-sign-in-use-case/oauth-sign-in.use-case.js";
 
 const LINKEDIN_STATE_COOKIE = "linkhub.linkedin.oauth.state";
 const OAUTH_STATE_TTL_SECONDS = 60 * 10;

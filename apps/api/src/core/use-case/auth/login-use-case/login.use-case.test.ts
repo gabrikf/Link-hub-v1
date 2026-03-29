@@ -1,12 +1,12 @@
 import { LoginUseCase } from "./login.use-case.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ILoginUseCaseInput } from "../types.js";
-import { UserEntity } from "../../entity/user/user-entity.js";
-import { InvalidCredentialsError } from "../../errors/index.js";
-import { InMemoryUsersRepository } from "../../repositories/user/in-memory-users-repository.js";
-import { InMemoryRefreshTokenRepository } from "../../repositories/refresh-token/in-memory-refresh-token-repository.js";
-import { InMemoryHashProvider } from "../../providers/hash/in-memory-hash-provider.js";
-import { InMemoryJwtProvider } from "../../providers/jwt/in-memory-jwt-provider.js";
+import { ILoginUseCaseInput } from "../../types.js";
+import { UserEntity } from "../../../entity/user/user-entity.js";
+import { InvalidCredentialsError } from "../../../errors/index.js";
+import { InMemoryUsersRepository } from "../../../repositories/user/in-memory-users-repository.js";
+import { InMemoryRefreshTokenRepository } from "../../../repositories/refresh-token/in-memory-refresh-token-repository.js";
+import { InMemoryHashProvider } from "../../../providers/hash/in-memory-hash-provider.js";
+import { InMemoryJwtProvider } from "../../../providers/jwt/in-memory-jwt-provider.js";
 
 const mockValidator = vi.fn();
 

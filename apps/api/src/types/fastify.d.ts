@@ -6,4 +6,10 @@ declare module "fastify" {
   interface FastifyInstance {
     db: PostgresJsDatabase<typeof schema>;
   }
+
+  interface FastifyRequest {
+    user?: {
+      id: string;
+    };
+  }
 }

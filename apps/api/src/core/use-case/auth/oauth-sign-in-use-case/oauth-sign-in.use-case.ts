@@ -1,13 +1,13 @@
-import { OAuthAccountEntity } from "../../entity/oauth-account/oauth-account-entity.js";
-import { RefreshTokenEntity } from "../../entity/refresh-token/refresh-token-entity.js";
-import { UserEntity } from "../../entity/user/user-entity.js";
-import { InvalidCredentialsError } from "../../errors/index.js";
-import { IHashProvider } from "../../providers/hash/hash-provider.js";
-import { IJwtProvider } from "../../providers/jwt/jwt-provider.js";
-import { IOAuthAccountRepository } from "../../repositories/oauth-account/oauth-account-repository.js";
-import { IRefreshTokenRepository } from "../../repositories/refresh-token/refresh-token-repository.js";
-import { IUsersRepository } from "../../repositories/user/user-repository.js";
-import { IOAuthSignInUseCaseInput } from "../types.js";
+import { OAuthAccountEntity } from "../../../entity/oauth-account/oauth-account-entity.js";
+import { RefreshTokenEntity } from "../../../entity/refresh-token/refresh-token-entity.js";
+import { UserEntity } from "../../../entity/user/user-entity.js";
+import { InvalidCredentialsError } from "../../../errors/index.js";
+import { IHashProvider } from "../../../providers/hash/hash-provider.js";
+import { IJwtProvider } from "../../../providers/jwt/jwt-provider.js";
+import { IOAuthAccountRepository } from "../../../repositories/oauth-account/oauth-account-repository.js";
+import { IRefreshTokenRepository } from "../../../repositories/refresh-token/refresh-token-repository.js";
+import { IUsersRepository } from "../../../repositories/user/user-repository.js";
+import { IOAuthSignInUseCaseInput } from "../../types.js";
 
 export class OAuthSignInUseCase {
   constructor(

@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchemaInput } from "@repo/schemas";
 import type { LoginInput } from "@repo/schemas";
 import { useForm } from "react-hook-form";
+import { FiLoader, FiLogIn } from "react-icons/fi";
 import { Input } from "../../../shared-components/input";
 import { Button } from "../../../shared-components/button";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
@@ -50,7 +51,17 @@ export function LoginForm({
       {errorMessage && <FeedbackMessage message={errorMessage} tone="error" />}
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Signing in..." : "Sign in"}
+        {isPending ? (
+          <>
+            <FiLoader className="h-4 w-4 animate-spin" />
+            Signing in...
+          </>
+        ) : (
+          <>
+            <FiLogIn className="h-4 w-4" />
+            Sign in
+          </>
+        )}
       </Button>
     </form>
   );

@@ -5,6 +5,8 @@ import {
 } from "@tanstack/react-router";
 import App from "./App";
 import { AuthPage } from "./features/auth/pages/auth-page";
+import { DashboardPage } from "./features/dashboard/pages/dashboard-page";
+import { PublicProfilePage } from "./features/profile/pages/public-profile-page";
 import { queryClient } from "./lib/query-client";
 
 const rootRoute = createRootRoute({
@@ -17,7 +19,23 @@ const indexRoute = createRoute({
   component: AuthPage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute]);
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dashboard",
+  component: DashboardPage,
+});
+
+const publicProfileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile/$username",
+  component: PublicProfilePage,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  dashboardRoute,
+  publicProfileRoute,
+]);
 
 export const router = createRouter({
   routeTree,

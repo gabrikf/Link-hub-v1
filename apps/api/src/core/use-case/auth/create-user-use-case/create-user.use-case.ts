@@ -1,11 +1,11 @@
-import { UserEntity } from "../../entity/user/user-entity.js";
-import { RefreshTokenEntity } from "../../entity/refresh-token/refresh-token-entity.js";
-import { IUsersRepository } from "../../repositories/user/user-repository.js";
-import { IRefreshTokenRepository } from "../../repositories/refresh-token/refresh-token-repository.js";
-import { IHashProvider } from "../../providers/hash/hash-provider.js";
-import { IJwtProvider } from "../../providers/jwt/jwt-provider.js";
-import { DuplicateResourceError } from "../../errors/index.js";
-import { ICreateUserUseCaseInput } from "../types.js";
+import { UserEntity } from "../../../entity/user/user-entity.js";
+import { RefreshTokenEntity } from "../../../entity/refresh-token/refresh-token-entity.js";
+import { IUsersRepository } from "../../../repositories/user/user-repository.js";
+import { IRefreshTokenRepository } from "../../../repositories/refresh-token/refresh-token-repository.js";
+import { IHashProvider } from "../../../providers/hash/hash-provider.js";
+import { IJwtProvider } from "../../../providers/jwt/jwt-provider.js";
+import { DuplicateResourceError } from "../../../errors/index.js";
+import { ICreateUserUseCaseInput } from "../../types.js";
 
 export class CreateUserUseCase {
   constructor(

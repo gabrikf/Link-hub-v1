@@ -13,7 +13,8 @@ export interface ILoginUseCaseInput {
 }
 
 export interface IGoogleSignInUseCaseInput {
-  idToken: string;
+  idToken?: string;
+  accessToken?: string;
 }
 
 export interface IOAuthSignInUseCaseInput {

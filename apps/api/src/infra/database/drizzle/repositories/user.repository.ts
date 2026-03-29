@@ -66,6 +66,25 @@ export class DrizzleUserRepository implements IUsersRepository {
     });
   }
 
+  async findByLogin(login: string): Promise<UserEntity | null> {
+    const [user] = await db.select().from(users).where(eq(users.login, login));
+
+    if (!user) return null;
+
+    return new UserEntity({
+      id: user.id,
+      email: user.email,
+      login: user.login,
+      name: user.name,
+      password: user.password,
+      description: user.description,
+      avatarUrl: user.avatarUrl,
+      googleId: user.googleId,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    });
+  }
+
   async findByGoogleId(googleId: string): Promise<UserEntity | null> {
     const [user] = await db
       .select()
