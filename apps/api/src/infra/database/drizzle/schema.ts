@@ -73,6 +73,7 @@ export const links = pgTable("links", {
     .references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   url: text("url").notNull(),
+  icon: text("icon"),
   isPublic: boolean("is_public").notNull().default(true),
   order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -81,6 +82,130 @@ export const links = pgTable("links", {
     .defaultNow()
     .$onUpdateFn(() => new Date()),
 });
+
+export const resumes = pgTable(
+  "resumes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    headlineTitle: text("headline_title"),
+    summary: text("summary"),
+    totalYearsExperience: integer("total_years_experience"),
+    location: text("location"),
+    seniorityLevel: text("seniority_level"),
+    workModel: text("work_model"),
+    contractType: text("contract_type"),
+    salaryExpectationMin: integer("salary_expectation_min"),
+    salaryExpectationMax: integer("salary_expectation_max"),
+    spokenLanguages: text("spoken_languages").array().notNull().default([]),
+    noticePeriod: text("notice_period"),
+    openToRelocation: boolean("open_to_relocation").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [unique("resumes_user_id_unique").on(table.userId)],
+);
+
+export const skillsCatalog = pgTable(
+  "skills_catalog",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    normalizedName: text("normalized_name").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    unique("skills_catalog_name_unique").on(table.name),
+    unique("skills_catalog_normalized_name_unique").on(table.normalizedName),
+  ],
+);
+
+export const titlesCatalog = pgTable(
+  "titles_catalog",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    normalizedName: text("normalized_name").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    unique("titles_catalog_name_unique").on(table.name),
+    unique("titles_catalog_normalized_name_unique").on(table.normalizedName),
+  ],
+);
+
+export const resumeSkills = pgTable(
+  "resume_skills",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    resumeId: uuid("resume_id")
+      .notNull()
+      .references(() => resumes.id, { onDelete: "cascade" }),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => skillsCatalog.id, { onDelete: "cascade" }),
+    yearsExperience: integer("years_experience"),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    unique("resume_skills_resume_id_skill_id_unique").on(
+      table.resumeId,
+      table.skillId,
+    ),
+  ],
+);
+
+export const resumeTitles = pgTable(
+  "resume_titles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    resumeId: uuid("resume_id")
+      .notNull()
+      .references(() => resumes.id, { onDelete: "cascade" }),
+    titleId: uuid("title_id")
+      .notNull()
+      .references(() => titlesCatalog.id, { onDelete: "cascade" }),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    unique("resume_titles_resume_id_title_id_unique").on(
+      table.resumeId,
+      table.titleId,
+    ),
+  ],
+);
 
 export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   user: one(users, {
@@ -93,6 +218,9 @@ export const userRelations = relations(users, ({ many }) => ({
   refreshTokens: many(refreshTokens),
   oauthAccounts: many(oauthAccounts),
   links: many(links),
+  resumes: many(resumes),
+  createdSkills: many(skillsCatalog),
+  createdTitles: many(titlesCatalog),
 }));
 
 export const oauthAccountRelations = relations(oauthAccounts, ({ one }) => ({
@@ -106,5 +234,58 @@ export const linksRelations = relations(links, ({ one }) => ({
   user: one(users, {
     fields: [links.userId],
     references: [users.id],
+  }),
+}));
+
+export const resumesRelations = relations(resumes, ({ one, many }) => ({
+  user: one(users, {
+    fields: [resumes.userId],
+    references: [users.id],
+  }),
+  skills: many(resumeSkills),
+  titles: many(resumeTitles),
+}));
+
+export const skillsCatalogRelations = relations(
+  skillsCatalog,
+  ({ one, many }) => ({
+    createdBy: one(users, {
+      fields: [skillsCatalog.createdByUserId],
+      references: [users.id],
+    }),
+    resumeSkills: many(resumeSkills),
+  }),
+);
+
+export const titlesCatalogRelations = relations(
+  titlesCatalog,
+  ({ one, many }) => ({
+    createdBy: one(users, {
+      fields: [titlesCatalog.createdByUserId],
+      references: [users.id],
+    }),
+    resumeTitles: many(resumeTitles),
+  }),
+);
+
+export const resumeSkillsRelations = relations(resumeSkills, ({ one }) => ({
+  resume: one(resumes, {
+    fields: [resumeSkills.resumeId],
+    references: [resumes.id],
+  }),
+  skill: one(skillsCatalog, {
+    fields: [resumeSkills.skillId],
+    references: [skillsCatalog.id],
+  }),
+}));
+
+export const resumeTitlesRelations = relations(resumeTitles, ({ one }) => ({
+  resume: one(resumes, {
+    fields: [resumeTitles.resumeId],
+    references: [resumes.id],
+  }),
+  title: one(titlesCatalog, {
+    fields: [resumeTitles.titleId],
+    references: [titlesCatalog.id],
   }),
 }));

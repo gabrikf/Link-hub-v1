@@ -110,6 +110,13 @@ reset() {
     fi
 }
 
+# Seed database defaults
+seed() {
+    print_status "Running database seed..."
+    npm run --workspace=api db:seed
+    print_status "Seed finished"
+}
+
 # Show status
 status() {
     check_docker
@@ -130,6 +137,7 @@ show_help() {
     echo "  connect     Connect to database shell"
     echo "  status      Show services status"
     echo "  reset       Reset database (removes all data)"
+    echo "  seed        Seed default catalog data"
     echo "  help        Show this help"
     echo ""
     echo "Examples:"
@@ -160,6 +168,9 @@ case "${1:-help}" in
         ;;
     reset)
         reset
+        ;;
+    seed)
+        seed
         ;;
     help|*)
         show_help

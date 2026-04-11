@@ -1,5 +1,6 @@
 import { AUTH_TABS } from "../constants/auth-tabs";
 import type { AuthTab } from "../types/auth-tab";
+import { Button } from "../../../shared-components/button";
 
 type AuthTabsProps = {
   activeTab: AuthTab;
@@ -13,14 +14,21 @@ export function AuthTabs({ activeTab, onTabChange }: AuthTabsProps) {
         const isActive = activeTab === tab;
 
         return (
-          <button
+          <Button
             key={tab}
             type="button"
+            variant={isActive ? "primary" : "ghost"}
+            size="md"
+            fullWidth
             onClick={() => onTabChange(tab)}
-            className={`rounded-md px-3 py-2 ${isActive ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "cursor-pointer text-zinc-600 dark:text-zinc-300"}`}
+            className={
+              isActive
+                ? "rounded-md"
+                : "rounded-md text-zinc-600 dark:text-zinc-300"
+            }
           >
             {tab === "login" ? "Login" : "Register"}
-          </button>
+          </Button>
         );
       })}
     </div>

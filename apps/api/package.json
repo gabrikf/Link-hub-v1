@@ -15,6 +15,7 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx src/infra/database/drizzle/seed.ts",
     "migrate:dev": "drizzle-kit generate && drizzle-kit migrate"
   },
   "keywords": [],

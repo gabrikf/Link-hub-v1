@@ -7,6 +7,7 @@ export interface ICreateLinkInput {
   userId: string;
   title: string;
   url: string;
+  icon?: string | null;
   isPublic: boolean;
 }
 
@@ -31,6 +32,7 @@ export class CreateLinkUseCase {
       userId: input.userId,
       title: input.title,
       url: input.url,
+      icon: input.icon ?? null,
       isPublic: input.isPublic,
       order: lastOrder === null ? 0 : lastOrder + 1,
     });

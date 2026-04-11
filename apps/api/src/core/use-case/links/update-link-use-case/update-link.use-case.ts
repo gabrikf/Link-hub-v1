@@ -1,4 +1,7 @@
-import { ForbiddenError, ResourceNotFoundError } from "../../../errors/index.js";
+import {
+  ForbiddenError,
+  ResourceNotFoundError,
+} from "../../../errors/index.js";
 import { ILinksRepository } from "../../../repositories/link/link-repository.js";
 
 export interface IUpdateLinkInput {
@@ -6,6 +9,7 @@ export interface IUpdateLinkInput {
   linkId: string;
   title: string;
   url: string;
+  icon?: string | null;
   isPublic: boolean;
 }
 
@@ -26,6 +30,7 @@ export class UpdateLinkUseCase {
     link.updateContent({
       title: input.title,
       url: input.url,
+      icon: input.icon ?? null,
       isPublic: input.isPublic,
     });
 

@@ -14,6 +14,7 @@ import {
 } from "../../../lib/auth-api";
 import { setAuthTokens } from "../../../lib/auth-tokens";
 import { useUserInfoStore } from "../../../lib/user-info-store";
+import { Button } from "../../../shared-components/button";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { AuthTabs } from "../components/auth-tabs";
 import { LoginForm } from "../components/login-form";
@@ -149,7 +150,7 @@ export function AuthPage() {
       <section className="w-full max-w-md space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <header className="space-y-1">
           <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-sm">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-linear-to-br from-sky-500 to-teal-500 text-white shadow-sm">
               <FiLink2 aria-hidden="true" className="h-4 w-4" />
             </span>
             LinkHub
@@ -180,8 +181,10 @@ export function AuthPage() {
             <>
               <p className="text-xs text-zinc-500">or continue with</p>
 
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                fullWidth
                 onClick={() => googleLogin()}
                 className="relative flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
@@ -189,7 +192,7 @@ export function AuthPage() {
                   <FcGoogle aria-hidden="true" />
                 </span>
                 Sign in with Google
-              </button>
+              </Button>
 
               {googleSignInMutation.error?.message && (
                 <FeedbackMessage

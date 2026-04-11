@@ -1,8 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { FiGrid, FiLogIn, FiUser } from "react-icons/fi";
+import {
+  FiExternalLink,
+  FiGrid,
+  FiLink2,
+  FiLogIn,
+  FiUser,
+} from "react-icons/fi";
 import { fetchPublicProfile } from "../../../lib/auth-api";
+import { getLinkIconOption } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
+import { Avatar } from "../../../shared-components/avatar";
 
 export function PublicProfilePage() {
   const { username } = useParams({ from: "/profile/$username" });
@@ -36,13 +44,14 @@ export function PublicProfilePage() {
   }
 
   const profile = profileQuery.data;
+  const hasLinks = profile.links.length > 0;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center gap-4 px-4 py-10">
+    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center gap-5 px-4 py-10">
       {userInfo ? (
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-2 self-end rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+          className="inline-flex items-center gap-2 self-end rounded-full border border-zinc-300 bg-white/70 px-3 py-2 text-sm shadow-sm transition hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:bg-zinc-900"
         >
           <FiGrid className="h-4 w-4" aria-hidden="true" />
           Dashboard
@@ -50,54 +59,92 @@ export function PublicProfilePage() {
       ) : (
         <Link
           to="/"
-          className="inline-flex items-center gap-2 self-end rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+          className="inline-flex items-center gap-2 self-end rounded-full border border-zinc-300 bg-white/70 px-3 py-2 text-sm shadow-sm transition hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:bg-zinc-900"
         >
           <FiLogIn className="h-4 w-4" aria-hidden="true" />
           Login
         </Link>
       )}
 
-      <div className="w-full rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        {profile.userPhoto ? (
-          <img
-            src={profile.userPhoto}
-            alt={profile.name}
-            className="mx-auto h-24 w-24 rounded-full border border-zinc-200 object-cover dark:border-zinc-700"
+      <div className="w-full rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 p-8 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900">
+        <header className="flex flex-col items-center gap-4 text-center">
+          <Avatar
+            name={profile.name}
+            imageUrl={profile.userPhoto}
+            size={92}
+            className="ring-2 ring-zinc-300/60 shadow-lg dark:ring-zinc-700/70"
           />
-        ) : null}
 
-        <h1 className="mt-4 inline-flex items-center gap-2 text-2xl font-bold">
-          <FiUser className="h-5 w-5 text-zinc-500 dark:text-zinc-300" />
-          {profile.name}
-        </h1>
-        <p className="text-zinc-600 dark:text-zinc-400">@{profile.username}</p>
-        {profile.description ? (
-          <p className="mx-auto mt-3 max-w-xl text-sm text-zinc-700 dark:text-zinc-300">
-            {profile.description}
-          </p>
-        ) : null}
+          <div className="min-w-0 text-center">
+            <h1 className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight">
+              <FiUser className="h-5 w-5 text-zinc-500 dark:text-zinc-300" />
+              <span className="truncate">{profile.name}</span>
+            </h1>
+            <p className="text-zinc-600 dark:text-zinc-400">
+              @{profile.username}
+            </p>
+            {profile.description ? (
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                {profile.description}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                No profile description yet.
+              </p>
+            )}
+          </div>
+        </header>
 
-        <div className="mt-8 space-y-3">
-          {profile.links.map((link) => (
-            <a
-              key={link.id}
-              href={link.url}
-              target="_blank"
-              rel="noreferrer"
-              className="block rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-left transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800/40 dark:hover:bg-zinc-800"
-            >
-              <p className="inline-flex items-center gap-2 font-medium">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-teal-500 text-white">
-                  <FiGrid className="h-3.5 w-3.5" aria-hidden="true" />
-                </span>
-                {link.title}
-              </p>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                {link.url}
-              </p>
-            </a>
-          ))}
-        </div>
+        <section className="mt-8 space-y-3">
+          {hasLinks ? (
+            profile.links.map((link) => {
+              const selectedIcon = getLinkIconOption(link.icon);
+
+              return (
+                <a
+                  key={link.id}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group block rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:border-zinc-600"
+                >
+                  <p className="inline-flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
+                    <span
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full shadow-sm"
+                      style={{
+                        color: selectedIcon?.color,
+                        background:
+                          selectedIcon?.backgroundColor ??
+                          "linear-gradient(135deg, #0EA5E9, #14B8A6)",
+                      }}
+                    >
+                      {selectedIcon ? (
+                        <selectedIcon.Icon
+                          className="h-3.5 w-3.5"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <FiLink2
+                          className="h-3.5 w-3.5 text-white"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </span>
+                    <span className="truncate">{link.title}</span>
+                    <FiExternalLink className="h-4 w-4 text-zinc-400 transition group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
+                  </p>
+                  <p className="mt-1 truncate text-sm text-zinc-600 dark:text-zinc-400">
+                    {link.url}
+                  </p>
+                </a>
+              );
+            })
+          ) : (
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
+              No public links yet.
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );

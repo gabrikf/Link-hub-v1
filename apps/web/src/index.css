@@ -3,6 +3,30 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  :root {
+    --link-icon-x-twitter-fg: #111111;
+    --link-icon-x-twitter-bg: #11111120;
+    --link-icon-tiktok-fg: #111111;
+    --link-icon-github-fg: #111827;
+    --link-icon-github-bg: #e5e7eb;
+    --link-icon-tiktok-bg: #11111120;
+    --link-icon-medium-fg: #12100e;
+    --link-icon-medium-bg: #12100e20;
+    --link-icon-snapchat-bg: #b89b00;
+  }
+
+  .dark {
+    --link-icon-x-twitter-fg: #f8fafc;
+    --link-icon-x-twitter-bg: #374151;
+    --link-icon-tiktok-fg: #f8fafc;
+    --link-icon-github-fg: #f8fafc;
+    --link-icon-github-bg: #4b5563;
+    --link-icon-tiktok-bg: #374151;
+    --link-icon-medium-fg: #f8fafc;
+    --link-icon-medium-bg: #374151;
+    --link-icon-snapchat-bg: #b8a500;
+  }
+
   html,
   body,
   #root {

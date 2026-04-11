@@ -101,7 +101,12 @@ export class LinksController {
       },
       async (
         request: FastifyRequest<{
-          Body: { title: string; url: string; isPublic: boolean };
+          Body: {
+            title: string;
+            url: string;
+            icon?: string | null;
+            isPublic: boolean;
+          };
         }>,
         reply,
       ) => {
@@ -113,6 +118,7 @@ export class LinksController {
           userId: request.user!.id,
           title: request.body.title,
           url: request.body.url,
+          icon: request.body.icon,
           isPublic: request.body.isPublic,
         });
 
@@ -144,7 +150,12 @@ export class LinksController {
       async (
         request: FastifyRequest<{
           Params: { id: string };
-          Body: { title: string; url: string; isPublic: boolean };
+          Body: {
+            title: string;
+            url: string;
+            icon?: string | null;
+            isPublic: boolean;
+          };
         }>,
         reply,
       ) => {
@@ -157,6 +168,7 @@ export class LinksController {
           linkId: request.params.id,
           title: request.body.title,
           url: request.body.url,
+          icon: request.body.icon,
           isPublic: request.body.isPublic,
         });
 
