@@ -1,5 +1,7 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
+import { FiX } from "react-icons/fi";
+import { Button } from "./button";
 
 type DialogProps = {
   title?: string;
@@ -39,6 +41,19 @@ export function Dialog({
             contentClassName,
           )}
         >
+          <RadixDialog.Close asChild>
+            <Button
+              type="button"
+              variant="icon"
+              size="icon"
+              fullWidth={false}
+              className="absolute right-2 top-2"
+              aria-label="Close resume editor"
+            >
+              <FiX className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </RadixDialog.Close>
+
           {title ? (
             <RadixDialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               {title}
@@ -54,7 +69,7 @@ export function Dialog({
           {children ? <div className="mt-4">{children}</div> : null}
 
           {buttons ? (
-            <div className="mt-5 flex justify-end gap-2">{buttons}</div>
+            <div className="mt-1 flex justify-end gap-2">{buttons}</div>
           ) : null}
         </RadixDialog.Content>
       </RadixDialog.Portal>

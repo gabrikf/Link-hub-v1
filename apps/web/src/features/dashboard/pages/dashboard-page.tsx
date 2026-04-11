@@ -7,15 +7,24 @@ import {
 import type { LinkIcon, LinkResponse } from "@repo/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, type ReactNode } from "react";
+import axios from "axios";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import {
   createLink,
+  createSkillCatalogItem,
+  createTitleCatalogItem,
   deleteLink,
+  saveResumeSkillsBulk,
+  saveResumeTitlesBulk,
+  fetchMyResume,
   fetchLinks,
   fetchMyProfile,
+  fetchSkillsCatalog,
+  fetchTitlesCatalog,
   reorderLinks,
   toggleLinkVisibility,
+  upsertResume,
   updateLink,
   updateProfile,
 } from "../../../lib/auth-api";
@@ -23,6 +32,7 @@ import { clearAuthTokens, getAuthTokens } from "../../../lib/auth-tokens";
 import { detectLinkIcon, LINK_ICON_OPTIONS } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Avatar } from "../../../shared-components/avatar";
+import { Button } from "../../../shared-components/button";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { DashboardHeader } from "../components/dashboard-header";
 import {
@@ -34,6 +44,8 @@ import {
   type ProfileFormValues,
 } from "../components/dashboard-profile-form";
 import { SortableLinkItem } from "../components/sortable-link-item";
+import { ResumeEditDialog } from "../../resume/components/resume-edit-dialog";
+import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
 
 type LinkIconSelectOption = {
   value: LinkIcon | "";
@@ -53,6 +65,7 @@ export function DashboardPage() {
   const clearUserInfo = useUserInfoStore((state) => state.clearUserInfo);
 
   const hasSession = Boolean(getAuthTokens() && userInfo);
+  const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
 
   const {
     register,
@@ -86,6 +99,35 @@ export function DashboardPage() {
     enabled: hasSession,
   });
 
+  const resumeQuery = useQuery({
+    queryKey: ["resume"],
+    enabled: hasSession,
+    retry: false,
+    queryFn: async () => {
+      try {
+        return await fetchMyResume();
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return null;
+        }
+
+        throw error;
+      }
+    },
+  });
+
+  const skillsCatalogQuery = useQuery({
+    queryKey: ["resume-catalog-skills"],
+    enabled: hasSession,
+    queryFn: fetchSkillsCatalog,
+  });
+
+  const titlesCatalogQuery = useQuery({
+    queryKey: ["resume-catalog-titles"],
+    enabled: hasSession,
+    queryFn: fetchTitlesCatalog,
+  });
+
   const invalidatePublicProfileCache = () => {
     const currentUsername = meQuery.data?.username;
 
@@ -93,11 +135,15 @@ export function DashboardPage() {
       queryClient.invalidateQueries({
         queryKey: ["public-profile", currentUsername],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["public-resume", currentUsername],
+      });
 
       return;
     }
 
     queryClient.invalidateQueries({ queryKey: ["public-profile"] });
+    queryClient.invalidateQueries({ queryKey: ["public-resume"] });
   };
 
   useEffect(() => {
@@ -174,6 +220,44 @@ export function DashboardPage() {
     mutationFn: updateProfile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["me"] });
+      invalidatePublicProfileCache();
+    },
+  });
+
+  const upsertResumeMutation = useMutation({
+    mutationFn: upsertResume,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resume"] });
+      invalidatePublicProfileCache();
+    },
+  });
+
+  const createSkillCatalogMutation = useMutation({
+    mutationFn: createSkillCatalogItem,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resume-catalog-skills"] });
+    },
+  });
+
+  const createTitleCatalogMutation = useMutation({
+    mutationFn: createTitleCatalogItem,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resume-catalog-titles"] });
+    },
+  });
+
+  const saveResumeSkillsBulkMutation = useMutation({
+    mutationFn: saveResumeSkillsBulk,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resume"] });
+      invalidatePublicProfileCache();
+    },
+  });
+
+  const saveResumeTitlesBulkMutation = useMutation({
+    mutationFn: saveResumeTitlesBulk,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resume"] });
       invalidatePublicProfileCache();
     },
   });
@@ -357,6 +441,50 @@ export function DashboardPage() {
             message="Unable to reorder links right now."
           />
         ) : null}
+
+        <ResumeReadOnlyCard
+          resume={resumeQuery.data ?? null}
+          isLoading={resumeQuery.isLoading}
+          subtitle="Public-facing resume snapshot"
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              fullWidth={false}
+              className="rounded-full"
+              onClick={() => setIsResumeDialogOpen(true)}
+            >
+              Edit
+            </Button>
+          }
+        />
+
+        <ResumeEditDialog
+          open={isResumeDialogOpen}
+          onOpenChange={setIsResumeDialogOpen}
+          resume={resumeQuery.data ?? null}
+          skillsCatalog={skillsCatalogQuery.data ?? []}
+          titlesCatalog={titlesCatalogQuery.data ?? []}
+          isSavingResume={upsertResumeMutation.isPending}
+          isSavingSkills={saveResumeSkillsBulkMutation.isPending}
+          isSavingTitles={saveResumeTitlesBulkMutation.isPending}
+          onSaveResume={async (payload) => {
+            await upsertResumeMutation.mutateAsync(payload);
+          }}
+          onSaveSkillsBulk={async (payload) => {
+            await saveResumeSkillsBulkMutation.mutateAsync(payload);
+          }}
+          onSaveTitlesBulk={async (payload) => {
+            await saveResumeTitlesBulkMutation.mutateAsync(payload);
+          }}
+          onCreateSkillCatalogItem={async (name) =>
+            createSkillCatalogMutation.mutateAsync({ name })
+          }
+          onCreateTitleCatalogItem={async (name) =>
+            createTitleCatalogMutation.mutateAsync({ name })
+          }
+        />
       </section>
 
       <aside className="w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:w-1/3">

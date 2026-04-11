@@ -26,6 +26,25 @@ export class InMemoryResumeSkillRepository implements IResumeSkillRepository {
     );
   }
 
+  async replaceForResume(
+    resumeId: string,
+    items: Array<{ skillId: string; yearsExperience: number | null }>,
+  ): Promise<void> {
+    this.items = this.items.filter((item) => item.resumeId !== resumeId);
+
+    items.forEach((item, index) => {
+      this.items.push(
+        ResumeSkillEntity.create({
+          resumeId,
+          skillId: item.skillId,
+          skillName: "Skill",
+          yearsExperience: item.yearsExperience,
+          displayOrder: index,
+        }),
+      );
+    });
+  }
+
   async create(input: {
     resumeId: string;
     skillId: string;

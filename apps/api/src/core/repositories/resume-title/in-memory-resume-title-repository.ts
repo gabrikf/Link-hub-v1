@@ -34,6 +34,25 @@ export class InMemoryResumeTitleRepository implements IResumeTitleRepository {
     });
   }
 
+  async replaceForResume(
+    resumeId: string,
+    items: Array<{ titleId: string; isPrimary: boolean }>,
+  ): Promise<void> {
+    this.items = this.items.filter((item) => item.resumeId !== resumeId);
+
+    items.forEach((item, index) => {
+      this.items.push(
+        ResumeTitleEntity.create({
+          resumeId,
+          titleId: item.titleId,
+          titleName: "Title",
+          isPrimary: item.isPrimary,
+          displayOrder: index,
+        }),
+      );
+    });
+  }
+
   async create(input: {
     resumeId: string;
     titleId: string;

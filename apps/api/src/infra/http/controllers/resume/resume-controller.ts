@@ -3,6 +3,8 @@ import { ZodTypeProvider } from "fastify-type-provider-zod";
 import {
   addResumeSkillInputSchema,
   addResumeTitleInputSchema,
+  bulkResumeSkillsInputSchema,
+  bulkResumeTitlesInputSchema,
   catalogItemSchema,
   createCatalogItemInputSchema,
   publicResumeSchema,
@@ -24,6 +26,8 @@ import { ListTitlesCatalogUseCase } from "../../../../core/use-case/resumes/list
 import { CreateCustomTitleUseCase } from "../../../../core/use-case/resumes/create-custom-title-use-case/create-custom-title.use-case.js";
 import { AddTitleToResumeUseCase } from "../../../../core/use-case/resumes/add-title-to-resume-use-case/add-title-to-resume.use-case.js";
 import { GetPublicResumeByUsernameUseCase } from "../../../../core/use-case/resumes/get-public-resume-by-username-use-case/get-public-resume-by-username.use-case.js";
+import { SaveResumeSkillsBulkUseCase } from "../../../../core/use-case/resumes/save-resume-skills-bulk-use-case/save-resume-skills-bulk.use-case.js";
+import { SaveResumeTitlesBulkUseCase } from "../../../../core/use-case/resumes/save-resume-titles-bulk-use-case/save-resume-titles-bulk.use-case.js";
 
 export class ResumeController {
   static handle(server: FastifyInstance) {
@@ -235,6 +239,50 @@ export class ResumeController {
       },
     );
 
+    app.put(
+      "/resume/skills/bulk",
+      {
+        preHandler: authGuard,
+        schema: {
+          tags: ["Resume"],
+          summary: "Replace all skills in current resume",
+          body: bulkResumeSkillsInputSchema,
+          response: {
+            200: resumeSkillSchema.array(),
+            ...commonErrorResponses([
+              "badRequest",
+              "unauthorized",
+              "notFound",
+              "internalServerError",
+            ]),
+          },
+        },
+      },
+      async (
+        request: FastifyRequest<{
+          Body: {
+            items: Array<{
+              skillId: string;
+              yearsExperience?: number | null;
+            }>;
+          };
+        }>,
+        reply,
+      ) => {
+        const saveResumeSkillsBulkUseCase =
+          resolve<SaveResumeSkillsBulkUseCase>(
+            TOKENS.SaveResumeSkillsBulkUseCase,
+          );
+
+        const result = await saveResumeSkillsBulkUseCase.execute({
+          userId: request.user!.id,
+          items: request.body.items,
+        });
+
+        reply.status(200).send(result);
+      },
+    );
+
     app.get(
       "/resume/catalog/titles",
       {
@@ -340,6 +388,50 @@ export class ResumeController {
         });
 
         reply.status(201).send(result);
+      },
+    );
+
+    app.put(
+      "/resume/titles/bulk",
+      {
+        preHandler: authGuard,
+        schema: {
+          tags: ["Resume"],
+          summary: "Replace all titles in current resume",
+          body: bulkResumeTitlesInputSchema,
+          response: {
+            200: resumeTitleSchema.array(),
+            ...commonErrorResponses([
+              "badRequest",
+              "unauthorized",
+              "notFound",
+              "internalServerError",
+            ]),
+          },
+        },
+      },
+      async (
+        request: FastifyRequest<{
+          Body: {
+            items: Array<{
+              titleId: string;
+              isPrimary?: boolean;
+            }>;
+          };
+        }>,
+        reply,
+      ) => {
+        const saveResumeTitlesBulkUseCase =
+          resolve<SaveResumeTitlesBulkUseCase>(
+            TOKENS.SaveResumeTitlesBulkUseCase,
+          );
+
+        const result = await saveResumeTitlesBulkUseCase.execute({
+          userId: request.user!.id,
+          items: request.body.items,
+        });
+
+        reply.status(200).send(result);
       },
     );
 

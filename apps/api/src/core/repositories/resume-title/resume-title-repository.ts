@@ -4,6 +4,13 @@ export interface IResumeTitleRepository {
   listByResumeId(resumeId: string): Promise<ResumeTitleEntity[]>;
   findLastOrderByResumeId(resumeId: string): Promise<number | null>;
   exists(resumeId: string, titleId: string): Promise<boolean>;
+  replaceForResume(
+    resumeId: string,
+    items: Array<{
+      titleId: string;
+      isPrimary: boolean;
+    }>,
+  ): Promise<void>;
   create(input: {
     resumeId: string;
     titleId: string;

@@ -1,4 +1,10 @@
 import {
+  addResumeSkillInputSchema,
+  addResumeTitleInputSchema,
+  bulkResumeSkillsInputSchema,
+  bulkResumeTitlesInputSchema,
+  catalogItemSchema,
+  createCatalogItemInputSchema,
   createLinkSchemaInput,
   createUserSchemaInput,
   createUserSchemaOutput,
@@ -7,12 +13,21 @@ import {
   linkSchema,
   loginSchemaInput,
   loginSchemaOutput,
+  publicResumeSchema,
   profileSchema,
   reorderLinksSchemaInput,
+  resumeSchema,
+  resumeSkillSchema,
+  resumeTitleSchema,
+  seniorityLevelSchema,
+  contractTypeSchema,
+  workModelSchema,
   toggleLinkVisibilitySchemaInput,
+  upsertResumeInputSchema,
   updateLinkSchemaInput,
   updateProfileSchemaInput,
   updateProfileSchemaOutput,
+  type ResumeResponse,
   type CreateUserInput,
   type CreateUserOutput,
   type CreateLinkInput,
@@ -33,6 +48,7 @@ import axios, {
   type AxiosRequestConfig,
   type AxiosResponse,
 } from "axios";
+import type { z } from "zod";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
 
 const DEFAULT_API_BASE_URL = "http://localhost:3333";
@@ -51,6 +67,24 @@ export const getLinkedInSignInUrl = (): string => {
 
 type ApiErrorShape = {
   message?: string;
+};
+
+export type UpsertResumeInput = z.input<typeof upsertResumeInputSchema>;
+export type CatalogItem = z.infer<typeof catalogItemSchema>;
+export type CreateCatalogItemInput = z.input<
+  typeof createCatalogItemInputSchema
+>;
+export type AddResumeSkillInput = z.input<typeof addResumeSkillInputSchema>;
+export type AddResumeTitleInput = z.input<typeof addResumeTitleInputSchema>;
+export type BulkResumeSkillsInput = z.input<typeof bulkResumeSkillsInputSchema>;
+export type BulkResumeTitlesInput = z.input<typeof bulkResumeTitlesInputSchema>;
+export type ResumeSkill = z.infer<typeof resumeSkillSchema>;
+export type ResumeTitle = z.infer<typeof resumeTitleSchema>;
+export type PublicResumeResponse = z.infer<typeof publicResumeSchema>;
+export type ResumeFormEnums = {
+  seniorityLevel: z.infer<typeof seniorityLevelSchema>;
+  workModel: z.infer<typeof workModelSchema>;
+  contractType: z.infer<typeof contractTypeSchema>;
 };
 
 const apiClient = axios.create({
@@ -228,4 +262,116 @@ export async function updateProfile(
   });
 
   return updateProfileSchemaOutput.parse(response.data);
+}
+
+export async function fetchMyResume(): Promise<ResumeResponse> {
+  const response = await fetchWithTokens("/me/resume", { method: "GET" });
+  return resumeSchema.parse(response.data);
+}
+
+export async function upsertResume(
+  payload: UpsertResumeInput,
+): Promise<ResumeResponse> {
+  const body = upsertResumeInputSchema.parse(payload);
+  const response = await fetchWithTokens("/me/resume", {
+    method: "PUT",
+    data: body,
+  });
+
+  return resumeSchema.parse(response.data);
+}
+
+export async function fetchSkillsCatalog(): Promise<CatalogItem[]> {
+  const response = await fetchWithTokens("/resume/catalog/skills", {
+    method: "GET",
+  });
+
+  return catalogItemSchema.array().parse(response.data);
+}
+
+export async function createSkillCatalogItem(
+  payload: CreateCatalogItemInput,
+): Promise<CatalogItem> {
+  const body = createCatalogItemInputSchema.parse(payload);
+  const response = await fetchWithTokens("/resume/catalog/skills", {
+    method: "POST",
+    data: body,
+  });
+
+  return catalogItemSchema.parse(response.data);
+}
+
+export async function addResumeSkill(
+  payload: AddResumeSkillInput,
+): Promise<ResumeSkill> {
+  const body = addResumeSkillInputSchema.parse(payload);
+  const response = await fetchWithTokens("/resume/skills", {
+    method: "POST",
+    data: body,
+  });
+
+  return resumeSkillSchema.parse(response.data);
+}
+
+export async function saveResumeSkillsBulk(
+  payload: BulkResumeSkillsInput,
+): Promise<ResumeSkill[]> {
+  const body = bulkResumeSkillsInputSchema.parse(payload);
+  const response = await fetchWithTokens("/resume/skills/bulk", {
+    method: "PUT",
+    data: body,
+  });
+
+  return resumeSkillSchema.array().parse(response.data);
+}
+
+export async function fetchTitlesCatalog(): Promise<CatalogItem[]> {
+  const response = await fetchWithTokens("/resume/catalog/titles", {
+    method: "GET",
+  });
+
+  return catalogItemSchema.array().parse(response.data);
+}
+
+export async function createTitleCatalogItem(
+  payload: CreateCatalogItemInput,
+): Promise<CatalogItem> {
+  const body = createCatalogItemInputSchema.parse(payload);
+  const response = await fetchWithTokens("/resume/catalog/titles", {
+    method: "POST",
+    data: body,
+  });
+
+  return catalogItemSchema.parse(response.data);
+}
+
+export async function addResumeTitle(
+  payload: AddResumeTitleInput,
+): Promise<ResumeTitle> {
+  const body = addResumeTitleInputSchema.parse(payload);
+  const response = await fetchWithTokens("/resume/titles", {
+    method: "POST",
+    data: body,
+  });
+
+  return resumeTitleSchema.parse(response.data);
+}
+
+export async function saveResumeTitlesBulk(
+  payload: BulkResumeTitlesInput,
+): Promise<ResumeTitle[]> {
+  const body = bulkResumeTitlesInputSchema.parse(payload);
+  const response = await fetchWithTokens("/resume/titles/bulk", {
+    method: "PUT",
+    data: body,
+  });
+
+  return resumeTitleSchema.array().parse(response.data);
+}
+
+export async function fetchPublicResume(
+  username: string,
+): Promise<PublicResumeResponse> {
+  const response = await apiClient.get(`/profile/${username}/resume`);
+  return publicResumeSchema.parse(response.data);
 }

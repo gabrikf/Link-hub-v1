@@ -109,8 +109,45 @@ export const addResumeTitleInputSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
+export const bulkResumeSkillsInputSchema = z.object({
+  items: z
+    .array(addResumeSkillInputSchema)
+    .max(100)
+    .refine(
+      (items) =>
+        new Set(items.map((item) => item.skillId)).size === items.length,
+      {
+        message: "Duplicate skills are not allowed",
+        path: ["items"],
+      },
+    ),
+});
+
+export const bulkResumeTitlesInputSchema = z.object({
+  items: z
+    .array(addResumeTitleInputSchema)
+    .max(100)
+    .refine(
+      (items) =>
+        new Set(items.map((item) => item.titleId)).size === items.length,
+      {
+        message: "Duplicate titles are not allowed",
+        path: ["items"],
+      },
+    )
+    .refine(
+      (items) => items.filter((item) => item.isPrimary === true).length <= 1,
+      {
+        message: "Only one primary title is allowed",
+        path: ["items"],
+      },
+    ),
+});
+
 export const usernameParamsSchema = z.object({
   username: z.string().min(1),
 });
 
 export type ResumeResponse = z.infer<typeof resumeSchema>;
+export type BulkResumeSkillsInput = z.input<typeof bulkResumeSkillsInputSchema>;
+export type BulkResumeTitlesInput = z.input<typeof bulkResumeTitlesInputSchema>;

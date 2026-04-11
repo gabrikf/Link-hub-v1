@@ -73,6 +73,28 @@ export class DrizzleResumeTitleRepository implements IResumeTitleRepository {
       .where(eq(resumeTitles.resumeId, resumeId));
   }
 
+  async replaceForResume(
+    resumeId: string,
+    items: Array<{ titleId: string; isPrimary: boolean }>,
+  ): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.delete(resumeTitles).where(eq(resumeTitles.resumeId, resumeId));
+
+      if (items.length === 0) {
+        return;
+      }
+
+      await tx.insert(resumeTitles).values(
+        items.map((item, index) => ({
+          resumeId,
+          titleId: item.titleId,
+          isPrimary: item.isPrimary,
+          displayOrder: index,
+        })),
+      );
+    });
+  }
+
   async create(input: {
     resumeId: string;
     titleId: string;

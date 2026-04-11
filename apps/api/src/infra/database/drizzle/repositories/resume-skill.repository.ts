@@ -63,6 +63,28 @@ export class DrizzleResumeSkillRepository implements IResumeSkillRepository {
     return Boolean(row);
   }
 
+  async replaceForResume(
+    resumeId: string,
+    items: Array<{ skillId: string; yearsExperience: number | null }>,
+  ): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.delete(resumeSkills).where(eq(resumeSkills.resumeId, resumeId));
+
+      if (items.length === 0) {
+        return;
+      }
+
+      await tx.insert(resumeSkills).values(
+        items.map((item, index) => ({
+          resumeId,
+          skillId: item.skillId,
+          yearsExperience: item.yearsExperience,
+          displayOrder: index,
+        })),
+      );
+    });
+  }
+
   async create(input: {
     resumeId: string;
     skillId: string;

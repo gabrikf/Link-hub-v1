@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
+import axios from "axios";
 import {
   FiExternalLink,
   FiGrid,
@@ -7,10 +8,11 @@ import {
   FiLogIn,
   FiUser,
 } from "react-icons/fi";
-import { fetchPublicProfile } from "../../../lib/auth-api";
+import { fetchPublicProfile, fetchPublicResume } from "../../../lib/auth-api";
 import { getLinkIconOption } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Avatar } from "../../../shared-components/avatar";
+import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
 
 export function PublicProfilePage() {
   const { username } = useParams({ from: "/profile/$username" });
@@ -19,6 +21,22 @@ export function PublicProfilePage() {
   const profileQuery = useQuery({
     queryKey: ["public-profile", username],
     queryFn: () => fetchPublicProfile(username),
+  });
+
+  const resumeQuery = useQuery({
+    queryKey: ["public-resume", username],
+    retry: false,
+    queryFn: async () => {
+      try {
+        return await fetchPublicResume(username);
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return null;
+        }
+
+        throw error;
+      }
+    },
   });
 
   if (profileQuery.isLoading) {
@@ -144,6 +162,16 @@ export function PublicProfilePage() {
               No public links yet.
             </div>
           )}
+        </section>
+
+        <section className="mt-8">
+          <ResumeReadOnlyCard
+            resume={resumeQuery.data ?? null}
+            isLoading={resumeQuery.isLoading}
+            title="Resume"
+            subtitle="Professional summary"
+            emptyMessage="This user has not published resume details yet."
+          />
         </section>
       </div>
     </main>

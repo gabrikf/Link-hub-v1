@@ -49,6 +49,8 @@ import { ListTitlesCatalogUseCase } from "../../core/use-case/resumes/list-title
 import { CreateCustomTitleUseCase } from "../../core/use-case/resumes/create-custom-title-use-case/create-custom-title.use-case.js";
 import { AddTitleToResumeUseCase } from "../../core/use-case/resumes/add-title-to-resume-use-case/add-title-to-resume.use-case.js";
 import { GetPublicResumeByUsernameUseCase } from "../../core/use-case/resumes/get-public-resume-by-username-use-case/get-public-resume-by-username.use-case.js";
+import { SaveResumeSkillsBulkUseCase } from "../../core/use-case/resumes/save-resume-skills-bulk-use-case/save-resume-skills-bulk.use-case.js";
+import { SaveResumeTitlesBulkUseCase } from "../../core/use-case/resumes/save-resume-titles-bulk-use-case/save-resume-titles-bulk.use-case.js";
 
 // Tokens for dependency injection
 export const TOKENS = {
@@ -87,6 +89,8 @@ export const TOKENS = {
   ListTitlesCatalogUseCase: Symbol.for("ListTitlesCatalogUseCase"),
   CreateCustomTitleUseCase: Symbol.for("CreateCustomTitleUseCase"),
   AddTitleToResumeUseCase: Symbol.for("AddTitleToResumeUseCase"),
+  SaveResumeSkillsBulkUseCase: Symbol.for("SaveResumeSkillsBulkUseCase"),
+  SaveResumeTitlesBulkUseCase: Symbol.for("SaveResumeTitlesBulkUseCase"),
   GetPublicResumeByUsernameUseCase: Symbol.for(
     "GetPublicResumeByUsernameUseCase",
   ),
@@ -515,6 +519,52 @@ export function setupContainer() {
       );
     },
   });
+
+  container.register<SaveResumeSkillsBulkUseCase>(
+    TOKENS.SaveResumeSkillsBulkUseCase,
+    {
+      useFactory: (c) => {
+        const resumesRepository = c.resolve<IResumesRepository>(
+          TOKENS.ResumesRepository,
+        );
+        const skillCatalogRepository = c.resolve<ISkillCatalogRepository>(
+          TOKENS.SkillCatalogRepository,
+        );
+        const resumeSkillRepository = c.resolve<IResumeSkillRepository>(
+          TOKENS.ResumeSkillRepository,
+        );
+
+        return new SaveResumeSkillsBulkUseCase(
+          resumesRepository,
+          skillCatalogRepository,
+          resumeSkillRepository,
+        );
+      },
+    },
+  );
+
+  container.register<SaveResumeTitlesBulkUseCase>(
+    TOKENS.SaveResumeTitlesBulkUseCase,
+    {
+      useFactory: (c) => {
+        const resumesRepository = c.resolve<IResumesRepository>(
+          TOKENS.ResumesRepository,
+        );
+        const titleCatalogRepository = c.resolve<ITitleCatalogRepository>(
+          TOKENS.TitleCatalogRepository,
+        );
+        const resumeTitleRepository = c.resolve<IResumeTitleRepository>(
+          TOKENS.ResumeTitleRepository,
+        );
+
+        return new SaveResumeTitlesBulkUseCase(
+          resumesRepository,
+          titleCatalogRepository,
+          resumeTitleRepository,
+        );
+      },
+    },
+  );
 
   container.register<GetPublicResumeByUsernameUseCase>(
     TOKENS.GetPublicResumeByUsernameUseCase,
