@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 // Input schema for creating a user
 export const createUserSchemaInput = z.object({

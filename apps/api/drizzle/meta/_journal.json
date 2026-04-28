@@ -43,6 +43,34 @@
       "when": 1775913204995,
       "tag": "0005_petite_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775919600000,
+      "tag": "0006_resume_embeddings",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1775921400000,
+      "tag": "0007_resume_embeddings_content_hash",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776465600000,
+      "tag": "0008_candidate_interactions",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777131526549,
+      "tag": "0009_handy_mentor",
+      "breakpoints": true
     }
   ]
 }

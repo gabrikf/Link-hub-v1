@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: linkhub-postgres-dev
     restart: unless-stopped
     environment:
@@ -38,6 +38,20 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+    networks:
+      - linkhub-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: linkhub-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - linkhub-network
 

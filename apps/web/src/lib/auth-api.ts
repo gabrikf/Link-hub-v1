@@ -14,6 +14,8 @@ import {
   loginSchemaInput,
   loginSchemaOutput,
   publicResumeSchema,
+  recruiterSearchInputSchema,
+  recruiterSearchResultSchema,
   profileSchema,
   reorderLinksSchemaInput,
   resumeSchema,
@@ -27,6 +29,8 @@ import {
   updateLinkSchemaInput,
   updateProfileSchemaInput,
   updateProfileSchemaOutput,
+  createInteractionInputSchema,
+  interactionSchema,
   type ResumeResponse,
   type CreateUserInput,
   type CreateUserOutput,
@@ -42,13 +46,16 @@ import {
   type UpdateLinkInput,
   type UpdateProfileInput,
   type UpdateProfileOutput,
+  type RecruiterSearchInput,
+  type CreateInteractionInput,
+  type InteractionResponse,
 } from "@repo/schemas";
 import axios, {
   AxiosHeaders,
   type AxiosRequestConfig,
   type AxiosResponse,
 } from "axios";
-import type { z } from "zod";
+import { z } from "zod";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
 
 const DEFAULT_API_BASE_URL = "http://localhost:3333";
@@ -81,6 +88,22 @@ export type BulkResumeTitlesInput = z.input<typeof bulkResumeTitlesInputSchema>;
 export type ResumeSkill = z.infer<typeof resumeSkillSchema>;
 export type ResumeTitle = z.infer<typeof resumeTitleSchema>;
 export type PublicResumeResponse = z.infer<typeof publicResumeSchema>;
+const recruiterSearchResponseSchema = z.object({
+  input: z.object({
+    semanticQuery: z.string().min(1),
+    filters: z.record(z.string(), z.unknown()),
+    semanticSkills: z.array(z.string()).optional(),
+    semanticTitles: z.array(z.string()).optional(),
+  }),
+  candidates: recruiterSearchResultSchema.array(),
+});
+
+export type RecruiterSearchResponse = z.infer<
+  typeof recruiterSearchResponseSchema
+>;
+export type RecruiterSearchPayload = RecruiterSearchInput & {
+  attachmentFile?: File;
+};
 export type ResumeFormEnums = {
   seniorityLevel: z.infer<typeof seniorityLevelSchema>;
   workModel: z.infer<typeof workModelSchema>;
@@ -163,10 +186,16 @@ export async function fetchWithTokens(
     applyAuthHeaders(headers, storedTokens);
   }
 
+  const axiosHeaders = AxiosHeaders.from(Object.fromEntries(headers.entries()));
+
+  if (config.data instanceof FormData) {
+    axiosHeaders.delete("Content-Type");
+  }
+
   return apiClient.request({
     ...config,
     url: path,
-    headers: AxiosHeaders.from(Object.fromEntries(headers.entries())),
+    headers: axiosHeaders,
   });
 }
 
@@ -374,4 +403,114 @@ export async function fetchPublicResume(
 ): Promise<PublicResumeResponse> {
   const response = await apiClient.get(`/profile/${username}/resume`);
   return publicResumeSchema.parse(response.data);
+}
+
+export async function searchRecruiterResumes(
+  payload: RecruiterSearchPayload,
+): Promise<RecruiterSearchResponse> {
+  const { attachmentFile, ...searchInput } = payload;
+
+  const hasTextSemanticInput = Boolean(
+    searchInput.query || searchInput.chatPrompt || searchInput.attachmentText,
+  );
+
+  // When search is attachment-only, semantic text is produced on the server
+  // after file extraction, so client-side full schema validation must be skipped.
+  const body = hasTextSemanticInput
+    ? recruiterSearchInputSchema.parse(searchInput)
+    : searchInput;
+
+  const formData = new FormData();
+
+  if (body.query) {
+    formData.append("query", body.query);
+  }
+
+  if (body.chatPrompt) {
+    formData.append("chatPrompt", body.chatPrompt);
+  }
+
+  if (body.attachmentText) {
+    formData.append("attachmentText", body.attachmentText);
+  }
+
+  if (body.semanticSkills?.length) {
+    formData.append("semanticSkills", JSON.stringify(body.semanticSkills));
+  }
+
+  if (body.semanticTitles?.length) {
+    formData.append("semanticTitles", JSON.stringify(body.semanticTitles));
+  }
+
+  if (body.topK !== undefined) {
+    formData.append("topK", String(body.topK));
+  }
+
+  if (body.whereQuery) {
+    formData.append("whereQuery", JSON.stringify(body.whereQuery));
+  }
+
+  if (body.filters) {
+    formData.append("filters", JSON.stringify(body.filters));
+  }
+
+  if (attachmentFile) {
+    formData.append("attachment", attachmentFile);
+  }
+
+  const headers = new Headers();
+  const storedTokens = getAuthTokens();
+
+  if (storedTokens) {
+    applyAuthHeaders(headers, storedTokens);
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}/resumes/search`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const data = (await response.json()) as unknown;
+
+  if (!response.ok) {
+    if (
+      typeof data === "object" &&
+      data !== null &&
+      "message" in data &&
+      typeof (data as { message?: unknown }).message === "string"
+    ) {
+      throw new Error((data as { message: string }).message);
+    }
+
+    throw new Error("Search failed. Try again.");
+  }
+
+  if (Array.isArray(data)) {
+    return {
+      input: {
+        semanticQuery:
+          body.query ??
+          body.chatPrompt ??
+          body.attachmentText ??
+          "recruiter search",
+        filters: body.whereQuery ?? body.filters ?? {},
+      },
+      candidates: recruiterSearchResultSchema.array().parse(data),
+    };
+  }
+
+  return recruiterSearchResponseSchema.parse(data);
+}
+
+export async function trackInteraction(
+  payload: CreateInteractionInput,
+): Promise<InteractionResponse> {
+  const body = createInteractionInputSchema.parse(payload);
+  const response = await fetchWithTokens("/interactions", {
+    method: "POST",
+    data: body,
+  });
+
+  return interactionSchema.parse(response.data);
 }

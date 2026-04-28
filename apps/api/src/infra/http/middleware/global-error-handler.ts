@@ -1,5 +1,5 @@
 import { FastifyError, FastifyReply, FastifyRequest } from "fastify";
-import { ZodError } from "zod";
+import { ZodError } from "zod/v4";
 import {
   BaseError,
   DuplicateResourceError,
@@ -32,7 +32,7 @@ interface ErrorResponse {
 export async function errorHandler(
   error: Error | FastifyError | ZodError | BaseError,
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ) {
   // Log error for debugging (in production, use a proper logger)
   console.error("Error caught by global handler:", {

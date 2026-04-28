@@ -28,7 +28,7 @@ import {
   updateLink,
   updateProfile,
 } from "../../../lib/auth-api";
-import { clearAuthTokens, getAuthTokens } from "../../../lib/auth-tokens";
+import { getAuthTokens } from "../../../lib/auth-tokens";
 import { detectLinkIcon, LINK_ICON_OPTIONS } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Avatar } from "../../../shared-components/avatar";
@@ -62,7 +62,6 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userInfo = useUserInfoStore((state) => state.userInfo);
-  const clearUserInfo = useUserInfoStore((state) => state.clearUserInfo);
 
   const hasSession = Boolean(getAuthTokens() && userInfo);
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
@@ -363,12 +362,6 @@ export function DashboardPage() {
     );
   };
 
-  const logout = () => {
-    clearAuthTokens();
-    clearUserInfo();
-    navigate({ to: "/" });
-  };
-
   const handleSaveProfile = async (data: ProfileFormValues) => {
     await updateProfileMutation.mutateAsync({
       username: data.username,
@@ -380,7 +373,7 @@ export function DashboardPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 p-4 lg:flex-row lg:items-start lg:p-8">
       <section className="w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:w-2/3">
-        <DashboardHeader username={meQuery.data?.username} onLogout={logout} />
+        <DashboardHeader />
 
         <DashboardLinkForm
           register={register}

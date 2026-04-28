@@ -5,6 +5,7 @@ import {
 import { IResumesRepository } from "../../../repositories/resume/resume-repository.js";
 import { IResumeTitleRepository } from "../../../repositories/resume-title/resume-title-repository.js";
 import { ITitleCatalogRepository } from "../../../repositories/title-catalog/title-catalog-repository.js";
+import { EnqueueResumeEmbeddingUseCase } from "../enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
 
 export interface ISaveResumeTitlesBulkInput {
   userId: string;
@@ -19,6 +20,7 @@ export class SaveResumeTitlesBulkUseCase {
     private resumesRepository: IResumesRepository,
     private titleCatalogRepository: ITitleCatalogRepository,
     private resumeTitleRepository: IResumeTitleRepository,
+    private enqueueResumeEmbeddingUseCase: EnqueueResumeEmbeddingUseCase,
   ) {}
 
   async execute(input: ISaveResumeTitlesBulkInput) {
@@ -53,6 +55,16 @@ export class SaveResumeTitlesBulkUseCase {
         isPrimary: item.isPrimary ?? false,
       })),
     );
+
+    try {
+      await this.enqueueResumeEmbeddingUseCase.execute({
+        resumeId: resume.id,
+        userId: input.userId,
+        reason: "resume-titles-replaced",
+      });
+    } catch (error) {
+      console.error("Failed to enqueue resume embedding job", error);
+    }
 
     return this.resumeTitleRepository.listByResumeId(resume.id);
   }

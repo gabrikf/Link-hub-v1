@@ -5,6 +5,7 @@ import {
 import { IResumesRepository } from "../../../repositories/resume/resume-repository.js";
 import { IResumeTitleRepository } from "../../../repositories/resume-title/resume-title-repository.js";
 import { ITitleCatalogRepository } from "../../../repositories/title-catalog/title-catalog-repository.js";
+import { EnqueueResumeEmbeddingUseCase } from "../enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
 
 export interface IAddTitleToResumeInput {
   userId: string;
@@ -17,6 +18,7 @@ export class AddTitleToResumeUseCase {
     private resumesRepository: IResumesRepository,
     private titleCatalogRepository: ITitleCatalogRepository,
     private resumeTitleRepository: IResumeTitleRepository,
+    private enqueueResumeEmbeddingUseCase: EnqueueResumeEmbeddingUseCase,
   ) {}
 
   async execute(input: IAddTitleToResumeInput) {
@@ -55,11 +57,23 @@ export class AddTitleToResumeUseCase {
       resume.id,
     );
 
-    return this.resumeTitleRepository.create({
+    const created = await this.resumeTitleRepository.create({
       resumeId: resume.id,
       titleId: input.titleId,
       isPrimary,
       displayOrder: lastOrder === null ? 0 : lastOrder + 1,
     });
+
+    try {
+      await this.enqueueResumeEmbeddingUseCase.execute({
+        resumeId: resume.id,
+        userId: input.userId,
+        reason: "resume-title-added",
+      });
+    } catch (error) {
+      console.error("Failed to enqueue resume embedding job", error);
+    }
+
+    return created;
   }
 }

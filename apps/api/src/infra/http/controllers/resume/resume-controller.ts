@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
+import { z } from "zod/v4";
 import {
   addResumeSkillInputSchema,
   addResumeTitleInputSchema,
@@ -8,6 +9,9 @@ import {
   catalogItemSchema,
   createCatalogItemInputSchema,
   publicResumeSchema,
+  recruiterSearchFiltersSchema,
+  recruiterSearchInputSchema,
+  recruiterSearchResultSchema,
   resumeSchema,
   resumeSkillSchema,
   resumeTitleSchema,
@@ -17,6 +21,7 @@ import {
 import { resolve, TOKENS } from "../../../di/container.js";
 import { authGuard } from "../../middleware/auth-guard.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
+import { extractSearchAttachmentText } from "../../utils/extract-search-attachment-text.js";
 import { GetMyResumeUseCase } from "../../../../core/use-case/resumes/get-my-resume-use-case/get-my-resume.use-case.js";
 import { UpsertMyResumeUseCase } from "../../../../core/use-case/resumes/upsert-my-resume-use-case/upsert-my-resume.use-case.js";
 import { ListSkillsCatalogUseCase } from "../../../../core/use-case/resumes/list-skills-catalog-use-case/list-skills-catalog.use-case.js";
@@ -28,6 +33,105 @@ import { AddTitleToResumeUseCase } from "../../../../core/use-case/resumes/add-t
 import { GetPublicResumeByUsernameUseCase } from "../../../../core/use-case/resumes/get-public-resume-by-username-use-case/get-public-resume-by-username.use-case.js";
 import { SaveResumeSkillsBulkUseCase } from "../../../../core/use-case/resumes/save-resume-skills-bulk-use-case/save-resume-skills-bulk.use-case.js";
 import { SaveResumeTitlesBulkUseCase } from "../../../../core/use-case/resumes/save-resume-titles-bulk-use-case/save-resume-titles-bulk.use-case.js";
+import { TransformRecruiterSearchInputUseCase } from "../../../../core/use-case/resumes/transform-recruiter-search-input-use-case/transform-recruiter-search-input.use-case.js";
+
+const recruiterSearchResponseSchema = z.object({
+  input: z.object({
+    semanticQuery: z.string().min(1),
+    filters: recruiterSearchFiltersSchema,
+    semanticSkills: z.array(z.string()).optional(),
+    semanticTitles: z.array(z.string()).optional(),
+  }),
+  candidates: recruiterSearchResultSchema.array(),
+});
+
+function parseStringArrayField(raw?: unknown): string[] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is string => typeof item === "string");
+  }
+
+  const asString = String(raw).trim();
+  if (!asString) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(asString) as unknown;
+    if (!Array.isArray(parsed)) {
+      return asString
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return asString
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+}
+
+function parseObjectField(raw?: unknown): Record<string, unknown> | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+
+  const asString = String(raw).trim();
+  if (!asString) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(asString) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return undefined;
+    }
+
+    return parsed as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseTopK(raw?: unknown): number | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  if (typeof raw === "number" && Number.isInteger(raw)) {
+    return raw;
+  }
+
+  const parsed = Number(String(raw));
+  if (!Number.isInteger(parsed)) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function normalizeSearchInputBody(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...body,
+    semanticSkills: parseStringArrayField(body.semanticSkills),
+    semanticTitles: parseStringArrayField(body.semanticTitles),
+    topK: parseTopK(body.topK),
+    whereQuery: parseObjectField(body.whereQuery),
+    filters: parseObjectField(body.filters),
+  };
+}
 
 export class ResumeController {
   static handle(server: FastifyInstance) {
@@ -464,6 +568,95 @@ export class ResumeController {
         const result = await getPublicResumeByUsernameUseCase.execute(
           request.params.username,
         );
+
+        reply.status(200).send(result);
+      },
+    );
+
+    app.post(
+      "/resumes/search",
+      {
+        preHandler: authGuard,
+        schema: {
+          tags: ["Resume"],
+          summary: "Recruiter search by semantic query and resume filters",
+          response: {
+            200: recruiterSearchResponseSchema,
+            ...commonErrorResponses([
+              "badRequest",
+              "unauthorized",
+              "internalServerError",
+            ]),
+          },
+        },
+      },
+      async (
+        request: FastifyRequest<{
+          Body: Record<string, unknown>;
+        }>,
+        reply,
+      ) => {
+        const transformRecruiterSearchInputUseCase =
+          resolve<TransformRecruiterSearchInputUseCase>(
+            TOKENS.TransformRecruiterSearchInputUseCase,
+          );
+
+        const multipartRequest = request as FastifyRequest & {
+          isMultipart?: () => boolean;
+          parts?: () => AsyncIterable<{
+            type: "file" | "field";
+            fieldname: string;
+            value?: unknown;
+            filename: string;
+            mimetype: string;
+            toBuffer: () => Promise<Buffer>;
+          }>;
+        };
+
+        let rawBody: Record<string, unknown>;
+
+        if (multipartRequest.isMultipart?.() && multipartRequest.parts) {
+          const fields: Record<string, string> = {};
+          let attachmentText = "";
+
+          for await (const part of multipartRequest.parts()) {
+            if (part.type === "file") {
+              attachmentText = await extractSearchAttachmentText(part);
+              continue;
+            }
+
+            fields[part.fieldname] = String(part.value ?? "");
+          }
+
+          rawBody = {
+            query: fields.query,
+            chatPrompt: fields.chatPrompt,
+            attachmentText: [fields.attachmentText, attachmentText]
+              .filter((value): value is string => Boolean(value))
+              .join("\n\n")
+              .trim(),
+            semanticSkills: parseStringArrayField(fields.semanticSkills),
+            semanticTitles: parseStringArrayField(fields.semanticTitles),
+            topK: parseTopK(fields.topK),
+            whereQuery: parseObjectField(fields.whereQuery),
+            filters: parseObjectField(fields.filters),
+          };
+        } else {
+          rawBody = normalizeSearchInputBody(request.body);
+        }
+
+        const parsedInput = recruiterSearchInputSchema.parse(rawBody);
+
+        const result = await transformRecruiterSearchInputUseCase.execute({
+          query: parsedInput.query,
+          chatPrompt: parsedInput.chatPrompt,
+          attachmentText: parsedInput.attachmentText,
+          semanticSkills: parsedInput.semanticSkills,
+          semanticTitles: parsedInput.semanticTitles,
+          topK: parsedInput.topK,
+          whereQuery: parsedInput.whereQuery,
+          filters: parsedInput.filters,
+        });
 
         reply.status(200).send(result);
       },

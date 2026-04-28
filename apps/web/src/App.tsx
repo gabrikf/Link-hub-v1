@@ -7,6 +7,7 @@ import {
   persistTheme,
   type Theme,
 } from "./lib/theme";
+import { TopBarNav } from "./shared-components/top-bar-nav";
 
 function App() {
   const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
@@ -20,6 +21,7 @@ function App() {
 
   return (
     <div className="relative min-h-screen bg-zinc-100 text-zinc-900 transition-colors dark:bg-zinc-950 dark:text-zinc-100">
+      <TopBarNav />
       <button
         type="button"
         onClick={toggleTheme}

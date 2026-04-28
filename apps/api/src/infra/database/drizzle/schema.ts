@@ -1,13 +1,38 @@
 import { relations } from "drizzle-orm";
 import {
   boolean,
+  customType,
+  index,
+  jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   unique,
   uuid,
   integer,
 } from "drizzle-orm/pg-core";
+
+const vector = customType<{ data: number[]; config: { dimensions: number } }>({
+  dataType(config) {
+    const dimensions = config?.dimensions ?? 1536;
+    return `vector(${dimensions})`;
+  },
+  toDriver(value) {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value: unknown) {
+    if (typeof value !== "string" || value.length < 2) {
+      return [];
+    }
+
+    return value
+      .slice(1, -1)
+      .split(",")
+      .filter((item) => item.length > 0)
+      .map((item) => Number(item));
+  },
+});
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -207,6 +232,52 @@ export const resumeTitles = pgTable(
   ],
 );
 
+export const resumeEmbeddings = pgTable("resume_embeddings", {
+  resumeId: uuid("resume_id")
+    .primaryKey()
+    .references(() => resumes.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+  contentHash: text("content_hash"),
+  embeddingModel: text("embedding_model").notNull(),
+  embeddingVersion: integer("embedding_version").notNull().default(1),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const candidateInteractions = pgTable(
+  "candidate_interactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    resumeId: uuid("resume_id")
+      .notNull()
+      .references(() => resumes.id, { onDelete: "cascade" }),
+    recruiterId: uuid("recruiter_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    interactionType: text("interaction_type").notNull(),
+    queryText: text("query_text"),
+    semanticSimilarity: real("semantic_similarity"),
+    rankPosition: integer("rank_position"),
+    metadata: jsonb("metadata"),
+    candidateSnapshot: jsonb("candidate_snapshot"),
+    querySnapshot: jsonb("query_snapshot"),
+    trainedAt: timestamp("trained_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    index("candidate_interactions_resume_id_idx").on(table.resumeId),
+    index("candidate_interactions_recruiter_id_idx").on(table.recruiterId),
+    index("candidate_interactions_created_at_idx").on(table.createdAt),
+    index("candidate_interactions_trained_at_idx").on(table.trainedAt),
+  ],
+);
+
 export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   user: one(users, {
     fields: [refreshTokens.userId],
@@ -219,6 +290,7 @@ export const userRelations = relations(users, ({ many }) => ({
   oauthAccounts: many(oauthAccounts),
   links: many(links),
   resumes: many(resumes),
+  candidateInteractions: many(candidateInteractions),
   createdSkills: many(skillsCatalog),
   createdTitles: many(titlesCatalog),
 }));
@@ -244,6 +316,11 @@ export const resumesRelations = relations(resumes, ({ one, many }) => ({
   }),
   skills: many(resumeSkills),
   titles: many(resumeTitles),
+  embedding: one(resumeEmbeddings, {
+    fields: [resumes.id],
+    references: [resumeEmbeddings.resumeId],
+  }),
+  candidateInteractions: many(candidateInteractions),
 }));
 
 export const skillsCatalogRelations = relations(
@@ -289,3 +366,31 @@ export const resumeTitlesRelations = relations(resumeTitles, ({ one }) => ({
     references: [titlesCatalog.id],
   }),
 }));
+
+export const resumeEmbeddingsRelations = relations(
+  resumeEmbeddings,
+  ({ one }) => ({
+    resume: one(resumes, {
+      fields: [resumeEmbeddings.resumeId],
+      references: [resumes.id],
+    }),
+    user: one(users, {
+      fields: [resumeEmbeddings.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const candidateInteractionsRelations = relations(
+  candidateInteractions,
+  ({ one }) => ({
+    resume: one(resumes, {
+      fields: [candidateInteractions.resumeId],
+      references: [resumes.id],
+    }),
+    recruiter: one(users, {
+      fields: [candidateInteractions.recruiterId],
+      references: [users.id],
+    }),
+  }),
+);

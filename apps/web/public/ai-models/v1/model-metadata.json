@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "trainedAt": "2026-04-26T12:56:18.700Z",
+  "mode": "initial",
+  "samples": 720,
+  "inputDimension": 125,
+  "queryAware": true
+}

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 /**
  * Base error response schema
@@ -28,12 +28,12 @@ export const errorSchemas = {
 
   // 401 Unauthorized
   unauthorized: errorResponseSchema.describe(
-    "Unauthorized - Authentication required or failed"
+    "Unauthorized - Authentication required or failed",
   ),
 
   // 403 Forbidden
   forbidden: errorResponseSchema.describe(
-    "Forbidden - Insufficient permissions"
+    "Forbidden - Insufficient permissions",
   ),
 
   // 404 Not Found
@@ -41,17 +41,17 @@ export const errorSchemas = {
 
   // 409 Conflict
   conflict: errorResponseSchema.describe(
-    "Conflict - Resource already exists or state conflict"
+    "Conflict - Resource already exists or state conflict",
   ),
 
   // 422 Unprocessable Entity
   unprocessableEntity: errorResponseSchema.describe(
-    "Unprocessable Entity - Validation failed"
+    "Unprocessable Entity - Validation failed",
   ),
 
   // 500 Internal Server Error
   internalServerError: errorResponseSchema.describe(
-    "Internal Server Error - Server-side error"
+    "Internal Server Error - Server-side error",
   ),
 } as const;
 
@@ -64,7 +64,7 @@ export const validationErrorResponseSchema = errorResponseSchema.extend({
       z.object({
         path: z.string().describe("Field path (e.g., 'email', 'user.name')"),
         message: z.string().describe("Validation error message"),
-      })
+      }),
     )
     .optional(),
 });
@@ -84,7 +84,7 @@ export const validationErrorResponseSchema = errorResponseSchema.extend({
  * ```
  */
 export function commonErrorResponses(
-  errorTypes: Array<keyof typeof errorSchemas>
+  errorTypes: Array<keyof typeof errorSchemas>,
 ): Record<number, z.ZodSchema> {
   const statusCodeMap = {
     badRequest: 400,

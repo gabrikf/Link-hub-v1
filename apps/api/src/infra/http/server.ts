@@ -1,7 +1,9 @@
+import "dotenv/config";
 import fastify from "fastify";
 import database from "./pluguins/database.js";
 import fastifyCors from "@fastify/cors";
 import fastifyCookie from "@fastify/cookie";
+import fastifyMultipart from "@fastify/multipart";
 import {
   jsonSchemaTransform,
   serializerCompiler,
@@ -28,6 +30,13 @@ server.register(fastifyCors, {
 });
 
 server.register(fastifyCookie);
+
+server.register(fastifyMultipart, {
+  limits: {
+    files: 1,
+    fileSize: 10 * 1024 * 1024,
+  },
+});
 
 server.setValidatorCompiler(validatorCompiler);
 server.setSerializerCompiler(serializerCompiler);

@@ -3,17 +3,25 @@ import { UserEntity } from "../../../entity/user/user-entity.js";
 import { ResourceNotFoundError } from "../../../errors/index.js";
 import { InMemoryResumesRepository } from "../../../repositories/resume/in-memory-resumes-repository.js";
 import { InMemoryUsersRepository } from "../../../repositories/user/in-memory-users-repository.js";
+import { InMemoryResumeEmbeddingQueue } from "../../../providers/queue/in-memory-resume-embedding-queue.js";
+import { EnqueueResumeEmbeddingUseCase } from "../enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
 import { UpsertMyResumeUseCase } from "./upsert-my-resume.use-case.js";
 
 describe("UpsertMyResumeUseCase", () => {
   let usersRepository: InMemoryUsersRepository;
   let resumesRepository: InMemoryResumesRepository;
+  let resumeEmbeddingQueue: InMemoryResumeEmbeddingQueue;
   let sut: UpsertMyResumeUseCase;
 
   beforeEach(() => {
     usersRepository = new InMemoryUsersRepository();
     resumesRepository = new InMemoryResumesRepository();
-    sut = new UpsertMyResumeUseCase(usersRepository, resumesRepository);
+    resumeEmbeddingQueue = new InMemoryResumeEmbeddingQueue();
+    sut = new UpsertMyResumeUseCase(
+      usersRepository,
+      resumesRepository,
+      new EnqueueResumeEmbeddingUseCase(resumeEmbeddingQueue),
+    );
   });
 
   it("should create resume when user exists", async () => {
@@ -41,6 +49,7 @@ describe("UpsertMyResumeUseCase", () => {
     expect(result.totalYearsExperience).toBe(8);
     expect(result.openToRelocation).toBe(true);
     expect(resumesRepository.count()).toBe(1);
+    expect(resumeEmbeddingQueue.jobs).toHaveLength(1);
   });
 
   it("should update existing resume for same user", async () => {

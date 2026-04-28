@@ -38,12 +38,6 @@ export class LinkedInSignInController {
           tags: ["Auth"],
           summary: "Start LinkedIn sign-in",
           description: "Redirects to LinkedIn OAuth consent screen",
-          response: {
-            302: {
-              type: "null",
-              description: "Redirects to LinkedIn",
-            },
-          },
         },
       },
       async (_request, reply) => {
@@ -73,12 +67,6 @@ export class LinkedInSignInController {
           tags: ["Auth"],
           summary: "LinkedIn OAuth callback",
           description: "Handles LinkedIn OAuth callback and signs in user",
-          response: {
-            302: {
-              type: "null",
-              description: "Redirects to web app with OAuth result",
-            },
-          },
         },
       },
       async (request, reply) => {

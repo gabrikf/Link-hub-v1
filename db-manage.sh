@@ -34,13 +34,13 @@ check_docker() {
 # Start the database
 start_db() {
     check_docker
-    print_status "Starting PostgreSQL database..."
-    docker compose -f docker-compose.dev.yml up -d postgres
+    print_status "Starting PostgreSQL and Redis..."
+    docker compose -f docker-compose.dev.yml up -d postgres redis
     
     print_status "Waiting for database to be ready..."
     sleep 5
     
-    # Wait for health check
+    # Wait for PostgreSQL health check
     timeout=30
     while [ $timeout -gt 0 ]; do
         if docker compose -f docker-compose.dev.yml ps postgres | grep -q "healthy"; then
@@ -117,6 +117,34 @@ seed() {
     print_status "Seed finished"
 }
 
+seed_realistic() {
+    print_status "Running realistic database seed..."
+    npm run --workspace=api db:seed:real
+    print_status "Realistic seed finished"
+}
+
+seed_all() {
+    print_status "Running default catalog seed..."
+    npm run --workspace=api db:seed
+    print_status "Running realistic users/resumes seed..."
+    npm run --workspace=api db:seed:real
+    print_status "All seeds finished"
+}
+
+reseed_realistic() {
+    check_docker
+    print_warning "Resetting database volume for a fresh realistic dataset..."
+    docker compose -f docker-compose.dev.yml down -v
+    docker volume rm linkhub-v1_postgres_data 2>/dev/null || true
+
+    start_db
+
+    print_status "Applying migrations..."
+    npm run db:migrate
+
+    seed_all
+}
+
 # Show status
 status() {
     check_docker
@@ -138,6 +166,9 @@ show_help() {
     echo "  status      Show services status"
     echo "  reset       Reset database (removes all data)"
     echo "  seed        Seed default catalog data"
+    echo "  seed-real   Seed realistic users/resumes + embeddings"
+    echo "  seed-all    Run default seed, then realistic seed"
+    echo "  reseed-real Fresh reset + migrate + seed-all"
     echo "  help        Show this help"
     echo ""
     echo "Examples:"
@@ -171,6 +202,15 @@ case "${1:-help}" in
         ;;
     seed)
         seed
+        ;;
+    seed-real)
+        seed_realistic
+        ;;
+    seed-all)
+        seed_all
+        ;;
+    reseed-real)
+        reseed_realistic
         ;;
     help|*)
         show_help

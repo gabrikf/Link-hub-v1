@@ -7,23 +7,28 @@ import {
 import { InMemoryResumesRepository } from "../../../repositories/resume/in-memory-resumes-repository.js";
 import { InMemoryResumeSkillRepository } from "../../../repositories/resume-skill/in-memory-resume-skill-repository.js";
 import { InMemorySkillCatalogRepository } from "../../../repositories/skill-catalog/in-memory-skill-catalog-repository.js";
+import { InMemoryResumeEmbeddingQueue } from "../../../providers/queue/in-memory-resume-embedding-queue.js";
+import { EnqueueResumeEmbeddingUseCase } from "../enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
 import { AddSkillToResumeUseCase } from "./add-skill-to-resume.use-case.js";
 
 describe("AddSkillToResumeUseCase", () => {
   let resumesRepository: InMemoryResumesRepository;
   let skillCatalogRepository: InMemorySkillCatalogRepository;
   let resumeSkillRepository: InMemoryResumeSkillRepository;
+  let resumeEmbeddingQueue: InMemoryResumeEmbeddingQueue;
   let sut: AddSkillToResumeUseCase;
 
   beforeEach(() => {
     resumesRepository = new InMemoryResumesRepository();
     skillCatalogRepository = new InMemorySkillCatalogRepository();
     resumeSkillRepository = new InMemoryResumeSkillRepository();
+    resumeEmbeddingQueue = new InMemoryResumeEmbeddingQueue();
 
     sut = new AddSkillToResumeUseCase(
       resumesRepository,
       skillCatalogRepository,
       resumeSkillRepository,
+      new EnqueueResumeEmbeddingUseCase(resumeEmbeddingQueue),
     );
   });
 
@@ -61,6 +66,7 @@ describe("AddSkillToResumeUseCase", () => {
 
     expect(created.yearsExperience).toBe(4);
     expect(created.displayOrder).toBe(1);
+    expect(resumeEmbeddingQueue.jobs).toHaveLength(1);
   });
 
   it("should throw when resume is not found", async () => {

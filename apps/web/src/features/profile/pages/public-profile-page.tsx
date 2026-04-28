@@ -1,13 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import axios from "axios";
-import {
-  FiExternalLink,
-  FiGrid,
-  FiLink2,
-  FiLogIn,
-  FiUser,
-} from "react-icons/fi";
+import { FiExternalLink, FiLink2, FiLogIn, FiUser } from "react-icons/fi";
 import { fetchPublicProfile, fetchPublicResume } from "../../../lib/auth-api";
 import { getLinkIconOption } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
@@ -66,15 +60,7 @@ export function PublicProfilePage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center gap-5 px-4 py-10">
-      {userInfo ? (
-        <Link
-          to="/dashboard"
-          className="inline-flex items-center gap-2 self-end rounded-full border border-zinc-300 bg-white/70 px-3 py-2 text-sm shadow-sm transition hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:bg-zinc-900"
-        >
-          <FiGrid className="h-4 w-4" aria-hidden="true" />
-          Dashboard
-        </Link>
-      ) : (
+      {!userInfo ? (
         <Link
           to="/"
           className="inline-flex items-center gap-2 self-end rounded-full border border-zinc-300 bg-white/70 px-3 py-2 text-sm shadow-sm transition hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:bg-zinc-900"
@@ -82,7 +68,7 @@ export function PublicProfilePage() {
           <FiLogIn className="h-4 w-4" aria-hidden="true" />
           Login
         </Link>
-      )}
+      ) : null}
 
       <div className="w-full rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 p-8 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900">
         <header className="flex flex-col items-center gap-4 text-center">

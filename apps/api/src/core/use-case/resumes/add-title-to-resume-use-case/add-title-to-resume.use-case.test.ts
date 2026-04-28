@@ -6,23 +6,28 @@ import {
 import { InMemoryResumesRepository } from "../../../repositories/resume/in-memory-resumes-repository.js";
 import { InMemoryResumeTitleRepository } from "../../../repositories/resume-title/in-memory-resume-title-repository.js";
 import { InMemoryTitleCatalogRepository } from "../../../repositories/title-catalog/in-memory-title-catalog-repository.js";
+import { InMemoryResumeEmbeddingQueue } from "../../../providers/queue/in-memory-resume-embedding-queue.js";
+import { EnqueueResumeEmbeddingUseCase } from "../enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
 import { AddTitleToResumeUseCase } from "./add-title-to-resume.use-case.js";
 
 describe("AddTitleToResumeUseCase", () => {
   let resumesRepository: InMemoryResumesRepository;
   let titleCatalogRepository: InMemoryTitleCatalogRepository;
   let resumeTitleRepository: InMemoryResumeTitleRepository;
+  let resumeEmbeddingQueue: InMemoryResumeEmbeddingQueue;
   let sut: AddTitleToResumeUseCase;
 
   beforeEach(() => {
     resumesRepository = new InMemoryResumesRepository();
     titleCatalogRepository = new InMemoryTitleCatalogRepository();
     resumeTitleRepository = new InMemoryResumeTitleRepository();
+    resumeEmbeddingQueue = new InMemoryResumeEmbeddingQueue();
 
     sut = new AddTitleToResumeUseCase(
       resumesRepository,
       titleCatalogRepository,
       resumeTitleRepository,
+      new EnqueueResumeEmbeddingUseCase(resumeEmbeddingQueue),
     );
   });
 
@@ -60,6 +65,7 @@ describe("AddTitleToResumeUseCase", () => {
 
     expect(created.displayOrder).toBe(1);
     expect(created.isPrimary).toBe(false);
+    expect(resumeEmbeddingQueue.jobs).toHaveLength(1);
   });
 
   it("should clear previous primary title when adding a new primary", async () => {
