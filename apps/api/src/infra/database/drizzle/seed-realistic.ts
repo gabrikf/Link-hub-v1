@@ -19,6 +19,8 @@ import { ISkillCatalogRepository } from "../../../core/repositories/skill-catalo
 import { ITitleCatalogRepository } from "../../../core/repositories/title-catalog/title-catalog-repository.js";
 import { IResumeSkillRepository } from "../../../core/repositories/resume-skill/resume-skill-repository.js";
 import { IResumeTitleRepository } from "../../../core/repositories/resume-title/resume-title-repository.js";
+import { IWorkExperienceRepository } from "../../../core/repositories/work-experience/work-experience-repository.js";
+import { WorkExperienceEntity } from "../../../core/entity/work-experience/work-experience-entity.js";
 import { IResumeEmbeddingsRepository } from "../../../core/repositories/resume-embedding/resume-embedding-repository.js";
 import { IEmbeddingProvider } from "../../../core/providers/embedding/embedding-provider.js";
 
@@ -72,6 +74,59 @@ const RECRUITER_SEED = {
 };
 
 const DEFAULT_CANDIDATE_COUNT = 300;
+
+// Believable employers so seeded candidates have real-looking work history
+// (role + company + accomplishments + stack), which the matcher weights 2x.
+const SEED_COMPANY_POOL = [
+  "Nubank",
+  "iFood",
+  "Mercado Livre",
+  "Stone",
+  "PagBank",
+  "Globo",
+  "Loft",
+  "QuintoAndar",
+  "Wildlife Studios",
+  "VTEX",
+  "Hotmart",
+  "CI&T",
+] as const;
+
+// Builds two past roles for a candidate from their declared titles and skills,
+// so the search response and embeddings reflect where they actually worked.
+function buildSeedWorkExperiences(candidate: CandidateSeed): Array<{
+  title: string;
+  companyName: string;
+  description: string;
+  mainStack: string[];
+  isCurrent: boolean;
+  displayOrder: number;
+}> {
+  const stack = candidate.skills.slice(0, 6);
+  if (stack.length === 0) {
+    return [];
+  }
+
+  const roleCount = candidate.totalYearsExperience >= 4 ? 2 : 1;
+  const baseTitle = candidate.titles[0] ?? candidate.headlineTitle;
+
+  return Array.from({ length: roleCount }, (_unused, roleIndex) => {
+    const company =
+      SEED_COMPANY_POOL[
+        randomInt(0, SEED_COMPANY_POOL.length - 1)
+      ] ?? "TechCorp";
+    const roleStack = roleIndex === 0 ? stack : stack.slice(0, 4);
+    const title = candidate.titles[roleIndex] ?? baseTitle;
+    return {
+      title,
+      companyName: company,
+      description: `Worked as ${title} at ${company}, delivering features with ${roleStack.join(", ")} and improving reliability and delivery speed.`,
+      mainStack: roleStack,
+      isCurrent: roleIndex === 0,
+      displayOrder: roleIndex,
+    };
+  });
+}
 
 const LOCATIONS = [
   "sao paulo",
@@ -1103,6 +1158,30 @@ async function seedCandidate(
     })),
   });
 
+  const workExperienceRepository = resolve<IWorkExperienceRepository>(
+    TOKENS.WorkExperienceRepository,
+  );
+  for (const experience of buildSeedWorkExperiences(candidate)) {
+    await workExperienceRepository.create(
+      WorkExperienceEntity.create({
+        userId,
+        title: experience.title,
+        companyName: experience.companyName,
+        employmentType: candidate.contractType,
+        workModel: candidate.workModel,
+        locationCity: candidate.location,
+        locationState: null,
+        locationCountry: null,
+        startDate: null,
+        endDate: null,
+        isCurrent: experience.isCurrent,
+        description: experience.description,
+        mainStack: experience.mainStack,
+        displayOrder: experience.displayOrder,
+      }),
+    );
+  }
+
   const resume = await resumesRepository.findByUserId(userId);
 
   if (!resume) {
@@ -1141,6 +1220,9 @@ function buildEmbeddingProcessor(): {
   const resumeTitleRepository = resolve<IResumeTitleRepository>(
     TOKENS.ResumeTitleRepository,
   );
+  const workExperienceRepository = resolve<IWorkExperienceRepository>(
+    TOKENS.WorkExperienceRepository,
+  );
   const resumeEmbeddingsRepository = resolve<IResumeEmbeddingsRepository>(
     TOKENS.ResumeEmbeddingsRepository,
   );
@@ -1150,6 +1232,7 @@ function buildEmbeddingProcessor(): {
       resumesRepository,
       resumeSkillRepository,
       resumeTitleRepository,
+      workExperienceRepository,
       resumeEmbeddingsRepository,
       new DeterministicEmbeddingProvider(),
     ),

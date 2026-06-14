@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import type {
   ResumeTrainingRow,
   TrainingState,
+  WorkExperienceTrainingRow,
 } from "../lib/training-types.js";
 
 type TrainMode = "initial" | "incremental";
@@ -49,11 +50,33 @@ const trainingStatePath = path.join(
 const INITIAL_SYNTHETIC_TARGET = 720;
 const INCREMENTAL_SYNTHETIC_TARGET = 180;
 
+// Mirrors MATCH_WEIGHTS in @repo/schemas: skills 4x, titles 2x, work history 2x,
+// everything else 1x. The synthetic label below is the exact target the model
+// learns, so the trained scores line up with the transparent match shown to
+// recruiters.
 const MATCH_WEIGHTS = {
   skills: 4,
-  titles: 3,
+  titles: 2,
+  workHistory: 2,
   others: 1,
 } as const;
+
+// A small pool of believable employers so synthetic work history reads like real
+// resumes (company + role + accomplishments + stack) instead of empty strings.
+const COMPANY_POOL: readonly string[] = [
+  "Nubank",
+  "iFood",
+  "Mercado Livre",
+  "Stone",
+  "PagBank",
+  "Globo",
+  "Loft",
+  "QuintoAndar",
+  "Wildlife Studios",
+  "VTEX",
+  "Hotmart",
+  "CI&T",
+] as const;
 
 const QUALITY_DISTRIBUTION: CandidateQuality[] = [
   "perfect",
@@ -440,6 +463,19 @@ async function loadDataset(
           ARRAY_AGG(DISTINCT tc.name) FILTER (WHERE tc.name IS NOT NULL),
           ARRAY[]::text[]
         ) AS "titles",
+        COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'title', we.title,
+              'companyName', we.company_name,
+              'description', we.description,
+              'mainStack', we.main_stack
+            )
+            ORDER BY we.display_order
+          )
+          FROM work_experiences we
+          WHERE we.user_id = r.user_id
+        ), '[]'::json) AS "workExperiences",
         COALESCE(SUM(
           CASE
             WHEN ci.interaction_type = 'EMAIL_COPY' THEN 1.0
@@ -521,6 +557,8 @@ async function loadDataset(
         (snap?.salaryExpectationMax as number | null) ?? null,
       skills: (snap?.skills as string[]) ?? [],
       titles: (snap?.titles as string[]) ?? [],
+      workExperiences:
+        (snap?.workExperiences as WorkExperienceTrainingRow[]) ?? [],
       interactionScore: row.interactionScore,
     } satisfies ResumeTrainingRow;
   });
@@ -570,13 +608,51 @@ function proximityScore(
   return Math.max(0, 1 - gap / tolerance);
 }
 
-// Computes a weighted target score where skills=3x, titles=2x and other signals=1x.
+// Collapses a candidate's work history into the two sets that matter for
+// matching: every technology used across roles, and every role title held.
+function collectWorkHistorySignals(
+  workExperiences: WorkExperienceTrainingRow[],
+): { stack: string[]; titles: string[] } {
+  const stack = new Set<string>();
+  const titles = new Set<string>();
+
+  for (const experience of workExperiences) {
+    for (const tech of experience.mainStack) {
+      stack.add(tech);
+    }
+    if (experience.title) {
+      titles.add(experience.title);
+    }
+  }
+
+  return { stack: [...stack], titles: [...titles] };
+}
+
+// How well a candidate's *real job history* covers what the role needs. Uses
+// the same stack/title comparison the recruiter cares about; no history → 0.
+function workHistoryScore(
+  blueprint: TrainingBlueprint,
+  workExperiences: WorkExperienceTrainingRow[],
+): number {
+  if (workExperiences.length === 0) {
+    return 0;
+  }
+
+  const { stack, titles } = collectWorkHistorySignals(workExperiences);
+  const stackScore = setSimilarity(blueprint.skills, stack);
+  const titleScore = setSimilarity(blueprint.titles, titles);
+  return (stackScore + titleScore) / 2;
+}
+
+// Computes a weighted target score: skills=4x, titles=2x, work history=2x and
+// other signals=1x — the single source of truth shared with the runtime.
 function computeWeightedTarget(
   blueprint: TrainingBlueprint,
   candidate: ResumeTrainingRow,
 ): number {
   const skillScore = setSimilarity(blueprint.skills, candidate.skills);
   const titleScore = setSimilarity(blueprint.titles, candidate.titles);
+  const workScore = workHistoryScore(blueprint, candidate.workExperiences);
   const languageScore = setSimilarity(
     blueprint.spokenLanguages,
     candidate.spokenLanguages,
@@ -620,14 +696,73 @@ function computeWeightedTarget(
     categoricalSignals.length;
 
   const totalWeight =
-    MATCH_WEIGHTS.skills + MATCH_WEIGHTS.titles + MATCH_WEIGHTS.others;
+    MATCH_WEIGHTS.skills +
+    MATCH_WEIGHTS.titles +
+    MATCH_WEIGHTS.workHistory +
+    MATCH_WEIGHTS.others;
 
   return (
     (MATCH_WEIGHTS.skills * skillScore +
       MATCH_WEIGHTS.titles * titleScore +
+      MATCH_WEIGHTS.workHistory * workScore +
       MATCH_WEIGHTS.others * othersScore) /
     totalWeight
   );
+}
+
+// Builds believable work history for a synthetic candidate from the role's stack
+// and titles. Higher-quality candidates get more roles, richer stacks and real
+// accomplishment text; weak candidates get a thin, generic history.
+function buildSyntheticWorkExperiences(
+  blueprint: TrainingBlueprint,
+  quality: CandidateQuality,
+  stack: readonly string[],
+  titles: readonly string[],
+  index: number,
+): WorkExperienceTrainingRow[] {
+  const roleCount =
+    quality === "perfect"
+      ? 3
+      : quality === "strong"
+        ? 2
+        : quality === "medium"
+          ? 1
+          : Math.random() < 0.5
+            ? 1
+            : 0;
+
+  if (roleCount === 0 || stack.length === 0) {
+    return [];
+  }
+
+  const stackShare =
+    quality === "perfect"
+      ? stack.length
+      : quality === "strong"
+        ? Math.max(2, stack.length - 1)
+        : Math.max(1, Math.floor(stack.length / 2));
+
+  const experiences: WorkExperienceTrainingRow[] = [];
+  for (let roleIndex = 0; roleIndex < roleCount; roleIndex += 1) {
+    const company =
+      COMPANY_POOL[(index + roleIndex) % COMPANY_POOL.length] ?? "TechCorp";
+    const roleStack = [...stack].slice(0, stackShare);
+    const roleTitle =
+      titles[roleIndex % Math.max(1, titles.length)] ?? blueprint.headline;
+    const description =
+      quality === "weak"
+        ? `Contributed to projects at ${company}.`
+        : `Led ${roleTitle} work at ${company}, shipping features with ${roleStack.join(", ")} and driving measurable impact on reliability and delivery speed.`;
+
+    experiences.push({
+      title: roleTitle,
+      companyName: company,
+      description,
+      mainStack: roleStack,
+    });
+  }
+
+  return experiences;
 }
 
 // Creates realistic candidate variations from a role blueprint for supervised learning.
@@ -691,6 +826,14 @@ function createCandidateFromBlueprint(
     spokenLanguages = [blueprint.spokenLanguages[0] ?? "english"];
   }
 
+  const workExperiences = buildSyntheticWorkExperiences(
+    blueprint,
+    quality,
+    selectedSkills,
+    selectedTitles,
+    index,
+  );
+
   const row: ResumeTrainingRow = {
     resumeId: `synthetic-${quality}-${index + 1}`,
     queryText: [
@@ -720,6 +863,7 @@ function createCandidateFromBlueprint(
     salaryExpectationMax: salaryMax,
     skills: selectedSkills,
     titles: selectedTitles,
+    workExperiences,
     interactionScore: 0,
   };
 
@@ -786,6 +930,15 @@ function createCrossBlueprintNegatives(count: number): ResumeTrainingRow[] {
       salaryExpectationMax: candidateBlueprint.salaryExpectationMax,
       skills: [...candidateBlueprint.skills],
       titles: [...candidateBlueprint.titles],
+      // Work history from the *mismatched* candidate blueprint: a strong track
+      // record in the wrong stack must still score 0 against this query.
+      workExperiences: buildSyntheticWorkExperiences(
+        candidateBlueprint,
+        "strong",
+        candidateBlueprint.skills,
+        candidateBlueprint.titles,
+        index,
+      ),
       interactionScore: 0, // label = 0: query and candidate are a clear mismatch
     });
   }
@@ -877,6 +1030,7 @@ function buildTrainingMatrices(
           salaryExpectationMax: row.salaryExpectationMax,
           skills: row.skills,
           titles: row.titles,
+          workExperiences: row.workExperiences,
         },
       },
       config,
@@ -933,8 +1087,18 @@ async function trainModel(
   const knownLocations = dataset
     .map((row) => row.location ?? "")
     .filter((value) => value.trim().length > 0);
-  const knownSkills = dataset.flatMap((row) => row.skills);
-  const knownTitles = dataset.flatMap((row) => row.titles);
+  // Vocabulary must also cover skills/titles that only appear in work history,
+  // otherwise a stack used on the job but not self-declared would be invisible.
+  const knownSkills = dataset.flatMap((row) => [
+    ...row.skills,
+    ...row.workExperiences.flatMap((experience) => experience.mainStack),
+  ]);
+  const knownTitles = dataset.flatMap((row) => [
+    ...row.titles,
+    ...row.workExperiences
+      .map((experience) => experience.title)
+      .filter((value): value is string => Boolean(value && value.trim())),
+  ]);
   const knownLanguages = dataset.flatMap((row) => row.spokenLanguages);
   const knownNoticePeriods = dataset
     .map((row) => row.noticePeriod ?? "")

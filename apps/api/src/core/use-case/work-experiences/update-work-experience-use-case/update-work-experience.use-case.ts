@@ -2,7 +2,10 @@ import {
   ForbiddenError,
   ResourceNotFoundError,
 } from "../../../errors/index.js";
+import { IResumesRepository } from "../../../repositories/resume/resume-repository.js";
 import { IWorkExperienceRepository } from "../../../repositories/work-experience/work-experience-repository.js";
+import { EnqueueResumeEmbeddingUseCase } from "../../resumes/enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
+import { reembedResumeForUser } from "../shared/reembed-resume-for-user.js";
 
 export interface IUpdateWorkExperienceInput {
   userId: string;
@@ -24,6 +27,8 @@ export interface IUpdateWorkExperienceInput {
 export class UpdateWorkExperienceUseCase {
   constructor(
     private workExperienceRepository: IWorkExperienceRepository,
+    private resumesRepository?: IResumesRepository,
+    private enqueueResumeEmbeddingUseCase?: EnqueueResumeEmbeddingUseCase,
   ) {}
 
   async execute(input: IUpdateWorkExperienceInput) {
@@ -59,6 +64,16 @@ export class UpdateWorkExperienceUseCase {
       mainStack: input.mainStack,
     });
 
-    return this.workExperienceRepository.update(workExperience);
+    const updated = await this.workExperienceRepository.update(workExperience);
+
+    if (this.resumesRepository && this.enqueueResumeEmbeddingUseCase) {
+      await reembedResumeForUser(
+        input.userId,
+        this.resumesRepository,
+        this.enqueueResumeEmbeddingUseCase,
+      );
+    }
+
+    return updated;
   }
 }

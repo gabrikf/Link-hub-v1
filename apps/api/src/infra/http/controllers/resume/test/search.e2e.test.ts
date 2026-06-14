@@ -183,6 +183,12 @@ interface SearchCandidate {
   salaryExpectationMax: number | null;
   skills: string[];
   titles: string[];
+  workExperiences: {
+    title: string;
+    companyName: string;
+    description: string | null;
+    mainStack: string[];
+  }[];
   similarity: number;
   combinedText: string;
 }
@@ -969,6 +975,7 @@ describe(
           salaryExpectationMax: c.salaryExpectationMax,
           skills: c.skills,
           titles: c.titles,
+          workExperiences: c.workExperiences,
         };
 
         const score = modelScore(tfModel, preprocessing, query, candidateInput);
@@ -1023,6 +1030,7 @@ describe(
           salaryExpectationMax: c.salaryExpectationMax,
           skills: c.skills,
           titles: c.titles,
+          workExperiences: c.workExperiences,
         };
         return {
           ...c,

@@ -23,6 +23,13 @@ export interface SearchResumesByEmbeddingInput {
   filters: RecruiterSearchFilters;
 }
 
+export interface ResumeSearchWorkExperience {
+  title: string;
+  companyName: string;
+  description: string | null;
+  mainStack: string[];
+}
+
 export interface ResumeSearchResult {
   userId: string;
   resumeId: string;
@@ -46,6 +53,7 @@ export interface ResumeSearchResult {
   salaryExpectationMax: number | null;
   skills: string[];
   titles: string[];
+  workExperiences: ResumeSearchWorkExperience[];
   combinedText: string;
 }
 

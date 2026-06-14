@@ -1,7 +1,10 @@
 import { ResourceNotFoundError } from "../../../errors/index.js";
 import { WorkExperienceEntity } from "../../../entity/work-experience/work-experience-entity.js";
+import { IResumesRepository } from "../../../repositories/resume/resume-repository.js";
 import { IUsersRepository } from "../../../repositories/user/user-repository.js";
 import { IWorkExperienceRepository } from "../../../repositories/work-experience/work-experience-repository.js";
+import { EnqueueResumeEmbeddingUseCase } from "../../resumes/enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
+import { reembedResumeForUser } from "../shared/reembed-resume-for-user.js";
 
 export interface ICreateWorkExperienceInput {
   userId: string;
@@ -23,6 +26,8 @@ export class CreateWorkExperienceUseCase {
   constructor(
     private usersRepository: IUsersRepository,
     private workExperienceRepository: IWorkExperienceRepository,
+    private resumesRepository?: IResumesRepository,
+    private enqueueResumeEmbeddingUseCase?: EnqueueResumeEmbeddingUseCase,
   ) {}
 
   async execute(input: ICreateWorkExperienceInput) {
@@ -54,6 +59,16 @@ export class CreateWorkExperienceUseCase {
       displayOrder: lastOrder === null ? 0 : lastOrder + 1,
     });
 
-    return this.workExperienceRepository.create(workExperience);
+    const created = await this.workExperienceRepository.create(workExperience);
+
+    if (this.resumesRepository && this.enqueueResumeEmbeddingUseCase) {
+      await reembedResumeForUser(
+        input.userId,
+        this.resumesRepository,
+        this.enqueueResumeEmbeddingUseCase,
+      );
+    }
+
+    return created;
   }
 }

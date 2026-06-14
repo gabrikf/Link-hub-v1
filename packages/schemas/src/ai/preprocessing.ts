@@ -1,6 +1,29 @@
 import { z } from "zod/v4";
 
-export const PREPROCESSING_VERSION = "v1" as const;
+// Bumped to v2: the feature vector now encodes work history (the companies a
+// candidate actually worked at, the roles they held, the stack they used and
+// what they accomplished). Anything that consumes a persisted preprocessing.json
+// should treat v1 and v2 as incompatible shapes.
+export const PREPROCESSING_VERSION = "v2" as const;
+
+/**
+ * How much each signal is allowed to influence a match. These are the single
+ * source of truth for the whole pipeline: the feature encoder below, the
+ * training target in apps/training, and the worker's transparent fallback score
+ * all use the exact same numbers. Keeping them here means "skills matter 4x"
+ * is true everywhere, not just in one place.
+ *
+ *   skills      → strongest predictor of fit
+ *   titles      → the role the candidate calls themselves
+ *   workHistory → proof they actually did the work (stack + roles they held)
+ *   base        → everything else (seniority, location, languages, logistics…)
+ */
+export const MATCH_WEIGHTS = {
+  skills: 4,
+  titles: 2,
+  workHistory: 2,
+  base: 1,
+} as const;
 
 export const seniorityCategories = [
   "intern",
@@ -10,6 +33,17 @@ export const seniorityCategories = [
   "staff",
   "principal",
 ] as const;
+
+/**
+ * A single past role, reduced to the only parts that help matching: the role
+ * title, the company, what the candidate did there, and the technologies used.
+ */
+export interface WorkExperienceFeature {
+  title: string | null;
+  companyName: string | null;
+  description: string | null;
+  mainStack: string[];
+}
 
 export interface CandidateFeaturesInput {
   headlineTitle: string | null;
@@ -26,6 +60,7 @@ export interface CandidateFeaturesInput {
   salaryExpectationMax: number | null;
   skills: string[];
   titles: string[];
+  workExperiences: WorkExperienceFeature[];
 }
 
 export interface QueryCandidateFeaturesInput {
@@ -38,6 +73,7 @@ export const preprocessingConfigSchema = z.object({
   maxYearsExperience: z.number().positive(),
   maxSalaryExpectation: z.number().positive(),
   maxLanguageCount: z.number().positive(),
+  maxWorkExperienceCount: z.number().positive(),
   knownLocations: z.array(z.string().min(1)),
   knownSkills: z.array(z.string().min(1)),
   knownTitles: z.array(z.string().min(1)),
@@ -52,6 +88,43 @@ export type PreprocessingConfig = z.infer<typeof preprocessingConfigSchema>;
 
 export function normalizeToken(value: string): string {
   return value.trim().toLowerCase();
+}
+
+// --- Work-history helpers ---------------------------------------------------
+// A candidate proves a skill/title much more convincingly when it shows up in
+// the actual jobs they held than when it's just self-declared. These pull the
+// stack, role titles and free text out of the work history so we can reward it.
+
+function workStackSet(experiences: WorkExperienceFeature[]): Set<string> {
+  const set = new Set<string>();
+  for (const experience of experiences) {
+    for (const tech of experience.mainStack) {
+      set.add(normalizeToken(tech));
+    }
+  }
+  return set;
+}
+
+function workTitleSet(experiences: WorkExperienceFeature[]): Set<string> {
+  const set = new Set<string>();
+  for (const experience of experiences) {
+    if (experience.title) {
+      set.add(normalizeToken(experience.title));
+    }
+  }
+  return set;
+}
+
+function workHistoryText(experiences: WorkExperienceFeature[]): string {
+  return experiences
+    .flatMap((experience) => [
+      experience.title,
+      experience.companyName,
+      experience.description,
+      experience.mainStack.join(" "),
+    ])
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .join(" ");
 }
 
 export function toCandidateFeatureVector(
@@ -100,20 +173,49 @@ export function toCandidateFeatureVector(
     normalizeToken(item) === normalizeToken(input.noticePeriod ?? "") ? 1 : 0,
   );
 
-  const skillSet = new Set(input.skills.map(normalizeToken));
-  const skillVector = config.knownSkills.map((item) =>
-    skillSet.has(normalizeToken(item)) ? 3 : 0,
-  );
+  // Skills are encoded with the strongest weight (4). A skill that is also
+  // backed by real work history gets an extra +2, so "I used React on the job"
+  // outranks "I listed React" — exactly the work-history boost we want (2x).
+  const declaredSkills = new Set(input.skills.map(normalizeToken));
+  const stackSkills = workStackSet(input.workExperiences);
+  const skillVector = config.knownSkills.map((item) => {
+    const token = normalizeToken(item);
+    return (
+      (declaredSkills.has(token) ? MATCH_WEIGHTS.skills : 0) +
+      (stackSkills.has(token) ? MATCH_WEIGHTS.workHistory : 0)
+    );
+  });
 
-  const titleSet = new Set(input.titles.map(normalizeToken));
-  const titleVector = config.knownTitles.map((item) =>
-    titleSet.has(normalizeToken(item)) ? 2 : 0,
-  );
+  // Titles weighted 2, with an extra +2 when the candidate actually held that
+  // role in their work history.
+  const declaredTitles = new Set(input.titles.map(normalizeToken));
+  const heldTitles = workTitleSet(input.workExperiences);
+  const titleVector = config.knownTitles.map((item) => {
+    const token = normalizeToken(item);
+    return (
+      (declaredTitles.has(token) ? MATCH_WEIGHTS.titles : 0) +
+      (heldTitles.has(token) ? MATCH_WEIGHTS.workHistory : 0)
+    );
+  });
 
   const languageSet = new Set(input.spokenLanguages.map(normalizeToken));
   const languageVector = config.knownLanguages.map((item) =>
     languageSet.has(normalizeToken(item)) ? 1 : 0,
   );
+
+  // Two compact scalars that summarise "does this person have a real track
+  // record": how many roles they've held and whether those roles are described.
+  const workExperienceCount = Math.min(
+    input.workExperiences.length / config.maxWorkExperienceCount,
+    1,
+  );
+  const describedExperiences = input.workExperiences.filter((experience) =>
+    experience.description?.trim().length ? true : false,
+  ).length;
+  const workHistoryDepth =
+    input.workExperiences.length === 0
+      ? 0
+      : describedExperiences / input.workExperiences.length;
 
   return [
     headlineSignal,
@@ -123,6 +225,8 @@ export function toCandidateFeatureVector(
     normalizedSalaryMax,
     languageCount,
     input.openToRelocation ? 1 : 0,
+    workExperienceCount,
+    workHistoryDepth,
     ...seniorityVector,
     ...workModelVector,
     ...contractTypeVector,
@@ -220,6 +324,18 @@ export function toQueryCandidateFeatureVector(
     queryKnownTitles,
     input.candidate.titles,
   );
+
+  // Work-history coverage: does the candidate's *actual job history* cover what
+  // the recruiter asked for? This is the decisive "really matches" signal — a
+  // React/Node query against someone who shipped React/Node at real companies.
+  const stackTokens = [...workStackSet(input.candidate.workExperiences)];
+  const heldTitleTokens = [...workTitleSet(input.candidate.workExperiences)];
+  const workTextTokens = tokenize(workHistoryText(input.candidate.workExperiences));
+
+  const queryWorkStackCoverage = overlapScore(queryKnownSkills, stackTokens);
+  const queryWorkTitleCoverage = overlapScore(queryKnownTitles, heldTitleTokens);
+  const queryWorkTextCoverage = overlapScore(queryTokens, workTextTokens);
+
   const locationMentionScore = input.candidate.location
     ? queryTokenSet.has(normalizeToken(input.candidate.location))
       ? 1
@@ -240,6 +356,9 @@ export function toQueryCandidateFeatureVector(
     queryTokenCoverage,
     querySkillCoverage,
     queryTitleCoverage,
+    queryWorkStackCoverage,
+    queryWorkTitleCoverage,
+    queryWorkTextCoverage,
     locationMentionScore,
     languageMentionScore,
     yearsHintScore,
@@ -275,6 +394,7 @@ export function buildDefaultPreprocessingConfig(
     maxYearsExperience: 25,
     maxSalaryExpectation: 300000,
     maxLanguageCount: 6,
+    maxWorkExperienceCount: 6,
     knownLocations: uniqueLocations,
     knownSkills: uniqueSkills,
     knownTitles: uniqueTitles,

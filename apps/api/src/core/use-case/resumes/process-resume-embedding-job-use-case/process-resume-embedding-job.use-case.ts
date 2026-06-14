@@ -6,6 +6,7 @@ import { IResumeEmbeddingsRepository } from "../../../repositories/resume-embedd
 import { IResumesRepository } from "../../../repositories/resume/resume-repository.js";
 import { IResumeSkillRepository } from "../../../repositories/resume-skill/resume-skill-repository.js";
 import { IResumeTitleRepository } from "../../../repositories/resume-title/resume-title-repository.js";
+import { IWorkExperienceRepository } from "../../../repositories/work-experience/work-experience-repository.js";
 import { buildWeightedResumeDocument } from "../shared/build-weighted-resume-document.js";
 
 export class ProcessResumeEmbeddingJobUseCase {
@@ -13,6 +14,7 @@ export class ProcessResumeEmbeddingJobUseCase {
     private resumesRepository: IResumesRepository,
     private resumeSkillRepository: IResumeSkillRepository,
     private resumeTitleRepository: IResumeTitleRepository,
+    private workExperienceRepository: IWorkExperienceRepository,
     private resumeEmbeddingsRepository: IResumeEmbeddingsRepository,
     private embeddingProvider: IEmbeddingProvider,
   ) {}
@@ -24,15 +26,17 @@ export class ProcessResumeEmbeddingJobUseCase {
       throw new ResourceNotFoundError("Resume", job.resumeId);
     }
 
-    const [skills, titles] = await Promise.all([
+    const [skills, titles, workExperiences] = await Promise.all([
       this.resumeSkillRepository.listByResumeId(resume.id),
       this.resumeTitleRepository.listByResumeId(resume.id),
+      this.workExperienceRepository.findByUserId(resume.userId),
     ]);
 
     const weightedDocument = buildWeightedResumeDocument({
       resume,
       skills,
       titles,
+      workExperiences,
     });
 
     const currentContentHash = createHash("sha256")

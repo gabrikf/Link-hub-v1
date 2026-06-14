@@ -1,6 +1,7 @@
 import {
   IResumeSearchRepository,
   ResumeSearchResult,
+  ResumeSearchWorkExperience,
   SearchResumesByEmbeddingInput,
 } from "./resume-search-repository.js";
 
@@ -27,6 +28,7 @@ interface SeededResumeSearchItem {
   spokenLanguages: string[];
   skills: string[];
   titles: string[];
+  workExperiences?: ResumeSearchWorkExperience[];
 }
 
 function cosineSimilarity(a: number[], b: number[]) {
@@ -163,6 +165,7 @@ export class InMemoryResumeSearchRepository implements IResumeSearchRepository {
         salaryExpectationMax: item.salaryExpectationMax,
         skills: item.skills,
         titles: item.titles,
+        workExperiences: item.workExperiences ?? [],
         combinedText: [
           item.headlineTitle,
           item.summary,
