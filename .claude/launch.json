@@ -16,12 +16,14 @@
     {
       "name": "worker",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:worker", "--workspace=api"]
+      "runtimeArgs": ["run", "dev:worker", "--workspace=api"],
+      "autoPort": true
     },
     {
       "name": "schemas",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:schemas"]
+      "runtimeArgs": ["run", "dev:schemas"],
+      "autoPort": true
     }
   ]
 }
