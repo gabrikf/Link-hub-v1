@@ -71,6 +71,13 @@
       "when": 1777131526549,
       "tag": "0009_handy_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781367391464,
+      "tag": "0010_supreme_quasar",
+      "breakpoints": true
     }
   ]
 }

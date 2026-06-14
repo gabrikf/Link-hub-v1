@@ -4,6 +4,8 @@ import { linksRoutes } from "./links.js";
 import { profileRoutes } from "./profile.js";
 import { resumeRoutes } from "./resume.js";
 import { interactionsRoutes } from "./interactions.js";
+import { workExperienceRoutes } from "./work-experience.js";
+import { aiImportRoutes } from "./ai-import.js";
 
 export async function routes(fastify: FastifyInstance) {
   fastify.get("/health", async (request, reply) => {
@@ -15,10 +17,14 @@ export async function routes(fastify: FastifyInstance) {
   fastify.register(profileRoutes);
   fastify.register(resumeRoutes);
   fastify.register(interactionsRoutes);
+  fastify.register(workExperienceRoutes);
+  fastify.register(aiImportRoutes);
 
   fastify.register(authRoutes, { prefix: "/api/v1/auth" });
   fastify.register(linksRoutes, { prefix: "/api/v1" });
   fastify.register(profileRoutes, { prefix: "/api/v1" });
   fastify.register(resumeRoutes, { prefix: "/api/v1" });
   fastify.register(interactionsRoutes, { prefix: "/api/v1" });
+  fastify.register(workExperienceRoutes, { prefix: "/api/v1" });
+  fastify.register(aiImportRoutes, { prefix: "/api/v1" });
 }

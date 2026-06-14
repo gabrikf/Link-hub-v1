@@ -8,7 +8,7 @@ import type { LinkIcon, LinkResponse } from "@repo/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import axios from "axios";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import {
   createLink,
@@ -46,6 +46,9 @@ import {
 import { SortableLinkItem } from "../components/sortable-link-item";
 import { ResumeEditDialog } from "../../resume/components/resume-edit-dialog";
 import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
+import { WorkHistoryManager } from "../../work-history/components/work-history-manager";
+import { ResumeImportModal } from "../../resume-import/components/resume-import-modal";
+import { FiUploadCloud } from "react-icons/fi";
 
 type LinkIconSelectOption = {
   value: LinkIcon | "";
@@ -65,6 +68,8 @@ export function DashboardPage() {
 
   const hasSession = Boolean(getAuthTokens() && userInfo);
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const hasCheckedImportPromptRef = useRef(false);
 
   const {
     register,
@@ -150,6 +155,46 @@ export function DashboardPage() {
       navigate({ to: "/" });
     }
   }, [hasSession, navigate]);
+
+  const importPromptStorageKey = userInfo?.login
+    ? `resume-import-prompt-seen:${userInfo.login}`
+    : null;
+
+  // First-visit nudge: if the user has no resume yet and hasn't dismissed the
+  // prompt before, open the AI import modal automatically. This intentionally
+  // runs once when the resume query first settles (syncing UI to async + storage).
+  useEffect(() => {
+    if (
+      hasCheckedImportPromptRef.current ||
+      !importPromptStorageKey ||
+      resumeQuery.isLoading ||
+      !resumeQuery.isFetched
+    ) {
+      return;
+    }
+
+    hasCheckedImportPromptRef.current = true;
+
+    const alreadySeen =
+      window.localStorage.getItem(importPromptStorageKey) === "true";
+
+    if (!alreadySeen && !resumeQuery.data) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time open after async resume load
+      setIsImportModalOpen(true);
+    }
+  }, [
+    importPromptStorageKey,
+    resumeQuery.isLoading,
+    resumeQuery.isFetched,
+    resumeQuery.data,
+  ]);
+
+  const handleImportModalOpenChange = (open: boolean) => {
+    setIsImportModalOpen(open);
+    if (!open && importPromptStorageKey) {
+      window.localStorage.setItem(importPromptStorageKey, "true");
+    }
+  };
 
   const resetLinkForm = () => {
     reset({
@@ -435,6 +480,32 @@ export function DashboardPage() {
           />
         ) : null}
 
+        <div className="flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-violet-500/30 dark:bg-violet-500/10">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-700 text-white">
+              <FiUploadCloud className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Import from your resume
+              </p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                Upload a PDF or Word file and let AI auto-fill your resume and
+                work history.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            fullWidth={false}
+            className="shrink-0 rounded-full"
+            onClick={() => setIsImportModalOpen(true)}
+          >
+            <FiUploadCloud className="h-4 w-4" aria-hidden="true" />
+            Import resume file
+          </Button>
+        </div>
+
         <ResumeReadOnlyCard
           resume={resumeQuery.data ?? null}
           isLoading={resumeQuery.isLoading}
@@ -477,6 +548,25 @@ export function DashboardPage() {
           onCreateTitleCatalogItem={async (name) =>
             createTitleCatalogMutation.mutateAsync({ name })
           }
+        />
+
+        <WorkHistoryManager
+          enabled={hasSession}
+          onMutated={invalidatePublicProfileCache}
+        />
+
+        <ResumeImportModal
+          open={isImportModalOpen}
+          onOpenChange={handleImportModalOpenChange}
+          currentResume={resumeQuery.data ?? null}
+          currentProfileName={meQuery.data?.name ?? ""}
+          currentProfileDescription={meQuery.data?.description ?? null}
+          onApplied={() => {
+            queryClient.invalidateQueries({ queryKey: ["resume"] });
+            queryClient.invalidateQueries({ queryKey: ["work-experiences"] });
+            queryClient.invalidateQueries({ queryKey: ["me"] });
+            invalidatePublicProfileCache();
+          }}
         />
       </section>
 

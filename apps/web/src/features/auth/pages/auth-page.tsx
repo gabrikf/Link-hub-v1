@@ -5,7 +5,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useGoogleLogin } from "@react-oauth/google";
 import { FaLinkedinIn } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
-import { FiLink2 } from "react-icons/fi";
 import {
   getLinkedInSignInUrl,
   googleSignInRequest,
@@ -13,6 +12,7 @@ import {
   registerRequest,
 } from "../../../lib/auth-api";
 import { setAuthTokens } from "../../../lib/auth-tokens";
+import { BrandLogo } from "../../../shared-components/brand-logo";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
@@ -150,9 +150,7 @@ export function AuthPage() {
       <section className="w-full max-w-md space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <header className="space-y-1">
           <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-linear-to-br from-sky-500 to-teal-500 text-white shadow-sm">
-              <FiLink2 aria-hidden="true" className="h-4 w-4" />
-            </span>
+            <BrandLogo className="h-8 w-8 shadow-sm" />
             LinkHub
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">

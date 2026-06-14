@@ -2,11 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import axios from "axios";
 import { FiExternalLink, FiLink2, FiLogIn, FiUser } from "react-icons/fi";
-import { fetchPublicProfile, fetchPublicResume } from "../../../lib/auth-api";
+import {
+  fetchPublicProfile,
+  fetchPublicResume,
+  fetchPublicWorkExperiences,
+} from "../../../lib/auth-api";
 import { getLinkIconOption } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Avatar } from "../../../shared-components/avatar";
 import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
+import { WorkHistoryReadOnly } from "../../work-history/components/work-history-read-only";
 
 export function PublicProfilePage() {
   const { username } = useParams({ from: "/profile/$username" });
@@ -31,6 +36,11 @@ export function PublicProfilePage() {
         throw error;
       }
     },
+  });
+
+  const workExperiencesQuery = useQuery({
+    queryKey: ["public-work-experiences", username],
+    queryFn: () => fetchPublicWorkExperiences(username),
   });
 
   if (profileQuery.isLoading) {
@@ -159,6 +169,17 @@ export function PublicProfilePage() {
             emptyMessage="This user has not published resume details yet."
           />
         </section>
+
+        {workExperiencesQuery.isLoading ||
+        (workExperiencesQuery.data?.length ?? 0) > 0 ? (
+          <section className="mt-8">
+            <WorkHistoryReadOnly
+              workExperiences={workExperiencesQuery.data ?? []}
+              isLoading={workExperiencesQuery.isLoading}
+              subtitle="Professional experience"
+            />
+          </section>
+        ) : null}
       </div>
     </main>
   );

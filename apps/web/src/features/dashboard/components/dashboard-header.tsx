@@ -4,7 +4,7 @@ export function DashboardHeader() {
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex gap-2 items-center">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-cyan-500 to-blue-500 text-white shadow-sm">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-violet-600 to-violet-800 text-white shadow-sm">
           <FiLayout className="h-6 w-6" aria-hidden="true" />
         </span>
         <div className="flex flex-col">

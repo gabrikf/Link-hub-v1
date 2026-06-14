@@ -12,6 +12,7 @@ import { IResumeTitleRepository } from "../../core/repositories/resume-title/res
 import { IResumeEmbeddingsRepository } from "../../core/repositories/resume-embedding/resume-embedding-repository.js";
 import { IResumeSearchRepository } from "../../core/repositories/resume-search/resume-search-repository.js";
 import { ICandidateInteractionRepository } from "../../core/repositories/candidate-interaction/candidate-interaction-repository.js";
+import { IWorkExperienceRepository } from "../../core/repositories/work-experience/work-experience-repository.js";
 import { IHashProvider } from "../../core/providers/hash/hash-provider.js";
 import { IJwtProvider } from "../../core/providers/jwt/jwt-provider.js";
 import { IEmbeddingProvider } from "../../core/providers/embedding/embedding-provider.js";
@@ -19,6 +20,7 @@ import { IRecruiterQueryConversionProvider } from "../../core/providers/query-co
 import { IGoogleOAuthProvider } from "../../core/providers/oauth/google-oauth-provider.js";
 import { ILinkedInOAuthProvider } from "../../core/providers/oauth/linkedin-oauth-provider.js";
 import { IResumeEmbeddingQueue } from "../../core/providers/queue/resume-embedding-queue.js";
+import { IResumeParsingProvider } from "../../core/providers/resume-parsing/resume-parsing-provider.js";
 import { DrizzleUserRepository } from "../database/drizzle/repositories/user.repository.js";
 import { DrizzleLinksRepository } from "../database/drizzle/repositories/link.repository.js";
 import { DrizzleRefreshTokenRepository } from "../database/drizzle/repositories/refresh-token.repository.js";
@@ -31,6 +33,7 @@ import { DrizzleResumeTitleRepository } from "../database/drizzle/repositories/r
 import { DrizzleResumeEmbeddingsRepository } from "../database/drizzle/repositories/resume-embedding.repository.js";
 import { DrizzleResumeSearchRepository } from "../database/drizzle/repositories/resume-search.repository.js";
 import { DrizzleCandidateInteractionRepository } from "../database/drizzle/repositories/candidate-interaction.repository.js";
+import { DrizzleWorkExperienceRepository } from "../database/drizzle/repositories/work-experience.repository.js";
 import { Argon2HashProvider } from "../providers/argon2-hash-provider.js";
 import { JwtProvider } from "../providers/jwt-provider.js";
 import { OpenAiEmbeddingProvider } from "../providers/openai-embedding-provider.js";
@@ -41,6 +44,8 @@ import { OpenAiRecruiterQueryConversionProvider } from "../providers/openai-recr
 import { GoogleOAuthProvider } from "../providers/google-oauth-provider.js";
 import { LinkedInOAuthProvider } from "../providers/linkedin-oauth-provider.js";
 import { BullMqResumeEmbeddingQueue } from "../providers/bullmq-resume-embedding-queue.js";
+import { OpenAiResumeParsingProvider } from "../providers/openai-resume-parsing-provider.js";
+import { DeterministicResumeParsingProvider } from "../providers/deterministic-resume-parsing-provider.js";
 import { CreateUserUseCase } from "../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 import { LoginUseCase } from "../../core/use-case/auth/login-use-case/login.use-case.js";
 import { GoogleSignInUseCase } from "../../core/use-case/auth/google-sign-in-use-case/google-sign-in.use-case.js";
@@ -71,6 +76,13 @@ import { ProcessResumeEmbeddingJobUseCase } from "../../core/use-case/resumes/pr
 import { SearchResumesByRecruiterQueryUseCase } from "../../core/use-case/resumes/search-resumes-by-recruiter-query-use-case/search-resumes-by-recruiter-query.use-case.js";
 import { TransformRecruiterSearchInputUseCase } from "../../core/use-case/resumes/transform-recruiter-search-input-use-case/transform-recruiter-search-input.use-case.js";
 import { RecordCandidateInteractionUseCase } from "../../core/use-case/interactions/record-candidate-interaction-use-case/record-candidate-interaction.use-case.js";
+import { ListMyWorkExperiencesUseCase } from "../../core/use-case/work-experiences/list-my-work-experiences-use-case/list-my-work-experiences.use-case.js";
+import { CreateWorkExperienceUseCase } from "../../core/use-case/work-experiences/create-work-experience-use-case/create-work-experience.use-case.js";
+import { UpdateWorkExperienceUseCase } from "../../core/use-case/work-experiences/update-work-experience-use-case/update-work-experience.use-case.js";
+import { DeleteWorkExperienceUseCase } from "../../core/use-case/work-experiences/delete-work-experience-use-case/delete-work-experience.use-case.js";
+import { GetPublicWorkExperiencesByUsernameUseCase } from "../../core/use-case/work-experiences/get-public-work-experiences-by-username-use-case/get-public-work-experiences-by-username.use-case.js";
+import { ParseResumeUseCase } from "../../core/use-case/ai-import/parse-resume-use-case/parse-resume.use-case.js";
+import { ApplyAiResumeImportUseCase } from "../../core/use-case/ai-import/apply-ai-resume-import-use-case/apply-ai-resume-import.use-case.js";
 
 // Tokens for dependency injection
 export const TOKENS = {
@@ -86,12 +98,14 @@ export const TOKENS = {
   ResumeEmbeddingsRepository: Symbol.for("ResumeEmbeddingsRepository"),
   ResumeSearchRepository: Symbol.for("ResumeSearchRepository"),
   CandidateInteractionRepository: Symbol.for("CandidateInteractionRepository"),
+  WorkExperienceRepository: Symbol.for("WorkExperienceRepository"),
   HashProvider: Symbol.for("HashProvider"),
   JwtProvider: Symbol.for("JwtProvider"),
   EmbeddingProvider: Symbol.for("EmbeddingProvider"),
   RecruiterQueryConversionProvider: Symbol.for(
     "RecruiterQueryConversionProvider",
   ),
+  ResumeParsingProvider: Symbol.for("ResumeParsingProvider"),
   ResumeEmbeddingQueue: Symbol.for("ResumeEmbeddingQueue"),
   GoogleOAuthProvider: Symbol.for("GoogleOAuthProvider"),
   LinkedInOAuthProvider: Symbol.for("LinkedInOAuthProvider"),
@@ -135,6 +149,15 @@ export const TOKENS = {
   GetPublicResumeByUsernameUseCase: Symbol.for(
     "GetPublicResumeByUsernameUseCase",
   ),
+  ListMyWorkExperiencesUseCase: Symbol.for("ListMyWorkExperiencesUseCase"),
+  CreateWorkExperienceUseCase: Symbol.for("CreateWorkExperienceUseCase"),
+  UpdateWorkExperienceUseCase: Symbol.for("UpdateWorkExperienceUseCase"),
+  DeleteWorkExperienceUseCase: Symbol.for("DeleteWorkExperienceUseCase"),
+  GetPublicWorkExperiencesByUsernameUseCase: Symbol.for(
+    "GetPublicWorkExperiencesByUsernameUseCase",
+  ),
+  ParseResumeUseCase: Symbol.for("ParseResumeUseCase"),
+  ApplyAiResumeImportUseCase: Symbol.for("ApplyAiResumeImportUseCase"),
 } as const;
 
 /**
@@ -196,6 +219,13 @@ export function setupContainer() {
     },
   );
 
+  container.register<IWorkExperienceRepository>(
+    TOKENS.WorkExperienceRepository,
+    {
+      useClass: DrizzleWorkExperienceRepository,
+    },
+  );
+
   // Register providers
   container.register<IHashProvider>(TOKENS.HashProvider, {
     useClass: Argon2HashProvider,
@@ -253,6 +283,18 @@ export function setupContainer() {
       },
     },
   );
+
+  container.register<IResumeParsingProvider>(TOKENS.ResumeParsingProvider, {
+    useFactory: () => {
+      const apiKey = process.env.OPENAI_API_KEY;
+
+      if (!apiKey) {
+        return new DeterministicResumeParsingProvider();
+      }
+
+      return new OpenAiResumeParsingProvider(apiKey);
+    },
+  });
 
   container.register<IGoogleOAuthProvider>(TOKENS.GoogleOAuthProvider, {
     useFactory: () => {
@@ -819,6 +861,151 @@ export function setupContainer() {
           resumesRepository,
           resumeSkillRepository,
           resumeTitleRepository,
+        );
+      },
+    },
+  );
+
+  container.register<ListMyWorkExperiencesUseCase>(
+    TOKENS.ListMyWorkExperiencesUseCase,
+    {
+      useFactory: (c) => {
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+
+        return new ListMyWorkExperiencesUseCase(workExperienceRepository);
+      },
+    },
+  );
+
+  container.register<CreateWorkExperienceUseCase>(
+    TOKENS.CreateWorkExperienceUseCase,
+    {
+      useFactory: (c) => {
+        const usersRepository = c.resolve<IUsersRepository>(
+          TOKENS.UsersRepository,
+        );
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+
+        return new CreateWorkExperienceUseCase(
+          usersRepository,
+          workExperienceRepository,
+        );
+      },
+    },
+  );
+
+  container.register<UpdateWorkExperienceUseCase>(
+    TOKENS.UpdateWorkExperienceUseCase,
+    {
+      useFactory: (c) => {
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+
+        return new UpdateWorkExperienceUseCase(workExperienceRepository);
+      },
+    },
+  );
+
+  container.register<DeleteWorkExperienceUseCase>(
+    TOKENS.DeleteWorkExperienceUseCase,
+    {
+      useFactory: (c) => {
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+
+        return new DeleteWorkExperienceUseCase(workExperienceRepository);
+      },
+    },
+  );
+
+  container.register<GetPublicWorkExperiencesByUsernameUseCase>(
+    TOKENS.GetPublicWorkExperiencesByUsernameUseCase,
+    {
+      useFactory: (c) => {
+        const usersRepository = c.resolve<IUsersRepository>(
+          TOKENS.UsersRepository,
+        );
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+
+        return new GetPublicWorkExperiencesByUsernameUseCase(
+          usersRepository,
+          workExperienceRepository,
+        );
+      },
+    },
+  );
+
+  container.register<ParseResumeUseCase>(TOKENS.ParseResumeUseCase, {
+    useFactory: (c) => {
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+      const skillCatalogRepository = c.resolve<ISkillCatalogRepository>(
+        TOKENS.SkillCatalogRepository,
+      );
+      const titleCatalogRepository = c.resolve<ITitleCatalogRepository>(
+        TOKENS.TitleCatalogRepository,
+      );
+      const resumeParsingProvider = c.resolve<IResumeParsingProvider>(
+        TOKENS.ResumeParsingProvider,
+      );
+
+      return new ParseResumeUseCase(
+        usersRepository,
+        skillCatalogRepository,
+        titleCatalogRepository,
+        resumeParsingProvider,
+      );
+    },
+  });
+
+  container.register<ApplyAiResumeImportUseCase>(
+    TOKENS.ApplyAiResumeImportUseCase,
+    {
+      useFactory: (c) => {
+        const usersRepository = c.resolve<IUsersRepository>(
+          TOKENS.UsersRepository,
+        );
+        const resumesRepository = c.resolve<IResumesRepository>(
+          TOKENS.ResumesRepository,
+        );
+        const skillCatalogRepository = c.resolve<ISkillCatalogRepository>(
+          TOKENS.SkillCatalogRepository,
+        );
+        const titleCatalogRepository = c.resolve<ITitleCatalogRepository>(
+          TOKENS.TitleCatalogRepository,
+        );
+        const resumeSkillRepository = c.resolve<IResumeSkillRepository>(
+          TOKENS.ResumeSkillRepository,
+        );
+        const resumeTitleRepository = c.resolve<IResumeTitleRepository>(
+          TOKENS.ResumeTitleRepository,
+        );
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+        const enqueueResumeEmbeddingUseCase =
+          c.resolve<EnqueueResumeEmbeddingUseCase>(
+            TOKENS.EnqueueResumeEmbeddingUseCase,
+          );
+
+        return new ApplyAiResumeImportUseCase(
+          usersRepository,
+          resumesRepository,
+          skillCatalogRepository,
+          titleCatalogRepository,
+          resumeSkillRepository,
+          resumeTitleRepository,
+          workExperienceRepository,
+          enqueueResumeEmbeddingUseCase,
         );
       },
     },

@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 type AvatarProps = {
   name?: string | null;
   imageUrl?: string | null;
@@ -25,6 +27,11 @@ export function Avatar({
 }: AvatarProps) {
   const initial = getInitial(name);
   const ariaLabel = name?.trim() ? `${name} avatar` : "User avatar";
+  // Track the url that failed to load so a new src automatically gets a fresh
+  // try without needing an effect to reset state.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  const showImage = Boolean(imageUrl) && imageUrl !== failedUrl;
 
   return (
     <div
@@ -37,11 +44,14 @@ export function Avatar({
         fontSize: Math.max(14, Math.round(size * 0.4)),
       }}
     >
-      {imageUrl ? (
+      {showImage ? (
         <img
-          src={imageUrl}
+          src={imageUrl ?? undefined}
           alt={ariaLabel}
+          // Google/LinkedIn avatar CDNs reject requests that leak a referer.
+          referrerPolicy="no-referrer"
           className="h-full w-full object-cover"
+          onError={() => setFailedUrl(imageUrl ?? null)}
         />
       ) : (
         <span className="font-semibold leading-none">{initial}</span>

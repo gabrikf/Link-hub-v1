@@ -31,6 +31,18 @@ import {
   updateProfileSchemaOutput,
   createInteractionInputSchema,
   interactionSchema,
+  workExperienceSchema,
+  publicWorkExperienceSchema,
+  createWorkExperienceInputSchema,
+  updateWorkExperienceInputSchema,
+  aiResumeImportParseResponseSchema,
+  applyAiResumeImportInputSchema,
+  type WorkExperienceResponse,
+  type PublicWorkExperienceResponse,
+  type CreateWorkExperienceInput,
+  type UpdateWorkExperienceInput,
+  type AiResumeImportParseResponse,
+  type ApplyAiResumeImportInput,
   type ResumeResponse,
   type CreateUserInput,
   type CreateUserOutput,
@@ -513,4 +525,133 @@ export async function trackInteraction(
   });
 
   return interactionSchema.parse(response.data);
+}
+
+export async function fetchMyWorkExperiences(): Promise<
+  WorkExperienceResponse[]
+> {
+  const response = await fetchWithTokens("/me/work-experiences", {
+    method: "GET",
+  });
+
+  return workExperienceSchema.array().parse(response.data);
+}
+
+export async function createWorkExperience(
+  payload: CreateWorkExperienceInput,
+): Promise<WorkExperienceResponse> {
+  const body = createWorkExperienceInputSchema.parse(payload);
+  const response = await fetchWithTokens("/me/work-experiences", {
+    method: "POST",
+    data: body,
+  });
+
+  return workExperienceSchema.parse(response.data);
+}
+
+export async function updateWorkExperience(
+  workExperienceId: string,
+  payload: UpdateWorkExperienceInput,
+): Promise<WorkExperienceResponse> {
+  const body = updateWorkExperienceInputSchema.parse(payload);
+  const response = await fetchWithTokens(
+    `/me/work-experiences/${workExperienceId}`,
+    {
+      method: "PUT",
+      data: body,
+    },
+  );
+
+  return workExperienceSchema.parse(response.data);
+}
+
+export async function deleteWorkExperience(
+  workExperienceId: string,
+): Promise<{ success: boolean }> {
+  const response = await fetchWithTokens(
+    `/me/work-experiences/${workExperienceId}`,
+    {
+      method: "DELETE",
+    },
+  );
+
+  return response.data as { success: boolean };
+}
+
+export async function fetchPublicWorkExperiences(
+  username: string,
+): Promise<PublicWorkExperienceResponse[]> {
+  const response = await apiClient.get(
+    `/profile/${username}/work-experiences`,
+  );
+
+  return publicWorkExperienceSchema.array().parse(response.data);
+}
+
+export async function parseResumeImport(input: {
+  file?: File;
+  resumeText?: string;
+}): Promise<AiResumeImportParseResponse> {
+  const formData = new FormData();
+
+  if (input.resumeText) {
+    formData.append("resumeText", input.resumeText);
+  }
+
+  if (input.file) {
+    formData.append("attachment", input.file);
+  }
+
+  // Use raw fetch (not the axios client) so the browser sets the multipart
+  // boundary. The axios instance forces a JSON content-type which would
+  // serialize the FormData away and drop the file.
+  const headers = new Headers();
+  const storedTokens = getAuthTokens();
+
+  if (storedTokens) {
+    applyAuthHeaders(headers, storedTokens);
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}/me/resume/ai-import/parse`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const data = (await response.json()) as unknown;
+
+  if (!response.ok) {
+    if (
+      typeof data === "object" &&
+      data !== null &&
+      "message" in data &&
+      typeof (data as { message?: unknown }).message === "string"
+    ) {
+      throw new Error((data as { message: string }).message);
+    }
+
+    throw new Error("Could not parse the resume. Try again.");
+  }
+
+  return aiResumeImportParseResponseSchema.parse(data);
+}
+
+export async function applyResumeImport(
+  payload: ApplyAiResumeImportInput,
+): Promise<{
+  skillsAdded: number;
+  titlesAdded: number;
+  workExperiencesAdded: number;
+}> {
+  const body = applyAiResumeImportInputSchema.parse(payload);
+  const response = await fetchWithTokens("/me/resume/ai-import/apply", {
+    method: "POST",
+    data: body,
+  });
+
+  return response.data as {
+    skillsAdded: number;
+    titlesAdded: number;
+    workExperiencesAdded: number;
+  };
 }

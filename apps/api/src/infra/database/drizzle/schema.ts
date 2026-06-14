@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   boolean,
   customType,
+  date,
   index,
   jsonb,
   pgTable,
@@ -107,6 +108,35 @@ export const links = pgTable("links", {
     .defaultNow()
     .$onUpdateFn(() => new Date()),
 });
+
+export const workExperiences = pgTable(
+  "work_experiences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    companyName: text("company_name").notNull(),
+    employmentType: text("employment_type"),
+    workModel: text("work_model"),
+    locationCity: text("location_city"),
+    locationState: text("location_state"),
+    locationCountry: text("location_country"),
+    startDate: date("start_date", { mode: "string" }),
+    endDate: date("end_date", { mode: "string" }),
+    isCurrent: boolean("is_current").notNull().default(false),
+    description: text("description"),
+    mainStack: text("main_stack").array().notNull().default([]),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [index("work_experiences_user_id_idx").on(table.userId)],
+);
 
 export const resumes = pgTable(
   "resumes",
@@ -289,6 +319,7 @@ export const userRelations = relations(users, ({ many }) => ({
   refreshTokens: many(refreshTokens),
   oauthAccounts: many(oauthAccounts),
   links: many(links),
+  workExperiences: many(workExperiences),
   resumes: many(resumes),
   candidateInteractions: many(candidateInteractions),
   createdSkills: many(skillsCatalog),
@@ -308,6 +339,16 @@ export const linksRelations = relations(links, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const workExperiencesRelations = relations(
+  workExperiences,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [workExperiences.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const resumesRelations = relations(resumes, ({ one, many }) => ({
   user: one(users, {
