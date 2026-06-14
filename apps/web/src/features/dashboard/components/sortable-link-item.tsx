@@ -34,7 +34,7 @@ export function SortableLinkItem({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700 dark:bg-zinc-900"
+      className="anim-fade-up flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-3 transition-all duration-300 hover:border-violet-400/70 hover:shadow-[0_0_22px_-6px_rgba(139,92,246,0.5)] sm:flex-row sm:items-center sm:justify-between dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-violet-500/60"
     >
       <div className="flex min-w-0 items-start gap-3">
         <Button

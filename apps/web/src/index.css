@@ -37,3 +37,218 @@
     @apply bg-zinc-100 text-zinc-900 antialiased transition-colors duration-200 dark:bg-zinc-950 dark:text-zinc-100;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Futuristic animation toolkit                                        */
+/* Dependency-free keyframes + utilities shared across feature pages.  */
+/* Honors prefers-reduced-motion (see guard at the bottom).            */
+/* ------------------------------------------------------------------ */
+@layer utilities {
+  /* Entrance animations -------------------------------------------- */
+  .anim-fade-up {
+    animation: anim-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .anim-fade-in {
+    animation: anim-fade-in 0.8s ease-out both;
+  }
+  .anim-scale-in {
+    animation: anim-scale-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .anim-blur-in {
+    animation: anim-blur-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Ambient / looping animations ----------------------------------- */
+  .anim-float {
+    animation: anim-float 6s ease-in-out infinite;
+  }
+  .anim-glow-pulse {
+    animation: anim-glow-pulse 3.2s ease-in-out infinite;
+  }
+  .anim-spin-slow {
+    animation: anim-spin-slow 14s linear infinite;
+  }
+
+  /* Animated gradient fill (pair with a gradient background) ------- */
+  .anim-gradient {
+    background-size: 200% 200%;
+    animation: anim-gradient 8s ease infinite;
+  }
+
+  /* Holographic sweep — overlay a moving sheen across an element.
+     Apply to a relatively-positioned, overflow-hidden container. */
+  .anim-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .anim-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      110deg,
+      transparent 25%,
+      rgba(255, 255, 255, 0.18) 50%,
+      transparent 75%
+    );
+    animation: anim-sheen 3.5s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* Futuristic grid backdrop for hero sections --------------------- */
+  .anim-grid-bg {
+    background-image:
+      linear-gradient(to right, rgba(99, 102, 241, 0.12) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(99, 102, 241, 0.12) 1px, transparent 1px);
+    background-size: 36px 36px;
+    animation: anim-grid-pan 18s linear infinite;
+  }
+
+  /* Stagger helper — set --stagger on a parent or use inline delays. */
+  .anim-delay-1 {
+    animation-delay: 0.06s;
+  }
+  .anim-delay-2 {
+    animation-delay: 0.12s;
+  }
+  .anim-delay-3 {
+    animation-delay: 0.18s;
+  }
+  .anim-delay-4 {
+    animation-delay: 0.24s;
+  }
+  .anim-delay-5 {
+    animation-delay: 0.3s;
+  }
+}
+
+@keyframes anim-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes anim-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes anim-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes anim-blur-in {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes anim-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes anim-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(139, 92, 246, 0),
+      0 0 18px 2px rgba(139, 92, 246, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 0 0 rgba(139, 92, 246, 0),
+      0 0 34px 6px rgba(139, 92, 246, 0.55);
+  }
+}
+
+@keyframes anim-spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes anim-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes anim-sheen {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes anim-grid-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 36px 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-up,
+  .anim-fade-in,
+  .anim-scale-in,
+  .anim-blur-in,
+  .anim-float,
+  .anim-glow-pulse,
+  .anim-spin-slow,
+  .anim-gradient,
+  .anim-grid-bg {
+    animation: none !important;
+  }
+  .anim-sheen::after {
+    display: none;
+  }
+  .anim-fade-up,
+  .anim-fade-in,
+  .anim-scale-in,
+  .anim-blur-in {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}

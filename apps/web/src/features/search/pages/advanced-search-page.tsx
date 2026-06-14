@@ -160,14 +160,29 @@ export function AdvancedSearchPage() {
   } = form;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-8">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <main className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 overflow-hidden px-4 py-8">
+      {/* Ambient futuristic backdrop */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="anim-grid-bg absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
+        <div className="anim-float absolute -top-24 right-1/3 h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div
+          className="anim-float absolute top-20 left-0 h-64 w-64 rounded-full bg-violet-500/15 blur-3xl"
+          style={{ animationDelay: "1s" }}
+        />
+      </div>
+
+      <section className="anim-fade-up anim-sheen rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
-            <FiActivity className="h-5 w-5" aria-hidden="true" />
+          <span className="anim-glow-pulse inline-flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-violet-600 to-cyan-500 text-white">
+            <FiActivity className="anim-float h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <h1 className="text-xl font-semibold">Advanced Search (AI)</h1>
+            <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-xl font-semibold text-transparent">
+              Advanced Search (AI)
+            </h1>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               Describe your ideal candidate and we will generate the perfect
               search query for semantic retrieval.

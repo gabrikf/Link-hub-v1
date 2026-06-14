@@ -20,7 +20,10 @@ const CandidateCard = memo(function CandidateCard({
   const aiMatchPercent = formatAiMatchPercent(candidate.aiScore);
 
   return (
-    <article className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+    <article
+      style={{ animationDelay: `${index * 0.07}s` }}
+      className="anim-fade-up rounded-xl border border-zinc-200 p-4 transition-all duration-300 hover:border-violet-400/70 hover:shadow-[0_0_26px_-8px_rgba(139,92,246,0.55)] dark:border-zinc-700 dark:hover:border-violet-500/60"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
@@ -66,7 +69,7 @@ const CandidateCard = memo(function CandidateCard({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+        <span className="anim-sheen inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
           AI Match {aiMatchPercent}
         </span>
         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-zinc-800">
