@@ -1,6 +1,13 @@
 import { memo } from "react";
 import { Link } from "@tanstack/react-router";
-import { FiCopy, FiGlobe, FiMapPin, FiTarget, FiUser } from "react-icons/fi";
+import {
+  FiBriefcase,
+  FiCopy,
+  FiGlobe,
+  FiMapPin,
+  FiTarget,
+  FiUser,
+} from "react-icons/fi";
 import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
 import type { RankedCandidate } from "../types/advanced-search";
@@ -131,6 +138,32 @@ const CandidateCard = memo(function CandidateCard({
               ? candidate.spokenLanguages.join(", ")
               : "No languages listed"}
           </p>
+        </div>
+
+        <div className="rounded-lg bg-zinc-50 px-2 py-2 dark:bg-zinc-800/60 sm:col-span-2">
+          <p className="inline-flex items-center gap-1 font-semibold">
+            <FiBriefcase className="h-3.5 w-3.5" aria-hidden="true" />
+            Work history
+          </p>
+          {candidate.workExperiences.length > 0 ? (
+            <ul className="mt-1 space-y-1">
+              {candidate.workExperiences.slice(0, 3).map((experience, idx) => (
+                <li key={`${experience.companyName}-${idx}`}>
+                  <span className="font-medium text-zinc-700 dark:text-zinc-200">
+                    {experience.title} · {experience.companyName}
+                  </span>
+                  {experience.mainStack.length > 0 ? (
+                    <span className="text-zinc-500 dark:text-zinc-400">
+                      {" "}
+                      — {experience.mainStack.slice(0, 6).join(", ")}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1">No work history listed</p>
+          )}
         </div>
       </div>
     </article>

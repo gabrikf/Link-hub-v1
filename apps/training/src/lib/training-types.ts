@@ -1,3 +1,10 @@
+export interface WorkExperienceTrainingRow {
+  title: string | null;
+  companyName: string | null;
+  description: string | null;
+  mainStack: string[];
+}
+
 export interface ResumeTrainingRow {
   resumeId: string;
   queryText: string | null;
@@ -15,6 +22,7 @@ export interface ResumeTrainingRow {
   salaryExpectationMax: number | null;
   skills: string[];
   titles: string[];
+  workExperiences: WorkExperienceTrainingRow[];
   interactionScore: number;
 }
 

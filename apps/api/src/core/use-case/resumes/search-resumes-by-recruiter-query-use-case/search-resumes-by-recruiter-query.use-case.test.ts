@@ -110,4 +110,197 @@ describe("SearchResumesByRecruiterQueryUseCase", () => {
 
     expect(result).toHaveLength(100);
   });
+
+  it("defaults to top 50 candidates when topK is not provided", async () => {
+    for (let index = 0; index < 80; index += 1) {
+      resumeSearchRepository.seed({
+        userId: `u-${index}`,
+        resumeId: `r-${index}`,
+        email: `u-${index}@example.com`,
+        embedding: [0.9, 0.1, 0],
+        headlineTitle: "Engineer",
+        summary: null,
+        contractType: null,
+        seniorityLevel: null,
+        workModel: null,
+        location: null,
+        noticePeriod: null,
+        openToRelocation: false,
+        totalYearsExperience: null,
+        salaryExpectationMin: null,
+        salaryExpectationMax: null,
+        spokenLanguages: [],
+        skills: [],
+        titles: [],
+      });
+    }
+
+    const result = await sut.execute({ query: "backend" });
+
+    expect(result).toHaveLength(50);
+  });
+
+  it("ranks candidates from best to worst match (descending similarity)", async () => {
+    const seeds = [
+      { id: "best", embedding: [1, 0, 0] },
+      { id: "good", embedding: [0.8, 0.2, 0] },
+      { id: "ok", embedding: [0.5, 0.5, 0] },
+      { id: "weak", embedding: [0.2, 0.8, 0] },
+    ];
+
+    for (const seed of seeds) {
+      resumeSearchRepository.seed({
+        userId: seed.id,
+        resumeId: seed.id,
+        email: `${seed.id}@example.com`,
+        embedding: seed.embedding,
+        headlineTitle: "Engineer",
+        summary: null,
+        contractType: null,
+        seniorityLevel: null,
+        workModel: null,
+        location: null,
+        noticePeriod: null,
+        openToRelocation: false,
+        totalYearsExperience: null,
+        salaryExpectationMin: null,
+        salaryExpectationMax: null,
+        spokenLanguages: [],
+        skills: [],
+        titles: [],
+      });
+    }
+
+    // Query vector aligned with the "best" candidate.
+    const result = await sut.execute({ query: "backend", topK: 100 });
+
+    expect(result.map((item) => item.resumeId)).toEqual([
+      "best",
+      "good",
+      "ok",
+      "weak",
+    ]);
+
+    for (let index = 0; index < result.length - 1; index += 1) {
+      expect(result[index]!.similarity).toBeGreaterThanOrEqual(
+        result[index + 1]!.similarity,
+      );
+    }
+  });
+
+  it("excludes candidates that fail a hard required filter", async () => {
+    resumeSearchRepository.seed({
+      userId: "match",
+      resumeId: "match",
+      email: "match@example.com",
+      embedding: [1, 0, 0],
+      headlineTitle: "Senior Engineer",
+      summary: null,
+      contractType: "pj",
+      seniorityLevel: "senior",
+      workModel: "remote",
+      location: "BR",
+      noticePeriod: null,
+      openToRelocation: false,
+      totalYearsExperience: 9,
+      salaryExpectationMin: null,
+      salaryExpectationMax: null,
+      spokenLanguages: ["English"],
+      skills: ["Go"],
+      titles: ["Engineer"],
+    });
+
+    // Higher semantic similarity, but wrong seniority — must be filtered out so
+    // the recruiter never sees an unqualified candidate ranked first.
+    resumeSearchRepository.seed({
+      userId: "junior",
+      resumeId: "junior",
+      email: "junior@example.com",
+      embedding: [1, 0, 0],
+      headlineTitle: "Junior Engineer",
+      summary: null,
+      contractType: "pj",
+      seniorityLevel: "junior",
+      workModel: "remote",
+      location: "BR",
+      noticePeriod: null,
+      openToRelocation: false,
+      totalYearsExperience: 1,
+      salaryExpectationMin: null,
+      salaryExpectationMax: null,
+      spokenLanguages: ["English"],
+      skills: ["Go"],
+      titles: ["Engineer"],
+    });
+
+    const result = await sut.execute({
+      query: "senior backend engineer",
+      filters: {
+        seniorityLevels: ["senior"],
+        minYearsExperience: 5,
+      },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.resumeId).toBe("match");
+  });
+
+  it("combines multiple hard filters (language + work model)", async () => {
+    const base = {
+      summary: null,
+      contractType: "pj",
+      seniorityLevel: "senior",
+      location: "BR",
+      noticePeriod: null,
+      openToRelocation: false,
+      totalYearsExperience: 6,
+      salaryExpectationMin: null,
+      salaryExpectationMax: null,
+      skills: [],
+      titles: [],
+    };
+
+    resumeSearchRepository.seed({
+      ...base,
+      userId: "qualified",
+      resumeId: "qualified",
+      email: "qualified@example.com",
+      embedding: [1, 0, 0],
+      headlineTitle: "Engineer",
+      workModel: "remote",
+      spokenLanguages: ["English", "Spanish"],
+    });
+
+    resumeSearchRepository.seed({
+      ...base,
+      userId: "wrong-model",
+      resumeId: "wrong-model",
+      email: "wrong-model@example.com",
+      embedding: [1, 0, 0],
+      headlineTitle: "Engineer",
+      workModel: "onsite",
+      spokenLanguages: ["English"],
+    });
+
+    resumeSearchRepository.seed({
+      ...base,
+      userId: "wrong-language",
+      resumeId: "wrong-language",
+      email: "wrong-language@example.com",
+      embedding: [1, 0, 0],
+      headlineTitle: "Engineer",
+      workModel: "remote",
+      spokenLanguages: ["Portuguese"],
+    });
+
+    const result = await sut.execute({
+      query: "engineer",
+      filters: {
+        workModels: ["remote"],
+        spokenLanguages: ["English"],
+      },
+    });
+
+    expect(result.map((item) => item.resumeId)).toEqual(["qualified"]);
+  });
 });

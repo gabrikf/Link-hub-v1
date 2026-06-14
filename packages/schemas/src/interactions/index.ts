@@ -21,6 +21,16 @@ export const candidateSnapshotSchema = z.object({
   salaryExpectationMax: z.number().nullable().optional(),
   skills: z.array(z.string()).optional(),
   titles: z.array(z.string()).optional(),
+  workExperiences: z
+    .array(
+      z.object({
+        title: z.string(),
+        companyName: z.string(),
+        description: z.string().nullable(),
+        mainStack: z.array(z.string()),
+      }),
+    )
+    .optional(),
 });
 
 export const querySnapshotSchema = z.object({

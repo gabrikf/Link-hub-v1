@@ -91,21 +91,52 @@ function withScores(
   },
 ): Array<RecruiterSearchResult & { aiScore: number }> {
   const modelScores = Array.from(predictions);
-  const maxModelScore = modelScores.reduce((max, score) => {
-    const safeScore = Number.isFinite(score) ? score : 0;
-    return Math.max(max, safeScore);
-  }, 0);
+
+  // Vocabulary of real skills/titles seen across the result set. When the
+  // recruiter searches with free text (no skill/title chips), we use this to
+  // pull the *actual* requested skills out of the query instead of treating
+  // every word ("role", "seniority"…) as a required skill — which would
+  // wrongly deflate every candidate's match.
+  const vocabulary = buildVocabulary(candidates);
 
   return candidates
     .map((candidate, index) => ({
       ...candidate,
       aiScore: blendScores({
         modelScore: modelScores[index] ?? 0,
-        maxModelScore,
-        alignmentScore: computeAlignmentScore(searchInput, candidate),
+        alignmentScore: computeAlignmentScore(searchInput, candidate, vocabulary),
       }),
     }))
     .sort((a, b) => b.aiScore - a.aiScore);
+}
+
+interface SearchVocabulary {
+  skills: Set<string>;
+  titles: Set<string>;
+}
+
+function buildVocabulary(
+  candidates: RecruiterSearchResult[],
+): SearchVocabulary {
+  const skills = new Set<string>();
+  const titles = new Set<string>();
+  for (const candidate of candidates) {
+    for (const skill of candidate.skills) {
+      skills.add(normalizeToken(skill));
+    }
+    for (const title of candidate.titles) {
+      titles.add(normalizeToken(title));
+    }
+    for (const experience of candidate.workExperiences) {
+      for (const tech of experience.mainStack) {
+        skills.add(normalizeToken(tech));
+      }
+      if (experience.title) {
+        titles.add(normalizeToken(experience.title));
+      }
+    }
+  }
+  return { skills, titles };
 }
 
 function getModelInputDimension(model: tf.LayersModel): number | null {
@@ -174,30 +205,47 @@ function rangeScore(
   return 1;
 }
 
-function normalizeModelScore(score: number, maxModelScore: number): number {
-  const safeScore = Number.isFinite(score) ? score : 0;
-  if (maxModelScore <= 0) {
-    return Math.max(0, Math.min(safeScore, 1));
-  }
-
-  return Math.max(0, Math.min(safeScore / maxModelScore, 1));
-}
-
 function blendScores(input: {
   modelScore: number;
-  maxModelScore: number;
   alignmentScore: number;
 }): number {
-  const normalizedModel = normalizeModelScore(
-    input.modelScore,
-    input.maxModelScore,
-  );
+  const safeModel = Number.isFinite(input.modelScore)
+    ? Math.max(0, Math.min(input.modelScore, 1))
+    : 0;
   const safeAlignment = Math.max(0, Math.min(input.alignmentScore, 1));
 
-  // Weight alignment higher so reranking follows the active recruiter query intent.
-  return normalizedModel * 0.4 + safeAlignment * 0.6;
+  // The trained model and the transparent alignment score are two views of the
+  // SAME comparison (the model is trained to reproduce the weighted overlap).
+  // Averaging them keeps the percentage honest if either side is slightly off,
+  // and the result reads as a real "how much of what you asked for does this
+  // person have" rather than a compressed similarity number.
+  return safeModel * 0.5 + safeAlignment * 0.5;
 }
 
+// Weighted bucket: a score in [0,1] plus how much it counts. Buckets the
+// recruiter did not express (weight 0) are skipped so an unconstrained field
+// never silently inflates the match the way a neutral "1" used to.
+interface WeightedBucket {
+  score: number;
+  weight: number;
+}
+
+function workStackTokens(candidate: RecruiterSearchResult): string[] {
+  return candidate.workExperiences.flatMap((experience) => experience.mainStack);
+}
+
+function workTitleTokens(candidate: RecruiterSearchResult): string[] {
+  return candidate.workExperiences
+    .map((experience) => experience.title)
+    .filter((value): value is string => Boolean(value && value.trim()));
+}
+
+/**
+ * Compares the recruiter's search against one candidate and returns a realistic
+ * 0–1 match. It mirrors the training target exactly: skills count 4x, titles 2x,
+ * work history 2x, everything else 1x. Only the things the recruiter actually
+ * asked for are scored, so the percentage reflects real coverage of the request.
+ */
 function computeAlignmentScore(
   searchInput: {
     semanticQuery: string;
@@ -206,28 +254,84 @@ function computeAlignmentScore(
     semanticTitles?: string[];
   },
   candidate: RecruiterSearchResult,
+  vocabulary: SearchVocabulary,
 ): number {
   const filters = searchInput.filters;
-  const signals: number[] = [];
+  const queryTokens = tokenize(searchInput.semanticQuery);
 
-  // When mandatory filter skills/titles are absent, fall back to the semantic
-  // skills and titles the recruiter expressed in the search form.  These carry
-  // the recruiter's intent and must be used to penalise mismatches.
-  const effectiveSkills = filters.skills?.length
-    ? filters.skills
-    : (searchInput.semanticSkills ?? []);
-  const effectiveTitles = filters.titles?.length
-    ? filters.titles
-    : (searchInput.semanticTitles ?? []);
-
-  signals.push(
-    overlapScore(effectiveSkills, candidate.skills),
-    overlapScore(effectiveTitles, candidate.titles),
-    overlapScore(filters.spokenLanguages ?? [], candidate.spokenLanguages),
+  // Free-text fallback: keep only query words that are real skills/titles in
+  // the result vocabulary (e.g. "react", "node.js") and drop filler words.
+  const querySkillTerms = queryTokens.filter((token) =>
+    vocabulary.skills.has(token),
+  );
+  const queryTitleTerms = queryTokens.filter((token) =>
+    vocabulary.titles.has(token),
   );
 
+  // What did the recruiter ask for? Mandatory filters win; otherwise the
+  // semantic skills/titles from the form; otherwise the skill/title-like terms
+  // found in the query.
+  const effectiveSkills = filters.skills?.length
+    ? filters.skills
+    : searchInput.semanticSkills?.length
+      ? searchInput.semanticSkills
+      : querySkillTerms;
+  const effectiveTitles = filters.titles?.length
+    ? filters.titles
+    : searchInput.semanticTitles?.length
+      ? searchInput.semanticTitles
+      : queryTitleTerms;
+
+  const buckets: WeightedBucket[] = [];
+
+  // Skills — the strongest signal (4x).
+  if (effectiveSkills.length > 0) {
+    buckets.push({
+      score: overlapScore(effectiveSkills, candidate.skills),
+      weight: 4,
+    });
+  }
+
+  // Titles (2x).
+  if (effectiveTitles.length > 0) {
+    buckets.push({
+      score: overlapScore(effectiveTitles, candidate.titles),
+      weight: 2,
+    });
+  }
+
+  // Work history (2x): does the candidate's real job history — the stack they
+  // used and the roles they held — cover the request? Only counts when the
+  // recruiter actually asked for skills or titles (otherwise there is nothing
+  // to compare the history against).
+  if (
+    candidate.workExperiences.length > 0 &&
+    (effectiveSkills.length > 0 || effectiveTitles.length > 0)
+  ) {
+    const stackCoverage =
+      effectiveSkills.length > 0
+        ? overlapScore(effectiveSkills, workStackTokens(candidate))
+        : 0;
+    const roleCoverage =
+      effectiveTitles.length > 0
+        ? overlapScore(effectiveTitles, workTitleTokens(candidate))
+        : 0;
+    buckets.push({
+      score: Math.max(stackCoverage, roleCoverage),
+      weight: 2,
+    });
+  }
+
+  // Base signals (1x total) — only those the recruiter constrained.
+  const baseSignals: number[] = [];
+
+  if (filters.spokenLanguages?.length) {
+    baseSignals.push(
+      overlapScore(filters.spokenLanguages, candidate.spokenLanguages),
+    );
+  }
   if (filters.contractTypes?.length) {
-    signals.push(
+    baseSignals.push(
       matchOrNeutral(
         Boolean(
           candidate.contractType &&
@@ -236,9 +340,8 @@ function computeAlignmentScore(
       ),
     );
   }
-
   if (filters.seniorityLevels?.length) {
-    signals.push(
+    baseSignals.push(
       matchOrNeutral(
         Boolean(
           candidate.seniorityLevel &&
@@ -247,9 +350,8 @@ function computeAlignmentScore(
       ),
     );
   }
-
   if (filters.workModels?.length) {
-    signals.push(
+    baseSignals.push(
       matchOrNeutral(
         Boolean(
           candidate.workModel &&
@@ -258,64 +360,56 @@ function computeAlignmentScore(
       ),
     );
   }
-
   if (filters.locations?.length) {
     const candidateLocation = normalizeToken(candidate.location ?? "");
     const allowedLocations = new Set(filters.locations.map(normalizeToken));
-    signals.push(matchOrNeutral(allowedLocations.has(candidateLocation)));
+    baseSignals.push(matchOrNeutral(allowedLocations.has(candidateLocation)));
   }
-
   if (filters.noticePeriods?.length) {
     const candidateNotice = normalizeToken(candidate.noticePeriod ?? "");
     const allowedNotice = new Set(filters.noticePeriods.map(normalizeToken));
-    signals.push(matchOrNeutral(allowedNotice.has(candidateNotice)));
+    baseSignals.push(matchOrNeutral(allowedNotice.has(candidateNotice)));
   }
-
   if (filters.openToRelocation !== undefined) {
-    signals.push(
+    baseSignals.push(
       matchOrNeutral(candidate.openToRelocation === filters.openToRelocation),
     );
   }
-
-  signals.push(
-    rangeScore(
-      filters.minYearsExperience,
-      filters.maxYearsExperience,
-      candidate.totalYearsExperience,
-    ),
-    rangeScore(
-      filters.minSalary,
-      filters.maxSalary,
-      candidate.salaryExpectationMax,
-    ),
-  );
-
-  const queryTokens = tokenize(searchInput.semanticQuery);
-  if (queryTokens.length > 0) {
-    const candidateCorpus = tokenize(
-      [
-        candidate.headlineTitle,
-        candidate.summary,
-        candidate.location,
-        candidate.seniorityLevel,
-        candidate.contractType,
-        candidate.workModel,
-        candidate.noticePeriod,
-        candidate.skills.join(" "),
-        candidate.titles.join(" "),
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join(" "),
+  if (
+    filters.minYearsExperience !== undefined ||
+    filters.maxYearsExperience !== undefined
+  ) {
+    baseSignals.push(
+      rangeScore(
+        filters.minYearsExperience,
+        filters.maxYearsExperience,
+        candidate.totalYearsExperience,
+      ),
     );
-
-    signals.push(overlapScore(queryTokens, candidateCorpus));
+  }
+  if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
+    baseSignals.push(
+      rangeScore(filters.minSalary, filters.maxSalary, candidate.salaryExpectationMax),
+    );
   }
 
-  if (signals.length === 0) {
+  if (baseSignals.length > 0) {
+    buckets.push({
+      score:
+        baseSignals.reduce((sum, value) => sum + value, 0) / baseSignals.length,
+      weight: 1,
+    });
+  }
+
+  if (buckets.length === 0) {
     return 0;
   }
 
-  return signals.reduce((sum, value) => sum + value, 0) / signals.length;
+  const totalWeight = buckets.reduce((sum, bucket) => sum + bucket.weight, 0);
+  return (
+    buckets.reduce((sum, bucket) => sum + bucket.score * bucket.weight, 0) /
+    totalWeight
+  );
 }
 
 self.onmessage = async (event: MessageEvent<RerankRequestMessage>) => {
@@ -349,6 +443,12 @@ self.onmessage = async (event: MessageEvent<RerankRequestMessage>) => {
         salaryExpectationMax: candidate.salaryExpectationMax,
         skills: candidate.skills,
         titles: candidate.titles,
+        workExperiences: candidate.workExperiences.map((experience) => ({
+          title: experience.title,
+          companyName: experience.companyName,
+          description: experience.description,
+          mainStack: experience.mainStack,
+        })),
       };
 
       const queryAwareVector = toQueryCandidateFeatureVector(

@@ -4,15 +4,19 @@ import { InMemoryResumeEmbeddingsRepository } from "../../../repositories/resume
 import { InMemoryResumesRepository } from "../../../repositories/resume/in-memory-resumes-repository.js";
 import { InMemoryResumeSkillRepository } from "../../../repositories/resume-skill/in-memory-resume-skill-repository.js";
 import { InMemoryResumeTitleRepository } from "../../../repositories/resume-title/in-memory-resume-title-repository.js";
+import { InMemoryWorkExperienceRepository } from "../../../repositories/work-experience/in-memory-work-experience-repository.js";
 import { ResumeSkillEntity } from "../../../entity/resume-skill/resume-skill-entity.js";
 import { ResumeTitleEntity } from "../../../entity/resume-title/resume-title-entity.js";
+import { WorkExperienceEntity } from "../../../entity/work-experience/work-experience-entity.js";
 import { ProcessResumeEmbeddingJobUseCase } from "./process-resume-embedding-job.use-case.js";
 
 class FakeEmbeddingProvider implements IEmbeddingProvider {
   public calls = 0;
+  public lastText = "";
 
   async createEmbedding(text: string): Promise<number[]> {
     this.calls += 1;
+    this.lastText = text;
 
     if (!text.includes("TypeScript")) {
       throw new Error("Weighted text did not include expected content");
@@ -26,6 +30,7 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
   let resumesRepository: InMemoryResumesRepository;
   let resumeSkillRepository: InMemoryResumeSkillRepository;
   let resumeTitleRepository: InMemoryResumeTitleRepository;
+  let workExperienceRepository: InMemoryWorkExperienceRepository;
   let resumeEmbeddingsRepository: InMemoryResumeEmbeddingsRepository;
   let embeddingProvider: FakeEmbeddingProvider;
   let sut: ProcessResumeEmbeddingJobUseCase;
@@ -34,6 +39,7 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
     resumesRepository = new InMemoryResumesRepository();
     resumeSkillRepository = new InMemoryResumeSkillRepository();
     resumeTitleRepository = new InMemoryResumeTitleRepository();
+    workExperienceRepository = new InMemoryWorkExperienceRepository();
     resumeEmbeddingsRepository = new InMemoryResumeEmbeddingsRepository();
     embeddingProvider = new FakeEmbeddingProvider();
 
@@ -41,6 +47,7 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
       resumesRepository,
       resumeSkillRepository,
       resumeTitleRepository,
+      workExperienceRepository,
       resumeEmbeddingsRepository,
       embeddingProvider,
     );
@@ -118,5 +125,111 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
     });
 
     expect(embeddingProvider.calls).toBe(1);
+  });
+
+  it("embeds job history (work experience) into the resume document", async () => {
+    const resume = await resumesRepository.upsertByUserId("user-1", {
+      headlineTitle: "Backend Engineer",
+      summary: "Node and TypeScript",
+    });
+
+    resumeSkillRepository.seed(
+      ResumeSkillEntity.create({
+        resumeId: resume.id,
+        skillId: "skill-1",
+        skillName: "TypeScript",
+        yearsExperience: 5,
+        displayOrder: 0,
+      }),
+    );
+
+    workExperienceRepository.seed(
+      WorkExperienceEntity.create({
+        userId: "user-1",
+        title: "Staff Engineer",
+        companyName: "Globex",
+        employmentType: null,
+        workModel: null,
+        locationCity: null,
+        locationState: null,
+        locationCountry: null,
+        startDate: null,
+        endDate: null,
+        isCurrent: true,
+        description: "Led the payments platform",
+        mainStack: ["Go", "Kubernetes"],
+        displayOrder: 0,
+      }),
+    );
+
+    await sut.execute({
+      resumeId: resume.id,
+      userId: "user-1",
+      reason: "work-experience-changed",
+      triggeredAt: new Date().toISOString(),
+    });
+
+    expect(embeddingProvider.lastText).toContain(
+      "experience: Staff Engineer at Globex",
+    );
+    expect(embeddingProvider.lastText).toContain(
+      "experience_stack: Go, Kubernetes",
+    );
+  });
+
+  it("re-embeds when only job history changes", async () => {
+    const resume = await resumesRepository.upsertByUserId("user-1", {
+      headlineTitle: "Backend Engineer",
+      summary: "Node and TypeScript",
+    });
+
+    resumeSkillRepository.seed(
+      ResumeSkillEntity.create({
+        resumeId: resume.id,
+        skillId: "skill-1",
+        skillName: "TypeScript",
+        yearsExperience: 5,
+        displayOrder: 0,
+      }),
+    );
+
+    await sut.execute({
+      resumeId: resume.id,
+      userId: "user-1",
+      reason: "resume-upsert",
+      triggeredAt: new Date().toISOString(),
+    });
+
+    expect(embeddingProvider.calls).toBe(1);
+
+    workExperienceRepository.seed(
+      WorkExperienceEntity.create({
+        userId: "user-1",
+        title: "Staff Engineer",
+        companyName: "Globex",
+        employmentType: null,
+        workModel: null,
+        locationCity: null,
+        locationState: null,
+        locationCountry: null,
+        startDate: null,
+        endDate: null,
+        isCurrent: true,
+        description: null,
+        mainStack: ["Go"],
+        displayOrder: 0,
+      }),
+    );
+
+    await sut.execute({
+      resumeId: resume.id,
+      userId: "user-1",
+      reason: "work-experience-changed",
+      triggeredAt: new Date().toISOString(),
+    });
+
+    // Content hash changed because job history was added, so a new embedding
+    // must be generated rather than skipped.
+    expect(embeddingProvider.calls).toBe(2);
   });
 });

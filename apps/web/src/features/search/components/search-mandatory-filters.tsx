@@ -42,12 +42,13 @@ export function SearchMandatoryFilters({
         ) : (
           <FiChevronDown className="h-4 w-4" aria-hidden="true" />
         )}
-        Mandatory information (used in WHERE filters)
+        Required filters — only show candidates who match these (optional)
       </button>
 
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-        You can leave all fields empty. Any field you fill here becomes a strict
-        candidate filter.
+        These are hard requirements, not preferences. Anything you set here
+        removes candidates who don&apos;t match — the AI still ranks whoever
+        passes. Leave a field empty to ignore it.
       </p>
 
       {isOpen ? (
@@ -162,7 +163,7 @@ export function SearchMandatoryFilters({
             isMulti
             isCreatable
             closeMenuOnSelect={false}
-            helperText="Strict filter in WHERE query"
+            helperText="Required — candidates must have this to appear"
           />
 
           <SelectField
@@ -174,7 +175,7 @@ export function SearchMandatoryFilters({
             isMulti
             isCreatable
             closeMenuOnSelect={false}
-            helperText="Strict filter in WHERE query"
+            helperText="Required — candidates must have this to appear"
           />
 
           <Input

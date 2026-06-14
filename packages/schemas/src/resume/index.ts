@@ -252,6 +252,16 @@ export const recruiterSearchInputSchema = z
     }
   });
 
+// Compact work-history shape returned alongside each candidate so the client
+// reranker can compare the recruiter's search against where the candidate
+// actually worked (role, company, accomplishments and the stack they used).
+export const recruiterSearchWorkExperienceSchema = z.object({
+  title: z.string(),
+  companyName: z.string(),
+  description: z.string().nullable(),
+  mainStack: z.array(z.string()),
+});
+
 export const recruiterSearchResultSchema = z.object({
   userId: z.string(),
   resumeId: z.string(),
@@ -275,6 +285,7 @@ export const recruiterSearchResultSchema = z.object({
   salaryExpectationMax: z.number().int().nullable(),
   skills: z.array(z.string().min(1)),
   titles: z.array(z.string().min(1)),
+  workExperiences: z.array(recruiterSearchWorkExperienceSchema),
   combinedText: z.string(),
 });
 
@@ -298,6 +309,9 @@ export type RecruiterSearchFilters = z.infer<
   typeof recruiterSearchFiltersSchema
 >;
 export type RecruiterSearchResult = z.infer<typeof recruiterSearchResultSchema>;
+export type RecruiterSearchWorkExperience = z.infer<
+  typeof recruiterSearchWorkExperienceSchema
+>;
 export type RecruiterSearchResponse = z.infer<
   typeof recruiterSearchResponseSchema
 >;

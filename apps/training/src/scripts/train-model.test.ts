@@ -116,27 +116,51 @@ const PERFECT_CANDIDATE: CandidateFeaturesInput = {
   salaryExpectationMax: 160000,
   skills: ["React", "Node.js", "TypeScript", "PostgreSQL", "Docker"],
   titles: ["Fullstack Engineer", "Software Engineer"],
+  workExperiences: [
+    {
+      title: "Fullstack Engineer",
+      companyName: "Nubank",
+      description:
+        "Built customer-facing features end to end with React and Node.js.",
+      mainStack: ["React", "Node.js", "TypeScript", "PostgreSQL"],
+    },
+    {
+      title: "Software Engineer",
+      companyName: "iFood",
+      description: "Shipped REST APIs and React UIs for high-traffic flows.",
+      mainStack: ["Node.js", "React", "Docker"],
+    },
+  ],
 };
 
 /**
- * MEDIUM candidate: partial skill overlap (only some skills match),
- * one relevant title, different work model. Should score 0.35–0.75.
+ * MEDIUM candidate: genuine partial fit — shares React + Node.js (but not the
+ * full stack), holds a matching "Software Engineer" title, and has real but
+ * partial work history. Should score 0.35–0.75.
  */
 const MEDIUM_CANDIDATE: CandidateFeaturesInput = {
-  headlineTitle: "Frontend Developer",
-  summary: "Builds React UIs and works occasionally with Node.js APIs.",
-  totalYearsExperience: 3,
-  seniorityLevel: "junior",
-  workModel: "hybrid",
+  headlineTitle: "Software Engineer",
+  summary: "Builds React UIs and Node.js APIs across product teams.",
+  totalYearsExperience: 4,
+  seniorityLevel: "mid",
+  workModel: "remote",
   contractType: "full-time",
   location: "rio de janeiro",
   spokenLanguages: ["portuguese"],
   noticePeriod: "15 days",
   openToRelocation: false,
-  salaryExpectationMin: 60000,
-  salaryExpectationMax: 90000,
-  skills: ["React", "JavaScript", "CSS"],
-  titles: ["Frontend Developer"],
+  salaryExpectationMin: 80000,
+  salaryExpectationMax: 120000,
+  skills: ["React", "Node.js", "JavaScript"],
+  titles: ["Software Engineer"],
+  workExperiences: [
+    {
+      title: "Software Engineer",
+      companyName: "Globo",
+      description: "Built React UIs and Node.js services for product teams.",
+      mainStack: ["React", "Node.js"],
+    },
+  ],
 };
 
 /**
@@ -159,6 +183,14 @@ const BAD_CANDIDATE: CandidateFeaturesInput = {
   salaryExpectationMax: 220000,
   skills: ["Swift", "SwiftUI", "Xcode", "Core Data", "UIKit"],
   titles: ["Mobile Engineer", "iOS Developer"],
+  workExperiences: [
+    {
+      title: "iOS Developer",
+      companyName: "Apple",
+      description: "Built native iOS apps with SwiftUI and Core Data.",
+      mainStack: ["Swift", "SwiftUI", "Xcode", "Core Data"],
+    },
+  ],
 };
 
 // ---------------------------------------------------------------------------

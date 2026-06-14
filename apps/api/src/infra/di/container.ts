@@ -764,6 +764,9 @@ export function setupContainer() {
         const resumeTitleRepository = c.resolve<IResumeTitleRepository>(
           TOKENS.ResumeTitleRepository,
         );
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
         const resumeEmbeddingsRepository =
           c.resolve<IResumeEmbeddingsRepository>(
             TOKENS.ResumeEmbeddingsRepository,
@@ -776,6 +779,7 @@ export function setupContainer() {
           resumesRepository,
           resumeSkillRepository,
           resumeTitleRepository,
+          workExperienceRepository,
           resumeEmbeddingsRepository,
           embeddingProvider,
         );
@@ -889,10 +893,19 @@ export function setupContainer() {
         const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
           TOKENS.WorkExperienceRepository,
         );
+        const resumesRepository = c.resolve<IResumesRepository>(
+          TOKENS.ResumesRepository,
+        );
+        const enqueueResumeEmbeddingUseCase =
+          c.resolve<EnqueueResumeEmbeddingUseCase>(
+            TOKENS.EnqueueResumeEmbeddingUseCase,
+          );
 
         return new CreateWorkExperienceUseCase(
           usersRepository,
           workExperienceRepository,
+          resumesRepository,
+          enqueueResumeEmbeddingUseCase,
         );
       },
     },
@@ -905,8 +918,19 @@ export function setupContainer() {
         const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
           TOKENS.WorkExperienceRepository,
         );
+        const resumesRepository = c.resolve<IResumesRepository>(
+          TOKENS.ResumesRepository,
+        );
+        const enqueueResumeEmbeddingUseCase =
+          c.resolve<EnqueueResumeEmbeddingUseCase>(
+            TOKENS.EnqueueResumeEmbeddingUseCase,
+          );
 
-        return new UpdateWorkExperienceUseCase(workExperienceRepository);
+        return new UpdateWorkExperienceUseCase(
+          workExperienceRepository,
+          resumesRepository,
+          enqueueResumeEmbeddingUseCase,
+        );
       },
     },
   );
@@ -918,8 +942,19 @@ export function setupContainer() {
         const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
           TOKENS.WorkExperienceRepository,
         );
+        const resumesRepository = c.resolve<IResumesRepository>(
+          TOKENS.ResumesRepository,
+        );
+        const enqueueResumeEmbeddingUseCase =
+          c.resolve<EnqueueResumeEmbeddingUseCase>(
+            TOKENS.EnqueueResumeEmbeddingUseCase,
+          );
 
-        return new DeleteWorkExperienceUseCase(workExperienceRepository);
+        return new DeleteWorkExperienceUseCase(
+          workExperienceRepository,
+          resumesRepository,
+          enqueueResumeEmbeddingUseCase,
+        );
       },
     },
   );

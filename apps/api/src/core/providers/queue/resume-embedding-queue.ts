@@ -4,6 +4,7 @@ export type ResumeEmbeddingJobReason =
   | "resume-skills-replaced"
   | "resume-title-added"
   | "resume-titles-replaced"
+  | "work-experience-changed"
   | "ai-resume-import";
 
 export interface ResumeEmbeddingJobPayload {

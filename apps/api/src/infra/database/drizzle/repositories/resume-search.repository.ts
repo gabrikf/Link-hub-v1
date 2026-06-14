@@ -12,6 +12,7 @@ import {
   skillsCatalog,
   titlesCatalog,
   users,
+  workExperiences,
 } from "../schema.js";
 
 function toPgVectorLiteral(embedding: number[]): string {
@@ -201,6 +202,28 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
           INNER JOIN ${titlesCatalog} ON ${titlesCatalog.id} = ${resumeTitles.titleId}
           WHERE ${resumeTitles.resumeId} = ${resumes.id}
         ), ARRAY[]::text[])`,
+          // Work history is keyed by user (not resume); aggregate the roles the
+          // candidate actually held so the reranker can match on real experience.
+          workExperiences: sql<
+            {
+              title: string;
+              companyName: string;
+              description: string | null;
+              mainStack: string[];
+            }[]
+          >`COALESCE((
+          SELECT json_agg(
+            json_build_object(
+              'title', ${workExperiences.title},
+              'companyName', ${workExperiences.companyName},
+              'description', ${workExperiences.description},
+              'mainStack', ${workExperiences.mainStack}
+            )
+            ORDER BY ${workExperiences.displayOrder}
+          )
+          FROM ${workExperiences}
+          WHERE ${workExperiences.userId} = ${resumes.userId}
+        ), '[]'::json)`,
         })
         .from(resumes)
         .innerJoin(users, eq(users.id, resumes.userId))
@@ -214,6 +237,12 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
 
     const mapped = rows.map((item) => ({
       ...item,
+      workExperiences: (item.workExperiences ?? []).map((experience) => ({
+        title: experience.title ?? "",
+        companyName: experience.companyName ?? "",
+        description: experience.description ?? null,
+        mainStack: experience.mainStack ?? [],
+      })),
       combinedText: [
         item.headlineTitle,
         item.summary,
