@@ -9,4 +9,5 @@ export * from "./resume/index.js";
 export * from "./work-experience/index.js";
 export * from "./ai-import/index.js";
 export * from "./interactions/index.js";
+export * from "./uploads/index.js";
 export * from "./ai/preprocessing.js";

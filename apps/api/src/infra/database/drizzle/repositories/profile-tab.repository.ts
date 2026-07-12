@@ -2,7 +2,9 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { ProfileViewport } from "@repo/schemas";
 import { ProfileTabEntity } from "../../../../core/entity/profile-tab/profile-tab-entity.js";
 import { IProfileTabsRepository } from "../../../../core/repositories/profile-tab/profile-tabs-repository.js";
+import { TransactionContext } from "../../../../core/providers/unit-of-work/unit-of-work.js";
 import { db } from "../index.js";
+import { resolveExecutor } from "../executor.js";
 import { profileTabs } from "../schema.js";
 
 type ProfileTabRow = typeof profileTabs.$inferSelect;
@@ -11,6 +13,7 @@ function toEntity(row: ProfileTabRow): ProfileTabEntity {
   return new ProfileTabEntity({
     id: row.id,
     userId: row.userId,
+    groupId: row.groupId,
     viewport: row.viewport as ProfileViewport,
     title: row.title,
     order: row.order,
@@ -23,8 +26,9 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
   async findByUserAndViewport(
     userId: string,
     viewport: ProfileViewport,
+    tx?: TransactionContext,
   ): Promise<ProfileTabEntity[]> {
-    const rows = await db
+    const rows = await resolveExecutor(tx)
       .select()
       .from(profileTabs)
       .where(
@@ -38,8 +42,30 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
     return rows.map(toEntity);
   }
 
-  async findById(id: string): Promise<ProfileTabEntity | null> {
-    const [row] = await db
+  async findByGroupId(
+    userId: string,
+    groupId: string,
+    tx?: TransactionContext,
+  ): Promise<ProfileTabEntity[]> {
+    const rows = await resolveExecutor(tx)
+      .select()
+      .from(profileTabs)
+      .where(
+        and(
+          eq(profileTabs.userId, userId),
+          eq(profileTabs.groupId, groupId),
+        ),
+      )
+      .orderBy(asc(profileTabs.order), asc(profileTabs.createdAt));
+
+    return rows.map(toEntity);
+  }
+
+  async findById(
+    id: string,
+    tx?: TransactionContext,
+  ): Promise<ProfileTabEntity | null> {
+    const [row] = await resolveExecutor(tx)
       .select()
       .from(profileTabs)
       .where(eq(profileTabs.id, id));
@@ -47,12 +73,16 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
     return row ? toEntity(row) : null;
   }
 
-  async create(tab: ProfileTabEntity): Promise<ProfileTabEntity> {
-    const [created] = await db
+  async create(
+    tab: ProfileTabEntity,
+    tx?: TransactionContext,
+  ): Promise<ProfileTabEntity> {
+    const [created] = await resolveExecutor(tx)
       .insert(profileTabs)
       .values({
         id: tab.id,
         userId: tab.userId,
+        groupId: tab.groupId,
         viewport: tab.viewport,
         title: tab.title,
         order: tab.order,
@@ -80,6 +110,15 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
 
   async delete(id: string): Promise<void> {
     await db.delete(profileTabs).where(eq(profileTabs.id, id));
+  }
+
+  async deleteByGroupId(
+    groupId: string,
+    tx?: TransactionContext,
+  ): Promise<void> {
+    await resolveExecutor(tx)
+      .delete(profileTabs)
+      .where(eq(profileTabs.groupId, groupId));
   }
 
   async reorder(

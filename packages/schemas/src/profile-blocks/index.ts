@@ -143,6 +143,12 @@ export type ProfileTab = z.infer<typeof profileTabSchema>;
 
 export const profileBlockSchema = z.object({
   id: z.string(),
+  /**
+   * Shared logical identity linking this block's pc-row and mobile-row. Same
+   * groupId across viewports; only gridX/Y/W/H differ. The editor can use it to
+   * correlate the two viewport rows of a single logical block.
+   */
+  groupId: z.string(),
   kind: blockKindSchema,
   /** null when the block is pinned (lives in the shared "all tabs" grid). */
   tabId: z.string().nullable(),

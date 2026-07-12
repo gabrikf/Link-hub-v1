@@ -29,7 +29,10 @@ export function GridBlockCard({
   return (
     <div
       className={[
-        "flex h-full w-full flex-col justify-between gap-2 overflow-hidden rounded-2xl border bg-white p-3 transition-all duration-300 dark:bg-zinc-900",
+        // The whole card is the drag surface (see editor-grid dragConfig), so
+        // it shows a grab cursor; interactive controls opt out via
+        // `.block-no-drag` and keep their own pointer cursor.
+        "flex h-full w-full cursor-grab flex-col justify-between gap-2 overflow-hidden rounded-2xl border bg-white p-3 transition-all duration-300 select-none active:cursor-grabbing dark:bg-zinc-900",
         block.isVisible
           ? "border-zinc-200 hover:border-violet-400/70 hover:shadow-[0_0_22px_-6px_rgba(139,92,246,0.5)] dark:border-zinc-700 dark:hover:border-violet-500/60"
           : "border-dashed border-zinc-300 opacity-60 dark:border-zinc-700",
@@ -38,8 +41,9 @@ export function GridBlockCard({
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span
-            className="block-drag-handle inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400"
             aria-label={`Drag ${meta.label}`}
+            title="Drag the card to move it"
           >
             <FaGripLinesVertical className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
@@ -52,7 +56,7 @@ export function GridBlockCard({
         </div>
 
         {custom ? (
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="block-no-drag relative z-10 flex shrink-0 cursor-default items-center gap-1">
             <Button
               type="button"
               variant="icon"
@@ -80,7 +84,7 @@ export function GridBlockCard({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="block-no-drag relative z-10 flex cursor-default flex-wrap items-center gap-2">
         <label className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
           <Switch.Root
             checked={block.isVisible}

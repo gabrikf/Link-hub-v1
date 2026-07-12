@@ -49,6 +49,45 @@ describe("ReorderTabsUseCase", () => {
     expect(ordered[1]?.id).toBe(a.id);
   });
 
+  it("mirrors the reorder to the other viewport by groupId", async () => {
+    const groupA = crypto.randomUUID();
+    const groupB = crypto.randomUUID();
+
+    const make = (
+      viewport: "pc" | "mobile",
+      groupId: string,
+      title: string,
+      order: number,
+    ) =>
+      ProfileTabEntity.create({
+        userId: "user-1",
+        groupId,
+        viewport,
+        title,
+        order,
+      });
+
+    const pcA = make("pc", groupA, "A", 0);
+    const pcB = make("pc", groupB, "B", 1);
+    const mobileA = make("mobile", groupA, "A", 0);
+    const mobileB = make("mobile", groupB, "B", 1);
+    for (const tab of [pcA, pcB, mobileA, mobileB]) {
+      await tabsRepository.create(tab);
+    }
+
+    // Reorder only the pc list; mobile must follow the same logical order.
+    await sut.execute("user-1", { viewport: "pc", tabIds: [pcB.id, pcA.id] });
+
+    const pcOrdered = await tabsRepository.findByUserAndViewport("user-1", "pc");
+    const mobileOrdered = await tabsRepository.findByUserAndViewport(
+      "user-1",
+      "mobile",
+    );
+
+    expect(pcOrdered.map((t) => t.groupId)).toEqual([groupB, groupA]);
+    expect(mobileOrdered.map((t) => t.groupId)).toEqual([groupB, groupA]);
+  });
+
   it("throws when an id is not owned", async () => {
     const { a } = await seedTabs();
 

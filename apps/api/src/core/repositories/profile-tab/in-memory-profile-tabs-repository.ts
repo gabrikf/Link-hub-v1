@@ -17,6 +17,16 @@ export class InMemoryProfileTabsRepository implements IProfileTabsRepository {
       .sort((a, b) => a.order - b.order);
   }
 
+  async findByGroupId(
+    userId: string,
+    groupId: string,
+  ): Promise<ProfileTabEntity[]> {
+    return this.tabs.filter(
+      (candidate) =>
+        candidate.userId === userId && candidate.groupId === groupId,
+    );
+  }
+
   async findById(id: string): Promise<ProfileTabEntity | null> {
     return this.tabs.find((candidate) => candidate.id === id) ?? null;
   }
@@ -39,6 +49,10 @@ export class InMemoryProfileTabsRepository implements IProfileTabsRepository {
 
   async delete(id: string): Promise<void> {
     this.tabs = this.tabs.filter((candidate) => candidate.id !== id);
+  }
+
+  async deleteByGroupId(groupId: string): Promise<void> {
+    this.tabs = this.tabs.filter((candidate) => candidate.groupId !== groupId);
   }
 
   async reorder(

@@ -765,7 +765,7 @@ export function ProfileLayoutPage() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         title="Live preview"
-        contentClassName="w-[96vw] max-w-5xl"
+        contentClassName="w-[96vw] max-w-6xl"
       >
         <div className="space-y-4">
           <div className="flex justify-center">

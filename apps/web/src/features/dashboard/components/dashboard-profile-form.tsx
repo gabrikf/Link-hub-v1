@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { FiRotateCcw, FiSave } from "react-icons/fi";
 import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
-import { ImageInput } from "../../../shared-components/image-input";
+import { FileUpload } from "../../../shared-components/file-upload";
 import { Input } from "../../../shared-components/input";
 import { TextArea } from "../../../shared-components/text-area";
 import { ProfileCover } from "../../profile/components/profile-cover";
@@ -20,6 +20,8 @@ export type ProfileFormValues = {
   username: string;
   name: string;
   description: string;
+  /** Avatar URL. Empty string means "fall back to the OAuth photo". */
+  userPhoto: string;
   bannerImageUrl: string;
   backgroundImageUrl: string;
   themePreset: ThemePreset;
@@ -66,6 +68,16 @@ export function DashboardProfileForm({
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+      <FileUpload
+        label="Profile picture"
+        aspect="square"
+        className="max-w-[10rem]"
+        value={watched.userPhoto.trim() || null}
+        onChange={(url) =>
+          setValue("userPhoto", url ?? "", { shouldDirty: true })
+        }
+        helperText="Your avatar. Defaults to your sign-in photo when empty."
+      />
       <Input id="profile-username" label="Username" {...register("username")} />
       <Input id="profile-name" label="Name" {...register("name")} />
       <TextArea
@@ -111,7 +123,7 @@ export function DashboardProfileForm({
             >
               <Avatar
                 name={watched.name || initialValues.name}
-                imageUrl={avatarUrl}
+                imageUrl={watched.userPhoto.trim() || avatarUrl}
                 size={56}
               />
             </span>
@@ -124,7 +136,7 @@ export function DashboardProfileForm({
           </div>
         </div>
 
-        <ImageInput
+        <FileUpload
           label="Banner / cover image"
           aspect="banner"
           value={watched.bannerImageUrl.trim() || null}
@@ -133,7 +145,7 @@ export function DashboardProfileForm({
           }
           helperText="Shown across the top of your public profile."
         />
-        <ImageInput
+        <FileUpload
           label="Background image"
           aspect="cover"
           value={watched.backgroundImageUrl.trim() || null}

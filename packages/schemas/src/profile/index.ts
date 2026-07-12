@@ -52,6 +52,9 @@ export const updateProfileSchemaInput = z.object({
   username: z.string().min(1, "Username is required"),
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
+  // User-editable avatar. Maps to the DB `avatarUrl` (exposed as `userPhoto` on
+  // the read side); when omitted the OAuth-provided avatar is kept.
+  userPhoto: httpUrlSchema.nullable().optional(),
   backgroundImageUrl: httpUrlSchema.nullable().optional(),
   bannerImageUrl: httpUrlSchema.nullable().optional(),
   themeAccent: hexColorSchema.nullable().optional(),

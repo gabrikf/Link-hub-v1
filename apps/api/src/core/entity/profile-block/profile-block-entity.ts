@@ -3,6 +3,8 @@ import { BaseEntity, type BaseEntityProps } from "../index.js";
 
 export interface ProfileBlockEntityProps extends BaseEntityProps {
   userId: string;
+  /** Shared logical identity linking the pc-row and mobile-row of this block. */
+  groupId?: string;
   viewport: ProfileViewport;
   tabId?: string | null;
   kind: BlockKind;
@@ -24,6 +26,7 @@ export interface BlockPosition {
 
 export class ProfileBlockEntity extends BaseEntity<ProfileBlockEntityProps> {
   public userId: string;
+  public groupId: string;
   public viewport: ProfileViewport;
   public tabId: string | null;
   public kind: BlockKind;
@@ -38,6 +41,7 @@ export class ProfileBlockEntity extends BaseEntity<ProfileBlockEntityProps> {
   constructor(props: ProfileBlockEntityProps) {
     super(props);
     this.userId = props.userId;
+    this.groupId = props.groupId ?? crypto.randomUUID();
     this.viewport = props.viewport;
     this.tabId = props.tabId ?? null;
     this.kind = props.kind;

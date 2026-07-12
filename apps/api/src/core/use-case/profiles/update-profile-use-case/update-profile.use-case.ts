@@ -9,6 +9,7 @@ export interface IUpdateProfileInput {
   username: string;
   name?: string;
   description?: string | null;
+  userPhoto?: string | null;
   backgroundImageUrl?: string | null;
   bannerImageUrl?: string | null;
   themeAccent?: string | null;
@@ -46,6 +47,10 @@ export class UpdateProfileUseCase {
 
     if (typeof input.description !== "undefined") {
       user.updateDescription(input.description ?? null);
+    }
+
+    if (typeof input.userPhoto !== "undefined") {
+      user.updateAvatarUrl(input.userPhoto ?? null);
     }
 
     if (typeof input.backgroundImageUrl !== "undefined") {

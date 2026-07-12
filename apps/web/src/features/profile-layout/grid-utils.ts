@@ -32,6 +32,8 @@ export function buildDefaultLayout(viewport: ProfileViewport): ProfileLayout {
 
   const blocks: ProfileBlock[] = DEFAULT_BUILTIN_BLOCKS.map((builtin) => ({
     id: `default-${viewport}-${builtin.kind}`,
+    // Viewport-independent so the pc/mobile fallback rows share a logical id.
+    groupId: `default-group-${builtin.kind}`,
     kind: builtin.kind,
     tabId: builtin.pinnedAllTabs ? null : tabId,
     gridX: 0,

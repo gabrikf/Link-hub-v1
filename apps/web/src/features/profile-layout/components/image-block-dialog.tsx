@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { FiPlus, FiTrash2 } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
+import { FileUpload } from "../../../shared-components/file-upload";
 import { Input } from "../../../shared-components/input";
 
 type ImageBlockDialogProps = {
@@ -138,12 +139,11 @@ export function ImageBlockDialog({
                   <FiTrash2 className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </div>
-              <Input
-                id={`image-url-${index}`}
-                label="URL"
-                value={row.url}
-                placeholder="https://..."
-                onChange={(event) => updateRow(index, { url: event.target.value })}
+              <FileUpload
+                label="Image"
+                aspect="cover"
+                value={row.url.trim() || null}
+                onChange={(url) => updateRow(index, { url: url ?? "" })}
               />
               <Input
                 id={`image-alt-${index}`}

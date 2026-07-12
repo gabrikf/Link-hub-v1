@@ -349,6 +349,35 @@
   color: var(--profile-accent-fg);
 }
 
+/* Avatar entrance halo — recolor the violet glow to the active accent so the
+   profile header follows the selected theme. The base `.anim-glow-pulse`
+   keyframe keeps its violet for non-profile surfaces; only inside a
+   `.profile-root` is it swapped for the accent-driven variant below. */
+.profile-root .anim-glow-pulse {
+  animation-name: anim-glow-pulse-accent;
+}
+@keyframes anim-glow-pulse-accent {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 transparent,
+      0 0 18px 2px var(--profile-accent-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 0 transparent,
+      0 0 34px 6px var(--profile-accent-glow);
+  }
+}
+
+/* Work-history description rendered as markdown: tint the list bullet markers
+   with the active accent so lists read as themed instead of default black
+   dots. Scoped to `.work-history-md` so post markdown elsewhere is untouched. */
+.profile-root .work-history-md ul > li::marker,
+.profile-root .work-history-md ol > li::marker {
+  color: var(--profile-accent-fg);
+}
+
 /* Markdown links. Themed by the accent variables when inside a profile
    root; a mode-appropriate violet fallback covers other surfaces (e.g.
    the post composer preview) where the variables are not defined. */

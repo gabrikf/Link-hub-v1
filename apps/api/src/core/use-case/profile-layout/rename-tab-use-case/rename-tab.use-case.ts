@@ -21,8 +21,21 @@ export class RenameTabUseCase {
       throw new ForbiddenError("You do not own this tab");
     }
 
-    const updated = await this.tabsRepository.rename(tabId, title);
+    // Rename every viewport row that shares this tab's logical identity so the
+    // title mirrors across pc and mobile.
+    const groupTabs = await this.tabsRepository.findByGroupId(
+      userId,
+      tab.groupId,
+    );
 
-    return toTabDTO(updated);
+    let renamed = tab;
+    for (const groupTab of groupTabs) {
+      const updated = await this.tabsRepository.rename(groupTab.id, title);
+      if (groupTab.id === tabId) {
+        renamed = updated;
+      }
+    }
+
+    return toTabDTO(renamed);
   }
 }

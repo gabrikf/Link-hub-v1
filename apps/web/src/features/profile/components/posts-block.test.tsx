@@ -42,6 +42,7 @@ const postsLayout = (limit?: number): ProfileLayout => ({
   blocks: [
     {
       id: "posts-block",
+      groupId: "posts-group",
       kind: "posts",
       tabId: "tab-1",
       gridX: 0,

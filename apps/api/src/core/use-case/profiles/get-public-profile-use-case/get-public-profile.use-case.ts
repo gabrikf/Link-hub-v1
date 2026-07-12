@@ -56,7 +56,7 @@ export class GetPublicProfileUseCase {
     // concurrency. When the owner hasn't configured this viewport yet, render
     // the canonical default layout in memory (persisted only via /me/layout).
     if (tabs.length === 0) {
-      const { tab, blocks } = seedDefaultLayout(userId, viewport);
+      const { tab, blocks } = seedDefaultLayout(userId)[viewport];
       return toPublicLayout([tab], blocks);
     }
 

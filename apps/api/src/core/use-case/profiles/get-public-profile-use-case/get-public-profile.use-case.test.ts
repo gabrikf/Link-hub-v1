@@ -97,7 +97,7 @@ describe("GetPublicProfileUseCase", () => {
 
     // The public read path never writes, so persist a layout explicitly (as
     // /me/layout would), then hide a block.
-    const { tab, blocks } = seedDefaultLayout(user.id, "pc");
+    const { tab, blocks } = seedDefaultLayout(user.id).pc;
     await tabsRepository.create(tab);
     for (const block of blocks) {
       await blocksRepository.create(block);

@@ -13,6 +13,7 @@ export function toTabDTO(tab: ProfileTabEntity): ProfileTab {
 export function toBlockDTO(block: ProfileBlockEntity): ProfileBlock {
   return {
     id: block.id,
+    groupId: block.groupId,
     kind: block.kind,
     tabId: block.tabId,
     gridX: block.gridX,

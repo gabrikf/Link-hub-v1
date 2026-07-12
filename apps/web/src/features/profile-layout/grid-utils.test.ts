@@ -11,6 +11,7 @@ import {
 
 const makeBlock = (overrides: Partial<ProfileBlock>): ProfileBlock => ({
   id: "b",
+  groupId: "g",
   kind: "text",
   tabId: "tab-1",
   gridX: 0,

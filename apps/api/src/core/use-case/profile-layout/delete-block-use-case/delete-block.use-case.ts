@@ -26,7 +26,9 @@ export class DeleteBlockUseCase {
       );
     }
 
-    await this.blocksRepository.delete(blockId);
+    // Deleting a block removes it from BOTH viewports: drop every row that
+    // shares its logical identity.
+    await this.blocksRepository.deleteByGroupId(block.groupId);
 
     return { success: true };
   }

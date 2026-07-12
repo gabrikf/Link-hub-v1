@@ -35,6 +35,31 @@ describe("RenameTabUseCase", () => {
     expect(result.title).toBe("New title");
   });
 
+  it("mirrors the rename to the other viewport by groupId", async () => {
+    const groupId = crypto.randomUUID();
+    const pc = ProfileTabEntity.create({
+      userId: "user-1",
+      groupId,
+      viewport: "pc",
+      title: "Old",
+      order: 0,
+    });
+    const mobile = ProfileTabEntity.create({
+      userId: "user-1",
+      groupId,
+      viewport: "mobile",
+      title: "Old",
+      order: 0,
+    });
+    await tabsRepository.create(pc);
+    await tabsRepository.create(mobile);
+
+    await sut.execute("user-1", pc.id, "Renamed");
+
+    expect((await tabsRepository.findById(pc.id))?.title).toBe("Renamed");
+    expect((await tabsRepository.findById(mobile.id))?.title).toBe("Renamed");
+  });
+
   it("throws when the tab does not exist", async () => {
     await expect(
       sut.execute("user-1", "missing", "New"),

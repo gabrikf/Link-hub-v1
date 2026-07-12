@@ -98,6 +98,7 @@ export class ProfileController {
             username: string;
             name?: string;
             description?: string | null;
+            userPhoto?: string | null;
             backgroundImageUrl?: string | null;
             bannerImageUrl?: string | null;
             themeAccent?: string | null;
@@ -118,6 +119,7 @@ export class ProfileController {
           username: request.body.username,
           name: request.body.name,
           description: request.body.description,
+          userPhoto: request.body.userPhoto,
           backgroundImageUrl: request.body.backgroundImageUrl,
           bannerImageUrl: request.body.bannerImageUrl,
           themeAccent: request.body.themeAccent,

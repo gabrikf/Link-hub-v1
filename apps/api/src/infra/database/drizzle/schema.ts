@@ -168,6 +168,10 @@ export const profileTabs = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    // Shared logical identity that links the pc-row and mobile-row of the SAME
+    // logical tab. Structure (title/order/existence) mirrors across viewports by
+    // groupId; only block positions differ per viewport.
+    groupId: uuid("group_id").notNull(),
     viewport: text("viewport").notNull(),
     title: text("title").notNull(),
     order: integer("order").notNull().default(0),
@@ -177,7 +181,10 @@ export const profileTabs = pgTable(
       .defaultNow()
       .$onUpdateFn(() => new Date()),
   },
-  (table) => [index("profile_tabs_user_id_viewport_idx").on(table.userId, table.viewport)],
+  (table) => [
+    index("profile_tabs_user_id_viewport_idx").on(table.userId, table.viewport),
+    index("profile_tabs_group_id_idx").on(table.groupId),
+  ],
 );
 
 export const profileBlocks = pgTable(
@@ -187,6 +194,10 @@ export const profileBlocks = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    // Shared logical identity that links the pc-row and mobile-row of the SAME
+    // logical block. Kind/config/visibility/pin/tab-association mirror across
+    // viewports by groupId; only gridX/Y/W/H differ per viewport.
+    groupId: uuid("group_id").notNull(),
     viewport: text("viewport").notNull(),
     tabId: uuid("tab_id").references(() => profileTabs.id, {
       onDelete: "cascade",
@@ -205,7 +216,13 @@ export const profileBlocks = pgTable(
       .defaultNow()
       .$onUpdateFn(() => new Date()),
   },
-  (table) => [index("profile_blocks_user_id_viewport_idx").on(table.userId, table.viewport)],
+  (table) => [
+    index("profile_blocks_user_id_viewport_idx").on(
+      table.userId,
+      table.viewport,
+    ),
+    index("profile_blocks_group_id_idx").on(table.groupId),
+  ],
 );
 
 export const workExperiences = pgTable(

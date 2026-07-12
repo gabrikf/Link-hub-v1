@@ -41,6 +41,43 @@ describe("DeleteBlockUseCase", () => {
     expect(await blocksRepository.findById(block.id)).toBeNull();
   });
 
+  it("deletes the mirrored row in the other viewport too", async () => {
+    const groupId = crypto.randomUUID();
+    const pc = ProfileBlockEntity.create({
+      userId: "user-1",
+      groupId,
+      viewport: "pc",
+      tabId: null,
+      kind: "text",
+      gridX: 0,
+      gridY: 0,
+      gridW: 12,
+      gridH: 4,
+      config: { body: "x" },
+    });
+    const mobile = ProfileBlockEntity.create({
+      userId: "user-1",
+      groupId,
+      viewport: "mobile",
+      tabId: null,
+      kind: "text",
+      gridX: 0,
+      gridY: 0,
+      gridW: 4,
+      gridH: 4,
+      config: { body: "x" },
+    });
+    await blocksRepository.create(pc);
+    await blocksRepository.create(mobile);
+
+    // Deleting via the pc row must remove the mobile mirror as well.
+    await sut.execute("user-1", pc.id);
+
+    expect(await blocksRepository.findById(pc.id)).toBeNull();
+    expect(await blocksRepository.findById(mobile.id)).toBeNull();
+    expect(blocksRepository.getAll()).toHaveLength(0);
+  });
+
   it("refuses to delete a built-in block", async () => {
     const block = makeBlock("header");
     await blocksRepository.create(block);

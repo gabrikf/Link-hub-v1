@@ -22,6 +22,16 @@ export class InMemoryProfileBlocksRepository
       .sort((a, b) => a.gridY - b.gridY || a.gridX - b.gridX);
   }
 
+  async findByGroupId(
+    userId: string,
+    groupId: string,
+  ): Promise<ProfileBlockEntity[]> {
+    return this.blocks.filter(
+      (candidate) =>
+        candidate.userId === userId && candidate.groupId === groupId,
+    );
+  }
+
   async findById(id: string): Promise<ProfileBlockEntity | null> {
     return this.blocks.find((candidate) => candidate.id === id) ?? null;
   }
@@ -46,6 +56,12 @@ export class InMemoryProfileBlocksRepository
 
   async delete(id: string): Promise<void> {
     this.blocks = this.blocks.filter((candidate) => candidate.id !== id);
+  }
+
+  async deleteByGroupId(groupId: string): Promise<void> {
+    this.blocks = this.blocks.filter(
+      (candidate) => candidate.groupId !== groupId,
+    );
   }
 
   async updatePositions(

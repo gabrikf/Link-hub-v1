@@ -30,6 +30,7 @@ const links: LinkResponse[] = [
 
 const block = (overrides: Partial<ProfileBlock>): ProfileBlock => ({
   id: "block",
+  groupId: "g",
   kind: "text",
   tabId: "tab-1",
   gridX: 0,

@@ -1,5 +1,6 @@
 import { ProfileViewport } from "@repo/schemas";
 import { ProfileBlockEntity } from "../../entity/profile-block/profile-block-entity.js";
+import { TransactionContext } from "../../providers/unit-of-work/unit-of-work.js";
 
 export interface BlockPositionUpdate {
   id: string;
@@ -13,15 +14,33 @@ export interface IProfileBlocksRepository {
   findByUserAndViewport(
     userId: string,
     viewport: ProfileViewport,
+    tx?: TransactionContext,
   ): Promise<ProfileBlockEntity[]>;
-  findById(id: string): Promise<ProfileBlockEntity | null>;
-  create(block: ProfileBlockEntity): Promise<ProfileBlockEntity>;
-  update(block: ProfileBlockEntity): Promise<ProfileBlockEntity>;
+  /** All block rows (both viewports) sharing a logical identity. */
+  findByGroupId(
+    userId: string,
+    groupId: string,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity[]>;
+  findById(
+    id: string,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity | null>;
+  create(
+    block: ProfileBlockEntity,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity>;
+  update(
+    block: ProfileBlockEntity,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity>;
   delete(id: string): Promise<void>;
+  /** Delete every block row (both viewports) sharing a logical identity. */
+  deleteByGroupId(groupId: string, tx?: TransactionContext): Promise<void>;
   updatePositions(
     userId: string,
     viewport: ProfileViewport,
     positions: BlockPositionUpdate[],
   ): Promise<void>;
-  deleteByTabId(tabId: string): Promise<void>;
+  deleteByTabId(tabId: string, tx?: TransactionContext): Promise<void>;
 }

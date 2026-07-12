@@ -3,17 +3,20 @@ import { ProfileTabEntity } from "../../../entity/profile-tab/profile-tab-entity
 import { BadRequestError } from "../../../errors/index.js";
 import { InMemoryProfileBlocksRepository } from "../../../repositories/profile-block/in-memory-profile-block-repository.js";
 import { InMemoryProfileTabsRepository } from "../../../repositories/profile-tab/in-memory-profile-tabs-repository.js";
+import { InMemoryUnitOfWork } from "../../../providers/unit-of-work/in-memory-unit-of-work.js";
 import { CreateBlockUseCase } from "./create-block.use-case.js";
 
 describe("CreateBlockUseCase", () => {
   let tabsRepository: InMemoryProfileTabsRepository;
   let blocksRepository: InMemoryProfileBlocksRepository;
+  let unitOfWork: InMemoryUnitOfWork;
   let sut: CreateBlockUseCase;
 
   beforeEach(() => {
     tabsRepository = new InMemoryProfileTabsRepository();
     blocksRepository = new InMemoryProfileBlocksRepository();
-    sut = new CreateBlockUseCase(tabsRepository, blocksRepository);
+    unitOfWork = new InMemoryUnitOfWork();
+    sut = new CreateBlockUseCase(tabsRepository, blocksRepository, unitOfWork);
   });
 
   it("seeds the viewport and appends a full-width block in the first tab", async () => {
@@ -41,6 +44,79 @@ describe("CreateBlockUseCase", () => {
 
     expect(block.tabId).toBeNull();
     expect(block.pinnedAllTabs).toBe(true);
+  });
+
+  it("mirrors the block into the other viewport with a shared groupId", async () => {
+    const block = await sut.execute("user-1", {
+      kind: "text",
+      viewport: "pc",
+      config: { body: "Hello world" },
+    });
+
+    const pcBlocks = await blocksRepository.findByUserAndViewport(
+      "user-1",
+      "pc",
+    );
+    const mobileBlocks = await blocksRepository.findByUserAndViewport(
+      "user-1",
+      "mobile",
+    );
+
+    const pcMatch = pcBlocks.find((b) => b.groupId === block.groupId);
+    const mobileMatch = mobileBlocks.find((b) => b.groupId === block.groupId);
+
+    expect(pcMatch).toBeDefined();
+    expect(mobileMatch).toBeDefined();
+    // Shared content, but each viewport keeps its own full width.
+    expect(mobileMatch?.kind).toBe("text");
+    expect(mobileMatch?.config).toEqual({ body: "Hello world" });
+    expect(pcMatch?.gridW).toBe(12);
+    expect(mobileMatch?.gridW).toBe(4);
+    // The mirror lands in the counterpart tab (same tab group), not pinned.
+    expect(mobileMatch?.pinnedAllTabs).toBe(false);
+    expect(mobileMatch?.tabId).not.toBeNull();
+  });
+
+  it("mirrors a pinned block as pinned in both viewports", async () => {
+    const block = await sut.execute("user-1", {
+      kind: "button",
+      viewport: "pc",
+      tabId: null,
+      config: { label: "Download", url: "https://cv.dev" },
+    });
+
+    const mobileBlocks = await blocksRepository.findByUserAndViewport(
+      "user-1",
+      "mobile",
+    );
+    const mobileMatch = mobileBlocks.find((b) => b.groupId === block.groupId);
+
+    expect(mobileMatch?.pinnedAllTabs).toBe(true);
+    expect(mobileMatch?.tabId).toBeNull();
+  });
+
+  it("applies client placement only to the edited viewport", async () => {
+    // execute() seeds both viewports on first access, then inserts the block.
+    const block = await sut.execute("user-1", {
+      kind: "text",
+      viewport: "pc",
+      config: { body: "Placed" },
+      placement: { gridX: 2, gridY: 3, gridW: 6, gridH: 5 },
+    });
+
+    expect(block.gridX).toBe(2);
+    expect(block.gridY).toBe(3);
+    expect(block.gridW).toBe(6);
+    expect(block.gridH).toBe(5);
+
+    const mobileBlocks = await blocksRepository.findByUserAndViewport(
+      "user-1",
+      "mobile",
+    );
+    const mobileMatch = mobileBlocks.find((b) => b.groupId === block.groupId);
+    // Mobile gets a computed default (full mobile width), NOT the pc placement.
+    expect(mobileMatch?.gridW).toBe(4);
+    expect(mobileMatch?.gridX).toBe(0);
   });
 
   it("respects an explicit placement", async () => {

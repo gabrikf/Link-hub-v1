@@ -26,6 +26,8 @@ import { IGoogleOAuthProvider } from "../../core/providers/oauth/google-oauth-pr
 import { ILinkedInOAuthProvider } from "../../core/providers/oauth/linkedin-oauth-provider.js";
 import { IResumeEmbeddingQueue } from "../../core/providers/queue/resume-embedding-queue.js";
 import { IResumeParsingProvider } from "../../core/providers/resume-parsing/resume-parsing-provider.js";
+import { IFileStorageProvider } from "../../core/providers/storage/file-storage-provider.js";
+import { IUnitOfWork } from "../../core/providers/unit-of-work/unit-of-work.js";
 import { DrizzleUserRepository } from "../database/drizzle/repositories/user.repository.js";
 import { DrizzleLinksRepository } from "../database/drizzle/repositories/link.repository.js";
 import { DrizzlePostsRepository } from "../database/drizzle/repositories/post.repository.js";
@@ -43,6 +45,7 @@ import { DrizzleResumeEmbeddingsRepository } from "../database/drizzle/repositor
 import { DrizzleResumeSearchRepository } from "../database/drizzle/repositories/resume-search.repository.js";
 import { DrizzleCandidateInteractionRepository } from "../database/drizzle/repositories/candidate-interaction.repository.js";
 import { DrizzleWorkExperienceRepository } from "../database/drizzle/repositories/work-experience.repository.js";
+import { DrizzleUnitOfWork } from "../database/drizzle/drizzle-unit-of-work.js";
 import { Argon2HashProvider } from "../providers/argon2-hash-provider.js";
 import { JwtProvider } from "../providers/jwt-provider.js";
 import { CryptoTokenProvider } from "../providers/crypto-token-provider.js";
@@ -56,6 +59,11 @@ import { LinkedInOAuthProvider } from "../providers/linkedin-oauth-provider.js";
 import { BullMqResumeEmbeddingQueue } from "../providers/bullmq-resume-embedding-queue.js";
 import { OpenAiResumeParsingProvider } from "../providers/openai-resume-parsing-provider.js";
 import { DeterministicResumeParsingProvider } from "../providers/deterministic-resume-parsing-provider.js";
+import {
+  S3FileStorageProvider,
+  readS3StorageConfigFromEnv,
+} from "../providers/s3-file-storage-provider.js";
+import { InternalServerError } from "../../core/errors/index.js";
 import { CreateUserUseCase } from "../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 import { LoginUseCase } from "../../core/use-case/auth/login-use-case/login.use-case.js";
 import { GoogleSignInUseCase } from "../../core/use-case/auth/google-sign-in-use-case/google-sign-in.use-case.js";
@@ -139,6 +147,8 @@ export const TOKENS = {
     "RecruiterQueryConversionProvider",
   ),
   ResumeParsingProvider: Symbol.for("ResumeParsingProvider"),
+  FileStorageProvider: Symbol.for("FileStorageProvider"),
+  UnitOfWork: Symbol.for("UnitOfWork"),
   ResumeEmbeddingQueue: Symbol.for("ResumeEmbeddingQueue"),
   GoogleOAuthProvider: Symbol.for("GoogleOAuthProvider"),
   LinkedInOAuthProvider: Symbol.for("LinkedInOAuthProvider"),
@@ -297,6 +307,10 @@ export function setupContainer() {
   );
 
   // Register providers
+  container.register<IUnitOfWork>(TOKENS.UnitOfWork, {
+    useClass: DrizzleUnitOfWork,
+  });
+
   container.register<IHashProvider>(TOKENS.HashProvider, {
     useClass: Argon2HashProvider,
   });
@@ -367,6 +381,20 @@ export function setupContainer() {
       }
 
       return new OpenAiResumeParsingProvider(apiKey);
+    },
+  });
+
+  container.register<IFileStorageProvider>(TOKENS.FileStorageProvider, {
+    useFactory: () => {
+      const config = readS3StorageConfigFromEnv();
+
+      // Fail lazily (at request time) with a clear message instead of crashing
+      // the whole server at boot when object storage isn't configured.
+      if (!config) {
+        throw new InternalServerError("Image storage is not configured");
+      }
+
+      return new S3FileStorageProvider(config);
     },
   });
 
@@ -573,10 +601,12 @@ export function setupContainer() {
       const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
         TOKENS.ProfileBlocksRepository,
       );
+      const unitOfWork = c.resolve<IUnitOfWork>(TOKENS.UnitOfWork);
 
       return new GetLayoutUseCase(
         profileTabsRepository,
         profileBlocksRepository,
+        unitOfWork,
       );
     },
   });
@@ -586,8 +616,9 @@ export function setupContainer() {
       const profileTabsRepository = c.resolve<IProfileTabsRepository>(
         TOKENS.ProfileTabsRepository,
       );
+      const unitOfWork = c.resolve<IUnitOfWork>(TOKENS.UnitOfWork);
 
-      return new CreateTabUseCase(profileTabsRepository);
+      return new CreateTabUseCase(profileTabsRepository, unitOfWork);
     },
   });
 
@@ -609,10 +640,12 @@ export function setupContainer() {
       const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
         TOKENS.ProfileBlocksRepository,
       );
+      const unitOfWork = c.resolve<IUnitOfWork>(TOKENS.UnitOfWork);
 
       return new DeleteTabUseCase(
         profileTabsRepository,
         profileBlocksRepository,
+        unitOfWork,
       );
     },
   });
@@ -636,9 +669,12 @@ export function setupContainer() {
         TOKENS.ProfileBlocksRepository,
       );
 
+      const unitOfWork = c.resolve<IUnitOfWork>(TOKENS.UnitOfWork);
+
       return new CreateBlockUseCase(
         profileTabsRepository,
         profileBlocksRepository,
+        unitOfWork,
       );
     },
   });
@@ -652,9 +688,12 @@ export function setupContainer() {
         TOKENS.ProfileBlocksRepository,
       );
 
+      const unitOfWork = c.resolve<IUnitOfWork>(TOKENS.UnitOfWork);
+
       return new UpdateBlockUseCase(
         profileTabsRepository,
         profileBlocksRepository,
+        unitOfWork,
       );
     },
   });

@@ -5,7 +5,9 @@ import {
   BlockPositionUpdate,
   IProfileBlocksRepository,
 } from "../../../../core/repositories/profile-block/profile-block-repository.js";
+import { TransactionContext } from "../../../../core/providers/unit-of-work/unit-of-work.js";
 import { db } from "../index.js";
+import { resolveExecutor } from "../executor.js";
 import { profileBlocks } from "../schema.js";
 
 type ProfileBlockRow = typeof profileBlocks.$inferSelect;
@@ -14,6 +16,7 @@ function toEntity(row: ProfileBlockRow): ProfileBlockEntity {
   return new ProfileBlockEntity({
     id: row.id,
     userId: row.userId,
+    groupId: row.groupId,
     viewport: row.viewport as ProfileViewport,
     tabId: row.tabId,
     kind: row.kind as BlockKind,
@@ -35,8 +38,9 @@ export class DrizzleProfileBlocksRepository
   async findByUserAndViewport(
     userId: string,
     viewport: ProfileViewport,
+    tx?: TransactionContext,
   ): Promise<ProfileBlockEntity[]> {
-    const rows = await db
+    const rows = await resolveExecutor(tx)
       .select()
       .from(profileBlocks)
       .where(
@@ -54,8 +58,29 @@ export class DrizzleProfileBlocksRepository
     return rows.map(toEntity);
   }
 
-  async findById(id: string): Promise<ProfileBlockEntity | null> {
-    const [row] = await db
+  async findByGroupId(
+    userId: string,
+    groupId: string,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity[]> {
+    const rows = await resolveExecutor(tx)
+      .select()
+      .from(profileBlocks)
+      .where(
+        and(
+          eq(profileBlocks.userId, userId),
+          eq(profileBlocks.groupId, groupId),
+        ),
+      );
+
+    return rows.map(toEntity);
+  }
+
+  async findById(
+    id: string,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity | null> {
+    const [row] = await resolveExecutor(tx)
       .select()
       .from(profileBlocks)
       .where(eq(profileBlocks.id, id));
@@ -63,12 +88,16 @@ export class DrizzleProfileBlocksRepository
     return row ? toEntity(row) : null;
   }
 
-  async create(block: ProfileBlockEntity): Promise<ProfileBlockEntity> {
-    const [created] = await db
+  async create(
+    block: ProfileBlockEntity,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity> {
+    const [created] = await resolveExecutor(tx)
       .insert(profileBlocks)
       .values({
         id: block.id,
         userId: block.userId,
+        groupId: block.groupId,
         viewport: block.viewport,
         tabId: block.tabId,
         kind: block.kind,
@@ -87,8 +116,11 @@ export class DrizzleProfileBlocksRepository
     return toEntity(created);
   }
 
-  async update(block: ProfileBlockEntity): Promise<ProfileBlockEntity> {
-    const [updated] = await db
+  async update(
+    block: ProfileBlockEntity,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity> {
+    const [updated] = await resolveExecutor(tx)
       .update(profileBlocks)
       .set({
         tabId: block.tabId,
@@ -114,6 +146,15 @@ export class DrizzleProfileBlocksRepository
 
   async delete(id: string): Promise<void> {
     await db.delete(profileBlocks).where(eq(profileBlocks.id, id));
+  }
+
+  async deleteByGroupId(
+    groupId: string,
+    tx?: TransactionContext,
+  ): Promise<void> {
+    await resolveExecutor(tx)
+      .delete(profileBlocks)
+      .where(eq(profileBlocks.groupId, groupId));
   }
 
   async updatePositions(
@@ -168,7 +209,12 @@ export class DrizzleProfileBlocksRepository
     });
   }
 
-  async deleteByTabId(tabId: string): Promise<void> {
-    await db.delete(profileBlocks).where(eq(profileBlocks.tabId, tabId));
+  async deleteByTabId(
+    tabId: string,
+    tx?: TransactionContext,
+  ): Promise<void> {
+    await resolveExecutor(tx)
+      .delete(profileBlocks)
+      .where(eq(profileBlocks.tabId, tabId));
   }
 }

@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { FiEye, FiEyeOff, FiPlus, FiTrash2 } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
+import { FileUpload } from "../../../shared-components/file-upload";
 import { Input } from "../../../shared-components/input";
 import { Markdown } from "../lib/markdown";
 import { TagInput } from "./tag-input";
@@ -174,12 +175,11 @@ export function PostComposerDialog({
           )}
         </div>
 
-        <Input
-          id="post-cover"
-          label="Cover image URL (optional)"
-          value={coverImageUrl}
-          placeholder="https://..."
-          onChange={(event) => setCoverImageUrl(event.target.value)}
+        <FileUpload
+          label="Cover image (optional)"
+          aspect="cover"
+          value={coverImageUrl.trim() || null}
+          onChange={(url) => setCoverImageUrl(url ?? "")}
         />
 
         <div className="space-y-2">
@@ -187,13 +187,14 @@ export function PostComposerDialog({
             Inline images (optional)
           </span>
           {images.map((url, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <input
-                value={url}
-                placeholder="https://..."
-                onChange={(event) => updateImage(index, event.target.value)}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
+            <div key={index} className="flex items-start gap-2">
+              <div className="flex-1">
+                <FileUpload
+                  aspect="cover"
+                  value={url.trim() || null}
+                  onChange={(next) => updateImage(index, next ?? "")}
+                />
+              </div>
               <Button
                 type="button"
                 variant="icon"

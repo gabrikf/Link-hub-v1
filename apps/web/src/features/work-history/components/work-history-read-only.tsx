@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { FiBriefcase, FiCalendar, FiMapPin } from "react-icons/fi";
+import { Markdown } from "../../posts/lib/markdown";
 import {
   employmentTypeLabels,
   formatWorkDateRange,
@@ -90,7 +91,10 @@ function WorkHistoryItem({ item }: { item: WorkExperienceView }) {
 
   return (
     <li className="relative rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40">
-      <span className="absolute -left-[1.4rem] top-5 h-2.5 w-2.5 rounded-full bg-violet-600 ring-4 ring-white dark:ring-zinc-900" />
+      <span
+        className="absolute -left-[1.4rem] top-5 h-2.5 w-2.5 rounded-full ring-4 ring-white dark:ring-zinc-900"
+        style={{ backgroundColor: "var(--profile-accent-solid, #7c3aed)" }}
+      />
 
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -135,9 +139,7 @@ function WorkHistoryItem({ item }: { item: WorkExperienceView }) {
       </div>
 
       {item.description ? (
-        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-          {item.description}
-        </p>
+        <Markdown className="work-history-md mt-2">{item.description}</Markdown>
       ) : null}
 
       {item.mainStack.length > 0 ? (
@@ -145,7 +147,14 @@ function WorkHistoryItem({ item }: { item: WorkExperienceView }) {
           {item.mainStack.map((tech) => (
             <span
               key={tech}
-              className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200"
+              className="rounded-full border px-2 py-0.5 text-[11px] font-medium"
+              style={{
+                backgroundColor:
+                  "var(--profile-accent-weak, rgba(139,92,246,0.12))",
+                color: "var(--profile-accent-fg, #7c3aed)",
+                borderColor:
+                  "var(--profile-accent-border, rgba(139,92,246,0.3))",
+              }}
             >
               {tech}
             </span>

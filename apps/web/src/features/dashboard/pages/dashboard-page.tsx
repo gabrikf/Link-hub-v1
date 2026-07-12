@@ -32,8 +32,10 @@ import { detectLinkIcon, LINK_ICON_OPTIONS } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
+import { Dialog } from "../../../shared-components/dialog";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { DashboardHeader } from "../components/dashboard-header";
+import { DashboardProfileDisplay } from "../components/dashboard-profile-display";
 import {
   DashboardLinkForm,
   type LinkFormValues,
@@ -68,6 +70,7 @@ export function DashboardPage() {
 
   const hasSession = Boolean(getAuthTokens() && userInfo);
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const hasCheckedImportPromptRef = useRef(false);
 
@@ -293,6 +296,41 @@ export function DashboardPage() {
 
   const links = useMemo(() => linksQuery.data ?? [], [linksQuery.data]);
 
+  // Memoized on the individual saved profile field values (NOT on a fresh object
+  // literal per render). A background `meQuery` refetch on window refocus, or the
+  // mutation pending-flip while the edit modal is OPEN, no longer produces a new
+  // object identity — so the form's `reset(initialValues)` effect doesn't fire
+  // and in-progress edits are preserved. A real change to the saved profile (e.g.
+  // after a successful save re-fetches) yields a new reference and re-hydrates.
+  const profileFormInitialValues = useMemo<ProfileFormValues>(
+    () => ({
+      username: meQuery.data?.username ?? "",
+      name: meQuery.data?.name ?? "",
+      description: meQuery.data?.description ?? "",
+      userPhoto: meQuery.data?.userPhoto ?? "",
+      bannerImageUrl: meQuery.data?.bannerImageUrl ?? "",
+      backgroundImageUrl: meQuery.data?.backgroundImageUrl ?? "",
+      themePreset: meQuery.data?.themePreset ?? DEFAULT_THEME_PRESET,
+      themeAccent: meQuery.data?.themeAccent ?? "",
+      openToWork: meQuery.data?.openToWork ?? false,
+      location: meQuery.data?.location ?? "",
+      persona: meQuery.data?.persona ?? "",
+    }),
+    [
+      meQuery.data?.username,
+      meQuery.data?.name,
+      meQuery.data?.description,
+      meQuery.data?.userPhoto,
+      meQuery.data?.bannerImageUrl,
+      meQuery.data?.backgroundImageUrl,
+      meQuery.data?.themePreset,
+      meQuery.data?.themeAccent,
+      meQuery.data?.openToWork,
+      meQuery.data?.location,
+      meQuery.data?.persona,
+    ],
+  );
+
   const linkIconOptions = useMemo<LinkIconSelectOption[]>(
     () => [
       DEFAULT_LINK_ICON_SELECT_OPTION,
@@ -397,6 +435,7 @@ export function DashboardPage() {
       username: data.username,
       name: data.name,
       description: data.description,
+      userPhoto: data.userPhoto.trim() || null,
       bannerImageUrl: data.bannerImageUrl.trim() || null,
       backgroundImageUrl: data.backgroundImageUrl.trim() || null,
       themePreset: data.themePreset,
@@ -405,6 +444,7 @@ export function DashboardPage() {
       location: data.location.trim() || null,
       persona: data.persona || null,
     });
+    setIsProfileDialogOpen(false);
   };
 
   return (
@@ -588,21 +628,19 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <DashboardProfileForm
+        <DashboardProfileDisplay
+          name={meQuery.data?.name ?? ""}
+          username={meQuery.data?.username ?? ""}
+          description={meQuery.data?.description ?? null}
           avatarUrl={meQuery.data?.userPhoto ?? null}
-          initialValues={{
-            username: meQuery.data?.username ?? "",
-            name: meQuery.data?.name ?? "",
-            description: meQuery.data?.description ?? "",
-            bannerImageUrl: meQuery.data?.bannerImageUrl ?? "",
-            backgroundImageUrl: meQuery.data?.backgroundImageUrl ?? "",
-            themePreset: meQuery.data?.themePreset ?? DEFAULT_THEME_PRESET,
-            themeAccent: meQuery.data?.themeAccent ?? "",
-            openToWork: meQuery.data?.openToWork ?? false,
-            location: meQuery.data?.location ?? "",
-            persona: meQuery.data?.persona ?? "",
-          }}
-          onSubmit={handleSaveProfile}
+          bannerImageUrl={meQuery.data?.bannerImageUrl ?? null}
+          backgroundImageUrl={meQuery.data?.backgroundImageUrl ?? null}
+          themePreset={meQuery.data?.themePreset ?? null}
+          themeAccent={meQuery.data?.themeAccent ?? null}
+          openToWork={meQuery.data?.openToWork ?? false}
+          location={meQuery.data?.location ?? null}
+          persona={meQuery.data?.persona ?? null}
+          onEdit={() => setIsProfileDialogOpen(true)}
         />
 
         {updateProfileMutation.isError ? (
@@ -615,6 +653,20 @@ export function DashboardPage() {
             }
           />
         ) : null}
+
+        <Dialog
+          open={isProfileDialogOpen}
+          onOpenChange={setIsProfileDialogOpen}
+          title="Edit profile"
+          description="Update your public identity and appearance."
+          contentClassName="max-w-3xl"
+        >
+          <DashboardProfileForm
+            avatarUrl={meQuery.data?.userPhoto ?? null}
+            initialValues={profileFormInitialValues}
+            onSubmit={handleSaveProfile}
+          />
+        </Dialog>
       </aside>
     </main>
   );
