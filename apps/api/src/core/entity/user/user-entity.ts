@@ -7,6 +7,13 @@ export interface UserEntityProps extends BaseEntityProps {
   password: string;
   description: string | null; // Explicit null, not optional
   avatarUrl: string | null; // Explicit null, not optional
+  backgroundImageUrl?: string | null; // Optional; normalized to null in ctor
+  bannerImageUrl?: string | null; // Optional; normalized to null in ctor
+  themeAccent?: string | null; // Optional; normalized to null in ctor
+  themePreset?: string | null; // Optional; normalized to null in ctor
+  openToWork?: boolean; // Optional; normalized to false in ctor
+  location?: string | null; // Optional; normalized to null in ctor
+  persona?: string | null; // Optional; normalized to null in ctor
   googleId: string | null; // Explicit null, not optional
 }
 
@@ -17,6 +24,13 @@ export interface CreateUserEntityProps {
   password: string;
   description?: string | null; // Optional at creation, but will be normalized to null
   avatarUrl?: string | null; // Optional at creation, but will be normalized to null
+  backgroundImageUrl?: string | null; // Optional at creation, but will be normalized to null
+  bannerImageUrl?: string | null; // Optional at creation, but will be normalized to null
+  themeAccent?: string | null; // Optional at creation, but will be normalized to null
+  themePreset?: string | null; // Optional at creation, but will be normalized to null
+  openToWork?: boolean; // Optional at creation, but will be normalized to false
+  location?: string | null; // Optional at creation, but will be normalized to null
+  persona?: string | null; // Optional at creation, but will be normalized to null
   googleId?: string | null; // Optional at creation, but will be normalized to null
 }
 
@@ -30,6 +44,13 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
   public password: string;
   public description: string | null; // Always null, never undefined
   public avatarUrl: string | null; // Always null, never undefined
+  public backgroundImageUrl: string | null; // Always null, never undefined
+  public bannerImageUrl: string | null; // Always null, never undefined
+  public themeAccent: string | null; // Always null, never undefined
+  public themePreset: string | null; // Always null, never undefined
+  public openToWork: boolean; // Always boolean, never undefined
+  public location: string | null; // Always null, never undefined
+  public persona: string | null; // Always null, never undefined
   public googleId: string | null; // Always null, never undefined
 
   constructor(props: UserEntityProps) {
@@ -41,11 +62,53 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     // Normalize undefined to null for database consistency
     this.description = props.description ?? null;
     this.avatarUrl = props.avatarUrl ?? null;
+    this.backgroundImageUrl = props.backgroundImageUrl ?? null;
+    this.bannerImageUrl = props.bannerImageUrl ?? null;
+    this.themeAccent = props.themeAccent ?? null;
+    this.themePreset = props.themePreset ?? null;
+    this.openToWork = props.openToWork ?? false;
+    this.location = props.location ?? null;
+    this.persona = props.persona ?? null;
     this.googleId = props.googleId ?? null;
   }
 
   updateAvatarUrl(avatarUrl: string | null) {
     this.avatarUrl = avatarUrl;
+    this.updateTimestamp();
+  }
+
+  updateBackgroundImageUrl(backgroundImageUrl: string | null) {
+    this.backgroundImageUrl = backgroundImageUrl;
+    this.updateTimestamp();
+  }
+
+  updateBannerImageUrl(bannerImageUrl: string | null) {
+    this.bannerImageUrl = bannerImageUrl;
+    this.updateTimestamp();
+  }
+
+  updateThemeAccent(themeAccent: string | null) {
+    this.themeAccent = themeAccent;
+    this.updateTimestamp();
+  }
+
+  updateThemePreset(themePreset: string | null) {
+    this.themePreset = themePreset;
+    this.updateTimestamp();
+  }
+
+  updateOpenToWork(openToWork: boolean) {
+    this.openToWork = openToWork;
+    this.updateTimestamp();
+  }
+
+  updateLocation(location: string | null) {
+    this.location = location;
+    this.updateTimestamp();
+  }
+
+  updatePersona(persona: string | null) {
+    this.persona = persona;
     this.updateTimestamp();
   }
 
@@ -67,6 +130,13 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
       name: this.name,
       description: this.description,
       avatarUrl: this.avatarUrl,
+      backgroundImageUrl: this.backgroundImageUrl,
+      bannerImageUrl: this.bannerImageUrl,
+      themeAccent: this.themeAccent,
+      themePreset: this.themePreset,
+      openToWork: this.openToWork,
+      location: this.location,
+      persona: this.persona,
       googleId: this.googleId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

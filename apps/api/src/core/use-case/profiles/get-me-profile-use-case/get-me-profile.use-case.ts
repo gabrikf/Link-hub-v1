@@ -22,6 +22,13 @@ export class GetMeProfileUseCase {
       name: user.name,
       description: user.description,
       userPhoto: user.avatarUrl,
+      backgroundImageUrl: user.backgroundImageUrl,
+      bannerImageUrl: user.bannerImageUrl,
+      themeAccent: user.themeAccent,
+      themePreset: user.themePreset,
+      openToWork: user.openToWork,
+      location: user.location,
+      persona: user.persona,
       links,
     };
   }

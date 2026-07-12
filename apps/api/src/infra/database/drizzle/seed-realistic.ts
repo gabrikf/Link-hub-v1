@@ -29,6 +29,7 @@ type CandidateSeed = {
   email: string;
   login: string;
   password: string;
+  persona: string;
   headlineTitle: string;
   summary: string;
   totalYearsExperience: number;
@@ -49,6 +50,10 @@ type CandidateSeed = {
 type CandidateBlueprint = {
   slug: string;
   baseLabel: string;
+  // Persona category persisted on the seeded user (matches `personaSchema`
+  // in @repo/schemas): developer | designer | product-manager | product-owner
+  // | qa-engineer | data | devops | other.
+  persona: string;
   mainLanguage: string;
   summary: string;
   coreTitles: string[];
@@ -258,6 +263,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "javascript-fullstack",
     baseLabel: "JavaScript Fullstack",
+    persona: "developer",
     mainLanguage: "JavaScript",
     summary:
       "Delivers end-to-end features with versatile JavaScript skills across the stack.",
@@ -314,6 +320,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "node-backend",
     baseLabel: "Node Backend",
+    persona: "developer",
     mainLanguage: "TypeScript",
     summary:
       "Builds high-throughput APIs with event-driven pipelines and observability-first culture.",
@@ -347,6 +354,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "react-frontend",
     baseLabel: "React Frontend",
+    persona: "developer",
     mainLanguage: "TypeScript",
     summary:
       "Ships polished web experiences with strong accessibility and scalable design systems.",
@@ -385,6 +393,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "python-data",
     baseLabel: "Python Data",
+    persona: "data",
     mainLanguage: "Python",
     summary:
       "Builds resilient data products from ingestion pipelines to feature stores and ML workloads.",
@@ -420,6 +429,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "dotnet-enterprise",
     baseLabel: "DotNet Enterprise",
+    persona: "developer",
     mainLanguage: "C#",
     summary:
       "Delivers enterprise services with clean boundaries, secure APIs, and reliable release cycles.",
@@ -446,6 +456,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "java-platform",
     baseLabel: "Java Platform",
+    persona: "developer",
     mainLanguage: "Java",
     summary:
       "Operates mission-critical services with performance tuning and resilient distributed patterns.",
@@ -477,6 +488,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "go-sre",
     baseLabel: "Go SRE",
+    persona: "devops",
     mainLanguage: "Go",
     summary:
       "Keeps production systems fast and stable with deep automation and reliability engineering.",
@@ -502,6 +514,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "rust-systems",
     baseLabel: "Rust Systems",
+    persona: "developer",
     mainLanguage: "Rust",
     summary:
       "Builds high-performance infrastructure components with memory-safe concurrent design.",
@@ -526,6 +539,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "php-product",
     baseLabel: "PHP Product",
+    persona: "developer",
     mainLanguage: "PHP",
     summary:
       "Owns product-centric web platforms with pragmatic architecture and delivery speed.",
@@ -546,6 +560,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "ruby-rails",
     baseLabel: "Ruby Rails",
+    persona: "developer",
     mainLanguage: "Ruby",
     summary:
       "Delivers reliable SaaS features fast while balancing product quality and maintainability.",
@@ -566,6 +581,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "kotlin-mobile",
     baseLabel: "Kotlin Mobile",
+    persona: "developer",
     mainLanguage: "Kotlin",
     summary:
       "Builds native Android products and shared services with strong release and quality practices.",
@@ -586,6 +602,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "swift-ios",
     baseLabel: "Swift iOS",
+    persona: "developer",
     mainLanguage: "Swift",
     summary:
       "Creates polished iOS applications with performance tuning and robust integration patterns.",
@@ -606,6 +623,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "scala-streaming",
     baseLabel: "Scala Streaming",
+    persona: "data",
     mainLanguage: "Scala",
     summary:
       "Designs low-latency streaming systems for analytics and real-time decisioning platforms.",
@@ -630,6 +648,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "elixir-realtime",
     baseLabel: "Elixir Realtime",
+    persona: "developer",
     mainLanguage: "Elixir",
     summary:
       "Builds realtime collaboration products with fault tolerance and high fan-out messaging.",
@@ -665,6 +684,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "qa-automation",
     baseLabel: "QA Automation",
+    persona: "qa-engineer",
     mainLanguage: "JavaScript",
     summary:
       "Improves release confidence through robust automation, observability, and quality gates.",
@@ -685,6 +705,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "security-appsec",
     baseLabel: "Security AppSec",
+    persona: "developer",
     mainLanguage: "Python",
     summary:
       "Hardens application stacks with secure-by-default patterns, detection pipelines, and threat modeling.",
@@ -709,6 +730,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "ai-rag",
     baseLabel: "AI RAG",
+    persona: "data",
     mainLanguage: "Python",
     summary:
       "Builds LLM products with retrieval pipelines, evaluation loops, and production-ready MLOps.",
@@ -734,6 +756,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "bi-analytics",
     baseLabel: "BI Analytics",
+    persona: "data",
     mainLanguage: "SQL",
     summary:
       "Turns business data into decision-ready products with modeling governance and semantic layers.",
@@ -754,6 +777,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
   {
     slug: "cpp-embedded",
     baseLabel: "C++ Embedded",
+    persona: "developer",
     mainLanguage: "C++",
     summary:
       "Develops low-level software for embedded and edge environments with strict performance goals.",
@@ -774,6 +798,361 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
     cloudSkills: ["AWS", "Azure", "Docker", "Kubernetes"],
     dataSkills: ["PostgreSQL", "Redis", "Kafka"],
     testingSkills: ["Hardware-in-the-loop", "BDD", "TDD"],
+  },
+  {
+    slug: "product-designer",
+    baseLabel: "Product Designer",
+    persona: "designer",
+    mainLanguage: "Figma",
+    summary:
+      "Designs end-to-end product experiences from discovery to polished, accessible UI backed by a scalable design system.",
+    coreTitles: ["Product Designer", "UX/UI Designer", "Product Design Lead"],
+    salaryMin: 65000,
+    salaryMax: 160000,
+    yearsBase: 6,
+    seniority: "senior",
+    workModels: ["remote", "hybrid", "on-site"],
+    contractTypes: ["full-time", "contract"],
+    requiredSkills: ["Figma", "Design Systems", "Prototyping", "User Research"],
+    frameworkSkills: [
+      "Sketch",
+      "Adobe XD",
+      "Framer",
+      "Design Tokens",
+      "Miro",
+      "FigJam",
+    ],
+    architectureSkills: [
+      "Interaction Design",
+      "Visual Design",
+      "Information Architecture",
+      "Accessibility",
+      "Design Thinking",
+    ],
+    cloudSkills: ["Storybook", "Zeplin", "InVision", "Whimsical"],
+    dataSkills: ["Product Analytics", "Amplitude", "Google Analytics"],
+    testingSkills: [
+      "Usability Testing",
+      "Heuristic Evaluation",
+      "A/B Testing",
+    ],
+  },
+  {
+    slug: "ux-researcher",
+    baseLabel: "UX Researcher",
+    persona: "designer",
+    mainLanguage: "Research",
+    summary:
+      "Runs qualitative and quantitative research to de-risk product decisions and surface real user needs.",
+    coreTitles: ["UX Researcher", "Product Designer", "Design Lead"],
+    salaryMin: 60000,
+    salaryMax: 150000,
+    yearsBase: 6,
+    seniority: "senior",
+    workModels: ["remote", "hybrid"],
+    contractTypes: ["full-time", "contract", "freelance"],
+    requiredSkills: [
+      "User Research",
+      "Usability Testing",
+      "Customer Interviews",
+      "Journey Mapping",
+    ],
+    frameworkSkills: ["Miro", "FigJam", "Figma", "Whimsical", "Notion"],
+    architectureSkills: [
+      "Information Architecture",
+      "Service Design",
+      "Design Thinking",
+      "Heuristic Evaluation",
+    ],
+    cloudSkills: ["Dovetail", "Maze", "UserTesting", "Optimal Workshop"],
+    dataSkills: ["Statistics", "Google Analytics", "Product Analytics", "Excel"],
+    testingSkills: ["A/B Testing", "Experimentation", "Survey Design"],
+  },
+  {
+    slug: "design-systems-ui",
+    baseLabel: "Design Systems UI",
+    persona: "designer",
+    mainLanguage: "Figma",
+    summary:
+      "Builds and maintains cohesive design systems and component libraries bridging design and engineering.",
+    coreTitles: [
+      "UI Designer",
+      "Design Systems Designer",
+      "Product Designer",
+    ],
+    salaryMin: 62000,
+    salaryMax: 155000,
+    yearsBase: 7,
+    seniority: "senior",
+    workModels: ["remote", "hybrid", "on-site"],
+    contractTypes: ["full-time", "contract"],
+    requiredSkills: ["Figma", "Design Systems", "Design Tokens", "Visual Design"],
+    frameworkSkills: [
+      "Storybook",
+      "Tailwind CSS",
+      "Sketch",
+      "Zeplin",
+      "Framer",
+    ],
+    architectureSkills: [
+      "Accessibility",
+      "Interaction Design",
+      "Motion Design",
+      "Information Architecture",
+    ],
+    cloudSkills: ["Figma", "GitHub", "Chromatic", "Abstract"],
+    dataSkills: ["Product Analytics", "Amplitude"],
+    testingSkills: ["Usability Testing", "Accessibility Audits", "A/B Testing"],
+  },
+  {
+    slug: "product-manager",
+    baseLabel: "Product Manager",
+    persona: "product-manager",
+    mainLanguage: "Strategy",
+    summary:
+      "Owns product outcomes end-to-end, balancing discovery, roadmap, and delivery with data-informed prioritization.",
+    coreTitles: [
+      "Product Manager",
+      "Senior Product Manager",
+      "Technical Product Manager",
+    ],
+    salaryMin: 80000,
+    salaryMax: 200000,
+    yearsBase: 7,
+    seniority: "senior",
+    workModels: ["remote", "hybrid", "on-site"],
+    contractTypes: ["full-time", "pj"],
+    requiredSkills: [
+      "Product Strategy",
+      "Roadmapping",
+      "Product Discovery",
+      "Stakeholder Management",
+    ],
+    frameworkSkills: ["Jira", "Confluence", "Productboard", "Aha!", "Notion"],
+    architectureSkills: [
+      "OKRs",
+      "Prioritization",
+      "Go-to-Market",
+      "Agile",
+      "Scrum",
+    ],
+    cloudSkills: ["Amplitude", "Mixpanel", "Segment", "Figma"],
+    dataSkills: ["Product Analytics", "SQL", "Data Analysis", "Google Analytics"],
+    testingSkills: ["A/B Testing", "Experimentation", "Customer Interviews"],
+  },
+  {
+    slug: "growth-pm",
+    baseLabel: "Growth PM",
+    persona: "product-manager",
+    mainLanguage: "Strategy",
+    summary:
+      "Drives activation, retention, and monetization through rapid experimentation and funnel analysis.",
+    coreTitles: [
+      "Growth Product Manager",
+      "Product Manager",
+      "Product Lead",
+    ],
+    salaryMin: 85000,
+    salaryMax: 205000,
+    yearsBase: 7,
+    seniority: "senior",
+    workModels: ["remote", "hybrid"],
+    contractTypes: ["full-time", "contract"],
+    requiredSkills: [
+      "Experimentation",
+      "A/B Testing",
+      "Product Analytics",
+      "Go-to-Market",
+    ],
+    frameworkSkills: ["Amplitude", "Mixpanel", "Segment", "Jira", "Productboard"],
+    architectureSkills: [
+      "OKRs",
+      "Prioritization",
+      "Roadmapping",
+      "Market Research",
+    ],
+    cloudSkills: ["Google Analytics", "Looker", "Figma", "Notion"],
+    dataSkills: ["SQL", "Data Analysis", "Statistics", "Data Visualization"],
+    testingSkills: ["A/B Testing", "Experimentation", "Competitive Analysis"],
+  },
+  {
+    slug: "product-owner",
+    baseLabel: "Product Owner",
+    persona: "product-owner",
+    mainLanguage: "Agile",
+    summary:
+      "Bridges business and delivery teams, owning the backlog and translating strategy into shippable increments.",
+    coreTitles: [
+      "Product Owner",
+      "Senior Product Owner",
+      "Technical Product Owner",
+    ],
+    salaryMin: 70000,
+    salaryMax: 175000,
+    yearsBase: 6,
+    seniority: "senior",
+    workModels: ["hybrid", "remote", "on-site"],
+    contractTypes: ["full-time", "clt", "pj"],
+    requiredSkills: [
+      "Backlog Management",
+      "User Stories",
+      "Sprint Planning",
+      "Stakeholder Management",
+    ],
+    frameworkSkills: ["Jira", "Confluence", "Azure DevOps", "Trello", "Miro"],
+    architectureSkills: ["Scrum", "Kanban", "SAFe", "Agile", "Story Mapping"],
+    cloudSkills: ["Figma", "Notion", "Slack", "Aha!"],
+    dataSkills: ["Product Analytics", "SQL", "Data Analysis", "Excel"],
+    testingSkills: [
+      "Acceptance Criteria",
+      "User Acceptance Testing",
+      "A/B Testing",
+    ],
+  },
+  {
+    slug: "qa-lead",
+    baseLabel: "QA Lead",
+    persona: "qa-engineer",
+    mainLanguage: "Testing",
+    summary:
+      "Owns quality strategy across manual and automated testing, defining processes and coaching QA teams.",
+    coreTitles: ["QA Lead", "QA Manager", "Test Engineer"],
+    salaryMin: 65000,
+    salaryMax: 155000,
+    yearsBase: 8,
+    seniority: "senior",
+    workModels: ["remote", "hybrid", "on-site"],
+    contractTypes: ["full-time", "contract"],
+    requiredSkills: [
+      "Quality Assurance",
+      "Test Strategy",
+      "Test Planning",
+      "Test Automation",
+    ],
+    frameworkSkills: [
+      "Cypress",
+      "Playwright",
+      "Selenium",
+      "Postman",
+      "Appium",
+    ],
+    architectureSkills: [
+      "Test Case Design",
+      "Exploratory Testing",
+      "Regression Testing",
+      "BDD",
+    ],
+    cloudSkills: ["Jira", "Xray", "TestRail", "CI/CD", "GitHub Actions"],
+    dataSkills: ["SQL", "API Testing", "Bug Tracking"],
+    testingSkills: [
+      "Manual Testing",
+      "Cucumber",
+      "Gherkin",
+      "Load Testing",
+      "JMeter",
+    ],
+  },
+  {
+    slug: "data-analyst",
+    baseLabel: "Data Analyst",
+    persona: "data",
+    mainLanguage: "SQL",
+    summary:
+      "Turns raw data into decision-ready insight with SQL, dashboards, and rigorous experiment analysis.",
+    coreTitles: [
+      "Data Analyst",
+      "Business Intelligence Analyst",
+      "Product Analyst",
+    ],
+    salaryMin: 55000,
+    salaryMax: 140000,
+    yearsBase: 5,
+    seniority: "mid",
+    workModels: ["remote", "hybrid", "on-site"],
+    contractTypes: ["full-time", "contract"],
+    requiredSkills: ["SQL", "Data Analysis", "Data Visualization", "Statistics"],
+    frameworkSkills: ["Tableau", "Power BI", "Looker", "Metabase", "Superset"],
+    architectureSkills: [
+      "Data Modeling",
+      "Data Warehousing",
+      "ETL",
+      "Data Governance",
+    ],
+    cloudSkills: ["BigQuery", "Snowflake", "Redshift", "dbt"],
+    dataSkills: ["Excel", "Google Analytics", "Python", "Pandas"],
+    testingSkills: ["A/B Testing", "Experimentation", "Data Quality Testing"],
+  },
+  {
+    slug: "data-scientist",
+    baseLabel: "Data Scientist",
+    persona: "data",
+    mainLanguage: "Python",
+    summary:
+      "Builds predictive models and experiments that ship measurable business impact into production.",
+    coreTitles: [
+      "Data Scientist",
+      "Applied Scientist",
+      "Research Scientist",
+    ],
+    salaryMin: 90000,
+    salaryMax: 220000,
+    yearsBase: 7,
+    seniority: "senior",
+    workModels: ["remote", "hybrid"],
+    contractTypes: ["full-time", "contract", "pj"],
+    requiredSkills: ["Python", "SQL", "Machine Learning", "Statistics"],
+    frameworkSkills: [
+      "scikit-learn",
+      "PyTorch",
+      "TensorFlow",
+      "Pandas",
+      "NumPy",
+    ],
+    architectureSkills: [
+      "Deep Learning",
+      "MLOps",
+      "Data Modeling",
+      "Experimentation",
+    ],
+    cloudSkills: ["BigQuery", "Snowflake", "Databricks", "MLflow"],
+    dataSkills: ["Jupyter", "Matplotlib", "Seaborn", "SciPy", "Spark"],
+    testingSkills: ["A/B Testing", "Model Validation", "Data Quality Testing"],
+  },
+  {
+    slug: "devops-cloud",
+    baseLabel: "DevOps Cloud",
+    persona: "devops",
+    mainLanguage: "Terraform",
+    summary:
+      "Automates cloud infrastructure and delivery pipelines with strong reliability, security, and observability practices.",
+    coreTitles: [
+      "DevOps Engineer",
+      "Cloud Engineer",
+      "Platform Engineer",
+    ],
+    salaryMin: 90000,
+    salaryMax: 210000,
+    yearsBase: 8,
+    seniority: "senior",
+    workModels: ["remote", "hybrid"],
+    contractTypes: ["full-time", "pj", "contract"],
+    requiredSkills: ["Terraform", "Kubernetes", "Docker", "CI/CD"],
+    frameworkSkills: [
+      "Helm",
+      "ArgoCD",
+      "Ansible",
+      "GitHub Actions",
+      "GitLab CI",
+    ],
+    architectureSkills: [
+      "GitOps",
+      "Infrastructure as Code",
+      "SLO/SLI",
+      "Incident Management",
+    ],
+    cloudSkills: ["AWS", "Google Cloud", "Azure", "CloudFormation"],
+    dataSkills: ["Prometheus", "Grafana", "Datadog", "ELK Stack"],
+    testingSkills: ["Chaos Engineering", "Load Testing", "k6"],
   },
 ];
 
@@ -922,6 +1301,7 @@ function buildCandidateSeeds(count: number): CandidateSeed[] {
         email: `seed.${normalizeWords(blueprint.slug)}.${pad(sequence)}@linkhub.local`,
         login: `seed-${normalizeWords(blueprint.slug)}-${pad(sequence)}`,
         password: "12345678",
+        persona: blueprint.persona,
         headlineTitle: primaryTitle,
         summary: blueprint.summary,
         totalYearsExperience: Math.max(
@@ -985,6 +1365,7 @@ async function ensureUser(params: {
   email: string;
   login: string;
   password: string;
+  persona?: string | null;
 }): Promise<string> {
   const usersRepository = resolve<IUsersRepository>(TOKENS.UsersRepository);
   const createUserUseCase = resolve<CreateUserUseCase>(
@@ -1004,6 +1385,7 @@ async function ensureUser(params: {
     password: params.password,
     description: "Synthetic profile for AI search and rerank tests",
     avatarUrl: null,
+    persona: params.persona ?? null,
   });
 
   return created.user.id;

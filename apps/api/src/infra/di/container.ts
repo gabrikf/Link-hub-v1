@@ -2,6 +2,10 @@ import "reflect-metadata";
 import { container } from "tsyringe";
 import { IUsersRepository } from "../../core/repositories/user/user-repository.js";
 import { ILinksRepository } from "../../core/repositories/link/link-repository.js";
+import { IPostRepository } from "../../core/repositories/post/post-repository.js";
+import { IApiTokenRepository } from "../../core/repositories/api-token/api-token-repository.js";
+import { IProfileTabsRepository } from "../../core/repositories/profile-tab/profile-tabs-repository.js";
+import { IProfileBlocksRepository } from "../../core/repositories/profile-block/profile-block-repository.js";
 import { IRefreshTokenRepository } from "../../core/repositories/refresh-token/refresh-token-repository.js";
 import { IOAuthAccountRepository } from "../../core/repositories/oauth-account/oauth-account-repository.js";
 import { IResumesRepository } from "../../core/repositories/resume/resume-repository.js";
@@ -15,6 +19,7 @@ import { ICandidateInteractionRepository } from "../../core/repositories/candida
 import { IWorkExperienceRepository } from "../../core/repositories/work-experience/work-experience-repository.js";
 import { IHashProvider } from "../../core/providers/hash/hash-provider.js";
 import { IJwtProvider } from "../../core/providers/jwt/jwt-provider.js";
+import { ITokenProvider } from "../../core/providers/token/token-provider.js";
 import { IEmbeddingProvider } from "../../core/providers/embedding/embedding-provider.js";
 import { IRecruiterQueryConversionProvider } from "../../core/providers/query-conversion/recruiter-query-conversion-provider.js";
 import { IGoogleOAuthProvider } from "../../core/providers/oauth/google-oauth-provider.js";
@@ -23,6 +28,10 @@ import { IResumeEmbeddingQueue } from "../../core/providers/queue/resume-embeddi
 import { IResumeParsingProvider } from "../../core/providers/resume-parsing/resume-parsing-provider.js";
 import { DrizzleUserRepository } from "../database/drizzle/repositories/user.repository.js";
 import { DrizzleLinksRepository } from "../database/drizzle/repositories/link.repository.js";
+import { DrizzlePostsRepository } from "../database/drizzle/repositories/post.repository.js";
+import { DrizzleApiTokenRepository } from "../database/drizzle/repositories/api-token.repository.js";
+import { DrizzleProfileTabsRepository } from "../database/drizzle/repositories/profile-tab.repository.js";
+import { DrizzleProfileBlocksRepository } from "../database/drizzle/repositories/profile-block.repository.js";
 import { DrizzleRefreshTokenRepository } from "../database/drizzle/repositories/refresh-token.repository.js";
 import { DrizzleOAuthAccountRepository } from "../database/drizzle/repositories/oauth-account.repository.js";
 import { DrizzleResumesRepository } from "../database/drizzle/repositories/resume.repository.js";
@@ -36,6 +45,7 @@ import { DrizzleCandidateInteractionRepository } from "../database/drizzle/repos
 import { DrizzleWorkExperienceRepository } from "../database/drizzle/repositories/work-experience.repository.js";
 import { Argon2HashProvider } from "../providers/argon2-hash-provider.js";
 import { JwtProvider } from "../providers/jwt-provider.js";
+import { CryptoTokenProvider } from "../providers/crypto-token-provider.js";
 import { OpenAiEmbeddingProvider } from "../providers/openai-embedding-provider.js";
 import { CachedEmbeddingProvider } from "../providers/cached-embedding-provider.js";
 import { DeterministicEmbeddingProvider } from "../providers/deterministic-embedding-provider.js";
@@ -57,6 +67,15 @@ import { UpdateLinkUseCase } from "../../core/use-case/links/update-link-use-cas
 import { DeleteLinkUseCase } from "../../core/use-case/links/delete-link-use-case/delete-link.use-case.js";
 import { ReorderLinksUseCase } from "../../core/use-case/links/reorder-links-use-case/reorder-links.use-case.js";
 import { ToggleLinkVisibilityUseCase } from "../../core/use-case/links/toggle-link-visibility-use-case/toggle-link-visibility.use-case.js";
+import { GetLayoutUseCase } from "../../core/use-case/profile-layout/get-layout-use-case/get-layout.use-case.js";
+import { CreateTabUseCase } from "../../core/use-case/profile-layout/create-tab-use-case/create-tab.use-case.js";
+import { RenameTabUseCase } from "../../core/use-case/profile-layout/rename-tab-use-case/rename-tab.use-case.js";
+import { DeleteTabUseCase } from "../../core/use-case/profile-layout/delete-tab-use-case/delete-tab.use-case.js";
+import { ReorderTabsUseCase } from "../../core/use-case/profile-layout/reorder-tabs-use-case/reorder-tabs.use-case.js";
+import { CreateBlockUseCase } from "../../core/use-case/profile-layout/create-block-use-case/create-block.use-case.js";
+import { UpdateBlockUseCase } from "../../core/use-case/profile-layout/update-block-use-case/update-block.use-case.js";
+import { DeleteBlockUseCase } from "../../core/use-case/profile-layout/delete-block-use-case/delete-block.use-case.js";
+import { UpdateBlockPositionsUseCase } from "../../core/use-case/profile-layout/update-block-positions-use-case/update-block-positions.use-case.js";
 import { GetPublicProfileUseCase } from "../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
 import { GetMeProfileUseCase } from "../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
 import { UpdateProfileUseCase } from "../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
@@ -83,11 +102,24 @@ import { DeleteWorkExperienceUseCase } from "../../core/use-case/work-experience
 import { GetPublicWorkExperiencesByUsernameUseCase } from "../../core/use-case/work-experiences/get-public-work-experiences-by-username-use-case/get-public-work-experiences-by-username.use-case.js";
 import { ParseResumeUseCase } from "../../core/use-case/ai-import/parse-resume-use-case/parse-resume.use-case.js";
 import { ApplyAiResumeImportUseCase } from "../../core/use-case/ai-import/apply-ai-resume-import-use-case/apply-ai-resume-import.use-case.js";
+import { CreatePostUseCase } from "../../core/use-case/posts/create-post-use-case/create-post.use-case.js";
+import { ListMyPostsUseCase } from "../../core/use-case/posts/list-my-posts-use-case/list-my-posts.use-case.js";
+import { ListPublicPostsUseCase } from "../../core/use-case/posts/list-public-posts-use-case/list-public-posts.use-case.js";
+import { GetPostUseCase } from "../../core/use-case/posts/get-post-use-case/get-post.use-case.js";
+import { UpdatePostUseCase } from "../../core/use-case/posts/update-post-use-case/update-post.use-case.js";
+import { DeletePostUseCase } from "../../core/use-case/posts/delete-post-use-case/delete-post.use-case.js";
+import { CreateApiTokenUseCase } from "../../core/use-case/api-tokens/create-api-token-use-case/create-api-token.use-case.js";
+import { ListApiTokensUseCase } from "../../core/use-case/api-tokens/list-api-tokens-use-case/list-api-tokens.use-case.js";
+import { RevokeApiTokenUseCase } from "../../core/use-case/api-tokens/revoke-api-token-use-case/revoke-api-token.use-case.js";
 
 // Tokens for dependency injection
 export const TOKENS = {
   UsersRepository: Symbol.for("UsersRepository"),
   LinksRepository: Symbol.for("LinksRepository"),
+  PostsRepository: Symbol.for("PostsRepository"),
+  ApiTokenRepository: Symbol.for("ApiTokenRepository"),
+  ProfileTabsRepository: Symbol.for("ProfileTabsRepository"),
+  ProfileBlocksRepository: Symbol.for("ProfileBlocksRepository"),
   RefreshTokenRepository: Symbol.for("RefreshTokenRepository"),
   OAuthAccountRepository: Symbol.for("OAuthAccountRepository"),
   ResumesRepository: Symbol.for("ResumesRepository"),
@@ -101,6 +133,7 @@ export const TOKENS = {
   WorkExperienceRepository: Symbol.for("WorkExperienceRepository"),
   HashProvider: Symbol.for("HashProvider"),
   JwtProvider: Symbol.for("JwtProvider"),
+  TokenProvider: Symbol.for("TokenProvider"),
   EmbeddingProvider: Symbol.for("EmbeddingProvider"),
   RecruiterQueryConversionProvider: Symbol.for(
     "RecruiterQueryConversionProvider",
@@ -120,6 +153,15 @@ export const TOKENS = {
   DeleteLinkUseCase: Symbol.for("DeleteLinkUseCase"),
   ReorderLinksUseCase: Symbol.for("ReorderLinksUseCase"),
   ToggleLinkVisibilityUseCase: Symbol.for("ToggleLinkVisibilityUseCase"),
+  GetLayoutUseCase: Symbol.for("GetLayoutUseCase"),
+  CreateTabUseCase: Symbol.for("CreateTabUseCase"),
+  RenameTabUseCase: Symbol.for("RenameTabUseCase"),
+  DeleteTabUseCase: Symbol.for("DeleteTabUseCase"),
+  ReorderTabsUseCase: Symbol.for("ReorderTabsUseCase"),
+  CreateBlockUseCase: Symbol.for("CreateBlockUseCase"),
+  UpdateBlockUseCase: Symbol.for("UpdateBlockUseCase"),
+  DeleteBlockUseCase: Symbol.for("DeleteBlockUseCase"),
+  UpdateBlockPositionsUseCase: Symbol.for("UpdateBlockPositionsUseCase"),
   GetPublicProfileUseCase: Symbol.for("GetPublicProfileUseCase"),
   GetMeProfileUseCase: Symbol.for("GetMeProfileUseCase"),
   UpdateProfileUseCase: Symbol.for("UpdateProfileUseCase"),
@@ -158,6 +200,15 @@ export const TOKENS = {
   ),
   ParseResumeUseCase: Symbol.for("ParseResumeUseCase"),
   ApplyAiResumeImportUseCase: Symbol.for("ApplyAiResumeImportUseCase"),
+  CreatePostUseCase: Symbol.for("CreatePostUseCase"),
+  ListMyPostsUseCase: Symbol.for("ListMyPostsUseCase"),
+  ListPublicPostsUseCase: Symbol.for("ListPublicPostsUseCase"),
+  GetPostUseCase: Symbol.for("GetPostUseCase"),
+  UpdatePostUseCase: Symbol.for("UpdatePostUseCase"),
+  DeletePostUseCase: Symbol.for("DeletePostUseCase"),
+  CreateApiTokenUseCase: Symbol.for("CreateApiTokenUseCase"),
+  ListApiTokensUseCase: Symbol.for("ListApiTokensUseCase"),
+  RevokeApiTokenUseCase: Symbol.for("RevokeApiTokenUseCase"),
 } as const;
 
 /**
@@ -172,6 +223,25 @@ export function setupContainer() {
   container.register<ILinksRepository>(TOKENS.LinksRepository, {
     useClass: DrizzleLinksRepository,
   });
+
+  container.register<IPostRepository>(TOKENS.PostsRepository, {
+    useClass: DrizzlePostsRepository,
+  });
+
+  container.register<IApiTokenRepository>(TOKENS.ApiTokenRepository, {
+    useClass: DrizzleApiTokenRepository,
+  });
+
+  container.register<IProfileTabsRepository>(TOKENS.ProfileTabsRepository, {
+    useClass: DrizzleProfileTabsRepository,
+  });
+
+  container.register<IProfileBlocksRepository>(
+    TOKENS.ProfileBlocksRepository,
+    {
+      useClass: DrizzleProfileBlocksRepository,
+    },
+  );
 
   container.register<IRefreshTokenRepository>(TOKENS.RefreshTokenRepository, {
     useClass: DrizzleRefreshTokenRepository,
@@ -239,6 +309,10 @@ export function setupContainer() {
         expiresIn: process.env.JWT_EXPIRES_IN || "15m", // Short-lived access token
       });
     },
+  });
+
+  container.register<ITokenProvider>(TOKENS.TokenProvider, {
+    useClass: CryptoTokenProvider,
   });
 
   container.register<IEmbeddingProvider>(TOKENS.EmbeddingProvider, {
@@ -491,6 +565,123 @@ export function setupContainer() {
     },
   );
 
+  container.register<GetLayoutUseCase>(TOKENS.GetLayoutUseCase, {
+    useFactory: (c) => {
+      const profileTabsRepository = c.resolve<IProfileTabsRepository>(
+        TOKENS.ProfileTabsRepository,
+      );
+      const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
+        TOKENS.ProfileBlocksRepository,
+      );
+
+      return new GetLayoutUseCase(
+        profileTabsRepository,
+        profileBlocksRepository,
+      );
+    },
+  });
+
+  container.register<CreateTabUseCase>(TOKENS.CreateTabUseCase, {
+    useFactory: (c) => {
+      const profileTabsRepository = c.resolve<IProfileTabsRepository>(
+        TOKENS.ProfileTabsRepository,
+      );
+
+      return new CreateTabUseCase(profileTabsRepository);
+    },
+  });
+
+  container.register<RenameTabUseCase>(TOKENS.RenameTabUseCase, {
+    useFactory: (c) => {
+      const profileTabsRepository = c.resolve<IProfileTabsRepository>(
+        TOKENS.ProfileTabsRepository,
+      );
+
+      return new RenameTabUseCase(profileTabsRepository);
+    },
+  });
+
+  container.register<DeleteTabUseCase>(TOKENS.DeleteTabUseCase, {
+    useFactory: (c) => {
+      const profileTabsRepository = c.resolve<IProfileTabsRepository>(
+        TOKENS.ProfileTabsRepository,
+      );
+      const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
+        TOKENS.ProfileBlocksRepository,
+      );
+
+      return new DeleteTabUseCase(
+        profileTabsRepository,
+        profileBlocksRepository,
+      );
+    },
+  });
+
+  container.register<ReorderTabsUseCase>(TOKENS.ReorderTabsUseCase, {
+    useFactory: (c) => {
+      const profileTabsRepository = c.resolve<IProfileTabsRepository>(
+        TOKENS.ProfileTabsRepository,
+      );
+
+      return new ReorderTabsUseCase(profileTabsRepository);
+    },
+  });
+
+  container.register<CreateBlockUseCase>(TOKENS.CreateBlockUseCase, {
+    useFactory: (c) => {
+      const profileTabsRepository = c.resolve<IProfileTabsRepository>(
+        TOKENS.ProfileTabsRepository,
+      );
+      const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
+        TOKENS.ProfileBlocksRepository,
+      );
+
+      return new CreateBlockUseCase(
+        profileTabsRepository,
+        profileBlocksRepository,
+      );
+    },
+  });
+
+  container.register<UpdateBlockUseCase>(TOKENS.UpdateBlockUseCase, {
+    useFactory: (c) => {
+      const profileTabsRepository = c.resolve<IProfileTabsRepository>(
+        TOKENS.ProfileTabsRepository,
+      );
+      const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
+        TOKENS.ProfileBlocksRepository,
+      );
+
+      return new UpdateBlockUseCase(
+        profileTabsRepository,
+        profileBlocksRepository,
+      );
+    },
+  });
+
+  container.register<DeleteBlockUseCase>(TOKENS.DeleteBlockUseCase, {
+    useFactory: (c) => {
+      const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
+        TOKENS.ProfileBlocksRepository,
+      );
+
+      return new DeleteBlockUseCase(profileBlocksRepository);
+    },
+  });
+
+  container.register<UpdateBlockPositionsUseCase>(
+    TOKENS.UpdateBlockPositionsUseCase,
+    {
+      useFactory: (c) => {
+        const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
+          TOKENS.ProfileBlocksRepository,
+        );
+
+        return new UpdateBlockPositionsUseCase(profileBlocksRepository);
+      },
+    },
+  );
+
   container.register<GetPublicProfileUseCase>(TOKENS.GetPublicProfileUseCase, {
     useFactory: (c) => {
       const usersRepository = c.resolve<IUsersRepository>(
@@ -499,8 +690,19 @@ export function setupContainer() {
       const linksRepository = c.resolve<ILinksRepository>(
         TOKENS.LinksRepository,
       );
+      const profileTabsRepository = c.resolve<IProfileTabsRepository>(
+        TOKENS.ProfileTabsRepository,
+      );
+      const profileBlocksRepository = c.resolve<IProfileBlocksRepository>(
+        TOKENS.ProfileBlocksRepository,
+      );
 
-      return new GetPublicProfileUseCase(usersRepository, linksRepository);
+      return new GetPublicProfileUseCase(
+        usersRepository,
+        linksRepository,
+        profileTabsRepository,
+        profileBlocksRepository,
+      );
     },
   });
 
@@ -1045,6 +1247,110 @@ export function setupContainer() {
       },
     },
   );
+
+  container.register<CreatePostUseCase>(TOKENS.CreatePostUseCase, {
+    useFactory: (c) => {
+      const postsRepository = c.resolve<IPostRepository>(
+        TOKENS.PostsRepository,
+      );
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+
+      return new CreatePostUseCase(postsRepository, usersRepository);
+    },
+  });
+
+  container.register<ListMyPostsUseCase>(TOKENS.ListMyPostsUseCase, {
+    useFactory: (c) => {
+      const postsRepository = c.resolve<IPostRepository>(
+        TOKENS.PostsRepository,
+      );
+
+      return new ListMyPostsUseCase(postsRepository);
+    },
+  });
+
+  container.register<ListPublicPostsUseCase>(TOKENS.ListPublicPostsUseCase, {
+    useFactory: (c) => {
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+      const postsRepository = c.resolve<IPostRepository>(
+        TOKENS.PostsRepository,
+      );
+
+      return new ListPublicPostsUseCase(usersRepository, postsRepository);
+    },
+  });
+
+  container.register<GetPostUseCase>(TOKENS.GetPostUseCase, {
+    useFactory: (c) => {
+      const postsRepository = c.resolve<IPostRepository>(
+        TOKENS.PostsRepository,
+      );
+
+      return new GetPostUseCase(postsRepository);
+    },
+  });
+
+  container.register<UpdatePostUseCase>(TOKENS.UpdatePostUseCase, {
+    useFactory: (c) => {
+      const postsRepository = c.resolve<IPostRepository>(
+        TOKENS.PostsRepository,
+      );
+
+      return new UpdatePostUseCase(postsRepository);
+    },
+  });
+
+  container.register<DeletePostUseCase>(TOKENS.DeletePostUseCase, {
+    useFactory: (c) => {
+      const postsRepository = c.resolve<IPostRepository>(
+        TOKENS.PostsRepository,
+      );
+
+      return new DeletePostUseCase(postsRepository);
+    },
+  });
+
+  container.register<CreateApiTokenUseCase>(TOKENS.CreateApiTokenUseCase, {
+    useFactory: (c) => {
+      const apiTokenRepository = c.resolve<IApiTokenRepository>(
+        TOKENS.ApiTokenRepository,
+      );
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+      const tokenProvider = c.resolve<ITokenProvider>(TOKENS.TokenProvider);
+
+      return new CreateApiTokenUseCase(
+        apiTokenRepository,
+        usersRepository,
+        tokenProvider,
+      );
+    },
+  });
+
+  container.register<ListApiTokensUseCase>(TOKENS.ListApiTokensUseCase, {
+    useFactory: (c) => {
+      const apiTokenRepository = c.resolve<IApiTokenRepository>(
+        TOKENS.ApiTokenRepository,
+      );
+
+      return new ListApiTokensUseCase(apiTokenRepository);
+    },
+  });
+
+  container.register<RevokeApiTokenUseCase>(TOKENS.RevokeApiTokenUseCase, {
+    useFactory: (c) => {
+      const apiTokenRepository = c.resolve<IApiTokenRepository>(
+        TOKENS.ApiTokenRepository,
+      );
+
+      return new RevokeApiTokenUseCase(apiTokenRepository);
+    },
+  });
 
   return container;
 }

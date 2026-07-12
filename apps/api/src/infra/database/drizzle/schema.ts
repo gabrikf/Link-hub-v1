@@ -42,6 +42,13 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   description: text("description"),
   avatarUrl: text("avatar_url"),
+  backgroundImageUrl: text("background_image_url"),
+  bannerImageUrl: text("banner_image_url"),
+  themeAccent: text("theme_accent"),
+  themePreset: text("theme_preset"),
+  openToWork: boolean("open_to_work").notNull().default(false),
+  location: text("location"),
+  persona: text("persona"),
   password: text("password").notNull(),
   googleId: text("google_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -108,6 +115,98 @@ export const links = pgTable("links", {
     .defaultNow()
     .$onUpdateFn(() => new Date()),
 });
+
+export const posts = pgTable(
+  "posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    title: text("title"),
+    body: text("body").notNull(),
+    coverImageUrl: text("cover_image_url"),
+    images: jsonb("images"),
+    tags: jsonb("tags"),
+    status: text("status").notNull().default("published"),
+    externalUrl: text("external_url"),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+    publishedAt: timestamp("published_at"),
+  },
+  (table) => [index("posts_user_id_idx").on(table.userId)],
+);
+
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    tokenPrefix: text("token_prefix").notNull(),
+    scopes: jsonb("scopes").notNull(),
+    expiresAt: timestamp("expires_at"),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (table) => [index("api_tokens_user_id_idx").on(table.userId)],
+);
+
+export const profileTabs = pgTable(
+  "profile_tabs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    viewport: text("viewport").notNull(),
+    title: text("title").notNull(),
+    order: integer("order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [index("profile_tabs_user_id_viewport_idx").on(table.userId, table.viewport)],
+);
+
+export const profileBlocks = pgTable(
+  "profile_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    viewport: text("viewport").notNull(),
+    tabId: uuid("tab_id").references(() => profileTabs.id, {
+      onDelete: "cascade",
+    }),
+    kind: text("kind").notNull(),
+    gridX: integer("grid_x").notNull().default(0),
+    gridY: integer("grid_y").notNull().default(0),
+    gridW: integer("grid_w").notNull().default(1),
+    gridH: integer("grid_h").notNull().default(1),
+    isVisible: boolean("is_visible").notNull().default(true),
+    pinnedAllTabs: boolean("pinned_all_tabs").notNull().default(false),
+    config: jsonb("config"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [index("profile_blocks_user_id_viewport_idx").on(table.userId, table.viewport)],
+);
 
 export const workExperiences = pgTable(
   "work_experiences",
@@ -319,6 +418,10 @@ export const userRelations = relations(users, ({ many }) => ({
   refreshTokens: many(refreshTokens),
   oauthAccounts: many(oauthAccounts),
   links: many(links),
+  posts: many(posts),
+  apiTokens: many(apiTokens),
+  profileTabs: many(profileTabs),
+  profileBlocks: many(profileBlocks),
   workExperiences: many(workExperiences),
   resumes: many(resumes),
   candidateInteractions: many(candidateInteractions),
@@ -337,6 +440,39 @@ export const linksRelations = relations(links, ({ one }) => ({
   user: one(users, {
     fields: [links.userId],
     references: [users.id],
+  }),
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  user: one(users, {
+    fields: [posts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [apiTokens.userId],
+    references: [users.id],
+  }),
+}));
+
+export const profileTabsRelations = relations(profileTabs, ({ one, many }) => ({
+  user: one(users, {
+    fields: [profileTabs.userId],
+    references: [users.id],
+  }),
+  blocks: many(profileBlocks),
+}));
+
+export const profileBlocksRelations = relations(profileBlocks, ({ one }) => ({
+  user: one(users, {
+    fields: [profileBlocks.userId],
+    references: [users.id],
+  }),
+  tab: one(profileTabs, {
+    fields: [profileBlocks.tabId],
+    references: [profileTabs.id],
   }),
 }));
 

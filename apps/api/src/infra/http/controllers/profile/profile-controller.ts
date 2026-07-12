@@ -98,6 +98,13 @@ export class ProfileController {
             username: string;
             name?: string;
             description?: string | null;
+            backgroundImageUrl?: string | null;
+            bannerImageUrl?: string | null;
+            themeAccent?: string | null;
+            themePreset?: string | null;
+            openToWork?: boolean;
+            location?: string | null;
+            persona?: string | null;
           };
         }>,
         reply,
@@ -111,6 +118,13 @@ export class ProfileController {
           username: request.body.username,
           name: request.body.name,
           description: request.body.description,
+          backgroundImageUrl: request.body.backgroundImageUrl,
+          bannerImageUrl: request.body.bannerImageUrl,
+          themeAccent: request.body.themeAccent,
+          themePreset: request.body.themePreset,
+          openToWork: request.body.openToWork,
+          location: request.body.location,
+          persona: request.body.persona,
         });
 
         reply.status(200).send(result);

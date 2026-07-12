@@ -252,3 +252,142 @@
     transform: none;
   }
 }
+
+/* --- react-grid-layout theming (match the violet/zinc system) --- */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(139, 92, 246, 0.25) !important; /* violet-500/25 */
+  border: 1px dashed rgba(139, 92, 246, 0.7);
+  border-radius: 0.75rem;
+  opacity: 1;
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-right-color: rgba(139, 92, 246, 0.9);
+  border-bottom-color: rgba(139, 92, 246, 0.9);
+  width: 8px;
+  height: 8px;
+}
+.dark .react-grid-item > .react-resizable-handle::after {
+  border-right-color: rgba(167, 139, 250, 0.95); /* violet-400 */
+  border-bottom-color: rgba(167, 139, 250, 0.95);
+}
+
+/* ------------------------------------------------------------------ */
+/* Profile appearance theming                                          */
+/* A single --profile-accent (base) is set on the profile root from a   */
+/* named preset class and/or an inline custom hex. From it we derive a   */
+/* small set of readable, contrast-safe variants with color-mix:        */
+/*                                                                       */
+/*   --profile-accent-fg     accent tuned for TEXT on the block surface  */
+/*                           (darkened in light mode, lightened in dark) */
+/*   --profile-accent-weak   translucent tint for chip / badge bgs       */
+/*   --profile-accent-border accent for hover outlines / rings           */
+/*   --profile-accent-glow   accent for hover box-shadow glows           */
+/*   --profile-accent-contrast  foreground on a solid accent fill        */
+/*                                                                       */
+/* profile-blocks.tsx + markdown.tsx consume these directly on ACCENT    */
+/* elements (links, active tab, avatar ring, tag chips, hover glows) so  */
+/* EVERY preset recolors consistently — nothing is left violet — while   */
+/* neutral zinc text/borders stay untouched. No fragile !important       */
+/* utility overrides, and light-mode backgrounds are never repainted.    */
+/* Contrast verified >= 4.5:1 for every preset in light AND dark.        */
+/* ------------------------------------------------------------------ */
+.profile-root {
+  --profile-accent: #8b5cf6;
+  --profile-accent-contrast: #ffffff;
+  /* Light mode: darken the base so accent TEXT clears 4.5:1 on white. */
+  --profile-accent-fg: color-mix(in srgb, var(--profile-accent), #000 30%);
+  --profile-accent-weak: color-mix(in srgb, var(--profile-accent), transparent 88%);
+  --profile-accent-border: color-mix(in srgb, var(--profile-accent), transparent 45%);
+  --profile-accent-glow: color-mix(in srgb, var(--profile-accent), transparent 55%);
+  --profile-accent-ring: color-mix(in srgb, var(--profile-accent), transparent 40%);
+}
+
+/* Dark mode: lighten accent TEXT + slightly strengthen the tint so both
+   clear 4.5:1 on the near-black (zinc-900) block surface. */
+.dark .profile-root {
+  --profile-accent-fg: color-mix(in srgb, var(--profile-accent), #fff 35%);
+  --profile-accent-weak: color-mix(in srgb, var(--profile-accent), transparent 85%);
+}
+
+/* Mid-tone bases chosen to read on both light and dark surfaces. */
+.profile-theme-violet {
+  --profile-accent: #8b5cf6;
+}
+.profile-theme-ocean {
+  --profile-accent: #0ea5e9;
+}
+.profile-theme-sunset {
+  --profile-accent: #f97316;
+}
+.profile-theme-forest {
+  --profile-accent: #16a34a;
+}
+.profile-theme-mono {
+  --profile-accent: #52525b;
+}
+
+/* Solid accent fill (active tab). Kept dark in BOTH modes so white
+   (--profile-accent-contrast) text always clears 4.5:1 on top of it. */
+.profile-root {
+  --profile-accent-solid: color-mix(in srgb, var(--profile-accent), #000 30%);
+}
+
+/* Accent-driven hover treatments — ":hover" can't be expressed inline, so
+   these few scoped rules read the accent variables. Neutral base styles
+   stay in the JSX (Tailwind zinc); these only recolor accent on hover. */
+.profile-root .accent-card:hover {
+  border-color: var(--profile-accent-border);
+  box-shadow: 0 0 24px -4px var(--profile-accent-glow);
+}
+.profile-root .accent-glow:hover {
+  box-shadow: 0 0 22px -6px var(--profile-accent-glow);
+}
+.profile-root .accent-tab:hover {
+  border-color: var(--profile-accent-border);
+}
+.profile-root .accent-text-hover:hover {
+  color: var(--profile-accent-fg);
+}
+
+/* Markdown links. Themed by the accent variables when inside a profile
+   root; a mode-appropriate violet fallback covers other surfaces (e.g.
+   the post composer preview) where the variables are not defined. */
+.profile-md-link {
+  color: var(--profile-accent-fg, #6d28d9);
+  text-decoration-color: var(--profile-accent-border, #c4b5fd);
+  text-decoration-line: underline;
+  text-underline-offset: 2px;
+}
+.dark .profile-md-link {
+  color: var(--profile-accent-fg, #c4b5fd);
+}
+.profile-md-link:hover {
+  opacity: 0.8;
+}
+
+@keyframes anim-accent-drift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.profile-cover-gradient {
+  background-image: linear-gradient(
+    120deg,
+    var(--profile-accent),
+    color-mix(in srgb, var(--profile-accent) 45%, #0ea5e9) 55%,
+    color-mix(in srgb, var(--profile-accent) 70%, #000)
+  );
+  background-size: 180% 180%;
+  animation: anim-accent-drift 12s ease infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-cover-gradient {
+    animation: none !important;
+  }
+}

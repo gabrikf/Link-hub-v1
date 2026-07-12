@@ -9,6 +9,7 @@ type DialogProps = {
   children?: ReactNode;
   buttons?: ReactNode;
   contentClassName?: string;
+  closeLabel?: string;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -23,6 +24,7 @@ export function Dialog({
   children,
   buttons,
   contentClassName,
+  closeLabel,
   open,
   defaultOpen,
   onOpenChange,
@@ -48,7 +50,9 @@ export function Dialog({
               size="icon"
               fullWidth={false}
               className="absolute right-2 top-2"
-              aria-label="Close resume editor"
+              aria-label={
+                closeLabel ?? (title ? `Close ${title}` : "Close dialog")
+              }
             >
               <FiX className="h-4 w-4" aria-hidden="true" />
             </Button>

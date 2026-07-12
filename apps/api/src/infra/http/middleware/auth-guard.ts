@@ -28,5 +28,5 @@ export async function authGuard(request: FastifyRequest, _reply: FastifyReply) {
     throw new UnauthorizedError("Invalid token payload");
   }
 
-  request.user = { id: sub };
+  request.user = { id: sub, authType: "jwt" };
 }

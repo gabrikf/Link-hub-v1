@@ -9,6 +9,13 @@ export interface IUpdateProfileInput {
   username: string;
   name?: string;
   description?: string | null;
+  backgroundImageUrl?: string | null;
+  bannerImageUrl?: string | null;
+  themeAccent?: string | null;
+  themePreset?: string | null;
+  openToWork?: boolean;
+  location?: string | null;
+  persona?: string | null;
 }
 
 export class UpdateProfileUseCase {
@@ -41,6 +48,34 @@ export class UpdateProfileUseCase {
       user.updateDescription(input.description ?? null);
     }
 
+    if (typeof input.backgroundImageUrl !== "undefined") {
+      user.updateBackgroundImageUrl(input.backgroundImageUrl ?? null);
+    }
+
+    if (typeof input.bannerImageUrl !== "undefined") {
+      user.updateBannerImageUrl(input.bannerImageUrl ?? null);
+    }
+
+    if (typeof input.themeAccent !== "undefined") {
+      user.updateThemeAccent(input.themeAccent ?? null);
+    }
+
+    if (typeof input.themePreset !== "undefined") {
+      user.updateThemePreset(input.themePreset ?? null);
+    }
+
+    if (typeof input.openToWork !== "undefined") {
+      user.updateOpenToWork(input.openToWork);
+    }
+
+    if (typeof input.location !== "undefined") {
+      user.updateLocation(input.location ?? null);
+    }
+
+    if (typeof input.persona !== "undefined") {
+      user.updatePersona(input.persona ?? null);
+    }
+
     user.updateTimestamp();
 
     const updatedUser = await this.usersRepository.update(user);
@@ -51,6 +86,13 @@ export class UpdateProfileUseCase {
       name: updatedUser.name,
       description: updatedUser.description,
       userPhoto: updatedUser.avatarUrl,
+      backgroundImageUrl: updatedUser.backgroundImageUrl,
+      bannerImageUrl: updatedUser.bannerImageUrl,
+      themeAccent: updatedUser.themeAccent,
+      themePreset: updatedUser.themePreset,
+      openToWork: updatedUser.openToWork,
+      location: updatedUser.location,
+      persona: updatedUser.persona,
       email: updatedUser.email,
     };
   }

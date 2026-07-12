@@ -1,0 +1,67 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { ProfileTabEntity } from "../../../entity/profile-tab/profile-tab-entity.js";
+import {
+  BadRequestError,
+  ForbiddenError,
+} from "../../../errors/index.js";
+import { InMemoryProfileTabsRepository } from "../../../repositories/profile-tab/in-memory-profile-tabs-repository.js";
+import { ReorderTabsUseCase } from "./reorder-tabs.use-case.js";
+
+describe("ReorderTabsUseCase", () => {
+  let tabsRepository: InMemoryProfileTabsRepository;
+  let sut: ReorderTabsUseCase;
+
+  beforeEach(() => {
+    tabsRepository = new InMemoryProfileTabsRepository();
+    sut = new ReorderTabsUseCase(tabsRepository);
+  });
+
+  async function seedTabs(userId = "user-1") {
+    const a = ProfileTabEntity.create({
+      userId,
+      viewport: "pc",
+      title: "A",
+      order: 0,
+    });
+    const b = ProfileTabEntity.create({
+      userId,
+      viewport: "pc",
+      title: "B",
+      order: 1,
+    });
+    await tabsRepository.create(a);
+    await tabsRepository.create(b);
+    return { a, b };
+  }
+
+  it("reorders tabs by provided ids", async () => {
+    const { a, b } = await seedTabs();
+
+    const result = await sut.execute("user-1", {
+      viewport: "pc",
+      tabIds: [b.id, a.id],
+    });
+
+    const ordered = await tabsRepository.findByUserAndViewport("user-1", "pc");
+
+    expect(result.success).toBe(true);
+    expect(ordered[0]?.id).toBe(b.id);
+    expect(ordered[1]?.id).toBe(a.id);
+  });
+
+  it("throws when an id is not owned", async () => {
+    const { a } = await seedTabs();
+
+    await expect(
+      sut.execute("user-1", { viewport: "pc", tabIds: [a.id, "foreign"] }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("throws when the set is incomplete", async () => {
+    const { a } = await seedTabs();
+
+    await expect(
+      sut.execute("user-1", { viewport: "pc", tabIds: [a.id] }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+});

@@ -1,0 +1,336 @@
+/**
+ * E2E tests for the Posts HTTP API.
+ *
+ * These run against a fully DB-free Fastify app built by `buildTestApp()`:
+ * in-memory repositories + real (hermetic) token/JWT providers are registered
+ * into the tsyringe container, and the real controllers, zod validation and
+ * guards run end-to-end via `app.inject()`. No Postgres, Redis or OpenAI.
+ */
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makePost } from "../../../../../core/entity/post/post-test-factory.js";
+import {
+  buildTestApp,
+  type TestAppHandles,
+} from "../../../test-support/build-test-app.js";
+
+const JSON_HEADERS = { "content-type": "application/json" };
+
+describe("Posts E2E (JWT session)", () => {
+  let ctx: TestAppHandles;
+
+  beforeEach(async () => {
+    ctx = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    await ctx.app.close();
+  });
+
+  async function authedUser() {
+    const user = await ctx.seedUser();
+    const token = await ctx.signJwt(user.id);
+    return { user, token };
+  }
+
+  it("creates a post (201) and forces source to 'manual' for a JWT session even if body says 'commit'", async () => {
+    const { user, token } = await authedUser();
+
+    const response = await ctx.app.inject({
+      method: "POST",
+      url: "/me/posts",
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+      body: JSON.stringify({ body: "# Hello", source: "commit" }),
+    });
+
+    expect(response.statusCode).toBe(201);
+    const post = response.json();
+    expect(post.body).toBe("# Hello");
+    // A JWT session may not spoof provenance.
+    expect(post.source).toBe("manual");
+    expect(post.status).toBe("published");
+    expect(post.userId).toBe(user.id);
+    expect(post.publishedAt).not.toBeNull();
+  });
+
+  it("lists my posts including drafts", async () => {
+    const { user, token } = await authedUser();
+
+    await ctx.postsRepository.create(
+      makePost({
+        userId: user.id,
+        source: "manual",
+        body: "published one",
+        status: "published",
+        publishedAt: new Date(),
+      }),
+    );
+    await ctx.postsRepository.create(
+      makePost({
+        userId: user.id,
+        source: "manual",
+        body: "draft one",
+        status: "draft",
+      }),
+    );
+
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/me/posts",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const posts = response.json();
+    expect(posts).toHaveLength(2);
+    expect(posts.map((p: { status: string }) => p.status).sort()).toEqual([
+      "draft",
+      "published",
+    ]);
+  });
+
+  it("gets, patches and deletes the caller's own post (2xx)", async () => {
+    const { user, token } = await authedUser();
+    const post = makePost({
+      userId: user.id,
+      source: "manual",
+      body: "original",
+      status: "draft",
+    });
+    await ctx.postsRepository.create(post);
+
+    const getResponse = await ctx.app.inject({
+      method: "GET",
+      url: `/me/posts/${post.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(getResponse.statusCode).toBe(200);
+    expect(getResponse.json().id).toBe(post.id);
+
+    const patchResponse = await ctx.app.inject({
+      method: "PATCH",
+      url: `/me/posts/${post.id}`,
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: "published", title: "Shipped" }),
+    });
+    expect(patchResponse.statusCode).toBe(200);
+    const patched = patchResponse.json();
+    expect(patched.status).toBe("published");
+    expect(patched.title).toBe("Shipped");
+    expect(patched.publishedAt).not.toBeNull();
+
+    const deleteResponse = await ctx.app.inject({
+      method: "DELETE",
+      url: `/me/posts/${post.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(deleteResponse.statusCode).toBe(200);
+    expect(deleteResponse.json()).toEqual({ success: true });
+  });
+
+  it("returns 403 when patching or deleting someone else's post", async () => {
+    const { token } = await authedUser();
+    const otherUser = await ctx.seedUser();
+    const foreignPost = makePost({
+      userId: otherUser.id,
+      source: "manual",
+      body: "not yours",
+      status: "published",
+      publishedAt: new Date(),
+    });
+    await ctx.postsRepository.create(foreignPost);
+
+    const patchResponse = await ctx.app.inject({
+      method: "PATCH",
+      url: `/me/posts/${foreignPost.id}`,
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+      body: JSON.stringify({ body: "hijacked" }),
+    });
+    expect(patchResponse.statusCode).toBe(403);
+
+    const deleteResponse = await ctx.app.inject({
+      method: "DELETE",
+      url: `/me/posts/${foreignPost.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(deleteResponse.statusCode).toBe(403);
+
+    const getResponse = await ctx.app.inject({
+      method: "GET",
+      url: `/me/posts/${foreignPost.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(getResponse.statusCode).toBe(403);
+  });
+
+  it("returns 404 when getting a missing (but well-formed) post id", async () => {
+    const { token } = await authedUser();
+    const missingId = crypto.randomUUID();
+
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: `/me/posts/${missingId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("returns 401 when no Authorization header is present", async () => {
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/me/posts",
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  describe("body validation (zod bounds)", () => {
+    it("rejects a create with a missing body (400)", async () => {
+      const { token } = await authedUser();
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: "no body here" }),
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it("rejects an over-long body (> 20000 chars) with 400", async () => {
+      const { token } = await authedUser();
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: "x".repeat(20001) }),
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it("rejects too many tags (> 20) with 400", async () => {
+      const { token } = await authedUser();
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          body: "valid",
+          tags: Array.from({ length: 21 }, (_, i) => `tag-${i}`),
+        }),
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it("rejects too many images (> 12) with 400", async () => {
+      const { token } = await authedUser();
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          body: "valid",
+          images: Array.from(
+            { length: 13 },
+            (_, i) => `https://cdn.example.com/${i}.png`,
+          ),
+        }),
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+  });
+});
+
+describe("Public feed E2E — GET /profile/:username/posts (no auth)", () => {
+  let ctx: TestAppHandles;
+
+  beforeEach(async () => {
+    ctx = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    await ctx.app.close();
+  });
+
+  it("returns only PUBLISHED posts, excludes drafts, and needs no auth", async () => {
+    const author = await ctx.seedUser({ login: "author" });
+
+    await ctx.postsRepository.create(
+      makePost({
+        userId: author.id,
+        source: "manual",
+        body: "published",
+        status: "published",
+        publishedAt: new Date("2024-03-01"),
+      }),
+    );
+    await ctx.postsRepository.create(
+      makePost({
+        userId: author.id,
+        source: "manual",
+        body: "draft",
+        status: "draft",
+      }),
+    );
+
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/profile/author/posts",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const posts = response.json();
+    expect(posts).toHaveLength(1);
+    expect(posts[0].body).toBe("published");
+    expect(
+      posts.every((p: { status: string }) => p.status === "published"),
+    ).toBe(true);
+  });
+
+  it("respects limit and offset", async () => {
+    const author = await ctx.seedUser({ login: "author" });
+    for (let i = 1; i <= 3; i++) {
+      await ctx.postsRepository.create(
+        makePost({
+          userId: author.id,
+        source: "manual",
+          body: `post-${i}`,
+          status: "published",
+          publishedAt: new Date(`2024-03-0${i}`),
+        }),
+      );
+    }
+
+    const firstPage = await ctx.app.inject({
+      method: "GET",
+      url: "/profile/author/posts?limit=2&offset=0",
+    });
+    expect(firstPage.statusCode).toBe(200);
+    expect(firstPage.json().map((p: { body: string }) => p.body)).toEqual([
+      "post-3",
+      "post-2",
+    ]);
+
+    const secondPage = await ctx.app.inject({
+      method: "GET",
+      url: "/profile/author/posts?limit=2&offset=2",
+    });
+    expect(secondPage.json().map((p: { body: string }) => p.body)).toEqual([
+      "post-1",
+    ]);
+  });
+
+  it("returns 404 for an unknown username", async () => {
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/profile/ghost/posts",
+    });
+    expect(response.statusCode).toBe(404);
+  });
+});

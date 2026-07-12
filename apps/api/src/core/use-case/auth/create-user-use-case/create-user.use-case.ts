@@ -46,6 +46,7 @@ export class CreateUserUseCase {
       password: passwordHash,
       description: data.description ?? null,
       avatarUrl: data.avatarUrl ?? null,
+      persona: data.persona ?? null,
       googleId: null,
     });
 

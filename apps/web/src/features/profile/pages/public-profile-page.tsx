@@ -1,25 +1,58 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import axios from "axios";
-import { FiExternalLink, FiLink2, FiLogIn, FiUser } from "react-icons/fi";
+import { useEffect, useState } from "react";
+import { FiLogIn } from "react-icons/fi";
 import {
   fetchPublicProfile,
   fetchPublicResume,
   fetchPublicWorkExperiences,
 } from "../../../lib/auth-api";
-import { getLinkIconOption } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
-import { Avatar } from "../../../shared-components/avatar";
-import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
-import { WorkHistoryReadOnly } from "../../work-history/components/work-history-read-only";
+import {
+  pickViewport,
+  resolveViewportLayout,
+} from "../../profile-layout/grid-utils";
+import { ProfileBlocks } from "../components/profile-blocks";
+import { ProfileCover } from "../components/profile-cover";
+import { getProfileThemeProps, safeImageUrl } from "../components/profile-theme";
+
+const MOBILE_QUERY = "(max-width: 1023px)";
 
 export function PublicProfilePage() {
   const { username } = useParams({ from: "/profile/$username" });
   const userInfo = useUserInfoStore((state) => state.userInfo);
 
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia(MOBILE_QUERY).matches
+      : false,
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_QUERY);
+    const handleChange = (event: MediaQueryListEvent) =>
+      setIsMobile(event.matches);
+    setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
   const profileQuery = useQuery({
     queryKey: ["public-profile", username],
-    queryFn: () => fetchPublicProfile(username),
+    retry: false,
+    queryFn: async () => {
+      try {
+        return await fetchPublicProfile(username);
+      } catch (error) {
+        // A genuine 404 means "no such profile" — treat it as an empty success
+        // so it renders as "not found" rather than a transient error.
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
   });
 
   const resumeQuery = useQuery({
@@ -51,6 +84,31 @@ export function PublicProfilePage() {
     );
   }
 
+  if (profileQuery.isError) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
+        <p className="text-zinc-700 dark:text-zinc-200">
+          Couldn&apos;t load this profile. Please try again.
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => profileQuery.refetch()}
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          >
+            Retry
+          </button>
+          <Link
+            to="/"
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+          >
+            Back to login
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   if (!profileQuery.data) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
@@ -66,10 +124,31 @@ export function PublicProfilePage() {
   }
 
   const profile = profileQuery.data;
-  const hasLinks = profile.links.length > 0;
+  const viewport = pickViewport(isMobile);
+  const chosenLayout = resolveViewportLayout(profile.layout, viewport);
+
+  const theme = getProfileThemeProps(profile);
+  const backgroundImage = safeImageUrl(profile.backgroundImageUrl);
+  const shareUrl =
+    typeof window !== "undefined" ? window.location.href : `/profile/${username}`;
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center gap-5 overflow-hidden px-4 py-10">
+      {/* Optional full-bleed background image (behind the ambient blobs) */}
+      {backgroundImage ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-20 overflow-hidden"
+        >
+          <img
+            src={backgroundImage}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-zinc-100/82 backdrop-blur-sm dark:bg-zinc-950/85" />
+        </div>
+      ) : null}
+
       {/* Ambient futuristic backdrop */}
       <div
         aria-hidden="true"
@@ -93,109 +172,31 @@ export function PublicProfilePage() {
         </Link>
       ) : null}
 
-      <div className="anim-blur-in w-full rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 p-8 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900">
-        <header className="flex flex-col items-center gap-4 text-center">
-          <div className="anim-glow-pulse anim-scale-in rounded-full">
-            <Avatar
-              name={profile.name}
-              imageUrl={profile.userPhoto}
-              size={92}
-              className="ring-2 ring-violet-400/60 shadow-lg dark:ring-violet-500/50"
-            />
-          </div>
+      <div
+        className={`${theme.className} anim-blur-in w-full overflow-hidden rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900`}
+        style={theme.style}
+      >
+        <ProfileCover
+          bannerImageUrl={profile.bannerImageUrl}
+          openToWork={profile.openToWork}
+          location={profile.location}
+          persona={profile.persona}
+          share={{ url: shareUrl, name: profile.name }}
+        />
 
-          <div className="anim-fade-up anim-delay-1 min-w-0 text-center">
-            <h1 className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight">
-              <FiUser className="h-5 w-5 text-violet-500 dark:text-violet-300" />
-              <span className="truncate">{profile.name}</span>
-            </h1>
-            <p className="text-zinc-600 dark:text-zinc-400">
-              @{profile.username}
-            </p>
-            {profile.description ? (
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-                {profile.description}
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                No profile description yet.
-              </p>
-            )}
-          </div>
-        </header>
-
-        <section className="mt-8 space-y-3">
-          {hasLinks ? (
-            profile.links.map((link, index) => {
-              const selectedIcon = getLinkIconOption(link.icon);
-
-              return (
-                <a
-                  key={link.id}
-                  href={link.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ animationDelay: `${0.15 + index * 0.07}s` }}
-                  className="anim-fade-up group block rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-[0_0_24px_-4px_rgba(139,92,246,0.55)] dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:border-violet-500/70"
-                >
-                  <p className="inline-flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
-                    <span
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full shadow-sm"
-                      style={{
-                        color: selectedIcon?.color,
-                        background:
-                          selectedIcon?.backgroundColor ??
-                          "linear-gradient(135deg, #0EA5E9, #14B8A6)",
-                      }}
-                    >
-                      {selectedIcon ? (
-                        <selectedIcon.Icon
-                          className="h-3.5 w-3.5"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <FiLink2
-                          className="h-3.5 w-3.5 text-white"
-                          aria-hidden="true"
-                        />
-                      )}
-                    </span>
-                    <span className="truncate">{link.title}</span>
-                    <FiExternalLink className="h-4 w-4 text-zinc-400 transition group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
-                  </p>
-                  <p className="mt-1 truncate text-sm text-zinc-600 dark:text-zinc-400">
-                    {link.url}
-                  </p>
-                </a>
-              );
-            })
-          ) : (
-            <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
-              No public links yet.
-            </div>
-          )}
-        </section>
-
-        <section className="anim-fade-up anim-delay-4 mt-8">
-          <ResumeReadOnlyCard
+        {/* Pull the block stack up so the centered avatar overlaps the cover. */}
+        <div className="-mt-14 px-6 pb-8 sm:px-8">
+          <ProfileBlocks
+            layout={chosenLayout}
+            viewport={viewport}
+            profile={profile}
+            links={profile.links}
             resume={resumeQuery.data ?? null}
-            isLoading={resumeQuery.isLoading}
-            title="Resume"
-            subtitle="Professional summary"
-            emptyMessage="This user has not published resume details yet."
+            workExperiences={workExperiencesQuery.data ?? []}
+            resumeLoading={resumeQuery.isLoading}
+            workLoading={workExperiencesQuery.isLoading}
           />
-        </section>
-
-        {workExperiencesQuery.isLoading ||
-        (workExperiencesQuery.data?.length ?? 0) > 0 ? (
-          <section className="anim-fade-up anim-delay-5 mt-8">
-            <WorkHistoryReadOnly
-              workExperiences={workExperiencesQuery.data ?? []}
-              isLoading={workExperiencesQuery.isLoading}
-              subtitle="Professional experience"
-            />
-          </section>
-        ) : null}
+        </div>
       </div>
     </main>
   );

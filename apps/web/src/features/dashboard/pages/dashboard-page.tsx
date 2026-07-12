@@ -7,7 +7,6 @@ import {
 import type { LinkIcon, LinkResponse } from "@repo/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import axios from "axios";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import {
@@ -17,7 +16,6 @@ import {
   deleteLink,
   saveResumeSkillsBulk,
   saveResumeTitlesBulk,
-  fetchMyResume,
   fetchLinks,
   fetchMyProfile,
   fetchSkillsCatalog,
@@ -29,6 +27,7 @@ import {
   updateProfile,
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
+import { useMyResumeQuery } from "../../../lib/profile-queries";
 import { detectLinkIcon, LINK_ICON_OPTIONS } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Avatar } from "../../../shared-components/avatar";
@@ -43,6 +42,7 @@ import {
   DashboardProfileForm,
   type ProfileFormValues,
 } from "../components/dashboard-profile-form";
+import { DEFAULT_THEME_PRESET } from "../../profile/components/profile-theme";
 import { SortableLinkItem } from "../components/sortable-link-item";
 import { ResumeEditDialog } from "../../resume/components/resume-edit-dialog";
 import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
@@ -103,22 +103,7 @@ export function DashboardPage() {
     enabled: hasSession,
   });
 
-  const resumeQuery = useQuery({
-    queryKey: ["resume"],
-    enabled: hasSession,
-    retry: false,
-    queryFn: async () => {
-      try {
-        return await fetchMyResume();
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          return null;
-        }
-
-        throw error;
-      }
-    },
-  });
+  const resumeQuery = useMyResumeQuery(hasSession);
 
   const skillsCatalogQuery = useQuery({
     queryKey: ["resume-catalog-skills"],
@@ -412,6 +397,13 @@ export function DashboardPage() {
       username: data.username,
       name: data.name,
       description: data.description,
+      bannerImageUrl: data.bannerImageUrl.trim() || null,
+      backgroundImageUrl: data.backgroundImageUrl.trim() || null,
+      themePreset: data.themePreset,
+      themeAccent: data.themeAccent.trim() || null,
+      openToWork: data.openToWork,
+      location: data.location.trim() || null,
+      persona: data.persona || null,
     });
   };
 
@@ -426,7 +418,7 @@ export function DashboardPage() {
         <div className="anim-float absolute -top-20 right-10 h-72 w-72 rounded-full bg-violet-500/15 blur-3xl" />
       </div>
 
-      <section className="anim-fade-up w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:w-2/3">
+      <section className="anim-fade-up w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:w-2/3 dark:border-zinc-800 dark:bg-zinc-900">
         <DashboardHeader />
 
         <DashboardLinkForm
@@ -597,10 +589,18 @@ export function DashboardPage() {
         </div>
 
         <DashboardProfileForm
+          avatarUrl={meQuery.data?.userPhoto ?? null}
           initialValues={{
             username: meQuery.data?.username ?? "",
             name: meQuery.data?.name ?? "",
             description: meQuery.data?.description ?? "",
+            bannerImageUrl: meQuery.data?.bannerImageUrl ?? "",
+            backgroundImageUrl: meQuery.data?.backgroundImageUrl ?? "",
+            themePreset: meQuery.data?.themePreset ?? DEFAULT_THEME_PRESET,
+            themeAccent: meQuery.data?.themeAccent ?? "",
+            openToWork: meQuery.data?.openToWork ?? false,
+            location: meQuery.data?.location ?? "",
+            persona: meQuery.data?.persona ?? "",
           }}
           onSubmit={handleSaveProfile}
         />
