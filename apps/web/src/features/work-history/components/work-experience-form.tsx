@@ -270,7 +270,11 @@ export function WorkExperienceForm({
         onChange={(event) => update("mainStackText", event.target.value)}
       />
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      ) : null}
 
       <div className="flex justify-end gap-2">
         {onCancel ? (
@@ -283,8 +287,13 @@ export function WorkExperienceForm({
             Cancel
           </Button>
         ) : null}
-        <Button type="submit" fullWidth={false} disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : submitLabel}
+        <Button
+          type="submit"
+          fullWidth={false}
+          isLoading={isSubmitting}
+          loadingLabel="Saving..."
+        >
+          {submitLabel}
         </Button>
       </div>
     </form>

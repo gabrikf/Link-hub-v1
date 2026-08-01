@@ -500,10 +500,11 @@ export function ResumeEditDialog({
               type="button"
               fullWidth={false}
               onClick={handleSave}
-              disabled={isSavingAny}
+              isLoading={isSavingAny}
+              loadingLabel="Saving..."
             >
               <FiSave className="h-4 w-4" aria-hidden="true" />
-              {isSavingAny ? "Saving..." : "Save resume"}
+              Save resume
             </Button>
           </>
         }
@@ -748,7 +749,8 @@ export function ResumeEditDialog({
               variant="soft"
               fullWidth={false}
               onClick={handleSaveAndClose}
-              disabled={isSavingAny}
+              isLoading={isSavingAny}
+              loadingLabel="Saving..."
             >
               Save and close
             </Button>

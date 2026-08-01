@@ -36,6 +36,43 @@ describe("Dialog width-class suppression", () => {
     expect(classes).not.toContain("max-w-lg");
   });
 
+  it("defaults max-height to svh, not vh", () => {
+    render(
+      <Dialog open title="Tall">
+        body
+      </Dialog>,
+    );
+
+    // `vh` resolves against the LARGE viewport (747px at 375x812) while only
+    // ~635px is visible under browser chrome, so the action row fell into the
+    // clipped strip with body scroll locked by Radix.
+    expect(contentClasses()).toContain("max-h-[92svh]");
+    expect(contentClasses()).not.toContain("max-h-[92vh]");
+  });
+
+  it("lets a caller's max-h win — the default used to silently beat it", () => {
+    render(
+      <Dialog open title="Tall" contentClassName="max-h-[90svh]">
+        body
+      </Dialog>,
+    );
+
+    const classes = contentClasses();
+    expect(classes).toContain("max-h-[90svh]");
+    expect(classes).not.toContain("max-h-[92svh]");
+  });
+
+  it("wraps the action row so long labels cannot spill out of it", () => {
+    render(
+      <Dialog open title="Unsaved" buttons={<button type="button">Go</button>}>
+        body
+      </Dialog>,
+    );
+
+    const actions = screen.getByRole("button", { name: "Go" }).parentElement;
+    expect(actions?.className).toContain("flex-wrap");
+  });
+
   it("drops both defaults when the caller sets its own w- and max-w", () => {
     render(
       <Dialog open title="Widest" contentClassName="w-[96vw] max-w-6xl">

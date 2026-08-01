@@ -291,17 +291,32 @@ export const DEFAULT_TAB_TITLE = "Main";
 
 /**
  * Canonical starting layout for a freshly-seeded viewport: header pinned across
- * all tabs, then links/resume/work stacked full-width in the default tab.
+ * all tabs, then links/resume/work/posts stacked full-width in the default tab.
  * `gridW` is filled in by the seeder using GRID_COLUMNS[viewport].
+ *
+ * `posts` is the one non-builtin kind here. It is seeded by default because a
+ * candidate's published posts — especially the commit summaries written by the
+ * MCP server — are the only place a visitor can see what they actually shipped,
+ * and a block nobody knows to add is a block nobody has. It carries a starting
+ * `config` (built-ins have none) so the feed renders without an editor visit.
  */
 export const DEFAULT_BUILTIN_BLOCKS: {
-  kind: BuiltinBlockKind;
+  kind: BlockKind;
   pinnedAllTabs: boolean;
   gridY: number;
   gridH: number;
+  /** Seeded block config; `null` for built-ins, which take no config. */
+  config?: CustomBlockConfig | null;
 }[] = [
   { kind: "header", pinnedAllTabs: true, gridY: 0, gridH: 4 },
   { kind: "links", pinnedAllTabs: false, gridY: 0, gridH: 4 },
   { kind: "resume", pinnedAllTabs: false, gridY: 4, gridH: 6 },
   { kind: "work_experiences", pinnedAllTabs: false, gridY: 10, gridH: 6 },
+  {
+    kind: "posts",
+    pinnedAllTabs: false,
+    gridY: 16,
+    gridH: 6,
+    config: { title: "Posts", limit: 5, layout: "list" },
+  },
 ];

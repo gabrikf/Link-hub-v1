@@ -26,8 +26,29 @@ export interface SearchResumesByEmbeddingInput {
 export interface ResumeSearchWorkExperience {
   title: string;
   companyName: string;
+  /** Truncated — see RECRUITER_SEARCH_EVIDENCE_LIMITS.workDescriptionChars. */
   description: string | null;
   mainStack: string[];
+  /** ISO `YYYY-MM-DD`, as stored on `work_experiences`. */
+  startDate: string | null;
+  endDate: string | null;
+  isCurrent: boolean;
+  employmentType: string | null;
+  workModel: string | null;
+}
+
+/**
+ * A published post projected down to "evidence of shipped work" — headline,
+ * date, tags and a short excerpt. Never the full body.
+ */
+export interface ResumeSearchWorkEvidence {
+  id: string;
+  title: string | null;
+  excerpt: string;
+  source: string;
+  tags: string[];
+  publishedAt: Date | null;
+  externalUrl: string | null;
 }
 
 export interface ResumeSearchResult {
@@ -54,7 +75,7 @@ export interface ResumeSearchResult {
   skills: string[];
   titles: string[];
   workExperiences: ResumeSearchWorkExperience[];
-  combinedText: string;
+  workEvidence: ResumeSearchWorkEvidence[];
 }
 
 export interface IResumeSearchRepository {

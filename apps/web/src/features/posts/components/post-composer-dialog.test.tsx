@@ -3,11 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PostComposerDialog } from "./post-composer-dialog";
 
-function renderComposer(onSubmit = vi.fn()) {
+function renderComposer(onSubmit = vi.fn(), onOpenChange = vi.fn()) {
   render(
     <PostComposerDialog
       open
-      onOpenChange={vi.fn()}
+      onOpenChange={onOpenChange}
       onSubmit={onSubmit}
     />,
   );
@@ -71,5 +71,60 @@ describe("PostComposerDialog", () => {
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ tags: ["typescript"] }),
     );
+  });
+});
+
+/**
+ * Client-side zod failures were always handled. A *server* failure was not: the
+ * rejection propagated out of `handleSave`, `onOpenChange(false)` never ran and
+ * nothing set `error` — so the dialog just sat there over the user's draft with
+ * the spinner stopped and no reason given.
+ */
+describe("PostComposerDialog server failures", () => {
+  it("keeps the dialog open and shows the server's reason", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(new Error("Post body contains a banned term"));
+
+    renderComposer(onSubmit, onOpenChange);
+
+    await user.type(screen.getByLabelText(/body/i), "Hello world");
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+
+    expect(
+      await screen.findByText("Post body contains a banned term"),
+    ).toBeInTheDocument();
+
+    // The draft must survive — dismissing here would discard the user's writing.
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("falls back to generic copy when the rejection carries no message", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockRejectedValue(new Error(""));
+
+    renderComposer(onSubmit);
+
+    await user.type(screen.getByLabelText(/body/i), "Hello world");
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+
+    expect(
+      await screen.findByText(/could not publish your post/i),
+    ).toBeInTheDocument();
+  });
+
+  it("closes the dialog only when the save actually succeeds", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    renderComposer(onSubmit, onOpenChange);
+
+    await user.type(screen.getByLabelText(/body/i), "Hello world");
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 });

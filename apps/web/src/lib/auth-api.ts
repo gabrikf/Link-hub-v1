@@ -90,6 +90,11 @@ import axios, {
 } from "axios";
 import { z } from "zod";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
+import {
+  createSessionRefresher,
+  createUnauthorizedHandler,
+  REFRESH_PATH,
+} from "./unauthorized-interceptor";
 
 const DEFAULT_API_BASE_URL = "http://localhost:3333";
 
@@ -149,6 +154,36 @@ const apiClient = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+/* ------------------------------------------------------------------ *
+ * Session expiry: refresh-on-401.
+ * Logic + rationale live in `./unauthorized-interceptor`; this is the wiring.
+ * ------------------------------------------------------------------ */
+
+const sessionRefresher = createSessionRefresher({
+  transport: async (refreshToken) => {
+    // Bare axios, not `apiClient` — the refresh call must never re-enter the
+    // interceptor that triggered it.
+    const response = await axios.post(
+      `${getApiBaseUrl()}${REFRESH_PATH}`,
+      { refreshToken },
+      { headers: { "Content-Type": "application/json" } },
+    );
+
+    return response.data;
+  },
+});
+
+/** Test seam — clears the refresher's "unsupported" latch. */
+export const resetSessionRefresher = sessionRefresher.reset;
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  createUnauthorizedHandler({
+    refresh: sessionRefresher.refresh,
+    replay: (config) => apiClient.request(config),
+  }),
+);
 
 const readErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {

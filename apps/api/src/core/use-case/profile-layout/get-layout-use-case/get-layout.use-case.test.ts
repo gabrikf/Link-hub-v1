@@ -1,9 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { FullProfileLayout, ProfileLayout } from "@repo/schemas";
+import {
+  DEFAULT_BUILTIN_BLOCKS,
+  FullProfileLayout,
+  ProfileLayout,
+} from "@repo/schemas";
 import { InMemoryProfileTabsRepository } from "../../../repositories/profile-tab/in-memory-profile-tabs-repository.js";
 import { InMemoryProfileBlocksRepository } from "../../../repositories/profile-block/in-memory-profile-block-repository.js";
 import { InMemoryUnitOfWork } from "../../../providers/unit-of-work/in-memory-unit-of-work.js";
 import { GetLayoutUseCase } from "./get-layout.use-case.js";
+
+// Derived rather than hard-coded so adding a default block is a one-line change
+// in the schema package, not a hunt through the layout tests.
+const DEFAULT_BLOCK_COUNT = DEFAULT_BUILTIN_BLOCKS.length;
+const MIRRORED_BLOCK_COUNT = DEFAULT_BLOCK_COUNT * 2;
 
 describe("GetLayoutUseCase", () => {
   let tabsRepository: InMemoryProfileTabsRepository;
@@ -22,7 +31,7 @@ describe("GetLayoutUseCase", () => {
     const layout = (await sut.execute("user-1", "pc")) as ProfileLayout;
 
     expect(layout.tabs).toHaveLength(1);
-    expect(layout.blocks).toHaveLength(4);
+    expect(layout.blocks).toHaveLength(DEFAULT_BLOCK_COUNT);
 
     const header = layout.blocks.find((block) => block.kind === "header");
     expect(header?.pinnedAllTabs).toBe(true);
@@ -31,11 +40,11 @@ describe("GetLayoutUseCase", () => {
     // Persisted, so a second call must not create duplicates.
     const again = (await sut.execute("user-1", "pc")) as ProfileLayout;
     expect(again.tabs).toHaveLength(1);
-    expect(again.blocks).toHaveLength(4);
+    expect(again.blocks).toHaveLength(DEFAULT_BLOCK_COUNT);
     // Seeding mirrors: requesting a single viewport also seeds its counterpart
-    // (shared groupIds), so the store holds BOTH viewports (2 tabs, 8 blocks).
+    // (shared groupIds), so the store holds BOTH viewports (2 tabs, 2x the blocks).
     expect(tabsRepository.getAll()).toHaveLength(2);
-    expect(blocksRepository.getAll()).toHaveLength(8);
+    expect(blocksRepository.getAll()).toHaveLength(MIRRORED_BLOCK_COUNT);
   });
 
   it("seeds mirrored viewports that share groupIds", async () => {
@@ -67,7 +76,7 @@ describe("GetLayoutUseCase", () => {
     expect(layout.pc.tabs).toHaveLength(1);
     expect(layout.mobile.tabs).toHaveLength(1);
     expect(tabsRepository.getAll()).toHaveLength(2);
-    expect(blocksRepository.getAll()).toHaveLength(8);
+    expect(blocksRepository.getAll()).toHaveLength(MIRRORED_BLOCK_COUNT);
   });
 
   it("uses the viewport grid width when seeding", async () => {
@@ -84,7 +93,7 @@ describe("GetLayoutUseCase", () => {
 
     // Still exactly one logical layout mirrored across both viewports.
     expect(tabsRepository.getAll()).toHaveLength(2);
-    expect(blocksRepository.getAll()).toHaveLength(8);
+    expect(blocksRepository.getAll()).toHaveLength(MIRRORED_BLOCK_COUNT);
 
     // No duplicate tab/block rows within a viewport either.
     const pcTabs = await tabsRepository.findByUserAndViewport("user-1", "pc");
@@ -93,6 +102,6 @@ describe("GetLayoutUseCase", () => {
       "pc",
     );
     expect(pcTabs).toHaveLength(1);
-    expect(pcBlocks).toHaveLength(4);
+    expect(pcBlocks).toHaveLength(DEFAULT_BLOCK_COUNT);
   });
 });

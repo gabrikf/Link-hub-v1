@@ -21,6 +21,7 @@ import { clearAuthTokens, getAuthTokens } from "../lib/auth-tokens";
 import { useUserInfoStore } from "../lib/user-info-store";
 import { BrandLogo } from "./brand-logo";
 import { Button } from "./button";
+import { FOCUS_RING_PAGE } from "./surface";
 
 type NavItem = {
   key: string;
@@ -35,7 +36,7 @@ function linkClasses(isActive: boolean): string {
   return [
     // Icon-only on desktop: fixed square, never shrinks, never wraps.
     "inline-flex h-9 w-9 shrink-0 items-center justify-center whitespace-nowrap rounded-full text-sm font-medium transition",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-950",
+    FOCUS_RING_PAGE,
     isActive
       ? "bg-violet-700 text-white shadow-sm dark:bg-violet-600"
       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
@@ -140,8 +141,10 @@ export function TopBarNav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/80 backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-950/80">
-      {/* Right padding on desktop reserves space for the floating theme toggle. */}
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:pr-28">
+      {/* Right padding reserves space for the floating theme toggle, which is
+          now top-right at every breakpoint (it used to sit over page content
+          on mobile). */}
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 py-3 pl-4 pr-28">
         <div className="flex min-w-0 items-center gap-2.5">
           <BrandLogo className="h-9 w-9 shrink-0 shadow-sm" />
           <div className="min-w-0">
@@ -215,6 +218,7 @@ export function TopBarNav() {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={[
                   "inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                  FOCUS_RING_PAGE,
                   item.isActive(pathname)
                     ? "bg-violet-700 text-white dark:bg-violet-600"
                     : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800",

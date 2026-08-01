@@ -4,8 +4,9 @@ import {
   useCallback,
   useState,
 } from "react";
-import * as RadixDialog from "@radix-ui/react-dialog";
-import { Dialog } from "./dialog";
+import * as RadixAlertDialog from "@radix-ui/react-alert-dialog";
+import { FiLoader } from "react-icons/fi";
+import { FOCUS_RING } from "./surface";
 
 type ButtonVariant =
   | "primary"
@@ -23,6 +24,10 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   shouldHaveConfirmation?: boolean;
   confirmationTitle?: string;
   confirmationDescription?: string;
+  /** Shows a spinner and blocks interaction while a mutation is in flight. */
+  isLoading?: boolean;
+  /** Label swapped in while `isLoading`. Falls back to `children`. */
+  loadingLabel?: string;
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -57,6 +62,9 @@ export function Button({
   shouldHaveConfirmation = false,
   confirmationTitle = "Are you sure?",
   confirmationDescription = "This action can't be undone.",
+  isLoading = false,
+  loadingLabel,
+  disabled,
   onClick,
   ...buttonProps
 }: ButtonProps) {
@@ -64,6 +72,8 @@ export function Button({
 
   const buttonClassName = cx(
     "inline-flex cursor-pointer items-center justify-center gap-2 rounded-md transition disabled:cursor-not-allowed disabled:opacity-60",
+    // Keyboard focus was previously invisible on every button in the app.
+    FOCUS_RING,
     variantClasses[variant],
     sizeClasses[size],
     fullWidth && "w-full",
@@ -93,6 +103,8 @@ export function Button({
   const triggerButton = (
     <button
       className={buttonClassName}
+      disabled={disabled || isLoading}
+      aria-busy={isLoading || undefined}
       onClick={
         shouldHaveConfirmation
           ? (event) => {
@@ -103,7 +115,8 @@ export function Button({
       }
       {...buttonProps}
     >
-      {children}
+      {isLoading && <FiLoader className="h-4 w-4 shrink-0 animate-spin" />}
+      {isLoading && loadingLabel ? loadingLabel : children}
     </button>
   );
 
@@ -114,31 +127,43 @@ export function Button({
   return (
     <>
       {triggerButton}
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        title={confirmationTitle}
-        description={confirmationDescription}
-        buttons={
-          <>
-            <RadixDialog.Close asChild>
-              <Button type="button" variant="outline" fullWidth={false}>
-                Cancel
-              </Button>
-            </RadixDialog.Close>
-            <RadixDialog.Close asChild>
-              <Button
-                type="button"
-                variant="danger"
-                fullWidth={false}
-                onClick={handleConfirm}
-              >
-                Confirm
-              </Button>
-            </RadixDialog.Close>
-          </>
-        }
-      />
+      {/*
+       * Destructive confirmations use AlertDialog, not the generic Dialog:
+       * it renders `role="alertdialog"`, moves initial focus to Cancel rather
+       * than the destructive action, and refuses to dismiss on outside-click
+       * or Escape-into-confirm — the correct semantics for something that
+       * "can't be undone".
+       */}
+      <RadixAlertDialog.Root open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <RadixAlertDialog.Portal>
+          <RadixAlertDialog.Overlay className="fixed inset-0 z-50 bg-zinc-950/60" />
+          <RadixAlertDialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[92svh] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
+            <RadixAlertDialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+              {confirmationTitle}
+            </RadixAlertDialog.Title>
+            <RadixAlertDialog.Description className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+              {confirmationDescription}
+            </RadixAlertDialog.Description>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <RadixAlertDialog.Cancel asChild>
+                <Button type="button" variant="outline" fullWidth={false}>
+                  Cancel
+                </Button>
+              </RadixAlertDialog.Cancel>
+              <RadixAlertDialog.Action asChild>
+                <Button
+                  type="button"
+                  variant="danger"
+                  fullWidth={false}
+                  onClick={handleConfirm}
+                >
+                  Confirm
+                </Button>
+              </RadixAlertDialog.Action>
+            </div>
+          </RadixAlertDialog.Content>
+        </RadixAlertDialog.Portal>
+      </RadixAlertDialog.Root>
     </>
   );
 }

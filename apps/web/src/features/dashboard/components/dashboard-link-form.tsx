@@ -1,7 +1,6 @@
-import type { LinkIcon } from "@repo/schemas";
-import type { ReactNode } from "react";
 import type {
   Control,
+  FieldErrors,
   FieldPath,
   SubmitHandler,
   UseFormHandleSubmit,
@@ -11,26 +10,21 @@ import { FiGlobe, FiPlusCircle, FiSave, FiX } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 import { Input } from "../../../shared-components/input";
 import { SelectField } from "../../../shared-components/select";
+import { SURFACE_INSET } from "../../../shared-components/surface";
+import type {
+  LinkFormValues,
+  LinkIconSelectOption,
+} from "../lib/link-form-schema";
 
-type LinkIconSelectOption = {
-  value: LinkIcon | "";
-  label: string;
-  icon?: ReactNode;
-};
-
-export type LinkFormValues = {
-  title: string;
-  url: string;
-  iconOption: LinkIconSelectOption;
-  isPublic: boolean;
-  editingLinkId: string | null;
-};
+export type { LinkFormValues, LinkIconSelectOption };
 
 type DashboardLinkFormProps = {
   register: UseFormRegister<LinkFormValues>;
   control: Control<LinkFormValues>;
   handleSubmit: UseFormHandleSubmit<LinkFormValues>;
   onSubmit: SubmitHandler<LinkFormValues>;
+  errors: FieldErrors<LinkFormValues>;
+  isSubmitting: boolean;
   isEditing: boolean;
   onCancel: () => void;
   linkIconOptions: LinkIconSelectOption[];
@@ -41,25 +35,31 @@ export function DashboardLinkForm({
   control,
   handleSubmit,
   onSubmit,
+  errors,
+  isSubmitting,
   isEditing,
   onCancel,
   linkIconOptions,
 }: DashboardLinkFormProps) {
   return (
     <form
-      className="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40"
+      className={`grid gap-3 p-4 ${SURFACE_INSET}`}
       onSubmit={handleSubmit(onSubmit)}
+      noValidate
     >
       <Input
         id="link-title"
         label="Title"
         placeholder="My website"
+        error={errors.title?.message}
         {...register("title")}
       />
       <Input
         id="link-url"
         label="URL"
+        type="url"
         placeholder="https://example.com"
+        error={errors.url?.message}
         {...register("url")}
       />
       <div className="grid gap-1">
@@ -81,7 +81,12 @@ export function DashboardLinkForm({
         Public link
       </label>
       <div className="flex gap-2">
-        <Button className="w-auto" type="submit">
+        <Button
+          className="w-auto"
+          type="submit"
+          isLoading={isSubmitting}
+          loadingLabel={isEditing ? "Updating link..." : "Creating link..."}
+        >
           {isEditing ? (
             <>
               <FiSave className="h-4 w-4" aria-hidden="true" />

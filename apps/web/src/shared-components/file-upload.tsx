@@ -179,7 +179,7 @@ export function FileUpload({
           }
           aria-invalid={hasError || undefined}
           aria-describedby={describedBy}
-          className="absolute inset-0 z-0 h-full w-full cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500/60 disabled:cursor-default"
+          className="absolute inset-0 z-0 h-full w-full cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 disabled:cursor-default"
         />
 
         <input

@@ -1,8 +1,14 @@
-import { CUSTOM_BLOCK_KINDS, type ProfileBlock } from "@repo/schemas";
+import {
+  CUSTOM_BLOCK_KINDS,
+  type ProfileBlock,
+  type ProfileTab,
+} from "@repo/schemas";
 import * as Switch from "@radix-ui/react-switch";
+import type { KeyboardEvent } from "react";
 import { FiEdit2, FiTrash2 } from "react-icons/fi";
 import { FaGripLinesVertical } from "react-icons/fa6";
 import { Button } from "../../../shared-components/button";
+import { FOCUS_RING } from "../../../shared-components/surface";
 import { BLOCK_META } from "../block-meta";
 
 type GridBlockCardProps = {
@@ -11,10 +17,23 @@ type GridBlockCardProps = {
   onTogglePin: (block: ProfileBlock, pinned: boolean) => void;
   onEdit: (block: ProfileBlock) => void;
   onDelete: (block: ProfileBlock) => void;
+  /** Arrow keys move the block; Shift+arrows resize it. Deltas are grid cells. */
+  onMove?: (block: ProfileBlock, dx: number, dy: number) => void;
+  onResize?: (block: ProfileBlock, dw: number, dh: number) => void;
+  /** Tabs this block can be moved to. Omitted/short-circuited when pinned. */
+  tabs?: ProfileTab[];
+  onMoveToTab?: (block: ProfileBlock, tabId: string) => void;
 };
 
 const isCustom = (block: ProfileBlock) =>
   (CUSTOM_BLOCK_KINDS as readonly string[]).includes(block.kind);
+
+const ARROW_DELTAS: Record<string, [number, number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
 
 export function GridBlockCard({
   block,
@@ -22,17 +41,60 @@ export function GridBlockCard({
   onTogglePin,
   onEdit,
   onDelete,
+  onMove,
+  onResize,
+  tabs,
+  onMoveToTab,
 }: GridBlockCardProps) {
   const meta = BLOCK_META[block.kind];
   const custom = isCustom(block);
+  const movableTabs = block.pinnedAllTabs ? [] : (tabs ?? []);
+
+  /**
+   * Keyboard equivalent of drag and resize. react-grid-layout offers neither,
+   * so without this a keyboard user cannot arrange a layout at all — the whole
+   * editor was mouse-only. Arrow keys nudge by one grid cell, Shift+arrow
+   * resizes by one. Events from the controls inside the card are ignored so
+   * arrowing inside the "move to tab" select still works normally.
+   */
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const delta = ARROW_DELTAS[event.key];
+    if (!delta) {
+      return;
+    }
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    const [dx, dy] = delta;
+    if (event.shiftKey) {
+      if (!onResize) {
+        return;
+      }
+      event.preventDefault();
+      onResize(block, dx, dy);
+      return;
+    }
+
+    if (!onMove) {
+      return;
+    }
+    event.preventDefault();
+    onMove(block, dx, dy);
+  };
 
   return (
     <div
+      tabIndex={0}
+      role="group"
+      aria-label={`${meta.label} block. Arrow keys move it, shift plus arrow keys resize it.`}
+      onKeyDown={handleKeyDown}
       className={[
         // The whole card is the drag surface (see editor-grid dragConfig), so
         // it shows a grab cursor; interactive controls opt out via
         // `.block-no-drag` and keep their own pointer cursor.
         "flex h-full w-full cursor-grab flex-col justify-between gap-2 overflow-hidden rounded-2xl border bg-white p-3 transition-all duration-300 select-none active:cursor-grabbing dark:bg-zinc-900",
+        FOCUS_RING,
         block.isVisible
           ? "border-zinc-200 hover:border-violet-400/70 hover:shadow-[0_0_22px_-6px_rgba(139,92,246,0.5)] dark:border-zinc-700 dark:hover:border-violet-500/60"
           : "border-dashed border-zinc-300 opacity-60 dark:border-zinc-700",
@@ -108,6 +170,30 @@ export function GridBlockCard({
           </Switch.Root>
           All tabs
         </label>
+
+        {/*
+          Moving a block between tabs previously required a three-step dance —
+          pin it, switch tabs, unpin it — because unpinning reassigns the block
+          to whichever tab is active. This is the direct control.
+        */}
+        {movableTabs.length > 1 && onMoveToTab ? (
+          <label className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
+            <span className="sr-only">{`Move ${meta.label} to tab`}</span>
+            <span aria-hidden="true">Tab</span>
+            <select
+              value={block.tabId ?? ""}
+              onChange={(event) => onMoveToTab(block, event.target.value)}
+              aria-label={`Move ${meta.label} to tab`}
+              className="cursor-pointer rounded bg-transparent text-[11px] font-medium text-zinc-700 focus:outline-none dark:text-zinc-200"
+            >
+              {movableTabs.map((tab) => (
+                <option key={tab.id} value={tab.id}>
+                  {tab.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
     </div>
   );

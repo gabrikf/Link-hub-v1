@@ -17,9 +17,14 @@ vi.mock("../../../lib/user-info-store", () => ({
 }));
 
 const useMyTokens = vi.fn();
+const useRevokeToken = vi.fn(() => ({
+  mutate: revokeMutate,
+  isPending: false,
+  variables: undefined as string | undefined,
+}));
 vi.mock("../../../lib/token-queries", () => ({
   useMyTokens: () => useMyTokens(),
-  useRevokeToken: () => ({ mutate: revokeMutate, isPending: false }),
+  useRevokeToken: () => useRevokeToken(),
   useCreateToken: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
@@ -48,9 +53,21 @@ const revokedToken: ApiToken = {
   revokedAt: new Date("2026-02-01"),
 };
 
+const secondActiveToken: ApiToken = {
+  ...activeToken,
+  id: "tok-active-2",
+  name: "Home desktop",
+  tokenPrefix: "lh_pat_active2",
+};
+
 afterEach(() => {
   useMyTokens.mockReset();
   revokeMutate.mockReset();
+  useRevokeToken.mockReturnValue({
+    mutate: revokeMutate,
+    isPending: false,
+    variables: undefined,
+  });
 });
 
 describe("SettingsPage token list", () => {
@@ -85,11 +102,61 @@ describe("SettingsPage token list", () => {
     // Active tokens expose a Revoke button; revoked ones do not.
     await user.click(screen.getByRole("button", { name: /revoke/i }));
 
-    // Confirmation dialog — confirm the destructive action.
-    const dialog = await screen.findByRole("dialog");
+    // Confirmation dialog — confirm the destructive action. Destructive
+    // confirmations render as `role="alertdialog"`, not `role="dialog"`.
+    const dialog = await screen.findByRole("alertdialog");
     await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
 
     expect(revokeMutate).toHaveBeenCalledWith("tok-active");
+  });
+
+  it("renders token-row skeletons instead of a text label while loading", () => {
+    useMyTokens.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+
+    const { container } = render(<SettingsPage />);
+
+    expect(container.textContent).not.toContain("Loading tokens...");
+
+    // Skeletons are aria-hidden, so the announcement carries the state.
+    expect(screen.getByRole("status")).toHaveTextContent("Loading tokens");
+
+    // Placeholders sit in the same `space-y-3` list as the real rows.
+    const list = container.querySelector("ul.space-y-3");
+    expect(list).not.toBeNull();
+    expect(list?.querySelectorAll(":scope > li")).toHaveLength(2);
+  });
+
+  it("spins only the row being revoked, not every Revoke button", () => {
+    useMyTokens.mockReturnValue({
+      data: [activeToken, secondActiveToken],
+      isLoading: false,
+      isError: false,
+    });
+    useRevokeToken.mockReturnValue({
+      mutate: revokeMutate,
+      isPending: true,
+      variables: "tok-active",
+    });
+
+    render(<SettingsPage />);
+
+    const [revoking, untouched] = screen.getAllByRole("button", {
+      name: /revok/i,
+    });
+
+    // The in-flight row announces itself and blocks a second click...
+    expect(revoking).toHaveAccessibleName("Revoking...");
+    expect(revoking).toHaveAttribute("aria-busy", "true");
+    expect(revoking).toBeDisabled();
+
+    // ...while the other token's button stays usable.
+    expect(untouched).toHaveAccessibleName("Revoke");
+    expect(untouched).not.toHaveAttribute("aria-busy");
+    expect(untouched).toBeEnabled();
   });
 
   it("shows the empty state when there are no tokens", () => {

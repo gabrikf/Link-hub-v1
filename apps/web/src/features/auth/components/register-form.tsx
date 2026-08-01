@@ -107,7 +107,9 @@ export function RegisterForm({
           ))}
         </select>
         {errors.persona?.message && (
-          <p className="mt-1 text-sm text-red-600">{errors.persona.message}</p>
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+            {errors.persona.message}
+          </p>
         )}
       </div>
 

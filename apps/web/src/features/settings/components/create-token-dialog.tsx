@@ -15,6 +15,8 @@ const AVAILABLE_SCOPES: Array<{ value: ApiTokenScope; description: string }> = [
 
 const DEFAULT_SCOPES: ApiTokenScope[] = ["posts:write", "posts:read"];
 
+const NAME_FIELD_ID = "token-name";
+
 type CreateTokenDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,7 +35,10 @@ export function CreateTokenDialog({
   const [scopes, setScopes] = useState<ApiTokenScope[]>(DEFAULT_SCOPES);
   const [expiresAt, setExpiresAt] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreateApiTokenOutput | null>(null);
+
+  const hasNoScopes = scopes.length === 0;
 
   // Reset all local state whenever the dialog is fully closed so the next open
   // starts clean (and never re-shows a previously created plaintext token).
@@ -62,16 +67,23 @@ export function CreateTokenDialog({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    setNameError(null);
 
     if (name.trim().length === 0) {
-      setError("Give your token a name so you can recognize it later.");
+      // Field-level, not page-level: this used to render at the very bottom of
+      // the form, nowhere near the input it was about.
+      setNameError("Give your token a name so you can recognize it later.");
+      document.getElementById(NAME_FIELD_ID)?.focus();
       return;
     }
 
     try {
       const result = await createToken.mutateAsync({
         name: name.trim(),
-        scopes: scopes.length > 0 ? scopes : DEFAULT_SCOPES,
+        // Never silently substitute DEFAULT_SCOPES here. Doing so handed a
+        // token WITH `posts:write` to a user who had deliberately unchecked
+        // it; the submit button is disabled instead when nothing is selected.
+        scopes,
         expiresAt: expiresAt ? new Date(expiresAt) : undefined,
       });
       setCreated(result);
@@ -156,11 +168,15 @@ export function CreateTokenDialog({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          id="token-name"
+          id={NAME_FIELD_ID}
           label="Name"
           placeholder="e.g. Claude Desktop, work laptop"
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          error={nameError ?? undefined}
+          onChange={(event) => {
+            setName(event.target.value);
+            setNameError(null);
+          }}
           autoFocus
         />
 
@@ -191,6 +207,11 @@ export function CreateTokenDialog({
               </label>
             ))}
           </div>
+          {hasNoScopes ? (
+            <p className="mt-1.5 text-sm text-red-600 dark:text-red-400">
+              Select at least one scope.
+            </p>
+          ) : null}
         </div>
 
         <Input
@@ -201,7 +222,11 @@ export function CreateTokenDialog({
           onChange={(event) => setExpiresAt(event.target.value)}
         />
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        ) : null}
 
         <div className="flex justify-end gap-2 pt-1">
           <RadixDialog.Close asChild>
@@ -212,9 +237,12 @@ export function CreateTokenDialog({
           <Button
             type="submit"
             fullWidth={false}
-            disabled={createToken.isPending}
+            disabled={hasNoScopes}
+            title={hasNoScopes ? "Select at least one scope" : undefined}
+            isLoading={createToken.isPending}
+            loadingLabel="Creating..."
           >
-            {createToken.isPending ? "Creating..." : "Create token"}
+            Create token
           </Button>
         </div>
       </form>

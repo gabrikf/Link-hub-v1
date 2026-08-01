@@ -95,6 +95,21 @@ export class DrizzleResumeTitleRepository implements IResumeTitleRepository {
     });
   }
 
+  async createMany(
+    inputs: Array<{
+      resumeId: string;
+      titleId: string;
+      isPrimary: boolean;
+      displayOrder: number;
+    }>,
+  ): Promise<void> {
+    if (inputs.length === 0) {
+      return;
+    }
+
+    await db.insert(resumeTitles).values(inputs).onConflictDoNothing();
+  }
+
   async create(input: {
     resumeId: string;
     titleId: string;

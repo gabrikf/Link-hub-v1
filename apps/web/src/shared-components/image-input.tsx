@@ -217,7 +217,7 @@ export function ImageInput({
             });
           }}
           className={[
-            "w-full rounded-md border bg-white py-2 pl-9 pr-3 text-zinc-900 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 dark:bg-zinc-900 dark:text-zinc-100",
+            "w-full rounded-md border bg-white py-2 pl-9 pr-3 text-zinc-900 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:bg-zinc-900 dark:text-zinc-100",
             showError
               ? "border-red-400 dark:border-red-500/70"
               : "border-zinc-300 dark:border-zinc-700",

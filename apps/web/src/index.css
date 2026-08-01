@@ -13,6 +13,10 @@
     --link-icon-medium-fg: #12100e;
     --link-icon-medium-bg: #12100e20;
     --link-icon-snapchat-bg: #b89b00;
+
+    /* Grid backdrop tint. Re-declared inside `.profile-root` so the backdrop
+       follows the user's accent preset instead of a hard-coded indigo. */
+    --anim-grid-color: rgba(139, 92, 246, 0.12); /* violet-500/12 */
   }
 
   .dark {
@@ -99,28 +103,23 @@
   /* Futuristic grid backdrop for hero sections --------------------- */
   .anim-grid-bg {
     background-image:
-      linear-gradient(to right, rgba(99, 102, 241, 0.12) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(99, 102, 241, 0.12) 1px, transparent 1px);
+      linear-gradient(
+        to right,
+        var(--anim-grid-color) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        var(--anim-grid-color) 1px,
+        transparent 1px
+      );
     background-size: 36px 36px;
     animation: anim-grid-pan 18s linear infinite;
   }
 
-  /* Stagger helper — set --stagger on a parent or use inline delays. */
-  .anim-delay-1 {
-    animation-delay: 0.06s;
-  }
-  .anim-delay-2 {
-    animation-delay: 0.12s;
-  }
-  .anim-delay-3 {
-    animation-delay: 0.18s;
-  }
-  .anim-delay-4 {
-    animation-delay: 0.24s;
-  }
-  .anim-delay-5 {
-    animation-delay: 0.3s;
-  }
+  /* Staggering is done with inline `style={{ animationDelay }}` everywhere in
+     the app; the `.anim-delay-*` utilities that used to live here had 2 call
+     sites between them and 3 with none at all. */
 }
 
 @keyframes anim-fade-up {
@@ -266,10 +265,9 @@
   width: 8px;
   height: 8px;
 }
-.dark .react-grid-item > .react-resizable-handle::after {
-  border-right-color: rgba(167, 139, 250, 0.95); /* violet-400 */
-  border-bottom-color: rgba(167, 139, 250, 0.95);
-}
+/* NOTE: the `.dark` variant of the rule above used to live here. It was dead:
+   `EDITOR_GRID_HANDLE_CSS` injects `border: none; background: ...` at runtime,
+   which wins on source order and removes the border it was recolouring. */
 
 /* ------------------------------------------------------------------ */
 /* Profile appearance theming                                          */
@@ -300,6 +298,8 @@
   --profile-accent-border: color-mix(in srgb, var(--profile-accent), transparent 45%);
   --profile-accent-glow: color-mix(in srgb, var(--profile-accent), transparent 55%);
   --profile-accent-ring: color-mix(in srgb, var(--profile-accent), transparent 40%);
+  /* Grid backdrop follows the selected preset rather than staying violet. */
+  --anim-grid-color: color-mix(in srgb, var(--profile-accent), transparent 88%);
 }
 
 /* Dark mode: lighten accent TEXT + slightly strengthen the tint so both

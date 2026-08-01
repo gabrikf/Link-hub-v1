@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -34,12 +35,16 @@ import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
+import { SURFACE } from "../../../shared-components/surface";
 import { DashboardHeader } from "../components/dashboard-header";
 import { DashboardProfileDisplay } from "../components/dashboard-profile-display";
+import { DashboardProfileDisplaySkeleton } from "../components/dashboard-profile-display-skeleton";
+import { LinkListSkeleton } from "../components/link-list-skeleton";
+import { DashboardLinkForm } from "../components/dashboard-link-form";
 import {
-  DashboardLinkForm,
+  linkFormSchema,
   type LinkFormValues,
-} from "../components/dashboard-link-form";
+} from "../lib/link-form-schema";
 import {
   DashboardProfileForm,
   type ProfileFormValues,
@@ -63,6 +68,25 @@ const DEFAULT_LINK_ICON_SELECT_OPTION: LinkIconSelectOption = {
   label: "Default icon",
 };
 
+type MutationErrorSource = { isError: boolean; error: unknown };
+
+/** First failing mutation's message, or its fallback copy. */
+function resolveLinkMutationError(
+  candidates: ReadonlyArray<readonly [MutationErrorSource, string]>,
+): string | null {
+  const failure = candidates.find(([mutation]) => mutation.isError);
+
+  if (!failure) {
+    return null;
+  }
+
+  const [mutation, fallback] = failure;
+
+  return mutation.error instanceof Error && mutation.error.message
+    ? mutation.error.message
+    : fallback;
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -71,16 +95,23 @@ export function DashboardPage() {
   const hasSession = Boolean(getAuthTokens() && userInfo);
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isProfileFormDirty, setIsProfileFormDirty] = useState(false);
+  const [isDiscardProfileEditOpen, setIsDiscardProfileEditOpen] =
+    useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const hasCheckedImportPromptRef = useRef(false);
+  const linkFormRef = useRef<HTMLDivElement | null>(null);
+  const skipNextIconAutoDetectRef = useRef(false);
 
   const {
     register,
     control,
     handleSubmit: handleLinkFormSubmit,
     setValue,
+    setFocus,
     reset,
+    formState: { errors: linkFormErrors },
   } = useForm<LinkFormValues>({
+    resolver: zodResolver(linkFormSchema),
     defaultValues: {
       title: "",
       url: "",
@@ -144,45 +175,15 @@ export function DashboardPage() {
     }
   }, [hasSession, navigate]);
 
-  const importPromptStorageKey = userInfo?.login
-    ? `resume-import-prompt-seen:${userInfo.login}`
-    : null;
-
-  // First-visit nudge: if the user has no resume yet and hasn't dismissed the
-  // prompt before, open the AI import modal automatically. This intentionally
-  // runs once when the resume query first settles (syncing UI to async + storage).
-  useEffect(() => {
-    if (
-      hasCheckedImportPromptRef.current ||
-      !importPromptStorageKey ||
-      resumeQuery.isLoading ||
-      !resumeQuery.isFetched
-    ) {
-      return;
-    }
-
-    hasCheckedImportPromptRef.current = true;
-
-    const alreadySeen =
-      window.localStorage.getItem(importPromptStorageKey) === "true";
-
-    if (!alreadySeen && !resumeQuery.data) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time open after async resume load
-      setIsImportModalOpen(true);
-    }
-  }, [
-    importPromptStorageKey,
-    resumeQuery.isLoading,
-    resumeQuery.isFetched,
-    resumeQuery.data,
-  ]);
-
-  const handleImportModalOpenChange = (open: boolean) => {
-    setIsImportModalOpen(open);
-    if (!open && importPromptStorageKey) {
-      window.localStorage.setItem(importPromptStorageKey, "true");
-    }
-  };
+  /**
+   * The AI-import prompt used to auto-open a modal over a dashboard the user
+   * had not seen yet, and its `localStorage` dismissal key was permanent — so
+   * the reflexive "close the thing covering my screen" meant they never saw the
+   * prompt again. The inline card below carries the same call to action, so it
+   * just gets highlighted while there is no resume to show. Nothing to dismiss,
+   * nothing to lose, and it disappears on its own once a resume exists.
+   */
+  const shouldHighlightImport = resumeQuery.isFetched && !resumeQuery.data;
 
   const resetLinkForm = () => {
     reset({
@@ -296,6 +297,21 @@ export function DashboardPage() {
 
   const links = useMemo(() => linksQuery.data ?? [], [linksQuery.data]);
 
+  /**
+   * Create / update / delete / toggle all used to fail completely silently —
+   * no `onError`, no message anywhere on the page. Only reorder had a surface.
+   * The first failing mutation wins; they can't realistically overlap.
+   */
+  const linkMutationError = resolveLinkMutationError([
+    [createLinkMutation, "Unable to create the link."],
+    [updateLinkMutation, "Unable to update the link."],
+    [deleteLinkMutation, "Unable to delete the link."],
+    [toggleLinkVisibilityMutation, "Unable to change link visibility."],
+  ]);
+
+  const isCatalogLoading =
+    skillsCatalogQuery.isLoading || titlesCatalogQuery.isLoading;
+
   // Memoized on the individual saved profile field values (NOT on a fresh object
   // literal per render). A background `meQuery` refetch on window refocus, or the
   // mutation pending-flip while the edit modal is OPEN, no longer produces a new
@@ -357,7 +373,14 @@ export function DashboardPage() {
       (option) => option.value === (autoDetectedLinkIcon ?? ""),
     ) ?? DEFAULT_LINK_ICON_SELECT_OPTION;
 
+  // Auto-detection must not run on the pass right after Edit populates the
+  // form, or it would immediately overwrite the icon the link was saved with.
   useEffect(() => {
+    if (skipNextIconAutoDetectRef.current) {
+      skipNextIconAutoDetectRef.current = false;
+      return;
+    }
+
     setValue("iconOption", autoDetectedIconOption, {
       shouldDirty: false,
       shouldTouch: false,
@@ -365,39 +388,57 @@ export function DashboardPage() {
     });
   }, [autoDetectedIconOption, setValue]);
 
+  // `mutateAsync` rejects on a failed save. Without this catch the rejection was
+  // unhandled and the user got nothing at all — no spinner, no cleared form, no
+  // message — so they just clicked Create again. The mutation's own `isError`
+  // drives the message below; this only stops the unhandled rejection.
   const handleSubmitLink = async (data: LinkFormValues) => {
     const icon = (data.iconOption?.value || null) as LinkIcon | null;
 
-    if (data.editingLinkId) {
-      await updateLinkMutation.mutateAsync({
-        linkId: data.editingLinkId,
-        payload: {
-          title: data.title,
-          url: data.url,
-          icon,
-          isPublic: data.isPublic,
-        },
+    try {
+      if (data.editingLinkId) {
+        await updateLinkMutation.mutateAsync({
+          linkId: data.editingLinkId,
+          payload: {
+            title: data.title,
+            url: data.url,
+            icon,
+            isPublic: data.isPublic,
+          },
+        });
+
+        return;
+      }
+
+      await createLinkMutation.mutateAsync({
+        title: data.title,
+        url: data.url,
+        icon,
+        isPublic: data.isPublic,
       });
-
-      return;
+    } catch {
+      // Surfaced by `linkMutationError` below.
     }
-
-    await createLinkMutation.mutateAsync({
-      title: data.title,
-      url: data.url,
-      icon,
-      isPublic: data.isPublic,
-    });
   };
 
   const handleEditClick = (link: LinkResponse) => {
+    skipNextIconAutoDetectRef.current = true;
     reset({
       title: link.title,
       url: link.url,
-      iconOption: DEFAULT_LINK_ICON_SELECT_OPTION,
+      // Was `DEFAULT_LINK_ICON_SELECT_OPTION`, which silently reverted a
+      // manually chosen icon to the default on the next save.
+      iconOption:
+        linkIconOptions.find((option) => option.value === (link.icon ?? "")) ??
+        DEFAULT_LINK_ICON_SELECT_OPTION,
       isPublic: link.isPublic,
       editingLinkId: link.id,
     });
+
+    // The form is at the top of a potentially long list — repopulating it
+    // off-screen looked like the Edit click did nothing.
+    linkFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setFocus("title");
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -430,21 +471,42 @@ export function DashboardPage() {
     );
   };
 
+  /**
+   * Closing with unsaved edits asks first; a clean form closes straight away.
+   * Opening always passes through.
+   */
+  const handleProfileDialogOpenChange = (open: boolean) => {
+    if (!open && isProfileFormDirty) {
+      setIsDiscardProfileEditOpen(true);
+      return;
+    }
+
+    setIsProfileDialogOpen(open);
+  };
+
   const handleSaveProfile = async (data: ProfileFormValues) => {
-    await updateProfileMutation.mutateAsync({
-      username: data.username,
-      name: data.name,
-      description: data.description,
-      userPhoto: data.userPhoto.trim() || null,
-      bannerImageUrl: data.bannerImageUrl.trim() || null,
-      backgroundImageUrl: data.backgroundImageUrl.trim() || null,
-      themePreset: data.themePreset,
-      themeAccent: data.themeAccent.trim() || null,
-      openToWork: data.openToWork,
-      location: data.location.trim() || null,
-      persona: data.persona || null,
-    });
-    setIsProfileDialogOpen(false);
+    try {
+      await updateProfileMutation.mutateAsync({
+        username: data.username,
+        name: data.name,
+        description: data.description,
+        userPhoto: data.userPhoto.trim() || null,
+        bannerImageUrl: data.bannerImageUrl.trim() || null,
+        backgroundImageUrl: data.backgroundImageUrl.trim() || null,
+        themePreset: data.themePreset,
+        themeAccent: data.themeAccent.trim() || null,
+        openToWork: data.openToWork,
+        location: data.location.trim() || null,
+        persona: data.persona || null,
+      });
+
+      // Only on success. A rejected save (e.g. duplicate username) keeps the
+      // modal open, where `errorMessage` now explains why.
+      setIsProfileFormDirty(false);
+      setIsProfileDialogOpen(false);
+    } catch {
+      // Surfaced inside the modal via `updateProfileMutation.isError`.
+    }
   };
 
   return (
@@ -461,58 +523,69 @@ export function DashboardPage() {
       <section className="anim-fade-up w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:w-2/3 dark:border-zinc-800 dark:bg-zinc-900">
         <DashboardHeader />
 
-        <DashboardLinkForm
-          register={register}
-          control={control}
-          handleSubmit={handleLinkFormSubmit}
-          onSubmit={handleSubmitLink}
-          isEditing={Boolean(watchedEditingLinkId)}
-          onCancel={resetLinkForm}
-          linkIconOptions={linkIconOptions}
-        />
+        <div ref={linkFormRef} className="scroll-mt-4">
+          <DashboardLinkForm
+            register={register}
+            control={control}
+            handleSubmit={handleLinkFormSubmit}
+            onSubmit={handleSubmitLink}
+            errors={linkFormErrors}
+            isSubmitting={
+              createLinkMutation.isPending || updateLinkMutation.isPending
+            }
+            isEditing={Boolean(watchedEditingLinkId)}
+            onCancel={resetLinkForm}
+            linkIconOptions={linkIconOptions}
+          />
+        </div>
 
-        {linksQuery.isLoading ? (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Loading links...
-          </p>
+        {linkMutationError ? (
+          <FeedbackMessage tone="error" message={linkMutationError} />
         ) : null}
 
-        <DndContext
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={links.map((link) => link.id)}
-            strategy={verticalListSortingStrategy}
+        {/* The list used to render an EMPTY DndContext under a "Loading
+            links..." line; the placeholders now occupy the rows the links will
+            take, and the drag context mounts with real items. */}
+        {linksQuery.isLoading ? (
+          <LinkListSkeleton />
+        ) : (
+          <DndContext
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
           >
-            <ul className="space-y-2">
-              {links.map((link) => (
-                <SortableLinkItem
-                  key={link.id}
-                  link={link}
-                  onToggleVisibility={(linkId, isPublic) => {
-                    queryClient.setQueryData<LinkResponse[]>(
-                      ["links"],
-                      (previous) => {
-                        if (!previous) {
-                          return previous;
-                        }
+            <SortableContext
+              items={links.map((link) => link.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="space-y-2">
+                {links.map((link) => (
+                  <SortableLinkItem
+                    key={link.id}
+                    link={link}
+                    onToggleVisibility={(linkId, isPublic) => {
+                      queryClient.setQueryData<LinkResponse[]>(
+                        ["links"],
+                        (previous) => {
+                          if (!previous) {
+                            return previous;
+                          }
 
-                        return previous.map((item) =>
-                          item.id === linkId ? { ...item, isPublic } : item,
-                        );
-                      },
-                    );
+                          return previous.map((item) =>
+                            item.id === linkId ? { ...item, isPublic } : item,
+                          );
+                        },
+                      );
 
-                    toggleLinkVisibilityMutation.mutate({ linkId, isPublic });
-                  }}
-                  onEdit={handleEditClick}
-                  onDelete={(linkId) => deleteLinkMutation.mutate(linkId)}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
+                      toggleLinkVisibilityMutation.mutate({ linkId, isPublic });
+                    }}
+                    onEdit={handleEditClick}
+                    onDelete={(linkId) => deleteLinkMutation.mutate(linkId)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
+        )}
 
         {reorderLinksMutation.isError ? (
           <FeedbackMessage
@@ -521,7 +594,14 @@ export function DashboardPage() {
           />
         ) : null}
 
-        <div className="anim-sheen anim-glow-pulse flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-violet-500/30 dark:bg-violet-500/10">
+        <div
+          className={[
+            "flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-violet-500/30 dark:bg-violet-500/10",
+            shouldHighlightImport
+              ? "anim-glow-pulse ring-2 ring-violet-400 dark:ring-violet-500/60"
+              : "",
+          ].join(" ")}
+        >
           <div className="flex items-start gap-3">
             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-700 text-white">
               <FiUploadCloud className="h-5 w-5" aria-hidden="true" />
@@ -558,6 +638,11 @@ export function DashboardPage() {
               size="sm"
               fullWidth={false}
               className="rounded-full"
+              // The edit dialog is driven by the skill/title catalogs; opening
+              // it before they arrive shows empty pickers, so the trigger stays
+              // busy until they do (they had no loading UI at all).
+              isLoading={isCatalogLoading}
+              loadingLabel="Edit"
               onClick={() => setIsResumeDialogOpen(true)}
             >
               Edit
@@ -598,7 +683,7 @@ export function DashboardPage() {
 
         <ResumeImportModal
           open={isImportModalOpen}
-          onOpenChange={handleImportModalOpenChange}
+          onOpenChange={setIsImportModalOpen}
           currentResume={resumeQuery.data ?? null}
           currentProfileName={meQuery.data?.name ?? ""}
           currentProfileDescription={meQuery.data?.description ?? null}
@@ -611,7 +696,10 @@ export function DashboardPage() {
         />
       </section>
 
-      <aside className="anim-fade-up anim-delay-2 w-full space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:w-1/3">
+      <aside
+        className={`anim-fade-up w-full space-y-4 p-5 ${SURFACE} lg:w-1/3`}
+        style={{ animationDelay: "0.12s" }}
+      >
         <div className="flex gap-2 items-center">
           <Avatar
             name={meQuery.data?.name}
@@ -628,35 +716,28 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <DashboardProfileDisplay
-          name={meQuery.data?.name ?? ""}
-          username={meQuery.data?.username ?? ""}
-          description={meQuery.data?.description ?? null}
-          avatarUrl={meQuery.data?.userPhoto ?? null}
-          bannerImageUrl={meQuery.data?.bannerImageUrl ?? null}
-          backgroundImageUrl={meQuery.data?.backgroundImageUrl ?? null}
-          themePreset={meQuery.data?.themePreset ?? null}
-          themeAccent={meQuery.data?.themeAccent ?? null}
-          openToWork={meQuery.data?.openToWork ?? false}
-          location={meQuery.data?.location ?? null}
-          persona={meQuery.data?.persona ?? null}
-          onEdit={() => setIsProfileDialogOpen(true)}
-        />
-
-        {updateProfileMutation.isError ? (
-          <FeedbackMessage
-            tone="error"
-            message={
-              updateProfileMutation.error instanceof Error
-                ? updateProfileMutation.error.message
-                : "Unable to update profile"
-            }
+        {meQuery.isLoading ? (
+          <DashboardProfileDisplaySkeleton />
+        ) : (
+          <DashboardProfileDisplay
+            name={meQuery.data?.name ?? ""}
+            username={meQuery.data?.username ?? ""}
+            description={meQuery.data?.description ?? null}
+            avatarUrl={meQuery.data?.userPhoto ?? null}
+            bannerImageUrl={meQuery.data?.bannerImageUrl ?? null}
+            backgroundImageUrl={meQuery.data?.backgroundImageUrl ?? null}
+            themePreset={meQuery.data?.themePreset ?? null}
+            themeAccent={meQuery.data?.themeAccent ?? null}
+            openToWork={meQuery.data?.openToWork ?? false}
+            location={meQuery.data?.location ?? null}
+            persona={meQuery.data?.persona ?? null}
+            onEdit={() => setIsProfileDialogOpen(true)}
           />
-        ) : null}
+        )}
 
         <Dialog
           open={isProfileDialogOpen}
-          onOpenChange={setIsProfileDialogOpen}
+          onOpenChange={handleProfileDialogOpenChange}
           title="Edit profile"
           description="Update your public identity and appearance."
           contentClassName="max-w-3xl"
@@ -665,8 +746,50 @@ export function DashboardPage() {
             avatarUrl={meQuery.data?.userPhoto ?? null}
             initialValues={profileFormInitialValues}
             onSubmit={handleSaveProfile}
+            isSaving={updateProfileMutation.isPending}
+            onDirtyChange={setIsProfileFormDirty}
+            errorMessage={
+              updateProfileMutation.isError
+                ? updateProfileMutation.error instanceof Error
+                  ? updateProfileMutation.error.message
+                  : "Unable to update profile"
+                : null
+            }
           />
         </Dialog>
+
+        {/* Confirmation for discarding an in-progress appearance edit. Esc, the
+            X and an overlay click all route through here. */}
+        <Dialog
+          open={isDiscardProfileEditOpen}
+          onOpenChange={setIsDiscardProfileEditOpen}
+          title="Discard your changes?"
+          description="You have unsaved profile changes. Closing now loses them."
+          buttons={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                fullWidth={false}
+                onClick={() => setIsDiscardProfileEditOpen(false)}
+              >
+                Keep editing
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                fullWidth={false}
+                onClick={() => {
+                  setIsDiscardProfileEditOpen(false);
+                  setIsProfileFormDirty(false);
+                  setIsProfileDialogOpen(false);
+                }}
+              >
+                Discard changes
+              </Button>
+            </>
+          }
+        />
       </aside>
     </main>
   );

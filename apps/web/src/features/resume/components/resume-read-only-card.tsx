@@ -1,4 +1,5 @@
 import type { ResumeResponse } from "@repo/schemas";
+import { SURFACE } from "../../../shared-components/surface";
 import type { ReactNode } from "react";
 import {
   FiAward,
@@ -10,6 +11,8 @@ import {
   FiStar,
   FiUserCheck,
 } from "react-icons/fi";
+import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
+import { ResumeReadOnlyCardSkeleton } from "./resume-read-only-card-skeleton";
 
 type ResumeView = Pick<
   ResumeResponse,
@@ -36,6 +39,12 @@ type ResumeReadOnlyCardProps = {
   subtitle?: string;
   action?: ReactNode;
   emptyMessage?: string;
+  /**
+   * Card material. Defaults to the dashboard surface; the public profile passes
+   * `SURFACE_PROFILE` so this block matches its siblings in that grid instead of
+   * reading as a different material in dark mode.
+   */
+  surfaceClassName?: string;
 };
 
 const seniorityLabels: Record<string, string> = {
@@ -76,19 +85,10 @@ export function ResumeReadOnlyCard({
   subtitle = "Read-only overview",
   action,
   emptyMessage = "No resume yet. Click edit to create your profile.",
+  surfaceClassName = SURFACE,
 }: ResumeReadOnlyCardProps) {
-  if (isLoading) {
-    return (
-      <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Loading resume...
-        </p>
-      </section>
-    );
-  }
-
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <section className={`p-4 ${surfaceClassName}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -96,10 +96,23 @@ export function ResumeReadOnlyCard({
           </h3>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{subtitle}</p>
         </div>
-        {action}
+        {/* The header stays put while loading; only the action (a control that
+            would act on data that isn't here yet) is stubbed out. */}
+        {isLoading ? (
+          action ? (
+            <Skeleton shape="circle" width={64} height={36} />
+          ) : null
+        ) : (
+          action
+        )}
       </div>
 
-      {!resume ? (
+      {isLoading ? (
+        <>
+          <LoadingLabel>Loading resume</LoadingLabel>
+          <ResumeReadOnlyCardSkeleton />
+        </>
+      ) : !resume ? (
         <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/40 dark:text-zinc-400">
           {emptyMessage}
         </div>

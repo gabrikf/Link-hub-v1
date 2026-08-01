@@ -1,7 +1,8 @@
+import type { ProfileBlock } from "@repo/schemas";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiLogIn } from "react-icons/fi";
 import {
   fetchPublicProfile,
@@ -16,6 +17,7 @@ import {
 import { ProfileBlocks } from "../components/profile-blocks";
 import { ProfileCover } from "../components/profile-cover";
 import { getProfileThemeProps, safeImageUrl } from "../components/profile-theme";
+import { PublicProfileSkeleton } from "../components/public-profile-skeleton";
 
 const MOBILE_QUERY = "(max-width: 1023px)";
 
@@ -55,9 +57,35 @@ export function PublicProfilePage() {
     },
   });
 
+  // While the profile is in flight the page shell below still renders, with a
+  // profile-shaped skeleton in the card. Only a settled-but-empty response is
+  // "not found".
+  const profile = profileQuery.data ?? null;
+  const viewport = pickViewport(isMobile);
+
+  // Memoized: for legacy profiles (no stored layout) `resolveViewportLayout`
+  // returns a FRESH `buildDefaultLayout(viewport)` object on every call, which
+  // broke both compaction memos inside `ProfileBlocks` — they recomputed on
+  // every render because their `layout.blocks` dependency was a new array each
+  // time. Profiles that DO have a layout returned a stable reference and were
+  // unaffected, which is why this only showed up on legacy profiles.
+  const chosenLayout = useMemo(
+    () => (profile ? resolveViewportLayout(profile.layout, viewport) : null),
+    [profile, viewport],
+  );
+
+  // Only fetch what the layout actually renders. A profile whose layout has no
+  // resume block (or has it hidden) used to fetch the resume anyway, on every
+  // visit.
+  const rendersBlock = (kind: ProfileBlock["kind"]) =>
+    chosenLayout?.blocks.some(
+      (block) => block.kind === kind && block.isVisible,
+    ) ?? false;
+
   const resumeQuery = useQuery({
     queryKey: ["public-resume", username],
     retry: false,
+    enabled: rendersBlock("resume"),
     queryFn: async () => {
       try {
         return await fetchPublicResume(username);
@@ -73,16 +101,9 @@ export function PublicProfilePage() {
 
   const workExperiencesQuery = useQuery({
     queryKey: ["public-work-experiences", username],
+    enabled: rendersBlock("work_experiences"),
     queryFn: () => fetchPublicWorkExperiences(username),
   });
-
-  if (profileQuery.isLoading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <p className="text-zinc-600 dark:text-zinc-400">Loading profile...</p>
-      </main>
-    );
-  }
 
   if (profileQuery.isError) {
     return (
@@ -109,7 +130,7 @@ export function PublicProfilePage() {
     );
   }
 
-  if (!profileQuery.data) {
+  if (!profileQuery.isLoading && !profile) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
         <p className="text-zinc-700 dark:text-zinc-200">Profile not found.</p>
@@ -123,17 +144,33 @@ export function PublicProfilePage() {
     );
   }
 
-  const profile = profileQuery.data;
-  const viewport = pickViewport(isMobile);
-  const chosenLayout = resolveViewportLayout(profile.layout, viewport);
-
-  const theme = getProfileThemeProps(profile);
-  const backgroundImage = safeImageUrl(profile.backgroundImageUrl);
+  const theme = getProfileThemeProps(profile ?? {});
+  const backgroundImage = safeImageUrl(profile?.backgroundImageUrl);
   const shareUrl =
     typeof window !== "undefined" ? window.location.href : `/profile/${username}`;
 
   return (
-    <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center gap-5 overflow-hidden px-4 py-10">
+    // The theme (`profile-root` + the `--profile-accent` presets) is applied
+    // HERE rather than on the card, because the ambient blobs below sit outside
+    // the card and were hard-coded violet — pick "Forest" and the page stayed
+    // violet. With the variables on `<main>` they inherit the accent too.
+    //
+    // Width: `max-w-3xl` gave the published 12-column grid 670px, i.e. 44.8px
+    // per column, while the editor's canvas was ~1169px. `max-w-6xl` at the pc
+    // viewport leaves 1056px of card interior, which is what the shared
+    // `PROFILE_CANVAS_WIDTH.pc` (1024px) clamp needs to hit exactly. The mobile
+    // viewport gets a phone-shaped `max-w-md` for the same reason — its grid is
+    // only 4 columns wide and looked absurd stretched across a tablet.
+    //
+    // No `overflow-hidden`: it turned any overflow into SILENT clipping (it is
+    // why the clipped profile name produced no scrollbar). The two ambient
+    // layers below carry their own `overflow-hidden` wrappers already.
+    <main
+      className={`${theme.className} relative mx-auto flex min-h-screen w-full ${
+        viewport === "pc" ? "max-w-6xl" : "max-w-md"
+      } flex-col items-center gap-5 px-4 py-10`}
+      style={theme.style}
+    >
       {/* Optional full-bleed background image (behind the ambient blobs) */}
       {backgroundImage ? (
         <div
@@ -155,10 +192,27 @@ export function PublicProfilePage() {
         className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       >
         <div className="anim-grid-bg absolute inset-0 opacity-60 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
-        <div className="anim-float absolute -top-24 left-1/4 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl dark:bg-violet-500/15" />
+        {/*
+          Both blobs are derived from `--profile-accent` instead of the old
+          hard-coded violet/cyan, so every preset recolours the whole page and
+          not just the card interior. The second uses `--profile-accent-fg`
+          (already tuned per theme: darkened in light mode, lightened in dark)
+          to keep the two-tone depth the violet/cyan pair used to give.
+        */}
         <div
-          className="anim-float absolute top-40 right-1/4 h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl dark:bg-cyan-400/10"
-          style={{ animationDelay: "1.5s" }}
+          className="anim-float absolute -top-24 left-1/4 h-72 w-72 rounded-full blur-3xl"
+          style={{
+            background:
+              "color-mix(in srgb, var(--profile-accent), transparent 80%)",
+          }}
+        />
+        <div
+          className="anim-float absolute top-40 right-1/4 h-64 w-64 rounded-full blur-3xl"
+          style={{
+            animationDelay: "1.5s",
+            background:
+              "color-mix(in srgb, var(--profile-accent-fg), transparent 84%)",
+          }}
         />
       </div>
 
@@ -172,31 +226,36 @@ export function PublicProfilePage() {
         </Link>
       ) : null}
 
-      <div
-        className={`${theme.className} anim-blur-in w-full overflow-hidden rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900`}
-        style={theme.style}
-      >
-        <ProfileCover
-          bannerImageUrl={profile.bannerImageUrl}
-          openToWork={profile.openToWork}
-          location={profile.location}
-          persona={profile.persona}
-          share={{ url: shareUrl, name: profile.name }}
-        />
+      {/* `dark:to-zinc-950`: the dark gradient used to run zinc-900 -> zinc-900,
+          i.e. two identical stops — a gradient that rendered as a flat fill. */}
+      <div className="anim-blur-in w-full overflow-hidden rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
+        {profile && chosenLayout ? (
+          <>
+            <ProfileCover
+              bannerImageUrl={profile.bannerImageUrl}
+              openToWork={profile.openToWork}
+              location={profile.location}
+              persona={profile.persona}
+              share={{ url: shareUrl, name: profile.name }}
+            />
 
-        {/* Pull the block stack up so the centered avatar overlaps the cover. */}
-        <div className="-mt-14 px-6 pb-8 sm:px-8">
-          <ProfileBlocks
-            layout={chosenLayout}
-            viewport={viewport}
-            profile={profile}
-            links={profile.links}
-            resume={resumeQuery.data ?? null}
-            workExperiences={workExperiencesQuery.data ?? []}
-            resumeLoading={resumeQuery.isLoading}
-            workLoading={workExperiencesQuery.isLoading}
-          />
-        </div>
+            {/* Pull the block stack up so the centered avatar overlaps the cover. */}
+            <div className="-mt-14 px-6 pb-8 sm:px-8">
+              <ProfileBlocks
+                layout={chosenLayout}
+                viewport={viewport}
+                profile={profile}
+                links={profile.links}
+                resume={resumeQuery.data ?? null}
+                workExperiences={workExperiencesQuery.data ?? []}
+                resumeLoading={resumeQuery.isLoading}
+                workLoading={workExperiencesQuery.isLoading}
+              />
+            </div>
+          </>
+        ) : (
+          <PublicProfileSkeleton />
+        )}
       </div>
     </main>
   );

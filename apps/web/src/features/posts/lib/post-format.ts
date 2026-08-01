@@ -1,45 +1,29 @@
 import type { PostSource, PostStatus } from "@repo/schemas";
+import { BADGE } from "../../../shared-components/surface";
 
+// Tones come from the shared `BADGE` map rather than per-file literals. These
+// used to be hand-rolled here, in `StatusBadge` (settings) and in
+// `describeMatch` (search) with three different definitions of "success", so a
+// "Current" work-history chip and an "Active" token chip rendered as visibly
+// different greens in dark mode.
 export const SOURCE_META: Record<
   PostSource,
   { label: string; className: string }
 > = {
-  manual: {
-    label: "Manual",
-    className:
-      "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-  },
-  mcp: {
-    label: "MCP",
-    className:
-      "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-200",
-  },
-  agent: {
-    label: "Agent",
-    className:
-      "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200",
-  },
-  commit: {
-    label: "Commit",
-    className:
-      "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200",
-  },
+  manual: { label: "Manual", className: BADGE.neutral },
+  mcp: { label: "MCP", className: BADGE.info },
+  // Not `BADGE.accent`: violet is the default `--profile-accent`, so an
+  // accent-coloured source badge collides with the user's profile theme.
+  agent: { label: "Agent", className: BADGE.magenta },
+  commit: { label: "Commit", className: BADGE.warning },
 };
 
 export const STATUS_META: Record<
   PostStatus,
   { label: string; className: string }
 > = {
-  draft: {
-    label: "Draft",
-    className:
-      "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-  },
-  published: {
-    label: "Published",
-    className:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200",
-  },
+  draft: { label: "Draft", className: BADGE.neutral },
+  published: { label: "Published", className: BADGE.success },
 };
 
 export function formatPostDate(date: Date | string | null): string {

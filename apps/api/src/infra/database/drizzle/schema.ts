@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -99,22 +99,40 @@ export const oauthAccounts = pgTable(
   ],
 );
 
-export const links = pgTable("links", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  url: text("url").notNull(),
-  icon: text("icon"),
-  isPublic: boolean("is_public").notNull().default(true),
-  order: integer("order").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
-    .notNull()
-    .defaultNow()
-    .$onUpdateFn(() => new Date()),
-});
+export const links = pgTable(
+  "links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    icon: text("icon"),
+    isPublic: boolean("is_public").notNull().default(true),
+    order: integer("order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    // `links` had no index on user_id at all — every public profile view was a
+    // seq scan of the whole table. Covers the two shapes the repository asks
+    // for: the public-profile read (`findPublicByUserId`, the hot path, served
+    // entirely by the partial index in its own sort order) and the owner's list
+    // and last-order lookups, which use the leading user_id column.
+    index("links_user_id_order_idx").on(
+      table.userId,
+      table.order,
+      table.createdAt,
+    ),
+    index("links_public_user_id_order_idx")
+      .on(table.userId, table.order, table.createdAt)
+      .where(sql`${table.isPublic}`),
+  ],
+);
 
 export const posts = pgTable(
   "posts",
@@ -139,7 +157,21 @@ export const posts = pgTable(
       .$onUpdateFn(() => new Date()),
     publishedAt: timestamp("published_at"),
   },
-  (table) => [index("posts_user_id_idx").on(table.userId)],
+  (table) => [
+    index("posts_user_id_idx").on(table.userId),
+    // Recruiter search pulls the 6 most recent published posts per candidate,
+    // for 50 candidates, in one correlated subquery. Without an index carrying
+    // the sort key the LIMIT cannot push down: Postgres reads every published
+    // post the user has and detoasts each `body` for `left(body, 400)` before
+    // discarding all but six. Indexing the exact COALESCE expression the query
+    // sorts on lets it stop after six rows.
+    index("posts_user_published_sort_idx")
+      .on(
+        table.userId,
+        sql`(COALESCE(${table.publishedAt}, ${table.createdAt})) DESC`,
+      )
+      .where(sql`${table.status} = 'published'`),
+  ],
 );
 
 export const apiTokens = pgTable(

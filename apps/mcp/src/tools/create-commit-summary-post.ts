@@ -72,13 +72,27 @@ export function registerCreateCommitSummaryPost(
     {
       title: "Publish a commit summary post",
       description:
-        "Turn recent git work into a published LinkHub post. WORKFLOW: (1) you " +
-        "read `git log` for the relevant period, (2) you write a concise, " +
-        "recruiter-friendly Markdown summary of what was shipped and its impact " +
-        "(features and outcomes, NOT raw commit messages), (3) you call this " +
-        "tool with that summary. The post is saved with source='commit' and " +
-        "metadata { repo, commitCount, period }. This tool does not call any AI " +
-        "— it just publishes the text you provide.",
+        "Publish a summary of recent git work to the user's LinkHub profile, " +
+        "where recruiters and hiring managers read it. THIS TOOL RUNS NO AI: " +
+        "it publishes `summary` verbatim, so the post is only as good as the " +
+        "text you send. Before calling it, collect from the repository: (a) the " +
+        "repo name, (b) the number of the user's own commits in the period " +
+        "(`git log --since=... --author=... --no-merges`), (c) the 2-5 " +
+        "user-visible capabilities that actually shipped — collapse many " +
+        "commits about one feature into one item and drop wip/format/dep " +
+        "commits, (d) the impact of each on a user or the system, (e) any real " +
+        "metric you can verify in the diff (latency, bundle size, coverage, " +
+        "endpoints, rows migrated) — never invent one, (f) the stack actually " +
+        "touched, by searchable name ('TypeScript, Fastify, PostgreSQL'), and " +
+        "(g) a public link to the shipped work if one exists. Then write " +
+        "`summary` as 80-200 words of first-person Markdown describing OUTCOMES, " +
+        "not mechanics. NEVER pass raw commit messages, SHAs, branch names, " +
+        "ticket ids, secrets or private client detail. Always pass an explicit " +
+        "`title` (<70 chars). Use status='draft' if the user has not approved " +
+        "the text. Full house style: read the resource " +
+        "linkhub://guides/post-quality, or invoke the `weekly_update` prompt " +
+        "for the whole guided workflow. Saved with source='commit' and " +
+        "metadata { repo, commitCount, period }.",
       inputSchema,
     },
     async (args) =>

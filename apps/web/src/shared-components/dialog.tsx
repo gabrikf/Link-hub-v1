@@ -19,11 +19,11 @@ const cx = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
 
 /**
- * Tailwind emits `max-w-*`/`w-*` utilities in a fixed stylesheet order, so when
- * a caller passes `contentClassName="... max-w-6xl"` it does NOT reliably beat
- * the component's own `max-w-lg` (the default happened to win, capping every
- * override at 512px). Detect a width override and drop the conflicting default
- * so the caller's value actually applies — no tailwind-merge dependency needed.
+ * Tailwind emits `max-w-*`/`w-*`/`max-h-*` utilities in a fixed stylesheet
+ * order, so when a caller passes `contentClassName="... max-w-6xl"` it does NOT
+ * reliably beat the component's own `max-w-lg` (the default happened to win,
+ * capping every override at 512px). Detect an override and drop the conflicting
+ * default so the caller's value actually applies — no tailwind-merge needed.
  */
 const hasClassPrefix = (className: string | undefined, prefix: string) =>
   (className ?? "").split(/\s+/).some((token) => token.startsWith(prefix));
@@ -49,10 +49,15 @@ export function Dialog({
         <RadixDialog.Overlay className="fixed inset-0 z-50 bg-zinc-950/60" />
         <RadixDialog.Content
           className={cx(
-            "fixed left-1/2 top-1/2 z-50 max-h-[92vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900",
+            "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900",
             // Comfortable wider default; suppressed when the caller sets its own.
             hasClassPrefix(contentClassName, "w-") ? "" : "w-[92vw]",
             hasClassPrefix(contentClassName, "max-w-") ? "" : "max-w-lg",
+            // `svh`, not `vh`: `vh` resolves against the LARGE viewport (747px
+            // at 375x812) while only ~635px is actually visible under browser
+            // chrome, so the action row below fell into the clipped strip with
+            // body scroll locked by Radix — unreachable Save/Cancel on mobile.
+            hasClassPrefix(contentClassName, "max-h-") ? "" : "max-h-[92svh]",
             contentClassName,
           )}
         >
@@ -85,8 +90,13 @@ export function Dialog({
 
           {children ? <div className="mt-4">{children}</div> : null}
 
+          {/* `flex-wrap`: at <=470px the three-button unsaved-changes dialog
+              squeezed "Close without saving" into a 3-line wrap inside a fixed
+              h-10 box, spilling out of its own border. */}
           {buttons ? (
-            <div className="mt-1 flex justify-end gap-2">{buttons}</div>
+            <div className="mt-1 flex flex-wrap justify-end gap-2">
+              {buttons}
+            </div>
           ) : null}
         </RadixDialog.Content>
       </RadixDialog.Portal>

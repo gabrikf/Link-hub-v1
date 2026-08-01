@@ -63,6 +63,22 @@ export class InMemoryResumeSkillRepository implements IResumeSkillRepository {
     return created;
   }
 
+  async createMany(
+    inputs: Array<{
+      resumeId: string;
+      skillId: string;
+      yearsExperience: number | null;
+      displayOrder: number;
+    }>,
+  ): Promise<void> {
+    for (const input of inputs) {
+      if (await this.exists(input.resumeId, input.skillId)) {
+        continue;
+      }
+      await this.create(input);
+    }
+  }
+
   seed(item: ResumeSkillEntity) {
     this.items.push(item);
   }

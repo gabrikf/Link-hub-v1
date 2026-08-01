@@ -22,4 +22,26 @@ describe("CachedEmbeddingProvider", () => {
     expect(first).toEqual(second);
     expect(provider.calls).toBe(1);
   });
+
+  it("evicts the least recently used query, not the oldest one", async () => {
+    const provider = new FakeEmbeddingProvider();
+    const cached = new CachedEmbeddingProvider(provider, 60, 2);
+
+    await cached.createEmbedding("react");
+    await cached.createEmbedding("kubernetes");
+
+    // "react" is now the oldest entry but the most recently used one. A recruiter
+    // who keeps re-running the same search must not be the one paying for a miss.
+    await cached.createEmbedding("react");
+    await cached.createEmbedding("terraform");
+
+    expect(provider.calls).toBe(3);
+
+    await cached.createEmbedding("react");
+    expect(provider.calls).toBe(3);
+
+    // "kubernetes" is the one that went, since nothing touched it after insert.
+    await cached.createEmbedding("kubernetes");
+    expect(provider.calls).toBe(4);
+  });
 });

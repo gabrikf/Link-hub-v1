@@ -9,13 +9,17 @@ export class GetMeProfileUseCase {
   ) {}
 
   async execute(userId: string) {
-    const user = await this.usersRepository.findById(userId);
+    // Both are keyed by the authenticated `userId`, so the links read does not
+    // need to wait on the user read. The not-found path pays for one extra
+    // (already-issued) query, which beats serialising every successful request.
+    const [user, links] = await Promise.all([
+      this.usersRepository.findById(userId),
+      this.linksRepository.findByUserId(userId),
+    ]);
 
     if (!user) {
       throw new ResourceNotFoundError("User", userId);
     }
-
-    const links = await this.linksRepository.findByUserId(userId);
 
     return {
       username: user.login,

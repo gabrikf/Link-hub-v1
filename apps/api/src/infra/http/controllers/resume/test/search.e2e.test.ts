@@ -36,6 +36,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
+  RECRUITER_SEARCH_EVIDENCE_LIMITS,
   toQueryCandidateFeatureVector,
   preprocessingConfigSchema,
   type PreprocessingConfig,
@@ -188,9 +189,22 @@ interface SearchCandidate {
     companyName: string;
     description: string | null;
     mainStack: string[];
+    startDate: string | null;
+    endDate: string | null;
+    isCurrent: boolean;
+    employmentType: string | null;
+    workModel: string | null;
+  }[];
+  workEvidence: {
+    id: string;
+    title: string | null;
+    excerpt: string;
+    source: string;
+    tags: string[];
+    publishedAt: string | null;
+    externalUrl: string | null;
   }[];
   similarity: number;
-  combinedText: string;
 }
 
 interface SearchResponse {
@@ -919,9 +933,46 @@ describe(
         expect(c.openToRelocation).toBeTypeOf("boolean");
         expect(c.similarity).toBeTypeOf("number");
 
-        // combinedText field (used for query token coverage)
-        expect(c.combinedText).toBeTypeOf("string");
-        expect(c.combinedText.length).toBeGreaterThan(0);
+        // `combinedText` used to ride along here: a ~6 000-char flattened
+        // duplicate of summary/skills/titles/work descriptions, x50 candidates,
+        // that nothing on the wire ever read. The reranker builds its features
+        // from the structured fields above.
+        expect(c).not.toHaveProperty("combinedText");
+
+        // Proof-of-work payload: a dated work history plus published posts.
+        expect(c.workExperiences).toBeInstanceOf(Array);
+        expect(c.workExperiences.length).toBeLessThanOrEqual(
+          RECRUITER_SEARCH_EVIDENCE_LIMITS.maxWorkExperiences,
+        );
+        for (const experience of c.workExperiences) {
+          expect(experience.isCurrent).toBeTypeOf("boolean");
+          expect(experience.mainStack).toBeInstanceOf(Array);
+          // startDate/endDate are nullable, but must be present as keys so the
+          // result card can render a timeline without guessing.
+          expect(experience).toHaveProperty("startDate");
+          expect(experience).toHaveProperty("endDate");
+          expect(experience).toHaveProperty("employmentType");
+          expect(experience).toHaveProperty("workModel");
+          if (experience.description !== null) {
+            expect(experience.description.length).toBeLessThanOrEqual(
+              RECRUITER_SEARCH_EVIDENCE_LIMITS.workDescriptionChars + 1,
+            );
+          }
+        }
+
+        expect(c.workEvidence).toBeInstanceOf(Array);
+        expect(c.workEvidence.length).toBeLessThanOrEqual(
+          RECRUITER_SEARCH_EVIDENCE_LIMITS.maxPostsPerCandidate,
+        );
+        for (const evidence of c.workEvidence) {
+          expect(evidence.id).toBeTypeOf("string");
+          expect(evidence.excerpt).toBeTypeOf("string");
+          // Excerpts only — a full post body must never ride along.
+          expect(evidence.excerpt.length).toBeLessThanOrEqual(
+            RECRUITER_SEARCH_EVIDENCE_LIMITS.postExcerptChars + 1,
+          );
+          expect(evidence.tags).toBeInstanceOf(Array);
+        }
       }
     });
 

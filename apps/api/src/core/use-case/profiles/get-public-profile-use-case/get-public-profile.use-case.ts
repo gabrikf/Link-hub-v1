@@ -21,9 +21,10 @@ export class GetPublicProfileUseCase {
       throw new ResourceNotFoundError("User", username);
     }
 
-    const links = await this.linksRepository.findPublicByUserId(user.id);
-
-    const [pc, mobile] = await Promise.all([
+    // All three depend on `user.id` and on nothing else, so they overlap. Unlike
+    // the layout read path in `get-layout.use-case.ts`, none of these writes.
+    const [links, pc, mobile] = await Promise.all([
+      this.linksRepository.findPublicByUserId(user.id),
       this.buildPublicViewport(user.id, "pc"),
       this.buildPublicViewport(user.id, "mobile"),
     ]);

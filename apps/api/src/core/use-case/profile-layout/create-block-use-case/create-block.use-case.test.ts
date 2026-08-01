@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_BUILTIN_BLOCKS } from "@repo/schemas";
 import { ProfileTabEntity } from "../../../entity/profile-tab/profile-tab-entity.js";
 import { BadRequestError } from "../../../errors/index.js";
 import { InMemoryProfileBlocksRepository } from "../../../repositories/profile-block/in-memory-profile-block-repository.js";
@@ -30,8 +31,12 @@ describe("CreateBlockUseCase", () => {
     expect(block.gridW).toBe(12);
     expect(block.pinnedAllTabs).toBe(false);
     expect(block.tabId).not.toBeNull();
-    // Appended below the seeded built-ins (which reach gridY 10 + gridH 6 = 16).
-    expect(block.gridY).toBe(16);
+    // Appended below the seeded defaults. Derived from the schema constant so
+    // this stays true whenever the default layout gains or loses a block.
+    const lowestSeededRow = Math.max(
+      ...DEFAULT_BUILTIN_BLOCKS.map((def) => def.gridY + def.gridH),
+    );
+    expect(block.gridY).toBe(lowestSeededRow);
   });
 
   it("creates a pinned block when tabId is null", async () => {

@@ -1,4 +1,5 @@
 import type { CreateUserInput, LoginInput } from "@repo/schemas";
+import { SURFACE } from "../../../shared-components/surface";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -147,7 +148,7 @@ export function AuthPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      <section className="w-full max-w-md space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <section className={`w-full max-w-md space-y-4 p-6 ${SURFACE}`}>
         <header className="space-y-1">
           <h1 className="flex items-center gap-2 text-xl font-semibold">
             <BrandLogo className="h-8 w-8 shadow-sm" />
@@ -179,10 +180,18 @@ export function AuthPage() {
             <>
               <p className="text-xs text-zinc-500">or continue with</p>
 
+              {/*
+                Matches the LoginForm/RegisterForm treatment: spinner + a
+                present-tense label while the exchange is in flight. `isLoading`
+                also disables the button, so a slow round-trip can't be
+                double-submitted by re-opening the Google popup.
+              */}
               <Button
                 type="button"
                 variant="outline"
                 fullWidth
+                isLoading={googleSignInMutation.isPending}
+                loadingLabel="Signing in..."
                 onClick={() => googleLogin()}
                 className="relative flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >

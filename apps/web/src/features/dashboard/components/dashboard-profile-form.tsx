@@ -3,8 +3,10 @@ import { useForm } from "react-hook-form";
 import { FiRotateCcw, FiSave } from "react-icons/fi";
 import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
+import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { FileUpload } from "../../../shared-components/file-upload";
 import { Input } from "../../../shared-components/input";
+import { SURFACE_INSET } from "../../../shared-components/surface";
 import { TextArea } from "../../../shared-components/text-area";
 import { ProfileCover } from "../../profile/components/profile-cover";
 import {
@@ -36,17 +38,39 @@ type DashboardProfileFormProps = {
   initialValues: ProfileFormValues;
   onSubmit: (data: ProfileFormValues) => Promise<void>;
   avatarUrl?: string | null;
+  /**
+   * Save failure (e.g. a duplicate-username 409). Rendered next to the submit
+   * button — it used to live in the page's `<aside>`, i.e. underneath the Radix
+   * overlay, so a rejected save just made the modal refuse to close.
+   */
+  errorMessage?: string | null;
+  isSaving?: boolean;
+  /** Reports dirtiness up so the dialog can guard against discarding edits. */
+  onDirtyChange?: (isDirty: boolean) => void;
 };
 
 export function DashboardProfileForm({
   initialValues,
   onSubmit,
   avatarUrl,
+  errorMessage,
+  isSaving = false,
+  onDirtyChange,
 }: DashboardProfileFormProps) {
-  const { register, handleSubmit, reset, watch, setValue } =
-    useForm<ProfileFormValues>({
-      defaultValues: initialValues,
-    });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { isDirty },
+  } = useForm<ProfileFormValues>({
+    defaultValues: initialValues,
+  });
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   useEffect(() => {
     reset(initialValues);
@@ -90,7 +114,7 @@ export function DashboardProfileForm({
       {/* ----------------------------------------------------------- */}
       {/* Appearance                                                   */}
       {/* ----------------------------------------------------------- */}
-      <div className="space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <div className={`space-y-4 p-4 ${SURFACE_INSET}`}>
         <div>
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             Appearance
@@ -299,7 +323,16 @@ export function DashboardProfileForm({
         </div>
       </div>
 
-      <Button className="w-auto" type="submit">
+      {errorMessage ? (
+        <FeedbackMessage tone="error" message={errorMessage} />
+      ) : null}
+
+      <Button
+        className="w-auto"
+        type="submit"
+        isLoading={isSaving}
+        loadingLabel="Saving profile..."
+      >
         <FiSave className="h-4 w-4" aria-hidden="true" />
         Save profile
       </Button>

@@ -17,12 +17,21 @@ import {
 } from "@repo/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import {
+  FiAlertCircle,
+  FiCheck,
   FiChevronLeft,
   FiChevronRight,
   FiEdit2,
   FiEye,
+  FiLoader,
   FiMonitor,
   FiPlus,
   FiSmartphone,
@@ -48,10 +57,12 @@ import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
+import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
 import { PublicProfilePreview } from "../../profile/components/public-profile-preview";
 import { CUSTOM_BLOCK_META } from "../block-meta";
 import { ButtonBlockDialog } from "../components/button-block-dialog";
 import { EditorGrid } from "../components/editor-grid";
+import { EditorGridSkeleton } from "../components/editor-grid-skeleton";
 import { GridBlockCard } from "../components/grid-block-card";
 import { ImageBlockDialog } from "../components/image-block-dialog";
 import { PostsBlockDialog } from "../components/posts-block-dialog";
@@ -59,9 +70,12 @@ import { TextBlockDialog } from "../components/text-block-dialog";
 import { VideoBlockDialog } from "../components/video-block-dialog";
 import {
   blocksForTab,
+  blocksToRglLayout,
   buildDefaultLayout,
   computeNextPlacement,
+  moveBlockBy,
   pinnedBlocks,
+  resizeBlockBy,
   type GridLayoutItem,
 } from "../grid-utils";
 
@@ -73,6 +87,107 @@ type CustomConfig =
   | PostsBlockConfig;
 
 const CUSTOM_KINDS = ["text", "video", "image", "button", "posts"] as const;
+
+/**
+ * Placeholder geometry for the two editor zones while the layout loads. It
+ * mirrors `DEFAULT_BUILTIN_BLOCKS` — the arrangement every profile starts from
+ * — because the real one is precisely what the request is fetching.
+ */
+const PINNED_SKELETON_SPANS = (cols: number) => [{ w: cols, h: 4 }];
+const TAB_SKELETON_SPANS = (cols: number) => [
+  { w: cols, h: 4 },
+  { w: cols, h: 6 },
+  { w: cols, h: 6 },
+];
+
+/** Pill widths for the tab-manager placeholder row. */
+const TAB_PILL_SKELETON_WIDTHS = [132, 118];
+
+/**
+ * Below `lg` the editor is unusable rather than merely cramped: the grid gets
+ * ~311px at 375px, so a 12-column pc canvas is 14.9px per column while a block
+ * card needs ~200px to render its label and switches. There is no point
+ * shipping a broken editor — say so instead.
+ */
+const EDITOR_TOO_NARROW_QUERY = "(max-width: 1023px)";
+
+const canMatchMedia = () =>
+  typeof window !== "undefined" && typeof window.matchMedia === "function";
+
+/** Module scope so `useSyncExternalStore` sees stable references. */
+const subscribeToWidth = (onChange: () => void) => {
+  if (!canMatchMedia()) {
+    return () => {};
+  }
+  const mediaQuery = window.matchMedia(EDITOR_TOO_NARROW_QUERY);
+  mediaQuery.addEventListener("change", onChange);
+  return () => mediaQuery.removeEventListener("change", onChange);
+};
+
+const getIsTooNarrow = () =>
+  canMatchMedia() ? window.matchMedia(EDITOR_TOO_NARROW_QUERY).matches : false;
+
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+/**
+ * Persistent autosave indicator.
+ *
+ * The editor autosaves on a 600ms debounce and previously gave NO signal that
+ * saving happened at all — and every mutation's `onError` just rolled the
+ * optimistic patch back, so a failed save looked like the block spontaneously
+ * snapping to its old position, silently, and again on every retry.
+ */
+function SaveIndicator({
+  status,
+  onRetry,
+}: {
+  status: SaveStatus;
+  onRetry: () => void;
+}) {
+  if (status === "error") {
+    return (
+      <Button
+        type="button"
+        variant="danger"
+        size="sm"
+        fullWidth={false}
+        className="rounded-2xl"
+        onClick={onRetry}
+      >
+        <FiAlertCircle className="h-4 w-4" aria-hidden="true" />
+        Couldn&apos;t save — retry
+      </Button>
+    );
+  }
+
+  return (
+    <p
+      role="status"
+      aria-live="polite"
+      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+    >
+      {status === "saving" ? (
+        <>
+          <FiLoader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          Saving…
+        </>
+      ) : status === "saved" ? (
+        <>
+          <FiCheck
+            className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400"
+            aria-hidden="true"
+          />
+          All changes saved
+        </>
+      ) : (
+        <>
+          <FiCheck className="h-3.5 w-3.5 opacity-0" aria-hidden="true" />
+          Changes save automatically
+        </>
+      )}
+    </p>
+  );
+}
 
 export function ProfileLayoutPage() {
   const navigate = useNavigate();
@@ -92,12 +207,33 @@ export function ProfileLayoutPage() {
   const [addKind, setAddKind] = useState<CustomBlockKind | null>(null);
   const [editingBlock, setEditingBlock] = useState<ProfileBlock | null>(null);
 
-  // One debounce timer PER grid zone (keyed by zone key, e.g. "pinned" or
-  // `tab:<id>`). A shared single timer would let a drag in one zone cancel the
-  // pending network save of another zone, dropping that zone's positions.
-  const positionsTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map(),
+  // Autosave feedback for the debounced position writes (mutation state is
+  // read straight off the mutations further down).
+  const [positionSaveState, setPositionSaveState] = useState<SaveStatus>("idle");
+  const retrySaveRef = useRef<(() => void) | null>(null);
+
+  // `useSyncExternalStore`, not `useState` + `useEffect`: the media query IS an
+  // external store, and reading it this way means no setState-in-effect (and no
+  // first-paint flash of the wrong branch).
+  const isTooNarrow = useSyncExternalStore(
+    subscribeToWidth,
+    getIsTooNarrow,
+    () => false,
   );
+
+  // One debounce timer PER viewport+zone (e.g. `pc:pinned`, `mobile:tab:<id>`).
+  // A shared single timer would let a drag in one zone cancel the pending
+  // network save of another zone, dropping that zone's positions. The VIEWPORT
+  // half of the key matters just as much: keying by zone alone meant dragging
+  // in the PC layout, switching to mobile inside the 600ms window and touching
+  // the same tab cancelled the PC save outright — and since positions are never
+  // mirrored across viewports, that work was gone with no error shown.
+  const timerKey = (zoneKey: string) => `${viewport}:${zoneKey}`;
+  // Each entry keeps the pending timer AND the write it would perform, so a
+  // unmount can FLUSH the save instead of throwing it away.
+  const positionsTimersRef = useRef<
+    Map<string, { timer: ReturnType<typeof setTimeout>; run: () => void }>
+  >(new Map());
   const addMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Dismiss the "Add block" menu on outside-click or Escape.
@@ -193,6 +329,14 @@ export function ProfileLayoutPage() {
   const cols = GRID_COLUMNS[viewport];
   const pinned = pinnedBlocks(layout);
   const tabBlocks = activeTab ? blocksForTab(layout, activeTab.id) : [];
+
+  // While the layout is in flight `layout` is the DEFAULT fallback, i.e. tabs
+  // and blocks the user never created. Rendering them as if they were real (and
+  // mounting an EditorGrid over them) is what produced the old double render —
+  // a "Loading layout..." line on top of an already-populated editor. Suppress
+  // the fallback and render placeholders in the same boxes instead.
+  const isLayoutLoading = layoutQuery.isLoading;
+  const visibleTabs = isLayoutLoading ? [] : orderedTabs;
 
   /** Apply an optimistic patch to a single viewport of the cached full layout. */
   const patchLayout = (
@@ -332,18 +476,20 @@ export function ProfileLayoutPage() {
       }),
     }));
 
-    // Debounce the network write PER zone: a pending save for this zone is
-    // replaced by the latest payload for the same zone, but never cancels a
-    // pending save for a different zone. `viewport` and `items` are captured in
-    // the closure, so each zone carries its own payload independently.
+    // Debounce the network write PER viewport+zone: a pending save for this
+    // key is replaced by the latest payload for the same key, but never cancels
+    // a pending save for a different zone OR a different viewport. `viewport`
+    // and `items` are captured in the closure, so each key carries its own
+    // payload independently.
     const timers = positionsTimersRef.current;
-    const existing = timers.get(zoneKey);
+    const key = timerKey(zoneKey);
+    const existing = timers.get(key);
     if (existing) {
-      clearTimeout(existing);
+      clearTimeout(existing.timer);
     }
 
-    const timer = setTimeout(() => {
-      timers.delete(zoneKey);
+    const run = () => {
+      timers.delete(key);
       updateBlockPositions({
         viewport,
         positions: items.map((item) => ({
@@ -354,17 +500,80 @@ export function ProfileLayoutPage() {
           gridH: item.h,
         })),
       })
-        .then(() => invalidatePublicProfileCache())
-        .catch(() => invalidateLayout());
-    }, 600);
-    timers.set(zoneKey, timer);
+        .then(() => {
+          retrySaveRef.current = null;
+          setPositionSaveState("saved");
+          invalidatePublicProfileCache();
+        })
+        .catch(() => {
+          // Was `.catch(() => invalidateLayout())` and nothing else: the block
+          // silently snapped back to its old position with no explanation, and
+          // did so again on every subsequent attempt. Surface it and keep the
+          // payload so the user can retry the exact write that failed.
+          retrySaveRef.current = run;
+          setPositionSaveState("error");
+          invalidateLayout();
+        });
+    };
+
+    setPositionSaveState("saving");
+    timers.set(key, { timer: setTimeout(run, 600), run });
+  };
+
+  /* ---------------------------- Save indicator ----------------------------- */
+
+  const layoutMutations = [
+    createTabMutation,
+    renameTabMutation,
+    deleteTabMutation,
+    reorderTabsMutation,
+    createBlockMutation,
+    updateBlockMutation,
+    deleteBlockMutation,
+  ];
+
+  const saveStatus: SaveStatus = layoutMutations.some(
+    (mutation) => mutation.isError,
+  )
+    ? "error"
+    : positionSaveState === "error"
+      ? "error"
+      : layoutMutations.some((mutation) => mutation.isPending) ||
+          positionSaveState === "saving"
+        ? "saving"
+        : positionSaveState === "saved" ||
+            layoutMutations.some((mutation) => mutation.isSuccess)
+          ? "saved"
+          : "idle";
+
+  const handleRetrySave = () => {
+    const retry = retrySaveRef.current;
+    retrySaveRef.current = null;
+    layoutMutations.forEach((mutation) => mutation.reset());
+
+    if (retry) {
+      setPositionSaveState("saving");
+      retry();
+      return;
+    }
+
+    // Nothing replayable (the failure came from a tab/block mutation, which
+    // already rolled its optimistic patch back) — resync from the server.
+    setPositionSaveState("idle");
+    invalidateLayout();
   };
 
   useEffect(() => {
     const timers = positionsTimersRef.current;
     return () => {
-      timers.forEach((timer) => clearTimeout(timer));
+      // FLUSH, don't discard. Navigating away within the 600ms debounce window
+      // used to silently drop the arrangement the user had just made.
+      const pending = [...timers.values()];
       timers.clear();
+      pending.forEach(({ timer, run }) => {
+        clearTimeout(timer);
+        run();
+      });
     };
   }, []);
 
@@ -435,9 +644,26 @@ export function ProfileLayoutPage() {
     setAddKind(null);
   };
 
+  /**
+   * Apply a keyboard nudge/resize to the block's OWN zone and persist it. The
+   * zone matters: pinned blocks and a tab's blocks are separate grids with
+   * independent y-coordinates, so they must be recompacted separately.
+   */
+  const applyGeometryChange = (
+    block: ProfileBlock,
+    transform: (zoneBlocks: ProfileBlock[]) => ProfileBlock[],
+  ) => {
+    const zoneBlocks = block.pinnedAllTabs ? pinned : tabBlocks;
+    const zoneKey = block.pinnedAllTabs
+      ? "pinned"
+      : `tab:${activeTab?.id ?? "none"}`;
+    persistPositions(blocksToRglLayout(transform(zoneBlocks)), zoneKey);
+  };
+
   const renderCard = (block: ProfileBlock) => (
     <GridBlockCard
       block={block}
+      tabs={orderedTabs}
       onToggleVisibility={(target, isVisible) =>
         updateBlockMutation.mutate({
           blockId: target.id,
@@ -453,6 +679,22 @@ export function ProfileLayoutPage() {
           },
         })
       }
+      onMoveToTab={(target, tabId) =>
+        updateBlockMutation.mutate({
+          blockId: target.id,
+          patch: { pinnedAllTabs: false, tabId },
+        })
+      }
+      onMove={(target, dx, dy) =>
+        applyGeometryChange(target, (zoneBlocks) =>
+          moveBlockBy(zoneBlocks, target.id, dx, dy, cols),
+        )
+      }
+      onResize={(target, dw, dh) =>
+        applyGeometryChange(target, (zoneBlocks) =>
+          resizeBlockBy(zoneBlocks, target.id, dw, dh, cols),
+        )
+      }
       onEdit={(target) => setEditingBlock(target)}
       onDelete={(target) => deleteBlockMutation.mutate(target.id)}
     />
@@ -465,11 +707,11 @@ export function ProfileLayoutPage() {
       ? (editingBlock.kind as CustomBlockKind)
       : addKind;
 
-  const hiddenBuiltins = layout.blocks.filter(
-    (block) =>
-      !block.isVisible &&
-      !CUSTOM_KINDS.includes(block.kind as CustomBlockKind),
-  );
+  // NOTE: the "Show links" / "Show resume" pills that used to live in the
+  // add-block row are gone. They competed with the in-card Visible switch for
+  // the same job, and `hiddenBuiltins` filtered across the WHOLE viewport, so a
+  // block hidden in Tab 2 showed its pill while you were editing Tab 1. The
+  // in-card switch is better located and unambiguous.
 
   // Include the appearance fields so the preview modal matches the live profile
   // (banner, background, theme accent/preset, open-to-work, location, persona)
@@ -509,6 +751,29 @@ export function ProfileLayoutPage() {
         </p>
       </header>
 
+      {/*
+        Hard gate below `lg`. The editor is not merely cramped on a phone — the
+        grid gets ~311px at 375px, so a 12-column canvas is 14.9px per column
+        against a block card that needs ~200px, and there is no keyboard or
+        touch affordance that rescues that. Better to say so than to ship a
+        surface that cannot be operated.
+      */}
+      {isTooNarrow ? (
+        <section className="anim-fade-up flex flex-col items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
+            <FiMonitor className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            Open the layout studio on a larger screen
+          </h2>
+          <p className="max-w-sm text-sm text-zinc-600 dark:text-zinc-400">
+            Arranging blocks needs a canvas at least 1024px wide — on this screen
+            a grid column would be about 15px across. Your published profile is
+            unaffected, and you can still design the mobile layout from a
+            desktop browser.
+          </p>
+        </section>
+      ) : (
       <div className="w-full space-y-5">
           {/* Viewport switch + live-preview trigger */}
           <div className="anim-fade-up flex flex-col gap-3 sm:flex-row sm:items-stretch">
@@ -542,11 +807,16 @@ export function ProfileLayoutPage() {
                 );
               })}
             </div>
+            {/* The preview renders the profile identity + layout, so it stays
+                busy until both have arrived — `meQuery` had no loading UI at
+                all and opened a preview with a blank name. */}
             <Button
               type="button"
               variant="outline"
               fullWidth={false}
               className="justify-center rounded-2xl"
+              isLoading={isLayoutLoading || meQuery.isLoading}
+              loadingLabel="Preview"
               onClick={() => {
                 setPreviewDevice(viewport);
                 setPreviewOpen(true);
@@ -555,6 +825,8 @@ export function ProfileLayoutPage() {
               <FiEye className="h-4 w-4" aria-hidden="true" />
               Preview
             </Button>
+
+            <SaveIndicator status={saveStatus} onRetry={handleRetrySave} />
           </div>
 
           <p className="anim-fade-up text-xs text-zinc-500 dark:text-zinc-400">
@@ -566,12 +838,6 @@ export function ProfileLayoutPage() {
             edit the other.
           </p>
 
-          {layoutQuery.isLoading ? (
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Loading layout...
-            </p>
-          ) : null}
-
           {/* Pinned zone */}
           <section className="anim-fade-up space-y-3 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-500/30 dark:bg-violet-500/5">
             <div>
@@ -582,19 +848,43 @@ export function ProfileLayoutPage() {
                 Pinned blocks render above the tab content on every tab.
               </p>
             </div>
-            <EditorGrid
-              blocks={pinned}
-              cols={cols}
-              onChange={(items) => persistPositions(items, "pinned")}
-              renderCard={renderCard}
-              emptyMessage="No pinned blocks. Toggle a block's “All tabs” switch to pin it here."
-            />
+            {isLayoutLoading ? (
+              <EditorGridSkeleton
+                cols={cols}
+                viewport={viewport}
+                spans={PINNED_SKELETON_SPANS(cols)}
+                label="Loading pinned blocks"
+              />
+            ) : (
+              <EditorGrid
+                blocks={pinned}
+                cols={cols}
+                viewport={viewport}
+                onChange={(items) => persistPositions(items, "pinned")}
+                renderCard={renderCard}
+                emptyMessage="No pinned blocks. Toggle a block's “All tabs” switch to pin it here."
+              />
+            )}
           </section>
 
           {/* Tab manager */}
           <section className="anim-fade-up space-y-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex flex-wrap items-center gap-2">
-              {orderedTabs.map((tab, index) => {
+              {isLayoutLoading ? (
+                <>
+                  <LoadingLabel>Loading tabs</LoadingLabel>
+                  {TAB_PILL_SKELETON_WIDTHS.map((width) => (
+                    <Skeleton
+                      key={width}
+                      shape="circle"
+                      width={width}
+                      height={34}
+                    />
+                  ))}
+                </>
+              ) : null}
+
+              {visibleTabs.map((tab, index) => {
                 const isActive = activeTab?.id === tab.id;
                 return (
                   <div
@@ -638,15 +928,27 @@ export function ProfileLayoutPage() {
                     >
                       <FiEdit2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
-                    <button
+                    {/*
+                      Unguarded before, and it sits 3px from the rename pencil:
+                      one mis-click deleted the tab AND every non-pinned block
+                      in it (see the optimistic patch in `deleteTabMutation`).
+                      Every other destructive action in the app confirms first.
+                    */}
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
+                      fullWidth={false}
                       aria-label={`Delete ${tab.title}`}
                       disabled={orderedTabs.length <= 1}
+                      shouldHaveConfirmation
+                      confirmationTitle={`Delete “${tab.title}”?`}
+                      confirmationDescription="The tab and every block inside it are removed from this viewport's layout. Pinned blocks are kept. This can't be undone."
                       onClick={() => handleDeleteTab(tab.id)}
-                      className="text-zinc-400 hover:text-red-600 disabled:opacity-30 dark:hover:text-red-400"
+                      className="h-6 w-6 p-0 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
                     >
                       <FiTrash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
+                    </Button>
                     <button
                       type="button"
                       aria-label={`Move ${tab.title} right`}
@@ -666,6 +968,9 @@ export function ProfileLayoutPage() {
                 size="sm"
                 fullWidth={false}
                 className="rounded-full"
+                // Until the layout lands, `activeTab` is a placeholder id from
+                // the default fallback — creating against it would fail.
+                disabled={isLayoutLoading}
                 onClick={handleAddTab}
               >
                 <FiPlus className="h-4 w-4" aria-hidden="true" />
@@ -683,30 +988,12 @@ export function ProfileLayoutPage() {
                 fullWidth={false}
                 size="sm"
                 className="rounded-full"
+                disabled={isLayoutLoading}
                 onClick={() => setAddMenuOpen((open) => !open)}
               >
                 <FiPlus className="h-4 w-4" aria-hidden="true" />
                 Add block
               </Button>
-
-              {hiddenBuiltins.map((block) => (
-                <Button
-                  key={block.id}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  fullWidth={false}
-                  className="rounded-full"
-                  onClick={() =>
-                    updateBlockMutation.mutate({
-                      blockId: block.id,
-                      patch: { isVisible: true },
-                    })
-                  }
-                >
-                  Show {block.kind.replace("_", " ")}
-                </Button>
-              ))}
 
               {addMenuOpen ? (
                 <div
@@ -745,20 +1032,32 @@ export function ProfileLayoutPage() {
 
             {/* Active tab grid */}
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Tip: drag a block's corner to resize it — make blocks narrower to
-              place them side by side.
+              Tip: drag any edge or corner of a block to resize it — make blocks
+              narrower to place them side by side. Blocks always stack to the
+              top, so moving one pushes the others up to fill the space.
             </p>
-            <EditorGrid
-              blocks={tabBlocks}
-              cols={cols}
-              onChange={(items) =>
-                persistPositions(items, `tab:${activeTab?.id ?? "none"}`)
-              }
-              renderCard={renderCard}
-              emptyMessage="This tab has no blocks yet. Use “Add block” to place one."
-            />
+            {isLayoutLoading ? (
+              <EditorGridSkeleton
+                cols={cols}
+                viewport={viewport}
+                spans={TAB_SKELETON_SPANS(cols)}
+                label="Loading layout blocks"
+              />
+            ) : (
+              <EditorGrid
+                blocks={tabBlocks}
+                cols={cols}
+                viewport={viewport}
+                onChange={(items) =>
+                  persistPositions(items, `tab:${activeTab?.id ?? "none"}`)
+                }
+                renderCard={renderCard}
+                emptyMessage="This tab has no blocks yet. Use “Add block” to place one."
+              />
+            )}
           </section>
       </div>
+      )}
 
       {/* Live preview modal */}
       <Dialog
@@ -811,6 +1110,7 @@ export function ProfileLayoutPage() {
               workExperiences={workExperiencesQuery.data ?? []}
               resumeLoading={resumeQuery.isLoading}
               workLoading={workExperiencesQuery.isLoading}
+              linksLoading={linksQuery.isLoading}
             />
           </div>
         </div>
@@ -826,12 +1126,25 @@ export function ProfileLayoutPage() {
         }}
         title="Rename tab"
       >
-        <div className="space-y-4">
+        {/*
+          A `<form>`, not a `<div>`: the body used to be a plain div, so Enter
+          in the title field did nothing. And `submitRename` early-returns on an
+          empty title with no message, which made Save look broken — the button
+          is disabled instead, so the dead state is visible rather than silent.
+        */}
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitRename();
+          }}
+        >
           <Input
             id="rename-tab"
             label="Tab title"
             value={renameValue}
             maxLength={40}
+            autoFocus
             onChange={(event) => setRenameValue(event.target.value)}
           />
           <div className="flex justify-end gap-2">
@@ -843,11 +1156,15 @@ export function ProfileLayoutPage() {
             >
               Cancel
             </Button>
-            <Button type="button" fullWidth={false} onClick={submitRename}>
+            <Button
+              type="submit"
+              fullWidth={false}
+              disabled={renameValue.trim().length === 0}
+            >
               Save
             </Button>
           </div>
-        </div>
+        </form>
       </Dialog>
 
       {/* Custom block dialogs */}

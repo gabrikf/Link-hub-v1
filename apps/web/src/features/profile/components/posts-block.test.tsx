@@ -87,6 +87,25 @@ describe("PostsBlock", () => {
     expect(screen.getByText("Beta post")).toBeInTheDocument();
   });
 
+  it("renders post-shaped placeholders while the query is loading", () => {
+    usePublicPosts.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+
+    const { container } = renderPostsBlock(2);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading posts");
+    // One placeholder per post the block is configured to show (capped at 3).
+    expect(container.querySelectorAll(".space-y-2.p-4")).toHaveLength(2);
+    // Neither the empty nor the error state may show while loading.
+    expect(
+      screen.queryByText(/no posts published yet/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/could not load posts/i)).not.toBeInTheDocument();
+  });
+
   it("shows the error state (not the empty state) when the query errors", () => {
     usePublicPosts.mockReturnValue({
       data: undefined,

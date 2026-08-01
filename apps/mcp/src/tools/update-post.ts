@@ -14,6 +14,12 @@ const inputSchema = {
   body: z.string().min(1).optional().describe("New Markdown body."),
   coverImageUrl: httpUrlSchema.optional().describe("New cover image URL."),
   images: z.array(httpUrlSchema).optional().describe("Replace the image list."),
+  externalUrl: httpUrlSchema
+    .optional()
+    .describe(
+      "New canonical link for the post (http/https) — the PR, release, repo, " +
+        "demo or article it points at.",
+    ),
   tags: z.array(z.string()).optional().describe("Replace the tags."),
   status: postStatusSchema
     .optional()
@@ -31,7 +37,8 @@ export function registerUpdatePost(
       title: "Update LinkHub post",
       description:
         "Update an existing LinkHub post by id. Provide only the fields you " +
-        "want to change (title, body, coverImageUrl, images, tags, status). " +
+        "want to change (title, body, coverImageUrl, images, externalUrl, " +
+        "tags, status). " +
         "Returns the updated post summary.",
       inputSchema,
     },
@@ -46,6 +53,8 @@ export function registerUpdatePost(
         if (rest.coverImageUrl !== undefined)
           patch.coverImageUrl = rest.coverImageUrl;
         if (rest.images !== undefined) patch.images = rest.images;
+        if (rest.externalUrl !== undefined)
+          patch.externalUrl = rest.externalUrl;
         if (rest.tags !== undefined) patch.tags = rest.tags;
         if (rest.status !== undefined) patch.status = rest.status;
 

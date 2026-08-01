@@ -6,7 +6,17 @@ import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyTokens, useRevokeToken } from "../../../lib/token-queries";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
+import {
+  LoadingLabel,
+  Skeleton,
+} from "../../../shared-components/skeleton";
+import {
+  BADGE,
+  SURFACE_EMPTY,
+  SURFACE_GLASS,
+} from "../../../shared-components/surface";
 import { ConnectPanel } from "../components/connect-panel";
+import { CONNECT_PANEL_ID } from "../lib/mcp-config";
 import { CreateTokenDialog } from "../components/create-token-dialog";
 import {
   formatDate,
@@ -15,14 +25,38 @@ import {
   maskTokenPrefix,
 } from "../lib/token-format";
 
+/**
+ * Survives a route change within the tab, but never a reload — matching the
+ * one-time nature of the plaintext token itself.
+ */
+const STASHED_TOKEN_KEY = "linkhub:last-created-token";
+
+function readStashedToken(): CreateApiTokenOutput | null {
+  try {
+    const raw = window.sessionStorage.getItem(STASHED_TOKEN_KEY);
+    return raw ? (JSON.parse(raw) as CreateApiTokenOutput) : null;
+  } catch {
+    return null;
+  }
+}
+
+function stashToken(token: CreateApiTokenOutput): void {
+  try {
+    window.sessionStorage.setItem(STASHED_TOKEN_KEY, JSON.stringify(token));
+  } catch {
+    // Private mode / quota. The in-memory copy still drives this session.
+  }
+}
+
 function StatusBadge({ token }: { token: ApiToken }) {
   const status = getTokenStatus(token);
+  // Shared `BADGE` tones — these were a third private definition of
+  // success/warning/neutral, so "Active" here and "Current" on a work-history
+  // row rendered as different greens in dark mode.
   const styles: Record<typeof status, string> = {
-    active:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-    revoked: "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300",
-    expired:
-      "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+    active: BADGE.success,
+    revoked: BADGE.neutral,
+    expired: BADGE.warning,
   };
   const label: Record<typeof status, string> = {
     active: "Active",
@@ -51,7 +85,7 @@ function TokenRow({
   return (
     <li
       className={[
-        "anim-fade-up rounded-2xl border border-zinc-200 bg-white/70 p-4 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/50",
+        `anim-fade-up p-4 ${SURFACE_GLASS}`,
         isInactive ? "opacity-60" : "",
       ].join(" ")}
     >
@@ -63,7 +97,7 @@ function TokenRow({
             </span>
             <StatusBadge token={token} />
           </div>
-          <code className="block font-mono text-xs text-zinc-500 dark:text-zinc-400">
+          <code className="block font-mono text-xs break-all text-zinc-500 dark:text-zinc-400">
             {maskTokenPrefix(token.tokenPrefix)}
           </code>
           <div className="flex flex-wrap gap-1.5">
@@ -105,7 +139,8 @@ function TokenRow({
             size="sm"
             fullWidth={false}
             className="shrink-0"
-            disabled={isRevoking}
+            isLoading={isRevoking}
+            loadingLabel="Revoking..."
             shouldHaveConfirmation
             confirmationTitle="Revoke this token?"
             confirmationDescription="Any tool using this token will immediately lose access. This cannot be undone."
@@ -120,15 +155,93 @@ function TokenRow({
   );
 }
 
+/**
+ * Stand-in for a single `<TokenRow>`.
+ *
+ * Same `<li>` chrome and `p-4`, same `space-y-1.5` left column (name + status
+ * badge → masked prefix → scope chips → the created/last-used/expires `<dl>`)
+ * and the same `h-9` Revoke button on the right, so the list keeps its height
+ * when the query resolves.
+ */
+function TokenRowSkeleton() {
+  return (
+    <li className={`p-4 ${SURFACE_GLASS}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
+          {/* token name + status badge */}
+          <div className="flex h-6 flex-wrap items-center gap-2">
+            <Skeleton shape="text" height={14} width={132} />
+            <Skeleton shape="circle" height={20} width={56} />
+          </div>
+
+          {/* masked `lh_pat_…` prefix */}
+          <div className="flex h-4 items-center">
+            <Skeleton shape="text" height={12} width={168} />
+          </div>
+
+          {/* scope chips */}
+          <div className="flex flex-wrap gap-1.5">
+            <Skeleton height={20} width={86} className="rounded-md" />
+            <Skeleton height={20} width={78} className="rounded-md" />
+          </div>
+
+          {/* Created / Last used / Expires */}
+          <div className="pt-0.5">
+            <div className="flex h-4 flex-wrap items-center gap-x-5">
+              <Skeleton shape="text" height={11} width={112} />
+              <Skeleton shape="text" height={11} width={126} />
+              <Skeleton shape="text" height={11} width={104} />
+            </div>
+          </div>
+        </div>
+
+        <Skeleton height={36} width={104} className="shrink-0 rounded-md" />
+      </div>
+    </li>
+  );
+}
+
+function TokenListSkeleton() {
+  return (
+    <>
+      <LoadingLabel>Loading tokens</LoadingLabel>
+      <ul className="space-y-3">
+        {Array.from({ length: 2 }, (_, index) => (
+          <TokenRowSkeleton key={index} />
+        ))}
+      </ul>
+    </>
+  );
+}
+
 export function SettingsPage() {
   const navigate = useNavigate();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Seeded from sessionStorage so navigating to another page and back does not
+  // strand the user with a token they can no longer read. It was plain
+  // component state, so every snippet silently reverted to the `lh_pat_xxxx`
+  // placeholder and the only recovery was creating a second token — orphaning
+  // the first. Session-scoped deliberately: it must still die with the tab.
   const [lastCreated, setLastCreated] = useState<CreateApiTokenOutput | null>(
-    null,
+    readStashedToken,
   );
+
+  const handleTokenCreated = (token: CreateApiTokenOutput) => {
+    setLastCreated(token);
+    stashToken(token);
+
+    // The Create button is in the header; the panel that consumes the token is
+    // at the very bottom, under a potentially long token list. Nothing
+    // connected the two, so the pre-filled snippets were easy to never see.
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(CONNECT_PANEL_ID)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   useEffect(() => {
     if (!hasSession) {
@@ -188,18 +301,16 @@ export function SettingsPage() {
         </div>
 
         {tokensQuery.isLoading ? (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Loading tokens...
-          </p>
+          <TokenListSkeleton />
         ) : tokensQuery.isError ? (
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-red-600 dark:text-red-400">
             Could not load your tokens. Please try again.
           </p>
         ) : tokens.length === 0 ? (
-          <div className="anim-fade-up rounded-3xl border border-dashed border-zinc-300 bg-white/60 p-10 text-center dark:border-zinc-700 dark:bg-zinc-900/40">
+          <div className={`anim-fade-up p-10 text-center ${SURFACE_EMPTY}`}>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              You don&apos;t have any tokens yet. Create one to let your AI tools
-              post to LinkHub.
+              You don&apos;t have any tokens yet. Create one to let your AI
+              tools post to LinkHub.
             </p>
             <Button
               type="button"
@@ -219,7 +330,12 @@ export function SettingsPage() {
                 key={token.id}
                 token={token}
                 onRevoke={handleRevoke}
-                isRevoking={revokeToken.isPending}
+                // Scoped to the row actually being revoked. `isPending` alone
+                // is mutation-wide, so it used to freeze (and would now spin)
+                // every Revoke button on the page at once.
+                isRevoking={
+                  revokeToken.isPending && revokeToken.variables === token.id
+                }
               />
             ))}
           </ul>
@@ -230,15 +346,15 @@ export function SettingsPage() {
 
       <CreateTokenDialog
         open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          // Don't persist the one-time plaintext token on the page after the
-          // dialog closes — the ConnectPanel falls back to its placeholder.
-          if (!open) {
-            setLastCreated(null);
-          }
-        }}
-        onCreated={setLastCreated}
+        // Deliberately does NOT clear `lastCreated` on close: the plaintext
+        // token is shown exactly once, and the whole point of the connect
+        // snippets is to paste it into a config. Wiping it the moment the
+        // dialog is dismissed silently reverted every snippet to the
+        // `lh_pat_xxxx` placeholder, stranding the user with a token they can
+        // no longer read. It lives in component state only — it is never
+        // persisted, and a reload drops it.
+        onOpenChange={setDialogOpen}
+        onCreated={handleTokenCreated}
       />
     </main>
   );

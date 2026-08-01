@@ -90,23 +90,30 @@ export function PostComposerDialog({
       externalUrl: externalUrl.trim() ? externalUrl.trim() : null,
     };
 
-    if (isEditing) {
-      const parsed = updatePostSchemaInput.safeParse(draft);
-      if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Please review the form.");
-        return;
-      }
+    const parsed = isEditing
+      ? updatePostSchemaInput.safeParse(draft)
+      : createPostSchemaInput.safeParse({ ...draft, source: "manual" });
+
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Please review the form.");
+      return;
+    }
+
+    // A *server* failure used to reject straight through this function: the
+    // dialog stayed open with no explanation, the spinner stopped, and clicking
+    // Publish again re-fired the same failing request against 200 words the
+    // user could not see a reason for losing.
+    try {
       await onSubmit(parsed.data);
-    } else {
-      const parsed = createPostSchemaInput.safeParse({
-        ...draft,
-        source: "manual",
-      });
-      if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Please review the form.");
-        return;
-      }
-      await onSubmit(parsed.data);
+    } catch (cause) {
+      setError(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : isEditing
+            ? "Could not save your changes. Please try again."
+            : "Could not publish your post. Please try again.",
+      );
+      return;
     }
 
     onOpenChange(false);
@@ -253,7 +260,11 @@ export function PostComposerDialog({
           </div>
         </div>
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        ) : null}
 
         <div className="flex justify-end gap-2">
           <Button
@@ -267,7 +278,8 @@ export function PostComposerDialog({
           <Button
             type="button"
             fullWidth={false}
-            disabled={isSubmitting}
+            isLoading={isSubmitting}
+            loadingLabel={isEditing ? "Saving..." : "Publishing..."}
             onClick={handleSave}
           >
             {isEditing ? "Save changes" : "Publish"}

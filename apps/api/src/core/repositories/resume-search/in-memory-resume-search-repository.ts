@@ -1,4 +1,9 @@
 import {
+  CandidatePostRow,
+  toRecruiterWorkExperiences,
+  toWorkEvidence,
+} from "../../use-case/resumes/shared/build-candidate-search-projection.js";
+import {
   IResumeSearchRepository,
   ResumeSearchResult,
   ResumeSearchWorkExperience,
@@ -28,7 +33,10 @@ interface SeededResumeSearchItem {
   spokenLanguages: string[];
   skills: string[];
   titles: string[];
-  workExperiences?: ResumeSearchWorkExperience[];
+  /** Partial so tests can seed only the fields the assertion cares about. */
+  workExperiences?: Array<Partial<ResumeSearchWorkExperience>>;
+  /** Published posts, as they would come back from the posts table. */
+  posts?: CandidatePostRow[];
 }
 
 function cosineSimilarity(a: number[], b: number[]) {
@@ -142,41 +150,39 @@ export class InMemoryResumeSearchRepository implements IResumeSearchRepository {
     });
 
     return filtered
-      .map((item) => ({
-        userId: item.userId,
-        resumeId: item.resumeId,
-        username: item.username ?? item.userId,
-        name: item.name ?? item.userId,
-        userPhoto: item.userPhoto ?? null,
-        profileDescription: item.profileDescription ?? null,
-        email: item.email,
-        similarity: cosineSimilarity(item.embedding, input.queryEmbedding),
-        headlineTitle: item.headlineTitle,
-        summary: item.summary,
-        totalYearsExperience: item.totalYearsExperience,
-        location: item.location,
-        seniorityLevel: item.seniorityLevel,
-        workModel: item.workModel,
-        contractType: item.contractType,
-        spokenLanguages: item.spokenLanguages,
-        noticePeriod: item.noticePeriod,
-        openToRelocation: item.openToRelocation,
-        salaryExpectationMin: item.salaryExpectationMin,
-        salaryExpectationMax: item.salaryExpectationMax,
-        skills: item.skills,
-        titles: item.titles,
-        workExperiences: item.workExperiences ?? [],
-        combinedText: [
-          item.headlineTitle,
-          item.summary,
-          item.location,
-          item.seniorityLevel,
-          ...item.skills,
-          ...item.titles,
-        ]
-          .filter((value) => Boolean(value && value.trim().length > 0))
-          .join("\n"),
-      }))
+      .map((item) => {
+        const workExperiences = toRecruiterWorkExperiences(
+          item.workExperiences ?? [],
+        );
+        const posts = item.posts ?? [];
+
+        return {
+          userId: item.userId,
+          resumeId: item.resumeId,
+          username: item.username ?? item.userId,
+          name: item.name ?? item.userId,
+          userPhoto: item.userPhoto ?? null,
+          profileDescription: item.profileDescription ?? null,
+          email: item.email,
+          similarity: cosineSimilarity(item.embedding, input.queryEmbedding),
+          headlineTitle: item.headlineTitle,
+          summary: item.summary,
+          totalYearsExperience: item.totalYearsExperience,
+          location: item.location,
+          seniorityLevel: item.seniorityLevel,
+          workModel: item.workModel,
+          contractType: item.contractType,
+          spokenLanguages: item.spokenLanguages,
+          noticePeriod: item.noticePeriod,
+          openToRelocation: item.openToRelocation,
+          salaryExpectationMin: item.salaryExpectationMin,
+          salaryExpectationMax: item.salaryExpectationMax,
+          skills: item.skills,
+          titles: item.titles,
+          workExperiences,
+          workEvidence: toWorkEvidence(posts),
+        };
+      })
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, input.topK);
   }

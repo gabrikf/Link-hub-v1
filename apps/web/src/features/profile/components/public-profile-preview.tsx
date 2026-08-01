@@ -39,6 +39,7 @@ type PublicProfilePreviewProps = {
   workExperiences: Array<WorkExperienceResponse | PublicWorkExperienceResponse>;
   resumeLoading?: boolean;
   workLoading?: boolean;
+  linksLoading?: boolean;
   /**
    * Explicit device-frame width in pixels. When set, the preview renders inside
    * a fixed-width (centred) frame instead of the fluid `w-full`/`max-w-sm`
@@ -58,6 +59,7 @@ export function PublicProfilePreview({
   workExperiences,
   resumeLoading = false,
   workLoading = false,
+  linksLoading = false,
   frameWidth,
 }: PublicProfilePreviewProps) {
   const theme = getProfileThemeProps(profile);
@@ -90,6 +92,7 @@ export function PublicProfilePreview({
           workExperiences={workExperiences}
           resumeLoading={resumeLoading}
           workLoading={workLoading}
+          linksLoading={linksLoading}
         />
       </div>
     </>

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { SURFACE } from "../../../shared-components/surface";
 import { FiBriefcase, FiCalendar, FiMapPin } from "react-icons/fi";
+import { LoadingLabel } from "../../../shared-components/skeleton";
 import { Markdown } from "../../posts/lib/markdown";
 import {
   employmentTypeLabels,
@@ -7,6 +9,7 @@ import {
   formatWorkLocation,
   workModelLabels,
 } from "../utils/work-experience-format";
+import { WorkHistoryReadOnlySkeleton } from "./work-history-read-only-skeleton";
 
 type WorkExperienceView = {
   id: string;
@@ -31,6 +34,12 @@ type WorkHistoryReadOnlyProps = {
   subtitle?: string;
   action?: ReactNode;
   emptyMessage?: string;
+  /**
+   * Card material. Defaults to the dashboard surface; the public profile passes
+   * `SURFACE_PROFILE` so this block matches its siblings in that grid instead of
+   * reading as a different material in dark mode.
+   */
+  surfaceClassName?: string;
 };
 
 export function WorkHistoryReadOnly({
@@ -40,9 +49,10 @@ export function WorkHistoryReadOnly({
   subtitle = "Professional experience",
   action,
   emptyMessage = "No work experience added yet.",
+  surfaceClassName = SURFACE,
 }: WorkHistoryReadOnlyProps) {
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <section className={`p-4 ${surfaceClassName}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="inline-flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -55,9 +65,10 @@ export function WorkHistoryReadOnly({
       </div>
 
       {isLoading ? (
-        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-          Loading work history...
-        </p>
+        <>
+          <LoadingLabel>Loading work history</LoadingLabel>
+          <WorkHistoryReadOnlySkeleton />
+        </>
       ) : workExperiences.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/40 dark:text-zinc-400">
           {emptyMessage}

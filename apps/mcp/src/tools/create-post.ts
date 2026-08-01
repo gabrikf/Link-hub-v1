@@ -21,6 +21,12 @@ const inputSchema = {
     .array(httpUrlSchema)
     .optional()
     .describe("Optional list of additional image URLs (http/https)."),
+  externalUrl: httpUrlSchema
+    .optional()
+    .describe(
+      "Optional canonical link the post points at (http/https) — the PR, " +
+        "release, repo, demo or article the post is about.",
+    ),
   tags: z
     .array(z.string())
     .optional()
@@ -44,9 +50,10 @@ export function registerCreatePost(
       title: "Create LinkHub post",
       description:
         "Create a new post on the user's LinkHub profile. Provide the body in " +
-        "Markdown; title, cover image, images, tags and status are optional. " +
-        "The post is tagged with source='mcp'. Returns the new post id and a " +
-        "shareable summary.",
+        "Markdown; title, cover image, images, external URL, tags and status " +
+        "are optional. The post is tagged with source='mcp'. Returns the new " +
+        "post id and a shareable summary. For a summary of recent git work, " +
+        "use create_commit_summary_post instead.",
       inputSchema,
     },
     async (args) =>
@@ -57,6 +64,7 @@ export function registerCreatePost(
           body: args.body,
           coverImageUrl: args.coverImageUrl ?? null,
           images: args.images ?? null,
+          externalUrl: args.externalUrl ?? null,
           tags: args.tags ?? null,
           status: args.status ?? "published",
         });

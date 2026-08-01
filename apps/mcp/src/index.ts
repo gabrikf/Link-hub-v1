@@ -3,6 +3,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { LinkHubApiClient } from "./api-client.js";
 import { ConfigError, loadConfig } from "./config.js";
+import { registerAllPrompts } from "./prompts/index.js";
+import { registerAllResources } from "./resources/index.js";
 import { registerAllTools } from "./tools/index.js";
 
 const SERVER_NAME = "linkhub";
@@ -20,21 +22,24 @@ async function main(): Promise<void> {
   });
 
   registerAllTools(server, client);
+  // Prompts + resources are how the host agent learns the commits-to-post
+  // workflow and the house style natively, without the user pasting rules.
+  registerAllPrompts(server);
+  registerAllResources(server);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
   // stdout is reserved for the JSON-RPC stream, so log to stderr.
-  console.error(
-    `LinkHub MCP server running on stdio (API: ${config.apiUrl})`,
-  );
+  console.error(`LinkHub MCP server running on stdio (API: ${config.apiUrl})`);
 }
 
 main().catch((err) => {
   if (err instanceof ConfigError) {
     console.error(`\n[LinkHub MCP] Configuration error:\n${err.message}\n`);
   } else {
-    const detail = err instanceof Error ? err.stack ?? err.message : String(err);
+    const detail =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
     console.error(`\n[LinkHub MCP] Fatal error:\n${detail}\n`);
   }
   process.exit(1);

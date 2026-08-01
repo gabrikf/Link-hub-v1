@@ -14,6 +14,7 @@ import {
   type WorkExperienceResponse,
 } from "@repo/schemas";
 import {
+  useMemo,
   useState,
   type CSSProperties,
   type KeyboardEvent,
@@ -25,9 +26,25 @@ import { getLinkIconOption } from "../../../lib/link-icons";
 import { usePublicPosts } from "../../../lib/post-queries";
 import { Avatar } from "../../../shared-components/avatar";
 import {
+  SURFACE_EMPTY,
+  SURFACE_PROFILE,
+} from "../../../shared-components/surface";
+import {
+  LoadingLabel,
+  Skeleton,
+  SkeletonChips,
+  SkeletonText,
+} from "../../../shared-components/skeleton";
+import {
   getButtonIcon,
   resolveAccentColor,
 } from "../../profile-layout/button-icons";
+import {
+  compactBlocks,
+  GRID_GAP,
+  GRID_ROW_HEIGHT,
+  PROFILE_CANVAS_WIDTH,
+} from "../../profile-layout/grid-utils";
 import { Markdown, markdownExcerpt } from "../../posts/lib/markdown";
 import {
   formatPostDate,
@@ -35,6 +52,7 @@ import {
 } from "../../posts/lib/post-format";
 import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
 import { WorkHistoryReadOnly } from "../../work-history/components/work-history-read-only";
+import { ProfileLinksSkeleton } from "./public-profile-skeleton";
 
 type ProfileHeaderView = {
   name: string;
@@ -52,6 +70,7 @@ type ProfileBlocksProps = {
   workExperiences: Array<WorkExperienceResponse | PublicWorkExperienceResponse>;
   resumeLoading?: boolean;
   workLoading?: boolean;
+  linksLoading?: boolean;
   variant?: "full" | "preview";
 };
 
@@ -78,12 +97,18 @@ export function ProfileBlocks({
   workExperiences,
   resumeLoading = false,
   workLoading = false,
+  linksLoading = false,
   variant = "full",
 }: ProfileBlocksProps) {
   const isPreview = variant === "preview";
   const cols = GRID_COLUMNS[viewport];
 
-  const orderedTabs = [...layout.tabs].sort((a, b) => a.order - b.order);
+  // Memoized so the sorted array has a stable identity across renders — the
+  // compaction memos below are keyed off values derived from it.
+  const orderedTabs = useMemo(
+    () => [...layout.tabs].sort((a, b) => a.order - b.order),
+    [layout.tabs],
+  );
   const [activeTabId, setActiveTabId] = useState<string | null>(
     orderedTabs[0]?.id ?? null,
   );
@@ -117,17 +142,42 @@ export function ProfileBlocks({
     }
   };
 
-  const pinned = layout.blocks.filter(
-    (block) => block.pinnedAllTabs && block.isVisible,
+  // Pack each zone to the top before rendering. Visibility is filtered here,
+  // AFTER coordinates were assigned in the editor (the API does the same in
+  // `assemble-layout.ts`), so hiding a block that sat at rows 0-3 would
+  // otherwise leave a four-row hole on the live profile that no amount of
+  // editor-side compaction can remove — the editor still sees that block.
+  // Pinned blocks and the active tab's blocks are separate grids, so they are
+  // compacted separately (y-coordinates are per-zone).
+  const pinned = useMemo(
+    () =>
+      compactBlocks(
+        layout.blocks.filter(
+          (block) => block.pinnedAllTabs && block.isVisible,
+        ),
+        cols,
+      ),
+    [layout.blocks, cols],
   );
-  const tabBlocks = activeTab
-    ? layout.blocks.filter(
-        (block) =>
-          !block.pinnedAllTabs &&
-          block.tabId === activeTab.id &&
-          block.isVisible,
-      )
-    : [];
+
+  // Keyed on the tab ID (a primitive) rather than the tab object, so the memo
+  // only recomputes when the selected tab actually changes.
+  const activeTabKey = activeTab?.id ?? null;
+  const tabBlocks = useMemo(
+    () =>
+      activeTabKey === null
+        ? []
+        : compactBlocks(
+            layout.blocks.filter(
+              (block) =>
+                !block.pinnedAllTabs &&
+                block.tabId === activeTabKey &&
+                block.isVisible,
+            ),
+            cols,
+          ),
+    [layout.blocks, activeTabKey, cols],
+  );
 
   const renderBlock = (block: ProfileBlock): ReactNode => {
     switch (block.kind) {
@@ -143,8 +193,21 @@ export function ProfileBlocks({
               />
             </div>
 
-            <div className="anim-fade-up anim-delay-1 min-w-0 text-center">
-              <h1 className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight">
+            {/*
+              `w-full` + `max-w-full` are load-bearing, not decoration.
+              This div is a BLOCK child of a `flex flex-col items-center`
+              header, so `align-items: center` sized it to fit-content — 419px
+              inside a 293px header at 375px, clipped ~63px off BOTH ends with
+              no scrollbar. And because the `h1` is `inline-flex` at max-content,
+              `scrollWidth > clientWidth` was false, so `truncate` never fired.
+              `min-w-0` is inert here: this is max-content cross-axis sizing,
+              not flex shrink.
+            */}
+            <div
+              className="anim-fade-up w-full min-w-0 text-center"
+              style={{ animationDelay: "0.06s" }}
+            >
+              <h1 className="inline-flex max-w-full items-center gap-2 text-2xl font-bold tracking-tight">
                 <FiUser
                   className="h-5 w-5"
                   style={{ color: "var(--profile-accent-fg)" }}
@@ -155,7 +218,7 @@ export function ProfileBlocks({
                 @{profile.username}
               </p>
               {profile.description ? (
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
                   {profile.description}
                 </p>
               ) : (
@@ -169,7 +232,12 @@ export function ProfileBlocks({
       case "links":
         return (
           <div className="space-y-3">
-            {links.length > 0 ? (
+            {linksLoading ? (
+              <>
+                <LoadingLabel>Loading links</LoadingLabel>
+                <ProfileLinksSkeleton />
+              </>
+            ) : links.length > 0 ? (
               links.map((link, index) => {
                 const selectedIcon = getLinkIconOption(link.icon);
 
@@ -180,7 +248,7 @@ export function ProfileBlocks({
                     target="_blank"
                     rel="noreferrer"
                     style={{ animationDelay: `${0.15 + index * 0.07}s` }}
-                    className="anim-fade-up accent-card group block rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left shadow-sm transition duration-300 hover:-translate-y-0.5 dark:border-zinc-700 dark:bg-zinc-900/70"
+                    className={`anim-fade-up accent-card group block p-4 text-left transition duration-300 hover:-translate-y-0.5 ${SURFACE_PROFILE}`}
                   >
                     <p className="inline-flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
                       <span
@@ -214,12 +282,17 @@ export function ProfileBlocks({
                 );
               })
             ) : (
-              <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
+              <div
+                className={`px-4 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400 ${SURFACE_EMPTY}`}
+              >
                 No public links yet.
               </div>
             )}
           </div>
         );
+      // Both of these are shared with the dashboard, so they default to the
+      // dashboard material. Passing `SURFACE_PROFILE` keeps them from reading as
+      // a different material than their sibling blocks in this grid.
       case "resume":
         return (
           <ResumeReadOnlyCard
@@ -228,6 +301,7 @@ export function ProfileBlocks({
             title="Resume"
             subtitle="Professional summary"
             emptyMessage="This user has not published resume details yet."
+            surfaceClassName={SURFACE_PROFILE}
           />
         );
       case "work_experiences":
@@ -236,6 +310,7 @@ export function ProfileBlocks({
             workExperiences={workExperiences}
             isLoading={workLoading}
             subtitle="Professional experience"
+            surfaceClassName={SURFACE_PROFILE}
           />
         );
       case "text":
@@ -258,21 +333,42 @@ export function ProfileBlocks({
     }
   };
 
-  // Row unit + gap mirror the editor grid (react-grid-layout rowHeight 40,
-  // margin 12) so gridH maps to a real minimum height and the public output
-  // matches what the user arranged. `minmax(unit, auto)` lets a block grow past
-  // its span when content is taller — no clipping, no overlap.
-  const rowUnit = isPreview ? 28 : 40;
+  // Row unit + gap mirror the editor grid exactly (react-grid-layout rowHeight
+  // 40, margin 12) so `gridH` maps to the same pixel height the user dragged.
+  // The preview used to shrink the unit to 28px, which gave the in-studio
+  // preview a different cell aspect ratio from the real page and quietly lied
+  // about how the layout would look — both variants use the same unit now.
+  const rowUnit = GRID_ROW_HEIGHT;
+
+  // `minmax(rowUnit, auto)`, NOT a fixed row height.
+  //
+  // A fixed `40px` row plus `overflow: hidden` on the block was tried to force
+  // editor/public pixel parity and was catastrophic: it clipped content
+  // silently, with no scrollbar — measured at 85% of the work-history block and
+  // 59% of the resume block lost at 1280px, and 92%/77% at 375px.
+  //
+  // The parity it chased was never achievable anyway. The editor renders only
+  // block METADATA (icon + label, see `grid-block-card.tsx`), never the real
+  // content, so it cannot preview content height and `gridH` cannot be a
+  // ceiling. `gridH` is a MINIMUM: the user reserves at least that much room and
+  // a block that needs more grows, pushing later rows down.
   const gridStyle: CSSProperties = {
     display: "grid",
     gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
     gridAutoRows: `minmax(${rowUnit}px, auto)`,
-    gap: "12px",
+    gap: `${GRID_GAP}px`,
+    // Clamp to the SAME canvas width the editor grid clamps to, so a column is
+    // the same number of pixels wide in both. Fluid below the cap.
+    maxWidth: PROFILE_CANVAS_WIDTH[viewport],
+    marginInline: "auto",
   };
 
   const blockStyle = (block: ProfileBlock): CSSProperties => ({
     gridColumn: `${block.gridX + 1} / span ${block.gridW}`,
     gridRow: `${block.gridY + 1} / span ${block.gridH}`,
+    // `minWidth: 0` still matters — it is what lets `truncate` engage on long
+    // link titles inside a narrow column. There is deliberately no `minHeight`
+    // or `overflow` here: the row track sizes to content.
     minWidth: 0,
   });
 
@@ -373,7 +469,7 @@ function TextBlock({ config }: { config: TextBlockConfig | null }) {
   }
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/70">
+    <div className={`accent-card p-4 transition duration-300 ${SURFACE_PROFILE}`}>
       {config.title ? (
         <h3 className="mb-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {config.title}
@@ -403,9 +499,12 @@ function VideoBlock({ config }: { config: VideoBlockConfig | null }) {
         })();
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/70">
+    // `p-3`, not `p-4`: the iframe bleeds to the card edge, and a 4-unit ring
+    // around a 16:9 video reads as a frame. The title compensates with `px-1`
+    // so its baseline lines up optically with the `p-4` blocks beside it.
+    <div className={`accent-card p-3 transition duration-300 ${SURFACE_PROFILE}`}>
       {config.title ? (
-        <h3 className="mb-2 px-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+        <h3 className="mb-2 px-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {config.title}
         </h3>
       ) : null}
@@ -424,7 +523,9 @@ function VideoBlock({ config }: { config: VideoBlockConfig | null }) {
           />
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+        <div
+          className={`px-4 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400 ${SURFACE_EMPTY}`}
+        >
           Unable to embed this video URL.
         </div>
       )}
@@ -440,9 +541,10 @@ function ImageBlock({ config }: { config: ImageBlockConfig | null }) {
   const isGallery = config.layout === "gallery" && config.images.length > 1;
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/70">
+    // `p-3` for the same media-bleed reason as the video block; `px-1` title.
+    <div className={`accent-card p-3 transition duration-300 ${SURFACE_PROFILE}`}>
       {config.title ? (
-        <h3 className="mb-2 px-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+        <h3 className="mb-2 px-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {config.title}
         </h3>
       ) : null}
@@ -502,6 +604,48 @@ function ButtonBlock({ config }: { config: ButtonBlockConfig | null }) {
   );
 }
 
+/**
+ * Card placeholders shaped like the real post articles above: same container
+ * (list column or 2-up grid), same card box, same inner `space-y-2 p-4` stack
+ * of source badge + date, title, body and tags.
+ *
+ * The cover image is deliberately left out — whether a post has one is unknown
+ * until it arrives, and reserving 160px for a cover that never comes would
+ * shift more than it saves.
+ */
+function PostsBlockSkeleton({
+  layout,
+  count,
+}: {
+  layout: "list" | "grid";
+  count: number;
+}) {
+  return (
+    <div
+      className={
+        layout === "grid" ? "grid gap-4 sm:grid-cols-2" : "flex flex-col gap-4"
+      }
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div
+          key={index}
+          className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60"
+        >
+          <div className="space-y-2 p-4">
+            <div className="flex items-center gap-2">
+              <Skeleton shape="circle" width={64} height={18} />
+              <Skeleton shape="text" width={88} />
+            </div>
+            <Skeleton shape="text" height={20} width="55%" />
+            <SkeletonText lines={layout === "grid" ? 3 : 4} />
+            <SkeletonChips count={3} className="pt-1" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PostsBlock({
   username,
   config,
@@ -527,7 +671,7 @@ function PostsBlock({
     .slice(0, limit);
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/70">
+    <div className={`accent-card p-4 transition duration-300 ${SURFACE_PROFILE}`}>
       {config?.title ? (
         <h3 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {config.title}
@@ -535,9 +679,10 @@ function PostsBlock({
       ) : null}
 
       {postsQuery.isLoading ? (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Loading posts...
-        </p>
+        <>
+          <LoadingLabel>Loading posts</LoadingLabel>
+          <PostsBlockSkeleton layout={layout} count={Math.min(limit, 3)} />
+        </>
       ) : postsQuery.isError ? (
         <p className="text-sm text-red-600">
           Could not load posts. Please try again.

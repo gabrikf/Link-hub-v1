@@ -28,10 +28,15 @@ export interface SeededLayout {
 
 /**
  * Pure factory: build the entities to persist for BOTH viewports at once — one
- * default tab plus the four built-in blocks (header pinned across tabs, the rest
- * stacked full-width inside the tab). The pc-row and mobile-row of each logical
- * tab/block share a `groupId` so the structure mirrors; only the per-viewport
- * grid width differs.
+ * default tab plus the blocks in {@link DEFAULT_BUILTIN_BLOCKS} (header pinned
+ * across tabs, the rest stacked full-width inside the tab). The pc-row and
+ * mobile-row of each logical tab/block share a `groupId` so the structure
+ * mirrors; only the per-viewport grid width differs.
+ *
+ * Note this only affects accounts seeded from now on. Existing users already
+ * have a persisted layout, so the empty-check below short-circuits and they will
+ * NOT retroactively receive newly-added default blocks — they have to add them
+ * from the layout editor.
  */
 export function seedDefaultLayout(userId: string): SeededLayout {
   const tabGroupId = crypto.randomUUID();
@@ -62,7 +67,8 @@ export function seedDefaultLayout(userId: string): SeededLayout {
         gridH: def.gridH,
         isVisible: true,
         pinnedAllTabs: def.pinnedAllTabs,
-        config: null,
+        // Built-ins take no config; seeded custom kinds (posts) bring their own.
+        config: def.config ?? null,
       }),
     );
 

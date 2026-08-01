@@ -133,7 +133,8 @@ export function PostsBlockDialog({
           <Button
             type="button"
             fullWidth={false}
-            disabled={isSubmitting}
+            isLoading={isSubmitting}
+            loadingLabel="Saving"
             onClick={handleSave}
           >
             Save
