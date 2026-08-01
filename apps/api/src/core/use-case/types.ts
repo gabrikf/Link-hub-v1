@@ -5,6 +5,7 @@ export interface ICreateUserUseCaseInput {
   name: string;
   description?: string | null;
   avatarUrl?: string | null;
+  persona?: string | null;
 }
 
 export interface ILoginUseCaseInput {

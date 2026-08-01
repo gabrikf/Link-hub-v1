@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { SURFACE } from "../../../shared-components/surface";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ export function AdvancedSearchPage() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [rankedResults, setRankedResults] = useState<RankedCandidate[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [lastSearchInput, setLastSearchInput] = useState<
     RecruiterSearchResponse["input"] | null
@@ -60,13 +62,19 @@ export function AdvancedSearchPage() {
     },
   });
 
-  const { rerank, isModelLoading } = useAiRerank();
+  const { rerank, warmUp, isModelLoading } = useAiRerank();
 
   useEffect(() => {
     if (!getAuthTokens()) {
       navigate({ to: "/" });
     }
   }, [navigate]);
+
+  // Start fetching the reranker bundle as soon as the page mounts, so it is
+  // already in memory by the time the first query is submitted.
+  useEffect(() => {
+    warmUp();
+  }, [warmUp]);
 
   const searchMutation = useMutation({
     mutationFn: async (
@@ -85,6 +93,9 @@ export function AdvancedSearchPage() {
     onSuccess: ({ results, searchInput }) => {
       setRankedResults(results);
       setLastSearchInput(searchInput);
+      // Distinguishes "no search has run" from "this search found nobody" —
+      // one empty state used to serve both.
+      setHasSearched(true);
     },
   });
 
@@ -175,13 +186,15 @@ export function AdvancedSearchPage() {
         />
       </div>
 
-      <section className="anim-fade-up rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <section className={`anim-fade-up p-6 ${SURFACE}`}>
         <div className="flex items-center gap-3">
           <span className="anim-glow-pulse inline-flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-violet-600 to-cyan-500 text-white">
             <FiActivity className="anim-float h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-xl font-semibold text-transparent">
+            {/* Matches the posts / settings / profile-layout page heroes —
+                this is a top-level destination, not a section header. */}
+            <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">
               Advanced Search (AI)
             </h1>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -237,6 +250,7 @@ export function AdvancedSearchPage() {
       <SearchResults
         results={rankedResults}
         isBusy={isBusy}
+        hasSearched={hasSearched}
         onCopyEmail={handleCopyEmail}
       />
     </main>

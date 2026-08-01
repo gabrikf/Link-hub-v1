@@ -13,8 +13,17 @@ const toneClasses: Record<FeedbackTone, string> = {
 };
 
 export function FeedbackMessage({ message, tone }: FeedbackMessageProps) {
+  // Errors interrupt (assertive); confirmations wait their turn (polite).
+  // Without a live region a screen-reader user submitting a bad form hears
+  // nothing at all.
+  const isError = tone === "error";
+
   return (
-    <p className={`rounded-md border p-2 text-sm ${toneClasses[tone]}`}>
+    <p
+      role={isError ? "alert" : "status"}
+      aria-live={isError ? "assertive" : "polite"}
+      className={`rounded-md border p-2 text-sm ${toneClasses[tone]}`}
+    >
       {message}
     </p>
   );

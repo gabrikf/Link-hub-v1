@@ -16,6 +16,13 @@ export class InMemorySkillCatalogRepository implements ISkillCatalogRepository {
     );
   }
 
+  async findManyByNormalizedNames(
+    normalizedNames: string[],
+  ): Promise<SkillCatalogEntity[]> {
+    const wanted = new Set(normalizedNames);
+    return this.items.filter((item) => wanted.has(item.normalizedName));
+  }
+
   async listForUser(userId: string): Promise<SkillCatalogEntity[]> {
     return this.items.filter(
       (item) => item.isDefault || item.createdByUserId === userId,
@@ -37,6 +44,26 @@ export class InMemorySkillCatalogRepository implements ISkillCatalogRepository {
 
     this.items.push(created);
     return created;
+  }
+
+  async createMany(
+    inputs: Array<{
+      name: string;
+      normalizedName: string;
+      isDefault: boolean;
+      createdByUserId: string | null;
+    }>,
+  ): Promise<SkillCatalogEntity[]> {
+    for (const input of inputs) {
+      const existing = await this.findByNormalizedName(input.normalizedName);
+      if (!existing) {
+        await this.create(input);
+      }
+    }
+
+    return this.findManyByNormalizedNames(
+      inputs.map((input) => input.normalizedName),
+    );
   }
 
   seed(item: SkillCatalogEntity) {

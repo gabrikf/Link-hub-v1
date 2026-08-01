@@ -10,6 +10,7 @@ declare module "fastify" {
   interface FastifyRequest {
     user?: {
       id: string;
+      authType?: "jwt" | "pat";
     };
   }
 }

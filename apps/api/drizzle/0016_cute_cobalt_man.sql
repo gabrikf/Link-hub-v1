@@ -1,0 +1,3 @@
+CREATE INDEX "links_user_id_order_idx" ON "links" USING btree ("user_id","order","created_at");--> statement-breakpoint
+CREATE INDEX "links_public_user_id_order_idx" ON "links" USING btree ("user_id","order","created_at") WHERE "links"."is_public";--> statement-breakpoint
+CREATE INDEX "posts_user_published_sort_idx" ON "posts" USING btree ("user_id",(COALESCE("published_at", "created_at")) DESC) WHERE "posts"."status" = 'published';

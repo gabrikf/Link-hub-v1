@@ -74,6 +74,13 @@ export const SKILL_OPTIONS: SelectOption[] = [
   { value: "AWS", label: "AWS" },
   { value: "Docker", label: "Docker" },
   { value: "Kubernetes", label: "Kubernetes" },
+  { value: "Figma", label: "Figma" },
+  { value: "User Research", label: "User Research" },
+  { value: "Roadmapping", label: "Roadmapping" },
+  { value: "Jira", label: "Jira" },
+  { value: "SQL", label: "SQL" },
+  { value: "Tableau", label: "Tableau" },
+  { value: "Terraform", label: "Terraform" },
 ];
 
 export const TITLE_OPTIONS: SelectOption[] = [
@@ -85,6 +92,13 @@ export const TITLE_OPTIONS: SelectOption[] = [
   { value: "Engineering Manager", label: "Engineering Manager" },
   { value: "DevOps Engineer", label: "DevOps Engineer" },
   { value: "Data Engineer", label: "Data Engineer" },
+  { value: "Product Designer", label: "Product Designer" },
+  { value: "UX Researcher", label: "UX Researcher" },
+  { value: "Product Manager", label: "Product Manager" },
+  { value: "Product Owner", label: "Product Owner" },
+  { value: "QA Engineer", label: "QA Engineer" },
+  { value: "Data Analyst", label: "Data Analyst" },
+  { value: "Data Scientist", label: "Data Scientist" },
 ];
 
 export type ContractType = (typeof CONTRACT_TYPE_OPTIONS)[number];

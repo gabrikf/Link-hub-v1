@@ -126,7 +126,8 @@ export class ApplyAiResumeImportUseCase {
 
   private async applyProfile(input: IApplyAiResumeImportInput) {
     const hasName =
-      typeof input.profileName === "string" && input.profileName.trim().length > 0;
+      typeof input.profileName === "string" &&
+      input.profileName.trim().length > 0;
     const hasDescription = input.profileDescription !== undefined;
 
     if (!hasName && !hasDescription) {
@@ -151,74 +152,98 @@ export class ApplyAiResumeImportUseCase {
     await this.usersRepository.update(user);
   }
 
-  private async resolveOrCreateSkillId(name: string): Promise<string> {
-    const normalizedName = normalizeCatalogName(name);
-    const existing =
-      await this.skillCatalogRepository.findByNormalizedName(normalizedName);
+  /**
+   * Maps every requested name to a catalog id, creating the ones that are new.
+   *
+   * Deliberately batched. This used to be `findByNormalizedName` +
+   * (conditionally) `create` per name, then an `exists` and a `create` per
+   * link — four sequential round trips each. A resume with 30 skills and 10
+   * titles meant ~160 serial queries while a user watched a spinner. Now it is
+   * a fixed handful regardless of resume size.
+   */
+  private async resolveCatalogIds(
+    repository: ISkillCatalogRepository | ITitleCatalogRepository,
+    names: string[],
+  ): Promise<Map<string, string>> {
+    const normalizedNames = names.map(normalizeCatalogName);
 
-    if (existing) {
-      return existing.id;
+    const existing =
+      await repository.findManyByNormalizedNames(normalizedNames);
+    const idByNormalizedName = new Map(
+      existing.map((item) => [item.normalizedName, item.id]),
+    );
+
+    const missing = names.filter(
+      (name) => !idByNormalizedName.has(normalizeCatalogName(name)),
+    );
+
+    if (missing.length > 0) {
+      const created = await repository.createMany(
+        missing.map((name) => ({
+          name: name.trim(),
+          normalizedName: normalizeCatalogName(name),
+          isDefault: false,
+          createdByUserId: null,
+        })),
+      );
+
+      for (const item of created) {
+        idByNormalizedName.set(item.normalizedName, item.id);
+      }
     }
 
-    const created = await this.skillCatalogRepository.create({
-      name: name.trim(),
-      normalizedName,
-      isDefault: false,
-      createdByUserId: null,
-    });
-
-    return created.id;
-  }
-
-  private async resolveOrCreateTitleId(name: string): Promise<string> {
-    const normalizedName = normalizeCatalogName(name);
-    const existing =
-      await this.titleCatalogRepository.findByNormalizedName(normalizedName);
-
-    if (existing) {
-      return existing.id;
-    }
-
-    const created = await this.titleCatalogRepository.create({
-      name: name.trim(),
-      normalizedName,
-      isDefault: false,
-      createdByUserId: null,
-    });
-
-    return created.id;
+    return idByNormalizedName;
   }
 
   private async applySkills(
     resumeId: string,
     skillNames: string[],
   ): Promise<number> {
-    let added = 0;
-    let nextOrder =
-      (await this.resumeSkillRepository.findLastOrderByResumeId(resumeId)) ?? -1;
+    const names = dedupeNames(skillNames);
 
-    for (const name of dedupeNames(skillNames)) {
-      const skillId = await this.resolveOrCreateSkillId(name);
-      const alreadyLinked = await this.resumeSkillRepository.exists(
-        resumeId,
-        skillId,
-      );
+    if (names.length === 0) {
+      return 0;
+    }
 
-      if (alreadyLinked) {
+    const [idByNormalizedName, alreadyLinked, lastOrder] = await Promise.all([
+      this.resolveCatalogIds(this.skillCatalogRepository, names),
+      this.resumeSkillRepository
+        .listByResumeId(resumeId)
+        .then((items) => new Set(items.map((item) => item.skillId))),
+      this.resumeSkillRepository.findLastOrderByResumeId(resumeId),
+    ]);
+
+    let nextOrder = lastOrder ?? -1;
+    const toCreate: Array<{
+      resumeId: string;
+      skillId: string;
+      yearsExperience: number | null;
+      displayOrder: number;
+    }> = [];
+
+    for (const name of names) {
+      const skillId = idByNormalizedName.get(normalizeCatalogName(name));
+
+      if (!skillId || alreadyLinked.has(skillId)) {
         continue;
       }
 
+      // Two input names can normalise to the same catalog row; the set keeps
+      // the second one from claiming a display order it will never use.
+      alreadyLinked.add(skillId);
+
       nextOrder += 1;
-      await this.resumeSkillRepository.create({
+      toCreate.push({
         resumeId,
         skillId,
         yearsExperience: null,
         displayOrder: nextOrder,
       });
-      added += 1;
     }
 
-    return added;
+    await this.resumeSkillRepository.createMany(toCreate);
+
+    return toCreate.length;
   }
 
   private async applyTitles(
@@ -226,45 +251,66 @@ export class ApplyAiResumeImportUseCase {
     titleNames: string[],
     primaryTitle: string | null | undefined,
   ): Promise<number> {
-    let added = 0;
-    let nextOrder =
-      (await this.resumeTitleRepository.findLastOrderByResumeId(resumeId)) ?? -1;
+    const names = dedupeNames(titleNames);
+
+    if (names.length === 0) {
+      return 0;
+    }
+
+    const [idByNormalizedName, alreadyLinked, lastOrder] = await Promise.all([
+      this.resolveCatalogIds(this.titleCatalogRepository, names),
+      this.resumeTitleRepository
+        .listByResumeId(resumeId)
+        .then((items) => new Set(items.map((item) => item.titleId))),
+      this.resumeTitleRepository.findLastOrderByResumeId(resumeId),
+    ]);
 
     const normalizedPrimary = primaryTitle
       ? normalizeCatalogName(primaryTitle)
       : null;
     let primaryAssigned = false;
+    let nextOrder = lastOrder ?? -1;
 
-    for (const name of dedupeNames(titleNames)) {
-      const titleId = await this.resolveOrCreateTitleId(name);
-      const alreadyLinked = await this.resumeTitleRepository.exists(
-        resumeId,
-        titleId,
-      );
+    const toCreate: Array<{
+      resumeId: string;
+      titleId: string;
+      isPrimary: boolean;
+      displayOrder: number;
+    }> = [];
 
-      if (alreadyLinked) {
+    for (const name of names) {
+      const titleId = idByNormalizedName.get(normalizeCatalogName(name));
+
+      if (!titleId || alreadyLinked.has(titleId)) {
         continue;
       }
+
+      alreadyLinked.add(titleId);
 
       const isPrimary =
         !primaryAssigned && normalizedPrimary === normalizeCatalogName(name);
 
       if (isPrimary) {
-        await this.resumeTitleRepository.clearPrimary(resumeId);
         primaryAssigned = true;
       }
 
       nextOrder += 1;
-      await this.resumeTitleRepository.create({
-        resumeId,
-        titleId,
-        isPrimary,
-        displayOrder: nextOrder,
-      });
-      added += 1;
+      toCreate.push({ resumeId, titleId, isPrimary, displayOrder: nextOrder });
     }
 
-    return added;
+    if (toCreate.length === 0) {
+      return 0;
+    }
+
+    // Demote the incumbent before the batch lands, exactly as the per-row path
+    // did — otherwise the resume would briefly carry two primary titles.
+    if (primaryAssigned) {
+      await this.resumeTitleRepository.clearPrimary(resumeId);
+    }
+
+    await this.resumeTitleRepository.createMany(toCreate);
+
+    return toCreate.length;
   }
 
   private async applyWorkExperiences(
@@ -275,8 +321,7 @@ export class ApplyAiResumeImportUseCase {
       return 0;
     }
 
-    const existing =
-      await this.workExperienceRepository.findByUserId(userId);
+    const existing = await this.workExperienceRepository.findByUserId(userId);
     const existingKeys = new Set(
       existing.map((item) => workExperienceKey(item.title, item.companyName)),
     );

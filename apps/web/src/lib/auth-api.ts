@@ -37,6 +37,27 @@ import {
   updateWorkExperienceInputSchema,
   aiResumeImportParseResponseSchema,
   applyAiResumeImportInputSchema,
+  fullLayoutSchema,
+  layoutSchema,
+  profileTabSchema,
+  profileBlockSchema,
+  createTabSchemaInput,
+  renameTabSchemaInput,
+  reorderTabsSchemaInput,
+  createBlockSchemaInput,
+  updateBlockSchemaInput,
+  updateBlockPositionsSchemaInput,
+  type FullProfileLayout,
+  type ProfileLayout,
+  type ProfileTab,
+  type ProfileBlock,
+  type ProfileViewport,
+  type CreateTabInput,
+  type RenameTabInput,
+  type ReorderTabsInput,
+  type CreateBlockInput,
+  type UpdateBlockInput,
+  type UpdateBlockPositionsInput,
   type WorkExperienceResponse,
   type PublicWorkExperienceResponse,
   type CreateWorkExperienceInput,
@@ -69,6 +90,11 @@ import axios, {
 } from "axios";
 import { z } from "zod";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
+import {
+  createSessionRefresher,
+  createUnauthorizedHandler,
+  REFRESH_PATH,
+} from "./unauthorized-interceptor";
 
 const DEFAULT_API_BASE_URL = "http://localhost:3333";
 
@@ -128,6 +154,36 @@ const apiClient = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+/* ------------------------------------------------------------------ *
+ * Session expiry: refresh-on-401.
+ * Logic + rationale live in `./unauthorized-interceptor`; this is the wiring.
+ * ------------------------------------------------------------------ */
+
+const sessionRefresher = createSessionRefresher({
+  transport: async (refreshToken) => {
+    // Bare axios, not `apiClient` — the refresh call must never re-enter the
+    // interceptor that triggered it.
+    const response = await axios.post(
+      `${getApiBaseUrl()}${REFRESH_PATH}`,
+      { refreshToken },
+      { headers: { "Content-Type": "application/json" } },
+    );
+
+    return response.data;
+  },
+});
+
+/** Test seam — clears the refresher's "unsupported" latch. */
+export const resetSessionRefresher = sessionRefresher.reset;
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  createUnauthorizedHandler({
+    refresh: sessionRefresher.refresh,
+    replay: (config) => apiClient.request(config),
+  }),
+);
 
 const readErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
@@ -291,6 +347,116 @@ export async function toggleLinkVisibility(
   });
 
   return linkSchema.parse(response.data);
+}
+
+/* ------------------------------------------------------------------ *
+ * Profile layout studio (per-viewport tabs + freeform grid of blocks)
+ * ------------------------------------------------------------------ */
+
+export async function fetchLayout(): Promise<FullProfileLayout> {
+  const response = await fetchWithTokens("/me/layout", { method: "GET" });
+  return fullLayoutSchema.parse(response.data);
+}
+
+export async function fetchLayoutViewport(
+  viewport: ProfileViewport,
+): Promise<ProfileLayout> {
+  const response = await fetchWithTokens(`/me/layout?viewport=${viewport}`, {
+    method: "GET",
+  });
+  return layoutSchema.parse(response.data);
+}
+
+export async function createTab(payload: CreateTabInput): Promise<ProfileTab> {
+  const body = createTabSchemaInput.parse(payload);
+  const response = await fetchWithTokens("/me/layout/tabs", {
+    method: "POST",
+    data: body,
+  });
+
+  return profileTabSchema.parse(response.data);
+}
+
+export async function renameTab(
+  tabId: string,
+  payload: RenameTabInput,
+): Promise<ProfileTab> {
+  const body = renameTabSchemaInput.parse(payload);
+  const response = await fetchWithTokens(`/me/layout/tabs/${tabId}`, {
+    method: "PATCH",
+    data: body,
+  });
+
+  return profileTabSchema.parse(response.data);
+}
+
+export async function deleteTab(
+  tabId: string,
+): Promise<{ success: boolean }> {
+  const response = await fetchWithTokens(`/me/layout/tabs/${tabId}`, {
+    method: "DELETE",
+  });
+
+  return response.data as { success: boolean };
+}
+
+export async function reorderTabs(
+  payload: ReorderTabsInput,
+): Promise<{ success: boolean }> {
+  const body = reorderTabsSchemaInput.parse(payload);
+  const response = await fetchWithTokens("/me/layout/tabs/reorder", {
+    method: "PATCH",
+    data: body,
+  });
+
+  return response.data as { success: boolean };
+}
+
+export async function createBlock(
+  payload: CreateBlockInput,
+): Promise<ProfileBlock> {
+  const body = createBlockSchemaInput.parse(payload);
+  const response = await fetchWithTokens("/me/layout/blocks", {
+    method: "POST",
+    data: body,
+  });
+
+  return profileBlockSchema.parse(response.data);
+}
+
+export async function updateBlock(
+  blockId: string,
+  payload: UpdateBlockInput,
+): Promise<ProfileBlock> {
+  const body = updateBlockSchemaInput.parse(payload);
+  const response = await fetchWithTokens(`/me/layout/blocks/${blockId}`, {
+    method: "PATCH",
+    data: body,
+  });
+
+  return profileBlockSchema.parse(response.data);
+}
+
+export async function deleteBlock(
+  blockId: string,
+): Promise<{ success: boolean }> {
+  const response = await fetchWithTokens(`/me/layout/blocks/${blockId}`, {
+    method: "DELETE",
+  });
+
+  return response.data as { success: boolean };
+}
+
+export async function updateBlockPositions(
+  payload: UpdateBlockPositionsInput,
+): Promise<{ success: boolean }> {
+  const body = updateBlockPositionsSchemaInput.parse(payload);
+  const response = await fetchWithTokens("/me/layout/blocks/positions", {
+    method: "PATCH",
+    data: body,
+  });
+
+  return response.data as { success: boolean };
 }
 
 export async function updateProfile(

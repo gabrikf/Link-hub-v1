@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { SURFACE } from "../../../shared-components/surface";
 import { useState } from "react";
 import type {
   CreateWorkExperienceInput,
@@ -13,6 +14,10 @@ import {
 } from "../../../lib/auth-api";
 import { Button } from "../../../shared-components/button";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
+import {
+  LoadingLabel,
+  Skeleton,
+} from "../../../shared-components/skeleton";
 import {
   formatWorkDateRange,
   formatWorkLocation,
@@ -73,7 +78,7 @@ export function WorkHistoryManager({
   const workExperiences = workExperiencesQuery.data ?? [];
 
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <section className={`p-4 ${SURFACE}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="inline-flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -122,9 +127,7 @@ export function WorkHistoryManager({
       ) : null}
 
       {workExperiencesQuery.isLoading ? (
-        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-          Loading work history...
-        </p>
+        <WorkHistoryListSkeleton />
       ) : workExperiences.length === 0 && !isAdding ? (
         <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/40 dark:text-zinc-400">
           No work experience yet. Click “Add” to create your first entry.
@@ -160,6 +163,47 @@ export function WorkHistoryManager({
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * Stand-in for a `<WorkHistoryRow>`: same `rounded-xl … p-3` row, the same
+ * three stacked lines on the left (title / company / date · location) and the
+ * same pair of `size="icon"` (h-9 w-9) buttons on the right.
+ */
+function WorkHistoryRowSkeleton() {
+  return (
+    <li className="flex items-start justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/40">
+      <div className="min-w-0 flex-1">
+        <div className="flex h-5 items-center">
+          <Skeleton shape="text" height={12} width="48%" />
+        </div>
+        <div className="flex h-5 items-center">
+          <Skeleton shape="text" height={12} width="36%" />
+        </div>
+        <div className="mt-0.5 flex h-4 items-center">
+          <Skeleton shape="text" height={10} width="58%" />
+        </div>
+      </div>
+
+      <div className="flex shrink-0 gap-1">
+        <Skeleton height={36} width={36} className="rounded-md" />
+        <Skeleton height={36} width={36} className="rounded-md" />
+      </div>
+    </li>
+  );
+}
+
+function WorkHistoryListSkeleton() {
+  return (
+    <>
+      <LoadingLabel>Loading work history</LoadingLabel>
+      <ul className="mt-4 space-y-2">
+        {Array.from({ length: 3 }, (_, index) => (
+          <WorkHistoryRowSkeleton key={index} />
+        ))}
+      </ul>
+    </>
   );
 }
 

@@ -45,25 +45,42 @@ export function useAiRerank() {
 
         const rankedCandidates = await new Promise<RankedResult[]>(
           (resolve, reject) => {
+            // Both listeners are removed in a `finally`, not via `{ once: true }`.
+            // `once` only self-removes the listener that actually fired, so on
+            // every search the *other* one stayed attached to the singleton
+            // worker forever — N searches leaked N listeners.
+            const cleanup = () => {
+              worker.removeEventListener("message", onMessage);
+              worker.removeEventListener("error", onError);
+            };
+
             const onMessage = (
               event: MessageEvent<WorkerSuccess | WorkerError>,
             ) => {
               const message = event.data;
 
-              if (message.type === "RERANK_RESULT") {
-                resolve(message.payload.candidates);
-                return;
-              }
+              try {
+                if (message.type === "RERANK_RESULT") {
+                  resolve(message.payload.candidates);
+                  return;
+                }
 
-              reject(new Error(message.payload.message));
+                reject(new Error(message.payload.message));
+              } finally {
+                cleanup();
+              }
             };
 
             const onError = () => {
-              reject(new Error("Worker execution failed"));
+              try {
+                reject(new Error("Worker execution failed"));
+              } finally {
+                cleanup();
+              }
             };
 
-            worker.addEventListener("message", onMessage, { once: true });
-            worker.addEventListener("error", onError, { once: true });
+            worker.addEventListener("message", onMessage);
+            worker.addEventListener("error", onError);
             worker.postMessage({
               type: "RERANK",
               payload: {
@@ -87,8 +104,26 @@ export function useAiRerank() {
     [],
   );
 
+  /**
+   * Instantiates the worker (and with it the ~1.39 MB bundle download, the TF
+   * init, `latest.json` and the weights) without ranking anything.
+   *
+   * The first search used to pay all of that *serially, after* the API call,
+   * because `getRerankerWorker()` was first reached inside `rerank`. Calling
+   * this on route mount overlaps the download with the recruiter typing their
+   * query, which is the whole of the perceived wait.
+   */
+  const warmUp = useCallback(() => {
+    try {
+      getRerankerWorker();
+    } catch {
+      // Warm-up is best-effort; `rerank` surfaces a real failure later.
+    }
+  }, []);
+
   return {
     rerank,
+    warmUp,
     isModelLoading,
   };
 }

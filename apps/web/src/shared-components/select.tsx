@@ -158,7 +158,11 @@ export function SelectField<
         </p>
       ) : null}
 
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -63,7 +63,7 @@ Output contract:
       "startDate": string | null,            // ISO date "YYYY-MM-DD"; use first day of the month if only month/year is known
       "endDate": string | null,              // ISO date "YYYY-MM-DD"; null if it is the current role
       "isCurrent": boolean,
-      "description": string | null,          // achievements/responsibilities, may be multi-line
+      "description": string | null,          // achievements/responsibilities as Markdown; see the Markdown rule below
       "mainStack": string[]                  // main technologies used in this role
     }
   ],
@@ -76,7 +76,8 @@ Rules:
 - Normalize dates to "YYYY-MM-DD". If only a year is given, use "YYYY-01-01".
 - Order workExperiences from most recent to oldest.
 - Prefer skill/title names from the provided known lists when they clearly match, otherwise keep the resume's wording.
-- Keep skills concise (technology names, not sentences).`;
+- Keep skills concise (technology names, not sentences).
+- Markdown for work-experience "description": PRESERVE the resume's bullet structure. When the resume lists responsibilities/achievements as bullets (•, -, *, or numbered), output them as a Markdown bulleted list with each item on its own line starting with "- " (use a real newline "\\n" between items, never merge bullets into one paragraph). You may use **bold** for emphasis. If the entry is genuinely a single prose paragraph, keep it as a paragraph. Keep each bullet concise; do not invent bullets that aren't in the resume.`;
 
 function asString(value: unknown): string | null {
   if (typeof value !== "string") {

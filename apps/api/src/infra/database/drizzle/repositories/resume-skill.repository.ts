@@ -85,6 +85,21 @@ export class DrizzleResumeSkillRepository implements IResumeSkillRepository {
     });
   }
 
+  async createMany(
+    inputs: Array<{
+      resumeId: string;
+      skillId: string;
+      yearsExperience: number | null;
+      displayOrder: number;
+    }>,
+  ): Promise<void> {
+    if (inputs.length === 0) {
+      return;
+    }
+
+    await db.insert(resumeSkills).values(inputs).onConflictDoNothing();
+  }
+
   async create(input: {
     resumeId: string;
     skillId: string;

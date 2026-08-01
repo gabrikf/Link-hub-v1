@@ -43,13 +43,30 @@ let loadedPreprocessing: PreprocessingConfig | null = null;
 const CDN_BASE: string =
   (import.meta.env.VITE_MODEL_CDN_BASE_URL as string | undefined) ?? "";
 
-async function resolveModelVersion(): Promise<string> {
-  const response = await fetch(`${CDN_BASE}/ai-models/latest.json`);
-  if (!response.ok) {
-    return "v1";
+/**
+ * Memoized so the two singleton loaders below — which run concurrently under
+ * `Promise.all` — share one `latest.json` request instead of racing two
+ * identical fetches on every cold start.
+ */
+let modelVersionPromise: Promise<string> | null = null;
+
+function resolveModelVersion(): Promise<string> {
+  if (!modelVersionPromise) {
+    modelVersionPromise = (async () => {
+      const response = await fetch(`${CDN_BASE}/ai-models/latest.json`);
+      if (!response.ok) {
+        return "v1";
+      }
+      const json = (await response.json()) as { version?: string };
+      return json.version ?? "v1";
+    })().catch((error: unknown) => {
+      // Don't cache a failure — the next load attempt should retry.
+      modelVersionPromise = null;
+      throw error;
+    });
   }
-  const json = (await response.json()) as { version?: string };
-  return json.version ?? "v1";
+
+  return modelVersionPromise;
 }
 
 async function loadModelSingleton() {

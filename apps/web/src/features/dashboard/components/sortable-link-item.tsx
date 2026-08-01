@@ -113,8 +113,10 @@ export function SortableLinkItem({
           size="icon"
           fullWidth={false}
           shouldHaveConfirmation
+          confirmationTitle={`Delete “${link.title}”?`}
+          confirmationDescription={`${link.url} will be removed from your profile. This can't be undone.`}
           onClick={() => onDelete(link.id)}
-          aria-label="Delete link"
+          aria-label={`Delete link ${link.title}`}
         >
           <FiTrash />
         </Button>

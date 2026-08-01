@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { personaSchema } from "../profile/index.js";
 
 // Input schema for creating a user
 export const createUserSchemaInput = z.object({
@@ -11,6 +12,8 @@ export const createUserSchemaInput = z.object({
     .max(100, "Password must be less than 100 characters"),
   description: z.string().optional(),
   avatarUrl: z.url("Invalid URL format").optional(),
+  // Optional profession/persona chosen at signup. Omitted → user starts with null.
+  persona: personaSchema.optional(),
 });
 
 // User response without password (for general user data)

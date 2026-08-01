@@ -1,6 +1,7 @@
 import { FiPaperclip, FiSearch, FiX } from "react-icons/fi";
 import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
 import { Button } from "../../../shared-components/button";
+import { FOCUS_RING } from "../../../shared-components/surface";
 import { SelectField } from "../../../shared-components/select";
 import { TextArea } from "../../../shared-components/text-area";
 import type { AdvancedSearchFormValues } from "../types/advanced-search";
@@ -53,12 +54,17 @@ export function SearchChatComposer({
           </Button>
 
           {attachmentFile ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
-              {attachmentFile.name}
+            /* Capped and truncated: a long filename pushed the remove-X past
+               the container edge at 375px, so the file could not be removed. */
+            <span
+              title={attachmentFile.name}
+              className="inline-flex max-w-[60%] items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            >
+              <span className="truncate">{attachmentFile.name}</span>
               <button
                 type="button"
                 aria-label="Remove attached file"
-                className="rounded p-0.5 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+                className={`shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 ${FOCUS_RING}`}
                 onClick={onRemoveFile}
               >
                 <FiX className="h-3.5 w-3.5" aria-hidden="true" />
@@ -105,7 +111,9 @@ export function SearchChatComposer({
       </div>
 
       {errors.chatPrompt?.message ? (
-        <p className="mt-2 text-sm text-red-600">{errors.chatPrompt.message}</p>
+        <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+          {errors.chatPrompt.message}
+        </p>
       ) : null}
     </div>
   );

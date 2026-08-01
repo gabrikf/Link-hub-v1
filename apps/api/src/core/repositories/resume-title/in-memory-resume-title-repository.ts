@@ -71,6 +71,22 @@ export class InMemoryResumeTitleRepository implements IResumeTitleRepository {
     return created;
   }
 
+  async createMany(
+    inputs: Array<{
+      resumeId: string;
+      titleId: string;
+      isPrimary: boolean;
+      displayOrder: number;
+    }>,
+  ): Promise<void> {
+    for (const input of inputs) {
+      if (await this.exists(input.resumeId, input.titleId)) {
+        continue;
+      }
+      await this.create(input);
+    }
+  }
+
   seed(item: ResumeTitleEntity) {
     this.items.push(item);
   }

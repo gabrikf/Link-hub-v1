@@ -17,5 +17,18 @@ export interface IResumeTitleRepository {
     isPrimary: boolean;
     displayOrder: number;
   }): Promise<ResumeTitleEntity>;
+  /**
+   * Additive batch insert. Unlike {@link replaceForResume} it leaves existing
+   * links alone, and skips rows the resume already has rather than failing on
+   * the (resume_id, title_id) unique constraint.
+   */
+  createMany(
+    inputs: Array<{
+      resumeId: string;
+      titleId: string;
+      isPrimary: boolean;
+      displayOrder: number;
+    }>,
+  ): Promise<void>;
   clearPrimary(resumeId: string): Promise<void>;
 }

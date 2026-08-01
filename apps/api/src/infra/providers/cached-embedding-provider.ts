@@ -22,21 +22,35 @@ export class CachedEmbeddingProvider implements IEmbeddingProvider {
     const cached = this.cache.get(key);
 
     if (cached && cached.expiresAt > now) {
+      // Map iteration order is insertion order, and eviction below drops the
+      // oldest key — so without this re-insert the cache is FIFO: the query a
+      // recruiter runs every ten minutes gets evicted on schedule no matter how
+      // often it is asked for. Deleting and re-setting moves the key to the end
+      // and makes eviction least-recently-*used*.
+      this.cache.delete(key);
+      this.cache.set(key, cached);
       return cached.embedding;
+    }
+
+    if (cached) {
+      // Expired: drop it now so a stale key can't outrank a live one.
+      this.cache.delete(key);
     }
 
     const embedding = await this.delegate.createEmbedding(text);
 
+    this.cache.delete(key);
     this.cache.set(key, {
       embedding,
-      expiresAt: now + this.ttlSeconds * 1000,
+      expiresAt: Date.now() + this.ttlSeconds * 1000,
     });
 
-    if (this.cache.size > this.maxItems) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey) {
-        this.cache.delete(firstKey);
+    while (this.cache.size > this.maxItems) {
+      const lruKey = this.cache.keys().next().value;
+      if (lruKey === undefined) {
+        break;
       }
+      this.cache.delete(lruKey);
     }
 
     return embedding;

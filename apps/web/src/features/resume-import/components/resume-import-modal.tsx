@@ -1,11 +1,15 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import type { ParsedResumeData, ResumeResponse } from "@repo/schemas";
-import { FiCheckCircle, FiUploadCloud } from "react-icons/fi";
+import { FiCheckCircle, FiLoader, FiUploadCloud } from "react-icons/fi";
 import { applyResumeImport, parseResumeImport } from "../../../lib/auth-api";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
+import {
+  LoadingLabel,
+  Skeleton,
+} from "../../../shared-components/skeleton";
 import { TextArea } from "../../../shared-components/text-area";
 import {
   buildApplyPayload,
@@ -209,47 +213,59 @@ export function ResumeImportModal({
     >
       {step === "input" ? (
         <div className="space-y-4">
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center transition hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/40">
-            <FiUploadCloud className="h-7 w-7 text-zinc-400" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-              {file ? file.name : "Click to upload a PDF, DOCX or TXT"}
-            </span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              Your resume is parsed by AI to extract a structured profile.
-            </span>
-            <input
-              type="file"
-              accept={ACCEPTED_TYPES}
-              className="hidden"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            />
-          </label>
+          {/*
+            The AI parse is by far the longest wait in the app (tens of
+            seconds), so it gets more than a disabled button: the pick-a-file
+            controls step aside for a progress banner plus a skeleton of the
+            review screen that is about to replace it.
+          */}
+          {parseMutation.isPending ? (
+            <ResumeParseProgress />
+          ) : (
+            <>
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center transition hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/40">
+                <FiUploadCloud className="h-7 w-7 text-zinc-400" />
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  {file ? file.name : "Click to upload a PDF, DOCX or TXT"}
+                </span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Your resume is parsed by AI to extract a structured profile.
+                </span>
+                <input
+                  type="file"
+                  accept={ACCEPTED_TYPES}
+                  className="hidden"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
 
-          <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-zinc-400">
-            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-            or paste text
-            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-          </div>
+              <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-zinc-400">
+                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+                or paste text
+                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+              </div>
 
-          <TextArea
-            id="resume-paste"
-            label="Paste resume text"
-            rows={6}
-            placeholder="Paste the content of your resume here..."
-            value={pasteText}
-            onChange={(event) => setPasteText(event.target.value)}
-          />
+              <TextArea
+                id="resume-paste"
+                label="Paste resume text"
+                rows={6}
+                placeholder="Paste the content of your resume here..."
+                value={pasteText}
+                onChange={(event) => setPasteText(event.target.value)}
+              />
 
-          {parseMutation.isError ? (
-            <FeedbackMessage
-              tone="error"
-              message={
-                parseMutation.error instanceof Error
-                  ? parseMutation.error.message
-                  : "Could not parse the resume. Try another file."
-              }
-            />
-          ) : null}
+              {parseMutation.isError ? (
+                <FeedbackMessage
+                  tone="error"
+                  message={
+                    parseMutation.error instanceof Error
+                      ? parseMutation.error.message
+                      : "Could not parse the resume. Try another file."
+                  }
+                />
+              ) : null}
+            </>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button
@@ -263,10 +279,12 @@ export function ResumeImportModal({
             <Button
               type="button"
               fullWidth={false}
-              disabled={!canParse || parseMutation.isPending}
+              disabled={!canParse}
+              isLoading={parseMutation.isPending}
+              loadingLabel="Reading resume..."
               onClick={handleParse}
             >
-              {parseMutation.isPending ? "Reading resume..." : "Parse with AI"}
+              Parse with AI
             </Button>
           </div>
         </div>
@@ -274,7 +292,10 @@ export function ResumeImportModal({
 
       {step === "review" && parsed ? (
         <div className="space-y-5">
-          <div className="max-h-[55vh] space-y-5 overflow-y-auto pr-1">
+          {/* `svh`, not `vh`: `vh` resolves against the LARGE viewport, so
+              under mobile browser chrome this scroll area was taller than the
+              space actually visible. */}
+          <div className="max-h-[55svh] space-y-5 overflow-y-auto pr-1">
             <ReviewGroup title="Profile basics">
               {RESUME_SCALAR_FIELDS.map(({ key, label }) => {
                 const value = parsedValueFor(parsed, key);
@@ -403,12 +424,11 @@ export function ResumeImportModal({
             <Button
               type="button"
               fullWidth={false}
-              disabled={applyMutation.isPending}
+              isLoading={applyMutation.isPending}
+              loadingLabel="Saving..."
               onClick={handleApply}
             >
-              {applyMutation.isPending
-                ? "Saving..."
-                : "Apply selected to my profile"}
+              Apply selected to my profile
             </Button>
           </div>
         </div>
@@ -433,6 +453,119 @@ export function ResumeImportModal({
         </div>
       ) : null}
     </Dialog>
+  );
+}
+
+/**
+ * What the user looks at while the AI reads their resume.
+ *
+ * The banner sets an expectation (this is slow, and closing loses it); the
+ * skeleton below it is a structural preview of the `review` step that replaces
+ * this one — same `ReviewGroup` heading + `space-y-1.5` body, same
+ * `CheckboxRow` box (`p-2.5`, 16px checkbox, label line + value line) and the
+ * same `px-2.5 py-1` chip rows.
+ *
+ * The counts are necessarily a guess: how many titles, skills and roles a
+ * resume yields is exactly what the parse is about to tell us. They are sized
+ * to a typical result so the review step lands near the same scroll height
+ * rather than exactly on it.
+ */
+function ResumeParseProgress() {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 dark:border-violet-500/30 dark:bg-violet-500/10">
+        <p className="flex items-center gap-2.5 text-sm font-medium text-violet-900 dark:text-violet-100">
+          <FiLoader
+            className="h-4 w-4 shrink-0 animate-spin"
+            aria-hidden="true"
+          />
+          Reading your resume…
+        </p>
+        <p className="mt-1 text-xs text-violet-800/80 dark:text-violet-200/80">
+          The AI is pulling out your profile basics, titles, skills and work
+          history. This usually takes 10–30 seconds — keep this dialog open.
+        </p>
+        <div
+          aria-hidden="true"
+          className="anim-sheen mt-3 h-1.5 rounded-full bg-violet-200/80 dark:bg-violet-500/25"
+        />
+      </div>
+
+      <div className="space-y-5 pr-1">
+        <ReviewGroupSkeleton>
+          <CheckboxRowSkeleton />
+          <CheckboxRowSkeleton />
+          <CheckboxRowSkeleton />
+        </ReviewGroupSkeleton>
+
+        <ReviewGroupSkeleton>
+          <ChipRowSkeleton widths={[64, 92, 78]} />
+        </ReviewGroupSkeleton>
+
+        <ReviewGroupSkeleton>
+          <ChipRowSkeleton widths={[70, 54, 96, 62, 84, 58, 102, 74]} />
+        </ReviewGroupSkeleton>
+
+        <ReviewGroupSkeleton>
+          <CheckboxRowSkeleton />
+          <CheckboxRowSkeleton />
+        </ReviewGroupSkeleton>
+      </div>
+
+      {/*
+        Last, not first: `sr-only` is `position: absolute`, but it is still a
+        `space-y-5` sibling, so leading with it would push the banner down by
+        a phantom 20px.
+      */}
+      <LoadingLabel>
+        Reading your resume. This can take up to a minute.
+      </LoadingLabel>
+    </div>
+  );
+}
+
+/** `<ReviewGroup>` with its heading and body stubbed out. */
+function ReviewGroupSkeleton({ children }: { children: React.ReactNode }) {
+  return (
+    <div>
+      {/* the `mb-2 text-xs` group heading */}
+      <div className="mb-2 flex h-4 items-center">
+        <Skeleton shape="text" height={10} width={104} />
+      </div>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  );
+}
+
+/** `<CheckboxRow>` with a label line and a value line. */
+function CheckboxRowSkeleton() {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-900">
+      <Skeleton height={16} width={16} className="mt-0.5 shrink-0 rounded" />
+      <div className="min-w-0 flex-1">
+        <div className="flex h-5 items-center">
+          <Skeleton shape="text" height={12} width="32%" />
+        </div>
+        <div className="mt-0.5 flex h-5 items-center">
+          <Skeleton shape="text" height={12} width="74%" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * `<ChipToggleList>` at rest. Hand-rolled rather than `SkeletonChips` so the
+ * pills land on the real 26px height (`py-1` + `text-xs` + border) and the real
+ * `gap-1.5`.
+ */
+function ChipRowSkeleton({ widths }: { widths: number[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {widths.map((width, index) => (
+        <Skeleton key={index} shape="circle" height={26} width={width} />
+      ))}
+    </div>
   );
 }
 

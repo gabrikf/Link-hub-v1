@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -42,6 +42,13 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   description: text("description"),
   avatarUrl: text("avatar_url"),
+  backgroundImageUrl: text("background_image_url"),
+  bannerImageUrl: text("banner_image_url"),
+  themeAccent: text("theme_accent"),
+  themePreset: text("theme_preset"),
+  openToWork: boolean("open_to_work").notNull().default(false),
+  location: text("location"),
+  persona: text("persona"),
   password: text("password").notNull(),
   googleId: text("google_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -92,22 +99,163 @@ export const oauthAccounts = pgTable(
   ],
 );
 
-export const links = pgTable("links", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  url: text("url").notNull(),
-  icon: text("icon"),
-  isPublic: boolean("is_public").notNull().default(true),
-  order: integer("order").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at")
-    .notNull()
-    .defaultNow()
-    .$onUpdateFn(() => new Date()),
-});
+export const links = pgTable(
+  "links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    icon: text("icon"),
+    isPublic: boolean("is_public").notNull().default(true),
+    order: integer("order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    // `links` had no index on user_id at all — every public profile view was a
+    // seq scan of the whole table. Covers the two shapes the repository asks
+    // for: the public-profile read (`findPublicByUserId`, the hot path, served
+    // entirely by the partial index in its own sort order) and the owner's list
+    // and last-order lookups, which use the leading user_id column.
+    index("links_user_id_order_idx").on(
+      table.userId,
+      table.order,
+      table.createdAt,
+    ),
+    index("links_public_user_id_order_idx")
+      .on(table.userId, table.order, table.createdAt)
+      .where(sql`${table.isPublic}`),
+  ],
+);
+
+export const posts = pgTable(
+  "posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    title: text("title"),
+    body: text("body").notNull(),
+    coverImageUrl: text("cover_image_url"),
+    images: jsonb("images"),
+    tags: jsonb("tags"),
+    status: text("status").notNull().default("published"),
+    externalUrl: text("external_url"),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+    publishedAt: timestamp("published_at"),
+  },
+  (table) => [
+    index("posts_user_id_idx").on(table.userId),
+    // Recruiter search pulls the 6 most recent published posts per candidate,
+    // for 50 candidates, in one correlated subquery. Without an index carrying
+    // the sort key the LIMIT cannot push down: Postgres reads every published
+    // post the user has and detoasts each `body` for `left(body, 400)` before
+    // discarding all but six. Indexing the exact COALESCE expression the query
+    // sorts on lets it stop after six rows.
+    index("posts_user_published_sort_idx")
+      .on(
+        table.userId,
+        sql`(COALESCE(${table.publishedAt}, ${table.createdAt})) DESC`,
+      )
+      .where(sql`${table.status} = 'published'`),
+  ],
+);
+
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    tokenPrefix: text("token_prefix").notNull(),
+    scopes: jsonb("scopes").notNull(),
+    expiresAt: timestamp("expires_at"),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (table) => [index("api_tokens_user_id_idx").on(table.userId)],
+);
+
+export const profileTabs = pgTable(
+  "profile_tabs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Shared logical identity that links the pc-row and mobile-row of the SAME
+    // logical tab. Structure (title/order/existence) mirrors across viewports by
+    // groupId; only block positions differ per viewport.
+    groupId: uuid("group_id").notNull(),
+    viewport: text("viewport").notNull(),
+    title: text("title").notNull(),
+    order: integer("order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    index("profile_tabs_user_id_viewport_idx").on(table.userId, table.viewport),
+    index("profile_tabs_group_id_idx").on(table.groupId),
+  ],
+);
+
+export const profileBlocks = pgTable(
+  "profile_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Shared logical identity that links the pc-row and mobile-row of the SAME
+    // logical block. Kind/config/visibility/pin/tab-association mirror across
+    // viewports by groupId; only gridX/Y/W/H differ per viewport.
+    groupId: uuid("group_id").notNull(),
+    viewport: text("viewport").notNull(),
+    tabId: uuid("tab_id").references(() => profileTabs.id, {
+      onDelete: "cascade",
+    }),
+    kind: text("kind").notNull(),
+    gridX: integer("grid_x").notNull().default(0),
+    gridY: integer("grid_y").notNull().default(0),
+    gridW: integer("grid_w").notNull().default(1),
+    gridH: integer("grid_h").notNull().default(1),
+    isVisible: boolean("is_visible").notNull().default(true),
+    pinnedAllTabs: boolean("pinned_all_tabs").notNull().default(false),
+    config: jsonb("config"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    index("profile_blocks_user_id_viewport_idx").on(
+      table.userId,
+      table.viewport,
+    ),
+    index("profile_blocks_group_id_idx").on(table.groupId),
+  ],
+);
 
 export const workExperiences = pgTable(
   "work_experiences",
@@ -319,6 +467,10 @@ export const userRelations = relations(users, ({ many }) => ({
   refreshTokens: many(refreshTokens),
   oauthAccounts: many(oauthAccounts),
   links: many(links),
+  posts: many(posts),
+  apiTokens: many(apiTokens),
+  profileTabs: many(profileTabs),
+  profileBlocks: many(profileBlocks),
   workExperiences: many(workExperiences),
   resumes: many(resumes),
   candidateInteractions: many(candidateInteractions),
@@ -337,6 +489,39 @@ export const linksRelations = relations(links, ({ one }) => ({
   user: one(users, {
     fields: [links.userId],
     references: [users.id],
+  }),
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  user: one(users, {
+    fields: [posts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [apiTokens.userId],
+    references: [users.id],
+  }),
+}));
+
+export const profileTabsRelations = relations(profileTabs, ({ one, many }) => ({
+  user: one(users, {
+    fields: [profileTabs.userId],
+    references: [users.id],
+  }),
+  blocks: many(profileBlocks),
+}));
+
+export const profileBlocksRelations = relations(profileBlocks, ({ one }) => ({
+  user: one(users, {
+    fields: [profileBlocks.userId],
+    references: [users.id],
+  }),
+  tab: one(profileTabs, {
+    fields: [profileBlocks.tabId],
+    references: [profileTabs.id],
   }),
 }));
 
