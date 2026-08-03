@@ -92,9 +92,12 @@ export function DashboardProfileForm({
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+      {/* Avatars are the only square, always-circular surface, so they're the
+          only upload that goes through the crop dialog. */}
       <FileUpload
         label="Profile picture"
         aspect="square"
+        cropToCircle
         className="max-w-[10rem]"
         value={watched.userPhoto.trim() || null}
         onChange={(url) =>

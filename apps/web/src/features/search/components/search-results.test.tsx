@@ -22,7 +22,8 @@ function makeCandidate(
     userPhoto: null,
     profileDescription: null,
     similarity: 0.412,
-    email: "ada@example.com",
+    // Search listings no longer carry an address (F3).
+    email: null,
     headlineTitle: "Backend Engineer",
     summary: "Payments specialist",
     totalYearsExperience: 8,
@@ -258,7 +259,10 @@ describe("SearchResults", () => {
     expect(container.querySelectorAll(".anim-sheen")).toHaveLength(0);
   });
 
-  it("copies the candidate email with its rank position", async () => {
+  // The label changed with the PII fix: search listings no longer contain an
+  // email at all, so the card asks the server to reveal one rather than copying
+  // a field it already has.
+  it("requests a contact reveal with the candidate's rank position", async () => {
     const user = userEvent.setup();
     const onCopyEmail = vi.fn();
     const candidate = makeCandidate();
@@ -272,7 +276,7 @@ describe("SearchResults", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Copy Email/ }));
+    await user.click(screen.getByRole("button", { name: /Reveal Email/ }));
 
     expect(onCopyEmail).toHaveBeenCalledWith(candidate, 0);
   });

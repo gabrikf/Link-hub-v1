@@ -1,3 +1,4 @@
+import type { AgentDisclosureLevel } from "@repo/schemas";
 import { BaseEntity, type BaseEntityProps } from "../index.js";
 
 export interface WorkExperienceEntityProps extends BaseEntityProps {
@@ -14,6 +15,12 @@ export interface WorkExperienceEntityProps extends BaseEntityProps {
   isCurrent: boolean;
   description: string | null;
   mainStack: string[];
+  /**
+   * Per-employer override of the account disclosure level. `null` means the
+   * role inherits the account default — the common case, and the reason this
+   * is nullable rather than defaulted.
+   */
+  disclosureLevel?: AgentDisclosureLevel | null;
   displayOrder: number;
 }
 
@@ -31,6 +38,7 @@ export class WorkExperienceEntity extends BaseEntity<WorkExperienceEntityProps> 
   isCurrent: boolean;
   description: string | null;
   mainStack: string[];
+  disclosureLevel: AgentDisclosureLevel | null;
   displayOrder: number;
 
   constructor(props: WorkExperienceEntityProps) {
@@ -48,6 +56,7 @@ export class WorkExperienceEntity extends BaseEntity<WorkExperienceEntityProps> 
     this.isCurrent = props.isCurrent;
     this.description = props.description ?? null;
     this.mainStack = props.mainStack ?? [];
+    this.disclosureLevel = props.disclosureLevel ?? null;
     this.displayOrder = props.displayOrder;
   }
 
@@ -74,6 +83,8 @@ export class WorkExperienceEntity extends BaseEntity<WorkExperienceEntityProps> 
     if (data.isCurrent !== undefined) this.isCurrent = data.isCurrent;
     if (data.description !== undefined) this.description = data.description;
     if (data.mainStack !== undefined) this.mainStack = data.mainStack;
+    if (data.disclosureLevel !== undefined)
+      this.disclosureLevel = data.disclosureLevel;
     if (data.displayOrder !== undefined) this.displayOrder = data.displayOrder;
 
     // A current role can't keep a stale end date.

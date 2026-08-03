@@ -2,6 +2,10 @@ import { z } from "zod";
 import { postStatusSchema } from "@repo/schemas";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { LinkHubApiClient } from "../api-client.js";
+import {
+  renderPolicyForToolDescription,
+  type DisclosureContext,
+} from "../disclosure.js";
 import { describePost, runTool, textResult } from "./shared.js";
 
 const inputSchema = {
@@ -66,6 +70,7 @@ function deriveTitle(repo?: string, period?: string): string {
 export function registerCreateCommitSummaryPost(
   server: McpServer,
   client: LinkHubApiClient,
+  disclosure: DisclosureContext,
 ): void {
   server.registerTool(
     "create_commit_summary_post",
@@ -92,7 +97,8 @@ export function registerCreateCommitSummaryPost(
         "the text. Full house style: read the resource " +
         "linkhub://guides/post-quality, or invoke the `weekly_update` prompt " +
         "for the whole guided workflow. Saved with source='commit' and " +
-        "metadata { repo, commitCount, period }.",
+        "metadata { repo, commitCount, period }. " +
+        renderPolicyForToolDescription(disclosure),
       inputSchema,
     },
     async (args) =>

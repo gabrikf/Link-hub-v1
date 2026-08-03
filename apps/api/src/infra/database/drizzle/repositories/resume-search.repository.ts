@@ -1,6 +1,11 @@
-import { RECRUITER_SEARCH_EVIDENCE_LIMITS } from "@repo/schemas";
-import { and, eq, inArray, sql } from "drizzle-orm";
 import {
+  normalizeSearchText,
+  RECRUITER_SEARCH_EVIDENCE_LIMITS,
+  type SearchSource,
+} from "@repo/schemas";
+import { and, eq, inArray, SQL, sql } from "drizzle-orm";
+import {
+  CandidateContactRecord,
   IResumeSearchRepository,
   SearchResumesByEmbeddingInput,
 } from "../../../../core/repositories/resume-search/resume-search-repository.js";
@@ -11,10 +16,17 @@ import {
   toRecruiterWorkExperiences,
   toWorkEvidence,
 } from "../../../../core/use-case/resumes/shared/build-candidate-search-projection.js";
+import {
+  readNumericEnv,
+  resolveEmbeddingModel,
+  resolveEmbeddingVersion,
+  resolveEmbeddingVersionText,
+} from "../../../../core/use-case/resumes/shared/embedding-config.js";
 import { db } from "../index.js";
 import {
   posts,
   resumeEmbeddings,
+  resumeSectionEmbeddings,
   resumeSkills,
   resumeTitles,
   resumes,
@@ -53,6 +65,22 @@ const MAX_WORK_EXPERIENCES_SQL =
 const MAX_POSTS_SQL = CANDIDATE_SEARCH_FETCH_LIMITS.maxPosts;
 
 /**
+ * How many rows the ANN pass fetches per requested result.
+ *
+ * `SEARCH_MIN_SIMILARITY` used to be applied in JavaScript *after* `LIMIT topK`,
+ * so a `topK=50` request that matched 50 rows but where 47 fell under the floor
+ * returned 3 results and stopped — the floor silently became the page size
+ * (defect F19). The floor now lives in the SQL predicate, and the over-fetch on
+ * top of that gives the approximate index room to be wrong: ivfflat only ranks
+ * exactly *within* the clusters it probes, so asking it for more than we intend
+ * to keep is what makes the kept set close to the exact top-K.
+ */
+const DEFAULT_OVERFETCH_FACTOR = 4;
+
+/** Never issue an unbounded LIMIT, however large topK and the factor are. */
+const MAX_FETCH_ROWS = 1_000;
+
+/**
  * Serialised query vector, sent as a bind parameter rather than pasted into the
  * SQL text.
  *
@@ -77,61 +105,382 @@ function toPgVectorParam(embedding: number[]): string {
   return `[${embedding.join(",")}]`;
 }
 
+/**
+ * Folds a free-text column to the same shape `normalizeSearchText` produces in
+ * TypeScript: accents stripped, lowercased.
+ *
+ * `location`, `notice_period` and `spoken_languages` are free text the candidate
+ * types, but the recruiter UI offers a fixed list ("Sao Paulo", "Immediate",
+ * "English"). Comparing them raw made every candidate who wrote `São Paulo`
+ * invisible (defect F8). `normalize(..., NFD)` splits `ã` into `a` + combining
+ * tilde and the regex drops the combining marks.
+ *
+ * Note this is an expression, not an index — these filters are selective enough
+ * to run as a recheck over the ANN candidate set. If they ever need to drive the
+ * scan, the fix is an expression index carrying this exact expression.
+ */
+function foldedColumn(column: SQL | SQL.Aliased | unknown): SQL {
+  return sql`regexp_replace(normalize(lower(${column}), NFD), '[̀-ͯ]', '', 'g')`;
+}
+
+function normalizeTerms(values: string[]): string[] {
+  return Array.from(
+    new Set(
+      values.map((value) => normalizeSearchText(value)).filter(Boolean),
+    ),
+  );
+}
+
+/**
+ * `= ANY(...)` against a folded column.
+ *
+ * Two things here are load-bearing, and both fail as a 500 on every search
+ * rather than as a wrong result:
+ *
+ * 1. `sql.param(...)`. Inside a `sql` template Drizzle treats a bare array as a
+ *    list of SQL CHUNKS, not as one bind value — so `${["sao paulo"]}` binds the
+ *    scalar `'sao paulo'`, and Postgres reports
+ *    `malformed array literal: "sao paulo"`. `sql.param` forces it to bind the
+ *    array as a single parameter.
+ * 2. The `::text[]` cast. With a bare column on the left Postgres could infer
+ *    the element type, but `foldedColumn` wraps it in `regexp_replace(...)`, and
+ *    an expression gives the planner nothing to infer from.
+ */
+function foldedInAny(column: SQL | SQL.Aliased | unknown, wanted: string[]): SQL {
+  return sql`${foldedColumn(column)} = ANY(${sql.param(wanted)}::text[])`;
+}
+
+/**
+ * pgvector's installed version, resolved once per process.
+ *
+ * `ivfflat.iterative_scan` and `ivfflat.max_probes` only exist from 0.8.0. Set
+ * them on an older build and the `SET LOCAL` errors, which aborts the
+ * transaction and turns every search into a 500 — the same class of failure as
+ * F20. So the capability is probed rather than assumed.
+ */
+let pgVectorVersionPromise: Promise<string | null> | null = null;
+
+async function readPgVectorVersion(): Promise<string | null> {
+  const rows = (await db.execute(
+    sql`SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
+  )) as unknown as Array<{ extversion: string | null }>;
+
+  return rows[0]?.extversion ?? null;
+}
+
+function supportsIterativeScan(version: string | null): boolean {
+  if (!version) {
+    return false;
+  }
+
+  const [major, minor] = version
+    .split(".")
+    .map((part) => Number.parseInt(part, 10));
+
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) {
+    return false;
+  }
+
+  return major > 0 || minor >= 8;
+}
+
+async function getPgVectorVersion(): Promise<string | null> {
+  pgVectorVersionPromise ??= readPgVectorVersion().catch(() => null);
+  return pgVectorVersionPromise;
+}
+
 export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
   async searchByEmbedding(input: SearchResumesByEmbeddingInput) {
     const queryVector = toPgVectorParam(input.queryEmbedding);
+    const scopedSources = normalizeSources(input.sources);
 
-    const filters: ReturnType<typeof sql>[] = [];
+    const filters = this.buildFilters(input);
 
-    if (input.filters.contractTypes?.length) {
-      filters.push(inArray(resumes.contractType, input.filters.contractTypes));
-    }
+    /**
+     * THE authorization boundary for candidate discovery.
+     *
+     * `authGuard` only proves the caller holds a valid JWT — there is no
+     * recruiter role in this system, so "authenticated" means "anyone who
+     * signed up". Without this predicate every account could page the entire
+     * candidate base, salary expectations included (defect F3). `open_to_work`
+     * is the candidate's own, explicit statement that they want to be found;
+     * it is the narrowest correct gate available on today's schema.
+     */
+    filters.push(eq(users.openToWork, true));
 
-    if (input.filters.seniorityLevels?.length) {
+    // Only compare vectors that live in the same space. After a model or
+    // version change the table holds two generations of vectors at once, and
+    // cosine distance between them is a number with no meaning — old rows would
+    // interleave with new ones and quietly poison the ranking (defect F13).
+    const embeddingModel = resolveEmbeddingModel();
+
+    const similarity = scopedSources
+      ? this.buildScopedSimilarity(queryVector, scopedSources, embeddingModel)
+      : sql<number>`1 - (${resumeEmbeddings.embedding} <=> ${queryVector}::vector)`;
+
+    if (!scopedSources) {
+      filters.push(eq(resumeEmbeddings.embeddingModel, embeddingModel));
       filters.push(
-        inArray(resumes.seniorityLevel, input.filters.seniorityLevels),
+        eq(resumeEmbeddings.embeddingVersion, resolveEmbeddingVersion()),
       );
     }
 
-    if (input.filters.workModels?.length) {
-      filters.push(inArray(resumes.workModel, input.filters.workModels));
+    const minSimilarity = readNumericEnv("SEARCH_MIN_SIMILARITY", 0.1);
+
+    // The floor belongs in the predicate, not in a post-pass over the page:
+    // filtering after LIMIT is what let a topK=50 request return 3 (F19).
+    if (minSimilarity > 0) {
+      filters.push(sql`${similarity} >= ${minSimilarity}`);
     }
 
-    if (input.filters.locations?.length) {
-      filters.push(inArray(resumes.location, input.filters.locations));
+    const whereClause = filters.length > 0 ? and(...filters) : undefined;
+
+    const overfetchFactor = Math.max(
+      1,
+      readNumericEnv("SEARCH_OVERFETCH_FACTOR", DEFAULT_OVERFETCH_FACTOR),
+    );
+    const fetchLimit = Math.min(
+      MAX_FETCH_ROWS,
+      Math.ceil(input.topK * overfetchFactor),
+    );
+
+    const rows = await db.transaction(async (tx) => {
+      await this.applyIvfflatSettings(tx, fetchLimit);
+
+      const selection = {
+        ...this.buildCandidateSelection(),
+        similarity: sql<number>`${similarity}`,
+        sourceSimilarity: scopedSources
+          ? this.buildSourceSimilarity(
+              queryVector,
+              scopedSources,
+              embeddingModel,
+            )
+          : sql<null>`NULL::jsonb`,
+      };
+
+      // The scoped path deliberately does NOT join `resume_embeddings`: a
+      // candidate is searchable on the sources they have, and requiring the
+      // blended row too would drop anyone mid-reindex.
+      const query = scopedSources
+        ? tx.select(selection).from(resumes).innerJoin(
+            users,
+            eq(users.id, resumes.userId),
+          )
+        : tx
+            .select(selection)
+            .from(resumes)
+            .innerJoin(users, eq(users.id, resumes.userId))
+            .innerJoin(
+              resumeEmbeddings,
+              eq(resumeEmbeddings.resumeId, resumes.id),
+            );
+
+      return query
+        .where(whereClause)
+        // `resumes.id ASC` is not cosmetic: without a total order, two
+        // candidates on an identical score come back in whatever order the
+        // executor happened to produce, so the same request can return
+        // different pages. Tests assert byte-identical repeat responses.
+        .orderBy(sql`${similarity} DESC`, sql`${resumes.id} ASC`)
+        .limit(fetchLimit);
+    });
+
+    return rows.slice(0, input.topK).map((item) => {
+      const { posts: postRows, sourceSimilarity, ...candidate } = item;
+
+      const candidatePosts: CandidatePostRow[] = postRows ?? [];
+
+      return {
+        ...candidate,
+        // Never from a listing — see `ResumeSearchResult.email` (defect F3).
+        email: null,
+        ...(sourceSimilarity
+          ? { sourceSimilarity: toSourceSimilarity(sourceSimilarity) }
+          : {}),
+        workExperiences: toRecruiterWorkExperiences(
+          candidate.workExperiences ?? [],
+        ),
+        workEvidence: toWorkEvidence(candidatePosts),
+      };
+    });
+  }
+
+  async findCandidateContact(
+    resumeId: string,
+  ): Promise<CandidateContactRecord | null> {
+    const [row] = await db
+      .select({
+        resumeId: resumes.id,
+        userId: resumes.userId,
+        name: users.name,
+        username: users.login,
+        email: users.email,
+      })
+      .from(resumes)
+      .innerJoin(users, eq(users.id, resumes.userId))
+      // Same boundary as the search. A `resumeId` held over from an earlier
+      // session must not outlive the candidate's decision to stop looking.
+      .where(and(eq(resumes.id, resumeId), eq(users.openToWork, true)));
+
+    return row ?? null;
+  }
+
+  /**
+   * Raises ivfflat's effort when the query has selective filters.
+   *
+   * The default `probes = 10` against `lists = 100` visits ~10% of the vectors
+   * and only *then* applies the SQL predicates. With a selective filter most of
+   * the matching candidates live in clusters that were never opened, so they are
+   * simply never seen — recall collapses without any error (defect F19).
+   * pgvector 0.8's `iterative_scan = relaxed_order` keeps opening further
+   * clusters until the LIMIT is satisfied (or `max_probes` is reached), which is
+   * exactly the "scan more when the filter is selective" behaviour we need. On
+   * older builds we fall back to a plain, validated `probes`.
+   */
+  private async applyIvfflatSettings(
+    tx: { execute: (query: SQL) => Promise<unknown> },
+    fetchLimit: number,
+  ): Promise<void> {
+    // `Number(process.env.IVFFLAT_PROBES)` used to be interpolated raw: with
+    // `IVFFLAT_PROBES=abc` this became `SET LOCAL ivfflat.probes = NaN`, which
+    // aborts the transaction and 500s every search (defect F20).
+    const probes = Math.max(1, Math.round(readNumericEnv("IVFFLAT_PROBES", 10)));
+    await tx.execute(sql`SET LOCAL ivfflat.probes = ${sql.raw(String(probes))}`);
+
+    const version = await getPgVectorVersion();
+
+    if (!supportsIterativeScan(version)) {
+      return;
     }
 
-    if (input.filters.noticePeriods?.length) {
-      filters.push(inArray(resumes.noticePeriod, input.filters.noticePeriods));
+    const maxProbes = Math.max(
+      probes,
+      Math.round(readNumericEnv("IVFFLAT_MAX_PROBES", 100)),
+      // A large over-fetch is pointless if the index refuses to look that far.
+      Math.min(MAX_FETCH_ROWS, fetchLimit),
+    );
+
+    await tx.execute(
+      sql`SET LOCAL ivfflat.iterative_scan = ${sql.raw("relaxed_order")}`,
+    );
+    await tx.execute(
+      sql`SET LOCAL ivfflat.max_probes = ${sql.raw(String(maxProbes))}`,
+    );
+  }
+
+  /**
+   * Fuses the selected per-source similarities with `max`.
+   *
+   * Why max and not a weighted sum: the three documents are wildly different in
+   * length and vocabulary, so their cosine magnitudes are not calibrated against
+   * each other — averaging them mostly measures which sources a candidate
+   * happens to have filled in. Worse, a sum penalises exactly the candidate the
+   * feature exists for: someone whose posts nail the query but whose resume is
+   * thin would score below a mediocre all-round match. `max` reads as "the best
+   * evidence found in any selected source", is monotone in every source, and
+   * guarantees the metamorphic property that widening `sources` can only ever
+   * raise a candidate's score. The per-source breakdown is returned alongside it
+   * (`sourceSimilarity`) so the UI can attribute the score rather than guess.
+   */
+  private buildScopedSimilarity(
+    queryVector: string,
+    sources: SearchSource[],
+    embeddingModel: string,
+  ): SQL<number> {
+    return sql<number>`COALESCE((
+      SELECT max(1 - (rse.embedding <=> ${queryVector}::vector))
+      FROM ${resumeSectionEmbeddings} rse
+      WHERE rse.user_id = ${resumes.userId}
+        AND rse.source = ANY(${sql.param(sources)}::text[])
+        AND rse.embedding_model = ${embeddingModel}
+        AND rse.embedding_version = ${resolveEmbeddingVersionText()}
+    ), -1)`;
+  }
+
+  private buildSourceSimilarity(
+    queryVector: string,
+    sources: SearchSource[],
+    embeddingModel: string,
+  ): SQL<Record<string, number> | null> {
+    return sql<Record<string, number> | null>`(
+      SELECT jsonb_object_agg(
+        rse.source,
+        1 - (rse.embedding <=> ${queryVector}::vector)
+      )
+      FROM ${resumeSectionEmbeddings} rse
+      WHERE rse.user_id = ${resumes.userId}
+        AND rse.source = ANY(${sql.param(sources)}::text[])
+        AND rse.embedding_model = ${embeddingModel}
+        AND rse.embedding_version = ${resolveEmbeddingVersionText()}
+    )`;
+  }
+
+  private buildFilters(input: SearchResumesByEmbeddingInput): SQL[] {
+    const filters: SQL[] = [];
+    const { filters: where } = input;
+
+    if (where.contractTypes?.length) {
+      filters.push(inArray(resumes.contractType, where.contractTypes));
     }
 
-    if (input.filters.openToRelocation !== undefined) {
+    if (where.seniorityLevels?.length) {
+      filters.push(inArray(resumes.seniorityLevel, where.seniorityLevels));
+    }
+
+    if (where.workModels?.length) {
+      filters.push(inArray(resumes.workModel, where.workModels));
+    }
+
+    // Accent- and case-insensitive on both sides — see `foldedColumn` (F8).
+    if (where.locations?.length) {
+      const wanted = normalizeTerms(where.locations);
+      if (wanted.length > 0) {
+        filters.push(foldedInAny(resumes.location, wanted));
+      }
+    }
+
+    if (where.noticePeriods?.length) {
+      const wanted = normalizeTerms(where.noticePeriods);
+      if (wanted.length > 0) {
+        filters.push(foldedInAny(resumes.noticePeriod, wanted));
+      }
+    }
+
+    if (where.spokenLanguages?.length) {
+      const wanted = normalizeTerms(where.spokenLanguages);
+      if (wanted.length > 0) {
+        // `&&` on the raw array was exact and case-sensitive; unnest + fold so
+        // "portuguese", "Portuguese" and "Português" are one language.
+        filters.push(sql`
+          EXISTS (
+            SELECT 1
+            FROM unnest(${resumes.spokenLanguages}) AS spoken_language
+            WHERE ${foldedInAny(sql`spoken_language`, wanted)}
+          )
+        `);
+      }
+    }
+
+    if (where.openToRelocation !== undefined) {
+      filters.push(sql`${resumes.openToRelocation} = ${where.openToRelocation}`);
+    }
+
+    if (where.minYearsExperience !== undefined) {
       filters.push(
-        sql`${resumes.openToRelocation} = ${input.filters.openToRelocation}`,
+        sql`${resumes.totalYearsExperience} >= ${where.minYearsExperience}`,
       );
     }
 
-    if (input.filters.minYearsExperience !== undefined) {
+    if (where.maxYearsExperience !== undefined) {
       filters.push(
-        sql`${resumes.totalYearsExperience} >= ${input.filters.minYearsExperience}`,
+        sql`${resumes.totalYearsExperience} <= ${where.maxYearsExperience}`,
       );
     }
 
-    if (input.filters.maxYearsExperience !== undefined) {
-      filters.push(
-        sql`${resumes.totalYearsExperience} <= ${input.filters.maxYearsExperience}`,
-      );
-    }
-
-    if (input.filters.spokenLanguages?.length) {
-      filters.push(
-        sql`${resumes.spokenLanguages} && ${input.filters.spokenLanguages}`,
-      );
-    }
-
-    if (input.filters.skills?.length) {
-      for (const skillTerm of input.filters.skills) {
-        const normalized = skillTerm.trim().toLowerCase();
+    if (where.skills?.length) {
+      for (const skillTerm of where.skills) {
+        const normalized = normalizeSearchText(skillTerm);
         if (!normalized) {
           continue;
         }
@@ -142,15 +491,15 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
             FROM ${resumeSkills} rs
             INNER JOIN ${skillsCatalog} sc ON sc.id = rs.skill_id
             WHERE rs.resume_id = ${resumes.id}
-              AND lower(sc.name) LIKE ${`%${normalized}%`}
+              AND ${foldedColumn(sql`sc.name`)} LIKE ${`%${normalized}%`}
           )
         `);
       }
     }
 
-    if (input.filters.titles?.length) {
-      for (const titleTerm of input.filters.titles) {
-        const normalized = titleTerm.trim().toLowerCase();
+    if (where.titles?.length) {
+      for (const titleTerm of where.titles) {
+        const normalized = normalizeSearchText(titleTerm);
         if (!normalized) {
           continue;
         }
@@ -161,199 +510,202 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
             FROM ${resumeTitles} rt
             INNER JOIN ${titlesCatalog} tc ON tc.id = rt.title_id
             WHERE rt.resume_id = ${resumes.id}
-              AND lower(tc.name) LIKE ${`%${normalized}%`}
+              AND ${foldedColumn(sql`tc.name`)} LIKE ${`%${normalized}%`}
           )
         `);
       }
     }
 
-    if (input.filters.minSalary !== undefined) {
+    /**
+     * Salary is a RANGE OVERLAP, and an unstated bound means "unbounded".
+     *
+     * Both branches used to require the column `IS NOT NULL`, so setting only
+     * `maxSalary` silently deleted every candidate who left salary blank
+     * (defect F12) — and most do. Overlap is the natural reading of two bands
+     * meeting: the recruiter's [minSalary, maxSalary] intersects the
+     * candidate's [expectationMin, expectationMax] unless one is entirely above
+     * the other. A NULL expectation is not a mismatch, it is an absence of
+     * information, and dropping those candidates hides exactly the people who
+     * are flexible on pay.
+     */
+    if (where.minSalary !== undefined) {
       filters.push(
-        sql`${resumes.salaryExpectationMin} IS NOT NULL AND ${resumes.salaryExpectationMin} >= ${input.filters.minSalary}`,
+        sql`(${resumes.salaryExpectationMax} IS NULL OR ${resumes.salaryExpectationMax} >= ${where.minSalary})`,
       );
     }
 
-    if (input.filters.maxSalary !== undefined) {
+    if (where.maxSalary !== undefined) {
       filters.push(
-        sql`${resumes.salaryExpectationMax} IS NOT NULL AND ${resumes.salaryExpectationMax} <= ${input.filters.maxSalary}`,
+        sql`(${resumes.salaryExpectationMin} IS NULL OR ${resumes.salaryExpectationMin} <= ${where.maxSalary})`,
       );
     }
 
-    if (input.filters.nameContains) {
+    if (where.nameContains) {
       filters.push(
-        sql`lower(${users.name}) LIKE ${`%${input.filters.nameContains.toLowerCase()}%`}`,
+        sql`${foldedColumn(users.name)} LIKE ${`%${normalizeSearchText(where.nameContains)}%`}`,
       );
     }
 
-    if (input.filters.usernameContains) {
+    if (where.usernameContains) {
       filters.push(
-        sql`lower(${users.login}) LIKE ${`%${input.filters.usernameContains.toLowerCase()}%`}`,
+        sql`${foldedColumn(users.login)} LIKE ${`%${normalizeSearchText(where.usernameContains)}%`}`,
       );
     }
 
-    if (input.filters.profileTextContains) {
-      const normalized = input.filters.profileTextContains.toLowerCase();
+    if (where.profileTextContains) {
+      const normalized = normalizeSearchText(where.profileTextContains);
       filters.push(sql`
-        lower(
-          concat_ws(
-            ' ',
-            coalesce(${resumes.summary}, ''),
-            coalesce(${resumes.headlineTitle}, ''),
-            coalesce(${users.description}, '')
-          )
-        ) LIKE ${`%${normalized}%`}
+        ${foldedColumn(sql`concat_ws(
+          ' ',
+          coalesce(${resumes.summary}, ''),
+          coalesce(${resumes.headlineTitle}, ''),
+          coalesce(${users.description}, '')
+        )`)} LIKE ${`%${normalized}%`}
       `);
     }
 
-    const minSimilarity = Number(process.env.SEARCH_MIN_SIMILARITY ?? "0.1");
-
-    const whereClause = filters.length > 0 ? and(...filters) : undefined;
-
-    // IVFFLAT with many lists can return 0 rows when the nearest cluster is
-    // empty (common for small datasets). Setting probes ensures we scan enough
-    // clusters to find results. ENV var allows tuning per environment.
-    const ivfflatProbes = Number(process.env.IVFFLAT_PROBES ?? "10");
-
-    const rows = await db.transaction(async (tx) => {
-      await tx.execute(sql.raw(`SET LOCAL ivfflat.probes = ${ivfflatProbes}`));
-      return tx
-        .select({
-          userId: resumes.userId,
-          resumeId: resumes.id,
-          username: users.login,
-          name: users.name,
-          userPhoto: users.avatarUrl,
-          profileDescription: users.description,
-          email: users.email,
-          similarity: sql<number>`1 - (${resumeEmbeddings.embedding} <=> ${queryVector}::vector)`,
-          headlineTitle: resumes.headlineTitle,
-          summary: resumes.summary,
-          totalYearsExperience: resumes.totalYearsExperience,
-          location: resumes.location,
-          seniorityLevel: resumes.seniorityLevel,
-          workModel: resumes.workModel,
-          contractType: resumes.contractType,
-          spokenLanguages: resumes.spokenLanguages,
-          noticePeriod: resumes.noticePeriod,
-          openToRelocation: resumes.openToRelocation,
-          salaryExpectationMin: resumes.salaryExpectationMin,
-          salaryExpectationMax: resumes.salaryExpectationMax,
-          skills: sql<string[]>`COALESCE((
-          SELECT array_agg(${skillsCatalog.name} ORDER BY ${resumeSkills.displayOrder})
-          FROM ${resumeSkills}
-          INNER JOIN ${skillsCatalog} ON ${skillsCatalog.id} = ${resumeSkills.skillId}
-          WHERE ${resumeSkills.resumeId} = ${resumes.id}
-        ), ARRAY[]::text[])`,
-          titles: sql<string[]>`COALESCE((
-          SELECT array_agg(${titlesCatalog.name} ORDER BY ${resumeTitles.displayOrder})
-          FROM ${resumeTitles}
-          INNER JOIN ${titlesCatalog} ON ${titlesCatalog.id} = ${resumeTitles.titleId}
-          WHERE ${resumeTitles.resumeId} = ${resumes.id}
-        ), ARRAY[]::text[])`,
-          // Work history is keyed by user (not resume); aggregate the roles the
-          // candidate actually held so the reranker can match on real experience
-          // and the result card can show a dated timeline. Bounded and clipped
-          // in SQL so one candidate with a long history can't bloat a top-50
-          // response.
-          workExperiences: sql<CandidateWorkExperienceRow[]>`COALESCE((
-          SELECT json_agg(
-            json_build_object(
-              'title', we.title,
-              'companyName', we.company_name,
-              'description', we.description,
-              'mainStack', we.main_stack,
-              'startDate', we.start_date,
-              'endDate', we.end_date,
-              'isCurrent', we.is_current,
-              'employmentType', we.employment_type,
-              'workModel', we.work_model
-            )
-            ORDER BY we.display_order
-          )
-          FROM (
-            SELECT
-              ${workExperiences.title} AS title,
-              ${workExperiences.companyName} AS company_name,
-              left(${workExperiences.description}, ${WORK_DESCRIPTION_SQL_CHARS}) AS description,
-              ${workExperiences.mainStack} AS main_stack,
-              ${workExperiences.startDate} AS start_date,
-              ${workExperiences.endDate} AS end_date,
-              ${workExperiences.isCurrent} AS is_current,
-              ${workExperiences.employmentType} AS employment_type,
-              ${workExperiences.workModel} AS work_model,
-              ${workExperiences.displayOrder} AS display_order
-            FROM ${workExperiences}
-            WHERE ${workExperiences.userId} = ${resumes.userId}
-            ORDER BY ${workExperiences.displayOrder}
-            LIMIT ${MAX_WORK_EXPERIENCES_SQL}
-          ) we
-        ), '[]'::json)`,
-          // Published posts — including every commit summary written by the MCP
-          // server. This is the only place a recruiter can see what the person
-          // actually shipped. Bodies are clipped in SQL; the projection
-          // truncates further for the visible excerpt.
-          posts: sql<CandidatePostRow[]>`COALESCE((
-          SELECT json_agg(
-            json_build_object(
-              'id', p.id,
-              'title', p.title,
-              'body', p.body,
-              'source', p.source,
-              'tags', p.tags,
-              'externalUrl', p.external_url,
-              'publishedAt', p.published_at
-            )
-            ORDER BY p.sort_at DESC
-          )
-          FROM (
-            SELECT
-              ${posts.id} AS id,
-              ${posts.title} AS title,
-              left(${posts.body}, ${POST_BODY_SQL_CHARS}) AS body,
-              ${posts.source} AS source,
-              ${posts.tags} AS tags,
-              ${posts.externalUrl} AS external_url,
-              ${posts.publishedAt} AS published_at,
-              COALESCE(${posts.publishedAt}, ${posts.createdAt}) AS sort_at
-            FROM ${posts}
-            WHERE ${posts.userId} = ${resumes.userId}
-              AND ${posts.status} = 'published'
-            ORDER BY COALESCE(${posts.publishedAt}, ${posts.createdAt}) DESC
-            LIMIT ${MAX_POSTS_SQL}
-          ) p
-        ), '[]'::json)`,
-        })
-        .from(resumes)
-        .innerJoin(users, eq(users.id, resumes.userId))
-        .innerJoin(resumeEmbeddings, eq(resumeEmbeddings.resumeId, resumes.id))
-        .where(whereClause)
-        .orderBy(sql`${resumeEmbeddings.embedding} <=> ${queryVector}::vector`)
-        .limit(input.topK);
-    });
-
-    const mapped = rows.map((item) => {
-      const { posts: postRows, ...candidate } = item;
-
-      const candidatePosts: CandidatePostRow[] = postRows ?? [];
-
-      const workExperiencesProjection = toRecruiterWorkExperiences(
-        candidate.workExperiences ?? [],
-      );
-
-      return {
-        ...candidate,
-        workExperiences: workExperiencesProjection,
-        workEvidence: toWorkEvidence(candidatePosts),
-      };
-    });
-
-    const filtered = mapped.filter(
-      (item) =>
-        !Number.isFinite(minSimilarity) ||
-        minSimilarity <= 0 ||
-        item.similarity >= minSimilarity,
-    );
-
-    return filtered;
+    return filters;
   }
+
+  private buildCandidateSelection() {
+    return {
+      userId: resumes.userId,
+      resumeId: resumes.id,
+      username: users.login,
+      name: users.name,
+      userPhoto: users.avatarUrl,
+      profileDescription: users.description,
+      headlineTitle: resumes.headlineTitle,
+      summary: resumes.summary,
+      totalYearsExperience: resumes.totalYearsExperience,
+      location: resumes.location,
+      seniorityLevel: resumes.seniorityLevel,
+      workModel: resumes.workModel,
+      contractType: resumes.contractType,
+      spokenLanguages: resumes.spokenLanguages,
+      noticePeriod: resumes.noticePeriod,
+      openToRelocation: resumes.openToRelocation,
+      salaryExpectationMin: resumes.salaryExpectationMin,
+      salaryExpectationMax: resumes.salaryExpectationMax,
+      skills: sql<string[]>`COALESCE((
+        SELECT array_agg(${skillsCatalog.name} ORDER BY ${resumeSkills.displayOrder})
+        FROM ${resumeSkills}
+        INNER JOIN ${skillsCatalog} ON ${skillsCatalog.id} = ${resumeSkills.skillId}
+        WHERE ${resumeSkills.resumeId} = ${resumes.id}
+      ), ARRAY[]::text[])`,
+      titles: sql<string[]>`COALESCE((
+        SELECT array_agg(${titlesCatalog.name} ORDER BY ${resumeTitles.displayOrder})
+        FROM ${resumeTitles}
+        INNER JOIN ${titlesCatalog} ON ${titlesCatalog.id} = ${resumeTitles.titleId}
+        WHERE ${resumeTitles.resumeId} = ${resumes.id}
+      ), ARRAY[]::text[])`,
+      // Work history is keyed by user (not resume); aggregate the roles the
+      // candidate actually held so the reranker can match on real experience
+      // and the result card can show a dated timeline. Bounded and clipped
+      // in SQL so one candidate with a long history can't bloat a top-50
+      // response.
+      workExperiences: sql<CandidateWorkExperienceRow[]>`COALESCE((
+        SELECT json_agg(
+          json_build_object(
+            'title', we.title,
+            'companyName', we.company_name,
+            'description', we.description,
+            'mainStack', we.main_stack,
+            'startDate', we.start_date,
+            'endDate', we.end_date,
+            'isCurrent', we.is_current,
+            'employmentType', we.employment_type,
+            'workModel', we.work_model
+          )
+          ORDER BY we.display_order
+        )
+        FROM (
+          SELECT
+            ${workExperiences.title} AS title,
+            ${workExperiences.companyName} AS company_name,
+            left(${workExperiences.description}, ${WORK_DESCRIPTION_SQL_CHARS}) AS description,
+            ${workExperiences.mainStack} AS main_stack,
+            ${workExperiences.startDate} AS start_date,
+            ${workExperiences.endDate} AS end_date,
+            ${workExperiences.isCurrent} AS is_current,
+            ${workExperiences.employmentType} AS employment_type,
+            ${workExperiences.workModel} AS work_model,
+            ${workExperiences.displayOrder} AS display_order
+          FROM ${workExperiences}
+          WHERE ${workExperiences.userId} = ${resumes.userId}
+          ORDER BY ${workExperiences.displayOrder}
+          LIMIT ${MAX_WORK_EXPERIENCES_SQL}
+        ) we
+      ), '[]'::json)`,
+      // Published posts — including every commit summary written by the MCP
+      // server. This is the only place a recruiter can see what the person
+      // actually shipped. Bodies are clipped in SQL; the projection
+      // truncates further for the visible excerpt.
+      posts: sql<CandidatePostRow[]>`COALESCE((
+        SELECT json_agg(
+          json_build_object(
+            'id', p.id,
+            'title', p.title,
+            'body', p.body,
+            'source', p.source,
+            'tags', p.tags,
+            'externalUrl', p.external_url,
+            'publishedAt', p.published_at
+          )
+          ORDER BY p.sort_at DESC
+        )
+        FROM (
+          SELECT
+            ${posts.id} AS id,
+            ${posts.title} AS title,
+            left(${posts.body}, ${POST_BODY_SQL_CHARS}) AS body,
+            ${posts.source} AS source,
+            ${posts.tags} AS tags,
+            ${posts.externalUrl} AS external_url,
+            ${posts.publishedAt} AS published_at,
+            COALESCE(${posts.publishedAt}, ${posts.createdAt}) AS sort_at
+          FROM ${posts}
+          WHERE ${posts.userId} = ${resumes.userId}
+            AND ${posts.status} = 'published'
+          ORDER BY COALESCE(${posts.publishedAt}, ${posts.createdAt}) DESC
+          LIMIT ${MAX_POSTS_SQL}
+        ) p
+      ), '[]'::json)`,
+    };
+  }
+}
+
+/**
+ * `undefined` when the caller did not scope the search, so the blended vector
+ * path stays byte-for-byte what it always was. An empty array is treated the
+ * same way — "no sources selected" is a UI state, not a request for zero
+ * results.
+ */
+function normalizeSources(
+  sources: SearchSource[] | undefined,
+): SearchSource[] | undefined {
+  if (!sources?.length) {
+    return undefined;
+  }
+
+  return Array.from(new Set(sources));
+}
+
+function toSourceSimilarity(
+  raw: unknown,
+): Partial<Record<SearchSource, number>> {
+  if (!raw || typeof raw !== "object") {
+    return {};
+  }
+
+  const result: Partial<Record<SearchSource, number>> = {};
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(numeric)) {
+      result[key as SearchSource] = numeric;
+    }
+  }
+
+  return result;
 }

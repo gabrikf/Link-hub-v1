@@ -1,0 +1,14 @@
+{
+  "version": "v3",
+  "trainedAt": "2026-08-01T17:51:50.514Z",
+  "mode": "initial",
+  "samples": 720,
+  "trainSamples": 720,
+  "holdoutSamples": 0,
+  "inputDimension": 136,
+  "queryAware": true,
+  "preprocessingVersion": "v3",
+  "matchMetric": "coverage-substring-v1",
+  "warmStartedFrom": null,
+  "calibration": null
+}

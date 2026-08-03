@@ -1,4 +1,8 @@
 import {
+  RECRUITER_QUERY_FALLBACK_LIMITS,
+  type SearchSource,
+} from "@repo/schemas";
+import {
   BuildRecruiterSemanticQueryInput,
   IRecruiterQueryConversionProvider,
 } from "../../../providers/query-conversion/recruiter-query-conversion-provider.js";
@@ -14,6 +18,11 @@ export interface TransformRecruiterSearchInput {
   whereQuery?: RecruiterSearchFilters;
   filters?: RecruiterSearchFilters;
   topK?: number;
+  sources?: SearchSource[];
+}
+
+function clipTo(value: string, maxChars: number): string {
+  return value.length <= maxChars ? value : value.slice(0, maxChars).trimEnd();
 }
 
 export class TransformRecruiterSearchInputUseCase {
@@ -45,16 +54,30 @@ export class TransformRecruiterSearchInputUseCase {
           );
         semanticQuery = converted.semanticQuery.trim();
       } catch {
-        semanticQuery = [
-          input.query,
-          input.chatPrompt,
-          input.attachmentText,
-          input.semanticSkills?.join(", "),
-          input.semanticTitles?.join(", "),
-        ]
-          .filter((value): value is string => Boolean(value && value.trim()))
-          .join("\n\n")
-          .trim();
+        // Degraded path: the LLM is down, so the raw recruiter input is embedded
+        // directly. It has to be clipped first — `attachmentText` alone accepts
+        // 100 000 characters, and handing a whole job-description PDF to the
+        // embedding API is a hard 400 that surfaces to the recruiter as an
+        // uncaught 500 (defect F21). Better a slightly shorter query than no
+        // search at all.
+        semanticQuery = clipTo(
+          [
+            input.query,
+            input.chatPrompt,
+            input.attachmentText
+              ? clipTo(
+                  input.attachmentText,
+                  RECRUITER_QUERY_FALLBACK_LIMITS.attachmentTextChars,
+                )
+              : undefined,
+            input.semanticSkills?.join(", "),
+            input.semanticTitles?.join(", "),
+          ]
+            .filter((value): value is string => Boolean(value?.trim()))
+            .join("\n\n")
+            .trim(),
+          RECRUITER_QUERY_FALLBACK_LIMITS.totalChars,
+        );
       }
     } else {
       // Filter-only path: build a compact semantic query from available signals
@@ -111,6 +134,7 @@ export class TransformRecruiterSearchInputUseCase {
       query: semanticQuery,
       topK: input.topK,
       filters: whereQuery,
+      sources: input.sources,
     });
 
     return {

@@ -16,6 +16,7 @@ import {
   SURFACE_GLASS,
 } from "../../../shared-components/surface";
 import { ConnectPanel } from "../components/connect-panel";
+import { DisclosurePanel } from "../components/disclosure-panel";
 import { CONNECT_PANEL_ID } from "../lib/mcp-config";
 import { CreateTokenDialog } from "../components/create-token-dialog";
 import {
@@ -341,6 +342,10 @@ export function SettingsPage() {
           </ul>
         )}
       </section>
+
+      {/* Above the connect panel on purpose: the privacy contract is what the
+          user should decide BEFORE they hand a token to an agent, not after. */}
+      <DisclosurePanel enabled={hasSession} />
 
       <ConnectPanel token={lastCreated?.token ?? null} />
 

@@ -111,6 +111,7 @@ describe("CreateTokenDialog", () => {
       await user.type(screen.getByLabelText("Name"), "Read only");
       await user.click(screen.getByRole("checkbox", { name: /posts:write/ }));
       await user.click(screen.getByRole("checkbox", { name: /posts:read/ }));
+      await user.click(screen.getByRole("checkbox", { name: /profile:read/ }));
 
       const submit = screen.getByRole("button", { name: "Create token" });
       expect(submit).toBeDisabled();
@@ -129,12 +130,12 @@ describe("CreateTokenDialog", () => {
       );
 
       await user.type(screen.getByLabelText("Name"), "Read only");
-      // Drop write; keep read.
+      // Drop write; keep both reads.
       await user.click(screen.getByRole("checkbox", { name: /posts:write/ }));
       await user.click(screen.getByRole("button", { name: "Create token" }));
 
       expect(mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ scopes: ["posts:read"] }),
+        expect.objectContaining({ scopes: ["posts:read", "profile:read"] }),
       );
     });
   });

@@ -56,7 +56,20 @@ export type MatchStrength = {
   className: string;
 };
 
-export function describeMatch(aiScore: number): MatchStrength {
+export function describeMatch(aiScore: number | null): MatchStrength {
+  // No score at all: the reranker did not run. The results are still real and
+  // still ordered by the API's similarity — we simply have nothing honest to
+  // print as a percentage.
+  if (aiScore === null) {
+    return {
+      percent: "—",
+      label: "Match unavailable",
+      description:
+        "On-device ranking could not run for this search, so results are shown in the search engine's own order.",
+      className: BADGE.neutral,
+    };
+  }
+
   const normalized = aiScore <= 1 ? aiScore * 100 : aiScore;
   const clamped = Math.max(0, Math.min(100, normalized));
   const percent = `${Math.round(clamped)}%`;

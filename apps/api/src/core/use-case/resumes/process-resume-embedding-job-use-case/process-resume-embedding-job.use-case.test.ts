@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { IEmbeddingProvider } from "../../../providers/embedding/embedding-provider.js";
+import { InMemoryPostsRepository } from "../../../repositories/post/in-memory-posts-repository.js";
 import { InMemoryResumeEmbeddingsRepository } from "../../../repositories/resume-embedding/in-memory-resume-embedding-repository.js";
+import { InMemoryResumeSectionEmbeddingsRepository } from "../../../repositories/resume-section-embedding/in-memory-resume-section-embedding-repository.js";
 import { InMemoryResumesRepository } from "../../../repositories/resume/in-memory-resumes-repository.js";
 import { InMemoryResumeSkillRepository } from "../../../repositories/resume-skill/in-memory-resume-skill-repository.js";
 import { InMemoryResumeTitleRepository } from "../../../repositories/resume-title/in-memory-resume-title-repository.js";
@@ -13,16 +15,19 @@ import { ProcessResumeEmbeddingJobUseCase } from "./process-resume-embedding-job
 class FakeEmbeddingProvider implements IEmbeddingProvider {
   public calls = 0;
   public lastText = "";
+  public readonly texts: string[] = [];
 
   async createEmbedding(text: string): Promise<number[]> {
     this.calls += 1;
     this.lastText = text;
-
-    if (!text.includes("TypeScript")) {
-      throw new Error("Weighted text did not include expected content");
-    }
+    this.texts.push(text);
 
     return [0.1, 0.2, 0.3];
+  }
+
+  /** The blended document is always the first call of a job. */
+  get blendedText(): string {
+    return this.texts[0] ?? "";
   }
 }
 
@@ -32,6 +37,8 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
   let resumeTitleRepository: InMemoryResumeTitleRepository;
   let workExperienceRepository: InMemoryWorkExperienceRepository;
   let resumeEmbeddingsRepository: InMemoryResumeEmbeddingsRepository;
+  let resumeSectionEmbeddingsRepository: InMemoryResumeSectionEmbeddingsRepository;
+  let postRepository: InMemoryPostsRepository;
   let embeddingProvider: FakeEmbeddingProvider;
   let sut: ProcessResumeEmbeddingJobUseCase;
 
@@ -41,6 +48,9 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
     resumeTitleRepository = new InMemoryResumeTitleRepository();
     workExperienceRepository = new InMemoryWorkExperienceRepository();
     resumeEmbeddingsRepository = new InMemoryResumeEmbeddingsRepository();
+    resumeSectionEmbeddingsRepository =
+      new InMemoryResumeSectionEmbeddingsRepository();
+    postRepository = new InMemoryPostsRepository();
     embeddingProvider = new FakeEmbeddingProvider();
 
     sut = new ProcessResumeEmbeddingJobUseCase(
@@ -50,6 +60,8 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
       workExperienceRepository,
       resumeEmbeddingsRepository,
       embeddingProvider,
+      postRepository,
+      resumeSectionEmbeddingsRepository,
     );
   });
 
@@ -117,6 +129,9 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
       triggeredAt: new Date().toISOString(),
     });
 
+    const callsAfterFirstRun = embeddingProvider.calls;
+    expect(callsAfterFirstRun).toBeGreaterThan(0);
+
     await sut.execute({
       resumeId: resume.id,
       userId: "user-1",
@@ -124,7 +139,9 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
       triggeredAt: new Date().toISOString(),
     });
 
-    expect(embeddingProvider.calls).toBe(1);
+    // Nothing changed on the second run, so nothing was re-embedded — neither
+    // the blended vector nor any per-source one.
+    expect(embeddingProvider.calls).toBe(callsAfterFirstRun);
   });
 
   it("embeds job history (work experience) into the resume document", async () => {
@@ -169,10 +186,10 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
       triggeredAt: new Date().toISOString(),
     });
 
-    expect(embeddingProvider.lastText).toContain(
+    expect(embeddingProvider.blendedText).toContain(
       "experience: Staff Engineer at Globex",
     );
-    expect(embeddingProvider.lastText).toContain(
+    expect(embeddingProvider.blendedText).toContain(
       "experience_stack: Go, Kubernetes",
     );
   });
@@ -200,7 +217,7 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
       triggeredAt: new Date().toISOString(),
     });
 
-    expect(embeddingProvider.calls).toBe(1);
+    const callsAfterFirstRun = embeddingProvider.calls;
 
     workExperienceRepository.seed(
       WorkExperienceEntity.create({
@@ -230,6 +247,6 @@ describe("ProcessResumeEmbeddingJobUseCase", () => {
 
     // Content hash changed because job history was added, so a new embedding
     // must be generated rather than skipped.
-    expect(embeddingProvider.calls).toBe(2);
+    expect(embeddingProvider.calls).toBeGreaterThan(callsAfterFirstRun);
   });
 });

@@ -32,6 +32,13 @@ vi.mock("../../../lib/token-queries", () => ({
   }),
 }));
 
+// The disclosure panel has its own test file and its own React Query wiring.
+// Stubbed here so this file stays about the token list and needs no provider.
+vi.mock("../components/disclosure-panel", () => ({
+  DISCLOSURE_PANEL_ID: "agent-disclosure",
+  DisclosurePanel: () => null,
+}));
+
 import { SettingsPage } from "./settings-page";
 
 const activeToken: ApiToken = {

@@ -20,6 +20,13 @@ import { resolve, TOKENS } from "../../di/container.js";
  * - PATs must carry EVERY scope in `requiredScopes`, otherwise the request is
  *   rejected with 403. This makes PAT access default-deny: any route still using
  *   the plain (JWT-only) `authGuard` rejects PATs outright.
+ *
+ * The JWT bypass is exactly why the agent disclosure policy is NOT enforced
+ * here: a guard-level check would be skipped by every real session, and a
+ * session is the one caller that must keep full freedom over its own content.
+ * Enforcement therefore lives in the use cases (see
+ * `core/use-case/agent-policy/enforce-post-disclosure.ts`), which see
+ * `request.user.authType` and can distinguish agent from human.
  */
 export function apiAccessGuard(
   ...requiredScopes: ApiTokenScope[]

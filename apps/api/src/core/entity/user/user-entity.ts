@@ -1,3 +1,7 @@
+import {
+  DEFAULT_AGENT_DISCLOSURE_LEVEL,
+  type AgentDisclosureLevel,
+} from "@repo/schemas";
 import { BaseEntity, BaseEntityProps } from "../index.js";
 
 export interface UserEntityProps extends BaseEntityProps {
@@ -14,6 +18,13 @@ export interface UserEntityProps extends BaseEntityProps {
   openToWork?: boolean; // Optional; normalized to false in ctor
   location?: string | null; // Optional; normalized to null in ctor
   persona?: string | null; // Optional; normalized to null in ctor
+  /**
+   * How much an agent acting for this user may reveal about their employers.
+   * Optional here (and normalized in the ctor) so every existing construction
+   * site keeps compiling — the account default, not `undefined`, is the truth.
+   */
+  agentDisclosureLevel?: AgentDisclosureLevel; // Optional; normalized to the default in ctor
+  agentBlockedTerms?: string[]; // Optional; normalized to [] in ctor
   googleId: string | null; // Explicit null, not optional
 }
 
@@ -31,6 +42,8 @@ export interface CreateUserEntityProps {
   openToWork?: boolean; // Optional at creation, but will be normalized to false
   location?: string | null; // Optional at creation, but will be normalized to null
   persona?: string | null; // Optional at creation, but will be normalized to null
+  agentDisclosureLevel?: AgentDisclosureLevel; // Optional at creation; defaults to the strictest level
+  agentBlockedTerms?: string[]; // Optional at creation, but will be normalized to []
   googleId?: string | null; // Optional at creation, but will be normalized to null
 }
 
@@ -51,6 +64,8 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
   public openToWork: boolean; // Always boolean, never undefined
   public location: string | null; // Always null, never undefined
   public persona: string | null; // Always null, never undefined
+  public agentDisclosureLevel: AgentDisclosureLevel; // Always a level, never undefined
+  public agentBlockedTerms: string[]; // Always an array, never undefined
   public googleId: string | null; // Always null, never undefined
 
   constructor(props: UserEntityProps) {
@@ -69,7 +84,29 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     this.openToWork = props.openToWork ?? false;
     this.location = props.location ?? null;
     this.persona = props.persona ?? null;
+    // A user who never opens the settings screen must not leak an employer, so
+    // an absent level resolves to the strictest one rather than "unset".
+    this.agentDisclosureLevel =
+      props.agentDisclosureLevel ?? DEFAULT_AGENT_DISCLOSURE_LEVEL;
+    this.agentBlockedTerms = props.agentBlockedTerms ?? [];
     this.googleId = props.googleId ?? null;
+  }
+
+  /**
+   * Only the human owner may change this — an agent widening its own disclosure
+   * would defeat the point — so there is no PAT-reachable path to this method.
+   */
+  updateAgentPolicy(policy: {
+    disclosureLevel?: AgentDisclosureLevel;
+    blockedTerms?: string[];
+  }) {
+    if (policy.disclosureLevel !== undefined) {
+      this.agentDisclosureLevel = policy.disclosureLevel;
+    }
+    if (policy.blockedTerms !== undefined) {
+      this.agentBlockedTerms = policy.blockedTerms;
+    }
+    this.updateTimestamp();
   }
 
   updateAvatarUrl(avatarUrl: string | null) {

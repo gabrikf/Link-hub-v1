@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { DisclosureContext } from "../disclosure.js";
 import { buildWorkflowText } from "./shared.js";
 
 const argsSchema = {
@@ -40,7 +41,10 @@ Mention the resolved start date to the user before you publish, so they can corr
  * where the last commit summary stopped, so repeated invocations never
  * double-post the same work.
  */
-export function registerSinceLastPost(server: McpServer): void {
+export function registerSinceLastPost(
+  server: McpServer,
+  disclosure: DisclosureContext,
+): void {
   server.registerPrompt(
     "since_last_post",
     {
@@ -71,6 +75,7 @@ export function registerSinceLastPost(server: McpServer): void {
                 args.status?.trim().toLowerCase() === "draft"
                   ? "draft"
                   : "published",
+              disclosureLevel: disclosure,
             }),
           },
         },

@@ -2,6 +2,10 @@ import { z } from "zod";
 import { httpUrlSchema, postStatusSchema } from "@repo/schemas";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { LinkHubApiClient } from "../api-client.js";
+import {
+  renderPolicyForToolDescription,
+  type DisclosureContext,
+} from "../disclosure.js";
 import { describePost, runTool, textResult } from "./shared.js";
 
 const inputSchema = {
@@ -34,6 +38,15 @@ const inputSchema = {
   status: postStatusSchema
     .optional()
     .describe("'draft' or 'published'. Defaults to 'published'."),
+  workExperienceId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      "Optional id of the role this post came out of (from get_work_context). " +
+        "The post then inherits that role's disclosure level instead of the " +
+        "account default.",
+    ),
 };
 
 /**
@@ -43,6 +56,7 @@ const inputSchema = {
 export function registerCreatePost(
   server: McpServer,
   client: LinkHubApiClient,
+  disclosure: DisclosureContext,
 ): void {
   server.registerTool(
     "create_post",
@@ -53,7 +67,8 @@ export function registerCreatePost(
         "Markdown; title, cover image, images, external URL, tags and status " +
         "are optional. The post is tagged with source='mcp'. Returns the new " +
         "post id and a shareable summary. For a summary of recent git work, " +
-        "use create_commit_summary_post instead.",
+        "use create_commit_summary_post instead. " +
+        renderPolicyForToolDescription(disclosure),
       inputSchema,
     },
     async (args) =>
@@ -67,6 +82,9 @@ export function registerCreatePost(
           externalUrl: args.externalUrl ?? null,
           tags: args.tags ?? null,
           status: args.status ?? "published",
+          ...(args.workExperienceId
+            ? { workExperienceId: args.workExperienceId }
+            : {}),
         });
         return textResult(describePost(post, "Post created ✅"));
       }),

@@ -14,6 +14,12 @@ export interface PostEntityProps extends BaseEntityProps {
   status: PostStatus;
   externalUrl: string | null;
   metadata: Record<string, unknown> | null;
+  /**
+   * The role this post came out of, when the author (or the MCP) attributes it
+   * to one. `null` means unattributed, so the post falls back to the account
+   * disclosure level instead of a per-employer override.
+   */
+  workExperienceId?: string | null;
   publishedAt: Date | null;
 }
 
@@ -28,6 +34,7 @@ export interface CreatePostEntityProps {
   status?: PostStatus;
   externalUrl?: string | null;
   metadata?: Record<string, unknown> | null;
+  workExperienceId?: string | null;
   publishedAt?: Date | null;
 }
 
@@ -41,6 +48,7 @@ export interface UpdatePostEntityProps {
   status?: PostStatus;
   externalUrl?: string | null;
   metadata?: Record<string, unknown> | null;
+  workExperienceId?: string | null;
   publishedAt?: Date | null;
 }
 
@@ -55,6 +63,7 @@ export class PostEntity extends BaseEntity<PostEntityProps> {
   public status: PostStatus;
   public externalUrl: string | null;
   public metadata: Record<string, unknown> | null;
+  public workExperienceId: string | null;
   public publishedAt: Date | null;
 
   constructor(props: PostEntityProps) {
@@ -69,6 +78,7 @@ export class PostEntity extends BaseEntity<PostEntityProps> {
     this.status = props.status;
     this.externalUrl = props.externalUrl ?? null;
     this.metadata = props.metadata ?? null;
+    this.workExperienceId = props.workExperienceId ?? null;
     this.publishedAt = props.publishedAt ?? null;
   }
 
@@ -100,6 +110,9 @@ export class PostEntity extends BaseEntity<PostEntityProps> {
     if (typeof data.metadata !== "undefined") {
       this.metadata = data.metadata ?? null;
     }
+    if (typeof data.workExperienceId !== "undefined") {
+      this.workExperienceId = data.workExperienceId ?? null;
+    }
     if (typeof data.publishedAt !== "undefined") {
       this.publishedAt = data.publishedAt ?? null;
     }
@@ -119,6 +132,7 @@ export class PostEntity extends BaseEntity<PostEntityProps> {
       status: this.status,
       externalUrl: this.externalUrl,
       metadata: this.metadata,
+      workExperienceId: this.workExperienceId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       publishedAt: this.publishedAt,

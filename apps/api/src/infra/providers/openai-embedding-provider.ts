@@ -25,6 +25,18 @@ export class OpenAiEmbeddingProvider implements IEmbeddingProvider {
       input: text,
     });
 
-    return response.data[0]?.embedding ?? [];
+    const embedding = response.data[0]?.embedding;
+
+    // Returning `[]` here was worse than failing: an empty vector travels all
+    // the way to `toPgVectorParam` or to a cosine comparison and blows up
+    // somewhere with no connection to the actual cause — a provider that
+    // answered without an embedding (defect F28). Failing at the source means
+    // the queue's retry sees the real error and the resume keeps its previous,
+    // valid vector.
+    if (!embedding || embedding.length === 0) {
+      throw new Error("Embedding provider returned no embedding");
+    }
+
+    return embedding;
   }
 }

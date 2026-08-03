@@ -99,7 +99,20 @@ export class OpenAiRecruiterQueryConversionProvider
   private readonly client: OpenAI;
 
   constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({
+      apiKey,
+      /**
+       * Same reasoning as `OpenAiEmbeddingProvider`, and more urgent here: this
+       * call runs inline in the recruiter's HTTP request. The SDK default is a
+       * 10-minute timeout with 3 attempts — up to 30 minutes of one request
+       * holding a connection and a database pool slot while the recruiter's
+       * browser gave up long ago (defect F22). A conversion that has not
+       * answered in 15s is not going to, and the caller already has a working
+       * non-LLM fallback.
+       */
+      timeout: Number(process.env.OPENAI_TIMEOUT_MS ?? "15000"),
+      maxRetries: Number(process.env.OPENAI_MAX_RETRIES ?? "2"),
+    });
   }
 
   async buildSemanticQuery(
@@ -129,7 +142,10 @@ export class OpenAiRecruiterQueryConversionProvider
     if (!semanticQuery) {
       throw new Error("LLM returned an invalid semantic query response");
     }
-    console.log("Generated semantic query:", semanticQuery);
+    // NOTE: the generated query used to be `console.log`ged in full on every
+    // request. It is derived from whatever the recruiter typed or uploaded —
+    // job descriptions, internal role details — so it belongs in neither
+    // stdout nor a log aggregator (defect F22).
     return {
       semanticQuery,
     };

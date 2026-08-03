@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { container } from "tsyringe";
+import type { AgentDisclosureLevel } from "@repo/schemas";
 import fastify, { type FastifyInstance } from "fastify";
 import {
   serializerCompiler,
@@ -11,6 +12,7 @@ import { UserEntity } from "../../../core/entity/user/user-entity.js";
 import { InMemoryUsersRepository } from "../../../core/repositories/user/in-memory-users-repository.js";
 import { InMemoryPostsRepository } from "../../../core/repositories/post/in-memory-posts-repository.js";
 import { InMemoryApiTokenRepository } from "../../../core/repositories/api-token/in-memory-api-token-repository.js";
+import { InMemoryWorkExperienceRepository } from "../../../core/repositories/work-experience/in-memory-work-experience-repository.js";
 import { CryptoTokenProvider } from "../../providers/crypto-token-provider.js";
 import { JwtProvider } from "../../providers/jwt-provider.js";
 import { CreatePostUseCase } from "../../../core/use-case/posts/create-post-use-case/create-post.use-case.js";
@@ -22,8 +24,14 @@ import { DeletePostUseCase } from "../../../core/use-case/posts/delete-post-use-
 import { CreateApiTokenUseCase } from "../../../core/use-case/api-tokens/create-api-token-use-case/create-api-token.use-case.js";
 import { ListApiTokensUseCase } from "../../../core/use-case/api-tokens/list-api-tokens-use-case/list-api-tokens.use-case.js";
 import { RevokeApiTokenUseCase } from "../../../core/use-case/api-tokens/revoke-api-token-use-case/revoke-api-token.use-case.js";
+import { GetAgentPolicyUseCase } from "../../../core/use-case/agent-policy/get-agent-policy-use-case/get-agent-policy.use-case.js";
+import { UpdateAgentPolicyUseCase } from "../../../core/use-case/agent-policy/update-agent-policy-use-case/update-agent-policy.use-case.js";
+import { GetWorkContextUseCase } from "../../../core/use-case/agent-policy/get-work-context-use-case/get-work-context.use-case.js";
+import { SetWorkExperienceDisclosureUseCase } from "../../../core/use-case/agent-policy/set-work-experience-disclosure-use-case/set-work-experience-disclosure.use-case.js";
 import { PostsController } from "../controllers/posts/posts-controller.js";
 import { ApiTokensController } from "../controllers/api-tokens/api-tokens-controller.js";
+import { AgentPolicyController } from "../controllers/agent-policy/agent-policy-controller.js";
+import { WorkExperienceController } from "../controllers/work-experience/work-experience-controller.js";
 
 /**
  * Deterministic JWT secret for e2e tests. The same JwtProvider instance is
@@ -37,6 +45,7 @@ export interface TestAppHandles {
   usersRepository: InMemoryUsersRepository;
   postsRepository: InMemoryPostsRepository;
   apiTokenRepository: InMemoryApiTokenRepository;
+  workExperienceRepository: InMemoryWorkExperienceRepository;
   tokenProvider: CryptoTokenProvider;
   jwtProvider: JwtProvider;
   /** Mint a real, verifiable JWT access token for the given user id. */
@@ -50,6 +59,8 @@ interface SeedUserInput {
   login: string;
   name: string;
   password: string;
+  agentDisclosureLevel: AgentDisclosureLevel;
+  agentBlockedTerms: string[];
 }
 
 let seedCounter = 0;
@@ -70,6 +81,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   const usersRepository = new InMemoryUsersRepository();
   const postsRepository = new InMemoryPostsRepository();
   const apiTokenRepository = new InMemoryApiTokenRepository();
+  const workExperienceRepository = new InMemoryWorkExperienceRepository();
   const tokenProvider = new CryptoTokenProvider();
   const jwtProvider = new JwtProvider({
     secret: TEST_JWT_SECRET,
@@ -80,13 +92,24 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   container.registerInstance(TOKENS.UsersRepository, usersRepository);
   container.registerInstance(TOKENS.PostsRepository, postsRepository);
   container.registerInstance(TOKENS.ApiTokenRepository, apiTokenRepository);
+  container.registerInstance(
+    TOKENS.WorkExperienceRepository,
+    workExperienceRepository,
+  );
   container.registerInstance(TOKENS.TokenProvider, tokenProvider);
   container.registerInstance(TOKENS.JwtProvider, jwtProvider);
 
   // Use-cases (wired to the in-memory repos above).
+  // The work-experience repo is wired in on purpose: without it the disclosure
+  // policy silently degrades to "no enforcement", which is precisely the
+  // behaviour the e2e tests exist to catch.
   container.registerInstance(
     TOKENS.CreatePostUseCase,
-    new CreatePostUseCase(postsRepository, usersRepository),
+    new CreatePostUseCase(
+      postsRepository,
+      usersRepository,
+      workExperienceRepository,
+    ),
   );
   container.registerInstance(
     TOKENS.ListMyPostsUseCase,
@@ -102,7 +125,11 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   );
   container.registerInstance(
     TOKENS.UpdatePostUseCase,
-    new UpdatePostUseCase(postsRepository),
+    new UpdatePostUseCase(
+      postsRepository,
+      usersRepository,
+      workExperienceRepository,
+    ),
   );
   container.registerInstance(
     TOKENS.DeletePostUseCase,
@@ -120,6 +147,22 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     TOKENS.RevokeApiTokenUseCase,
     new RevokeApiTokenUseCase(apiTokenRepository),
   );
+  container.registerInstance(
+    TOKENS.GetAgentPolicyUseCase,
+    new GetAgentPolicyUseCase(usersRepository, workExperienceRepository),
+  );
+  container.registerInstance(
+    TOKENS.UpdateAgentPolicyUseCase,
+    new UpdateAgentPolicyUseCase(usersRepository, workExperienceRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetWorkContextUseCase,
+    new GetWorkContextUseCase(usersRepository, workExperienceRepository),
+  );
+  container.registerInstance(
+    TOKENS.SetWorkExperienceDisclosureUseCase,
+    new SetWorkExperienceDisclosureUseCase(workExperienceRepository),
+  );
 
   const app = fastify();
 
@@ -129,6 +172,11 @@ export async function buildTestApp(): Promise<TestAppHandles> {
 
   PostsController.handle(app);
   ApiTokensController.handle(app);
+  AgentPolicyController.handle(app);
+  // Registered for the per-employer disclosure override route. Its other
+  // handlers resolve use-cases lazily, so they stay unavailable (and unused)
+  // here without breaking registration.
+  WorkExperienceController.handle(app);
 
   await app.ready();
 
@@ -137,6 +185,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     usersRepository,
     postsRepository,
     apiTokenRepository,
+    workExperienceRepository,
     tokenProvider,
     jwtProvider,
     signJwt: (userId: string) => jwtProvider.sign({ sub: userId }),
@@ -147,6 +196,8 @@ export async function buildTestApp(): Promise<TestAppHandles> {
         login: overrides?.login ?? `user${seedCounter}`,
         name: overrides?.name ?? `User ${seedCounter}`,
         password: overrides?.password ?? "hashed-password",
+        agentDisclosureLevel: overrides?.agentDisclosureLevel,
+        agentBlockedTerms: overrides?.agentBlockedTerms,
         description: null,
         avatarUrl: null,
         googleId: null,

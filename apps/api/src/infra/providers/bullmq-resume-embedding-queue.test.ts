@@ -4,7 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ResumeEmbeddingJobPayload } from "../../core/providers/queue/resume-embedding-queue.js";
 import {
   BullMqResumeEmbeddingQueue,
-  RESUME_EMBEDDING_DEDUPLICATION_TTL_MS,
+  RESUME_EMBEDDING_DEBOUNCE_MS,
 } from "./bullmq-resume-embedding-queue.js";
 
 /**
@@ -32,10 +32,10 @@ const inspector = new Queue(TEST_QUEUE_NAME, {
 
 const queues: BullMqResumeEmbeddingQueue[] = [];
 
-function createQueue(deduplicationTtlMs: number) {
+function createQueue(debounceMs: number) {
   const queue = new BullMqResumeEmbeddingQueue({
     queueName: TEST_QUEUE_NAME,
-    deduplicationTtlMs,
+    debounceMs,
   });
   queues.push(queue);
   return queue;
@@ -88,6 +88,49 @@ describe("BullMqResumeEmbeddingQueue", () => {
     expect(jobs).toHaveLength(1);
   });
 
+  it("holds the collapsed job back until the window has closed", async () => {
+    const queue = createQueue(10_000);
+
+    await queue.enqueue(payload("resume-debounce"));
+
+    // THE regression this file exists for, and the half the original tests
+    // missed. They proved a burst collapses and that the window eventually
+    // reopens — but not that the surviving job runs *after* the burst.
+    //
+    // Without a delay the job ran within milliseconds of the first enqueue, so
+    // the real save flow (`PUT /me/resume`, then `PUT /resume/skills/bulk`,
+    // then `PUT /resume/titles/bulk`) embedded the resume before its skills
+    // existed and then discarded both follow-up enqueues as duplicates. The
+    // candidate's vector permanently omitted the weight-4 skill lines.
+    //
+    // `delayed` (not `waiting`) is the assertion: the job is parked until the
+    // window closes, by which time every write in the session has landed and
+    // the job re-reads the finished resume.
+    const delayed = await inspector.getJobs(["delayed"]);
+    expect(delayed).toHaveLength(1);
+    expect(delayed[0]?.opts.delay).toBe(10_000);
+
+    const waitingOrActive = await inspector.getJobs(["waiting", "active"]);
+    expect(waitingOrActive).toHaveLength(0);
+  });
+
+  it("still processes an edit made inside the window", async () => {
+    // End-to-end shape of the bug: three writes in one edit session must leave
+    // exactly one job, and that job must not have run before the last write.
+    const queue = createQueue(200);
+
+    await queue.enqueue(payload("resume-session"));
+    await queue.enqueue(payload("resume-session"));
+    await queue.enqueue(payload("resume-session"));
+
+    expect(await inspector.getJobs(["waiting", "active"])).toHaveLength(0);
+
+    await sleep(320);
+
+    const promotable = await inspector.getJobs(["waiting", "delayed", "active"]);
+    expect(promotable).toHaveLength(1);
+  });
+
   it("keeps different resumes independent", async () => {
     const queue = createQueue(10_000);
 
@@ -99,7 +142,7 @@ describe("BullMqResumeEmbeddingQueue", () => {
   });
 
   it("never pins a job to the resume id, and bounds the dedup window", async () => {
-    const queue = createQueue(RESUME_EMBEDDING_DEDUPLICATION_TTL_MS);
+    const queue = createQueue(RESUME_EMBEDDING_DEBOUNCE_MS);
 
     await queue.enqueue(payload("resume-5"));
 

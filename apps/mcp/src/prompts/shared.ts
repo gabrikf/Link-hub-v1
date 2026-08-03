@@ -1,4 +1,6 @@
 import { POST_GUIDELINES, POST_GUIDELINES_URI } from "../resources/index.js";
+import { DISCLOSURE_POLICY_URI } from "../resources/disclosure-policy.js";
+import type { DisclosureContext } from "../disclosure.js";
 
 export interface WorkflowOptions {
   /** Human-readable description of the window being summarized. */
@@ -14,6 +16,60 @@ export interface WorkflowOptions {
   readonly repo?: string;
   /** Publish status the user asked for. */
   readonly status: string;
+  /**
+   * The active disclosure contract. Inlined into the workflow so the agent
+   * knows what it may say about the employer BEFORE it starts writing, rather
+   * than discovering it from a rejected publish.
+   */
+  readonly disclosureLevel?: DisclosureContext;
+}
+
+/** Renders the policy as the workflow's step-6 safety rules. */
+function buildDisclosureSection(context?: DisclosureContext): string {
+  if (!context) return "";
+
+  const allows = context.info.allows.map((item) => `- ${item}`).join("\n");
+  const blocks =
+    context.info.blocks.length > 0
+      ? context.info.blocks.map((item) => `- ${item}`).join("\n")
+      : "- _Nothing at this level beyond the terms the user banned outright._";
+
+  const degraded = context.degraded
+    ? `\n> **The policy could not be read from LinkHub, so the STRICTEST level is\n> assumed.** The token is probably missing the \`profile:read\` scope — tell the\n> user, and write as if nothing about the employer may be named.\n`
+    : "";
+
+  const terms =
+    context.blockedTerms.length > 0
+      ? `\n**Terms the user banned outright** (blocked at every level):\n\n${context.blockedTerms
+          .map((term) => `- ${term}`)
+          .join("\n")}\n`
+      : "";
+
+  return `
+
+## Step 6b — What you may say about the job
+
+The user's disclosure level is **\`${context.info.value}\` (${context.info.label})**:
+${context.info.shortDescription}
+${degraded}
+**You may say:**
+
+${allows}
+
+**You must not say:**
+
+${blocks}
+${terms}
+This is **enforced**, not advised. LinkHub applies the same denylist server-side
+when the post is created: a post naming a blocked employer or client is rejected
+with HTTP 400 that names the offending term. If that happens, rewrite the post
+around the term — retrying the same text will fail again.
+
+For anything about where the user has worked, call **\`get_work_context\`**. It
+returns their history already redacted to this level. Do **not** infer the
+employer from the git remote, the package name, the directory path, code
+comments or commit trailers — that is exactly the leak this policy prevents. The
+full contract is also the resource \`${DISCLOSURE_POLICY_URI}\`.`;
 }
 
 /**
@@ -26,7 +82,14 @@ export interface WorkflowOptions {
  * so the agent does not have to fetch the resource separately.
  */
 export function buildWorkflowText(options: WorkflowOptions): string {
-  const { windowLabel, establishWindow, periodValue, repo, status } = options;
+  const {
+    windowLabel,
+    establishWindow,
+    periodValue,
+    repo,
+    status,
+    disclosureLevel,
+  } = options;
 
   const repoLine = repo
     ? `The user named the repository **${repo}**. Work in that repository — if the current directory is a different repo, say so and stop rather than summarizing the wrong work.`
@@ -144,6 +207,7 @@ Before publishing, re-read your draft and strip:
 - client names, private repo names, and proprietary detail. For private or
   client work, describe the capability and omit the identifying detail, or ask
   the user first.
+${buildDisclosureSection(disclosureLevel)}
 
 ## Step 7 — Publish
 

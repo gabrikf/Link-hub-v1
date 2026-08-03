@@ -26,6 +26,7 @@ function toEntity(row: PostRow): PostEntity {
     status: row.status as PostStatus,
     externalUrl: row.externalUrl,
     metadata: (row.metadata as Record<string, unknown> | null) ?? null,
+    workExperienceId: row.workExperienceId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     publishedAt: row.publishedAt,
@@ -48,6 +49,7 @@ export class DrizzlePostsRepository implements IPostRepository {
         status: post.status,
         externalUrl: post.externalUrl,
         metadata: post.metadata,
+        workExperienceId: post.workExperienceId,
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
         publishedAt: post.publishedAt,
@@ -110,6 +112,7 @@ export class DrizzlePostsRepository implements IPostRepository {
         status: post.status,
         externalUrl: post.externalUrl,
         metadata: post.metadata,
+        workExperienceId: post.workExperienceId,
         updatedAt: post.updatedAt,
         publishedAt: post.publishedAt,
       })

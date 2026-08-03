@@ -11,9 +11,21 @@ import { useClipboard } from "../lib/use-clipboard";
 const AVAILABLE_SCOPES: Array<{ value: ApiTokenScope; description: string }> = [
   { value: "posts:write", description: "Create and update posts" },
   { value: "posts:read", description: "Read your posts" },
+  {
+    value: "profile:read",
+    // Without this the MCP server cannot read the policy, so it falls back to
+    // the strictest level and the agent refuses to name any employer — worth
+    // saying here, because that failure looks like the tool being broken.
+    description:
+      "Read your work history, already redacted to your disclosure level. Without it your agent assumes the strictest level and can't name any employer.",
+  },
 ];
 
-const DEFAULT_SCOPES: ApiTokenScope[] = ["posts:write", "posts:read"];
+const DEFAULT_SCOPES: ApiTokenScope[] = [
+  "posts:write",
+  "posts:read",
+  "profile:read",
+];
 
 const NAME_FIELD_ID = "token-name";
 

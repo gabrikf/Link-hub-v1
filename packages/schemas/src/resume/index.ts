@@ -12,6 +12,89 @@ export const seniorityLevelSchema = z.enum([
 
 export const workModelSchema = z.enum(["remote", "hybrid", "on-site"]);
 
+/**
+ * Which slice of a candidate the semantic search compares the query against.
+ *
+ * Each source is embedded on its own so a recruiter can ask "who has actually
+ * shipped this?" (posts) separately from "who says they can do this?" (profile):
+ * - `profile` — resume core: headline, summary, skills, titles, preferences
+ * - `work`    — the work-experience history
+ * - `posts`   — published posts
+ */
+export const searchSourceSchema = z.enum(["profile", "work", "posts"]);
+
+/** Every source, the behaviour when the caller doesn't narrow the search. */
+export const DEFAULT_SEARCH_SOURCES = ["profile", "work", "posts"] as const;
+
+/**
+ * Folds a free-text value down to the form both sides of a filter compare on:
+ * accents stripped, whitespace collapsed, lowercased.
+ *
+ * The resume columns this is applied to (`location`, `notice_period`,
+ * `spoken_languages`) are free text a candidate types, while the recruiter UI
+ * offers a fixed list ("Sao Paulo", "Immediate", "English"). Without folding,
+ * a candidate who wrote `São Paulo` is invisible to a `Sao Paulo` filter — the
+ * exact bug F8 describes. This mirrors the `skills_catalog.normalized_name`
+ * discipline already in the codebase (store/compare a normalised form, keep the
+ * original for display), extended with accent folding because these columns are
+ * Portuguese-facing.
+ *
+ * The SQL side must fold identically:
+ *   regexp_replace(normalize(lower(col), NFD), '[̀-ͯ]', '', 'g')
+ */
+export function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Bounds on the text handed to the embedding model when a resume is indexed.
+ *
+ * An embedding request that exceeds the model's context window is a hard 400,
+ * and the job that produced it retries and then dies — leaving the candidate
+ * with NO embedding row at all. Because recruiter search inner-joins the
+ * embedding table, that candidate becomes permanently and silently invisible
+ * (defect F27). Every unbounded input is therefore clipped here rather than
+ * discovered at the provider.
+ *
+ * Budget: 12 roles x 600 chars + 20 posts x 400 chars + the resume core stays
+ * well under 32 000 chars (~8k tokens), a third of text-embedding-3-small's
+ * 8 191-token limit even before the hard `documentChars` backstop.
+ */
+export const RESUME_EMBEDDING_DOCUMENT_LIMITS = {
+  /** At most this many roles are embedded (earliest display order first). */
+  maxWorkExperiences: 12,
+  /** Each `experience_detail` is truncated to this many characters. */
+  workDescriptionChars: 600,
+  /** At most this many published posts are embedded. */
+  maxPosts: 20,
+  /** Each post body is truncated to this many characters. */
+  postBodyChars: 400,
+  /** Hard backstop on any single embedding document. */
+  documentChars: 32_000,
+} as const;
+
+/**
+ * Bounds on the semantic query built when the LLM query-conversion call fails.
+ *
+ * The fallback concatenates the raw recruiter input, and `attachmentText` alone
+ * is allowed 100 000 characters by `recruiterSearchInputSchema` — pasting a
+ * whole job-description PDF straight into an embedding request is an instant
+ * OpenAI 400 and an uncaught 500 for the recruiter (defect F21). The LLM path
+ * is capped at 900 chars by its own prompt contract, so a 4 000-char ceiling on
+ * the degraded path is generous rather than lossy.
+ */
+export const RECRUITER_QUERY_FALLBACK_LIMITS = {
+  /** Chars of attachment text kept in the degraded (no-LLM) query. */
+  attachmentTextChars: 2_000,
+  /** Hard ceiling on the whole fallback query. */
+  totalChars: 4_000,
+} as const;
+
 export const contractTypeSchema = z.enum([
   "clt",
   "pj",
@@ -215,6 +298,9 @@ export const recruiterSearchInputSchema = z
       .max(30)
       .optional(),
     topK: z.number().int().min(1).max(100).optional(),
+    // Restricts which per-source embeddings the semantic pass scores against.
+    // Omitted means `DEFAULT_SEARCH_SOURCES` — all of them.
+    sources: searchSourceSchema.array().min(1).optional(),
     whereQuery: recruiterSearchFiltersSchema.optional(),
     // Legacy field kept for backward compatibility while frontend migrates.
     filters: recruiterSearchFiltersSchema.optional(),
@@ -324,7 +410,24 @@ export const recruiterSearchResultSchema = z.object({
   userPhoto: z.string().nullable(),
   profileDescription: z.string().nullable(),
   similarity: z.number(),
-  email: z.string().email(),
+  /**
+   * Similarity per searched source, so the UI can say *why* a candidate
+   * matched ("0.81 from posts, 0.42 from the resume"). Partial on purpose: a
+   * source only appears when it was searched AND the candidate has an
+   * embedding for it.
+   */
+  sourceSimilarity: z.partialRecord(searchSourceSchema, z.number()).optional(),
+  /**
+   * ALWAYS `null` in a search listing.
+   *
+   * `/resumes/search` is reachable by any signed-up account — there is no
+   * recruiter role — so shipping the address here let anyone page every
+   * candidate's email out of the product (defect F3). The field is kept on the
+   * wire so existing clients keep parsing, but the value now only comes from
+   * `POST /resumes/:resumeId/contact`, which is per-candidate, deliberate, and
+   * recorded as a `CONTACT_CLICK` interaction.
+   */
+  email: z.string().email().nullable(),
   headlineTitle: z.string().nullable(),
   summary: z.string().nullable(),
   totalYearsExperience: z.number().int().min(0).nullable(),
@@ -356,7 +459,43 @@ export const recruiterSearchResponseSchema = z.object({
   candidates: recruiterSearchResultSchema.array(),
 });
 
+// ---------------------------------------------------------------------------
+// Contact reveal
+// ---------------------------------------------------------------------------
+
+export const revealCandidateContactParamsSchema = z.object({
+  resumeId: z.string().uuid(),
+});
+
+/**
+ * Optional search context sent with a reveal so the interaction row carries the
+ * same signal the list-level interactions do (which query, which rank). All of
+ * it is optional: a reveal from a bookmarked profile has no search behind it.
+ */
+export const revealCandidateContactInputSchema = z
+  .object({
+    queryText: z.string().trim().max(4_000).optional(),
+    semanticSimilarity: z.number().optional(),
+    rankPosition: z.number().int().min(0).optional(),
+    searchSessionId: z.string().trim().max(120).optional(),
+  })
+  .optional();
+
+/**
+ * What a recruiter gets back after deliberately asking for one candidate's
+ * contact details. Deliberately narrow — this is the only path that returns an
+ * email, and every call writes a `CONTACT_CLICK` interaction.
+ */
+export const candidateContactSchema = z.object({
+  resumeId: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  username: z.string(),
+  email: z.string().email(),
+});
+
 export type ResumeResponse = z.infer<typeof resumeSchema>;
+export type SearchSource = z.infer<typeof searchSourceSchema>;
 export type BulkResumeSkillsInput = z.input<typeof bulkResumeSkillsInputSchema>;
 export type BulkResumeTitlesInput = z.input<typeof bulkResumeTitlesInputSchema>;
 export type RecruiterSearchInput = z.input<typeof recruiterSearchInputSchema>;
@@ -372,4 +511,8 @@ export type RecruiterSearchWorkEvidence = z.infer<
 >;
 export type RecruiterSearchResponse = z.infer<
   typeof recruiterSearchResponseSchema
+>;
+export type CandidateContact = z.infer<typeof candidateContactSchema>;
+export type RevealCandidateContactInput = z.infer<
+  typeof revealCandidateContactInputSchema
 >;

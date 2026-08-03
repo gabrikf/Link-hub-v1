@@ -31,6 +31,9 @@ import {
   updateProfileSchemaOutput,
   createInteractionInputSchema,
   interactionSchema,
+  candidateContactSchema,
+  revealCandidateContactInputSchema,
+  type CandidateContact,
   workExperienceSchema,
   publicWorkExperienceSchema,
   createWorkExperienceInputSchema,
@@ -82,6 +85,11 @@ import {
   type RecruiterSearchInput,
   type CreateInteractionInput,
   type InteractionResponse,
+  agentPolicySchema,
+  updateAgentPolicyInputSchema,
+  type AgentDisclosureLevel,
+  type AgentPolicy,
+  type UpdateAgentPolicyInput,
 } from "@repo/schemas";
 import axios, {
   AxiosHeaders,
@@ -257,7 +265,13 @@ export async function fetchWithTokens(
   const axiosHeaders = AxiosHeaders.from(Object.fromEntries(headers.entries()));
 
   if (config.data instanceof FormData) {
-    axiosHeaders.delete("Content-Type");
+    // `delete()` only removes the request-level entry — `apiClient`'s
+    // `Content-Type: application/json` default would still be merged in, and
+    // the multipart boundary would never be generated (the server then rejects
+    // the body as non-multipart). Setting the header to `null` is what actually
+    // suppresses the default, letting axios emit
+    // `multipart/form-data; boundary=…` itself.
+    axiosHeaders.set("Content-Type", null);
   }
 
   return apiClient.request({
@@ -681,6 +695,36 @@ export async function searchRecruiterResumes(
   return recruiterSearchResponseSchema.parse(data);
 }
 
+/**
+ * The only way to obtain a candidate's email address.
+ *
+ * Search listings return `email: null` for everyone — the field is still in the
+ * response schema so clients keep parsing, but the address itself is gone.
+ * Anything that needs it must ask for one candidate, deliberately, here. The
+ * server records the `CONTACT_CLICK` interaction as part of the reveal, so
+ * callers must NOT also write one from the client: two rows for one click would
+ * count as two preferences and saturate that candidate's training label.
+ *
+ * Search context rides along so the audit row — and the ranking model — still
+ * know which query and which position produced the reveal.
+ */
+export async function revealCandidateContact(
+  resumeId: string,
+  context: {
+    queryText?: string;
+    semanticSimilarity?: number;
+    rankPosition?: number;
+    searchSessionId?: string;
+  } = {},
+): Promise<CandidateContact> {
+  const response = await fetchWithTokens(`/resumes/${resumeId}/contact`, {
+    method: "POST",
+    data: revealCandidateContactInputSchema.parse(context) ?? {},
+  });
+
+  return candidateContactSchema.parse(response.data);
+}
+
 export async function trackInteraction(
   payload: CreateInteractionInput,
 ): Promise<InteractionResponse> {
@@ -820,4 +864,46 @@ export async function applyResumeImport(
     titlesAdded: number;
     workExperiencesAdded: number;
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Agent disclosure policy
+ *
+ * Appended at the end deliberately — the module is large and read by other
+ * work in flight, so these are additive rather than grouped with the profile
+ * fetchers above.
+ * ------------------------------------------------------------------ */
+
+export async function fetchAgentPolicy(): Promise<AgentPolicy> {
+  const response = await fetchWithTokens("/me/agent-policy", {
+    method: "GET",
+  });
+
+  return agentPolicySchema.parse(response.data);
+}
+
+export async function updateAgentPolicy(
+  payload: UpdateAgentPolicyInput,
+): Promise<AgentPolicy> {
+  const body = updateAgentPolicyInputSchema.parse(payload);
+  const response = await fetchWithTokens("/me/agent-policy", {
+    method: "PATCH",
+    data: body,
+  });
+
+  return agentPolicySchema.parse(response.data);
+}
+
+/**
+ * Sets or clears one role's override of the account disclosure level.
+ * `null` clears it, so the role inherits the account default again.
+ */
+export async function updateWorkExperienceDisclosure(
+  workExperienceId: string,
+  disclosureLevel: AgentDisclosureLevel | null,
+): Promise<void> {
+  await fetchWithTokens(`/me/work-experiences/${workExperienceId}/disclosure`, {
+    method: "PATCH",
+    data: { disclosureLevel },
+  });
 }

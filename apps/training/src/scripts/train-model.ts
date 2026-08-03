@@ -2,41 +2,44 @@ import "dotenv/config";
 import "@tensorflow/tfjs-node";
 import * as tf from "@tensorflow/tfjs";
 import postgres from "postgres";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  buildDefaultPreprocessingConfig,
+  MATCH_METRIC_ID,
+  PREPROCESSING_VERSION,
+  buildPreprocessingVocabulary,
+  preprocessingConfigSchema,
   toQueryCandidateFeatureVector,
   type PreprocessingConfig,
 } from "@repo/schemas";
 import { fileURLToPath } from "node:url";
+import { blueprintVocabulary } from "../lib/blueprints.js";
+import {
+  aggregateInteractions,
+  buildTrainingRows,
+  resolveLabel,
+} from "../lib/labels.js";
+import {
+  deriveSkipAboveNegatives,
+  expandByImportanceWeight,
+  inversePropensityWeight,
+} from "../lib/exposure.js";
+import { resolveNextVersion } from "../lib/model-versions.js";
+import { decideWarmStart } from "../lib/warm-start.js";
+import {
+  buildCalibrationReport,
+  evaluateCalibrationGates,
+} from "../lib/quality-gates.js";
+import { enrichDatasetWithSyntheticRows } from "../lib/synthetic.js";
+import { temporalSplit } from "../lib/temporal-split.js";
 import type {
+  CandidateTrainingProfile,
+  InteractionTrainingRow,
   ResumeTrainingRow,
   TrainingState,
-  WorkExperienceTrainingRow,
 } from "../lib/training-types.js";
 
 type TrainMode = "initial" | "incremental";
-type CandidateQuality = "perfect" | "strong" | "medium" | "weak";
-
-interface TrainingBlueprint {
-  headline: string;
-  summary: string;
-  seniorityLevel: string;
-  workModel: string;
-  contractType: string;
-  location: string;
-  spokenLanguages: readonly string[];
-  noticePeriod: string;
-  openToRelocation: boolean;
-  salaryExpectationMin: number;
-  salaryExpectationMax: number;
-  skills: readonly string[];
-  titles: readonly string[];
-  minYears: number;
-  maxYears: number;
-  baseInteraction: number;
-}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,335 +50,16 @@ const trainingStatePath = path.join(
   rootDir,
   "apps/training/.cache/last-training.json",
 );
-const INITIAL_SYNTHETIC_TARGET = 720;
-const INCREMENTAL_SYNTHETIC_TARGET = 180;
 
-// Mirrors MATCH_WEIGHTS in @repo/schemas: skills 4x, titles 2x, work history 2x,
-// everything else 1x. The synthetic label below is the exact target the model
-// learns, so the trained scores line up with the transparent match shown to
-// recruiters.
-const MATCH_WEIGHTS = {
-  skills: 4,
-  titles: 2,
-  workHistory: 2,
-  others: 1,
-} as const;
+/**
+ * Synthetic supervision is additive: this floor plus a share of the real data.
+ * See `enrichDatasetWithSyntheticRows` for why "target minus real" was a bug and
+ * not a policy.
+ */
+const SYNTHETIC_FLOOR = { initial: 720, incremental: 180 } as const;
+const SYNTHETIC_RATIO_TO_REAL = 0.5;
 
-// A small pool of believable employers so synthetic work history reads like real
-// resumes (company + role + accomplishments + stack) instead of empty strings.
-const COMPANY_POOL: readonly string[] = [
-  "Nubank",
-  "iFood",
-  "Mercado Livre",
-  "Stone",
-  "PagBank",
-  "Globo",
-  "Loft",
-  "QuintoAndar",
-  "Wildlife Studios",
-  "VTEX",
-  "Hotmart",
-  "CI&T",
-] as const;
-
-const QUALITY_DISTRIBUTION: CandidateQuality[] = [
-  "perfect",
-  "perfect",
-  "strong",
-  "strong",
-  "medium",
-  "weak",
-];
-
-const SYNTHETIC_STACKS: readonly TrainingBlueprint[] = [
-  {
-    headline: "Senior Node.js Backend Engineer",
-    summary: "Designs scalable APIs and distributed systems.",
-    seniorityLevel: "senior",
-    workModel: "remote",
-    contractType: "full-time",
-    location: "sao paulo",
-    spokenLanguages: ["english", "portuguese"],
-    noticePeriod: "30 days",
-    openToRelocation: true,
-    salaryExpectationMin: 120000,
-    salaryExpectationMax: 180000,
-    skills: ["Node.js", "TypeScript", "PostgreSQL", "Redis", "Kafka"],
-    titles: ["Backend Engineer", "Software Engineer"],
-    minYears: 6,
-    maxYears: 12,
-    baseInteraction: 1.25,
-  },
-  {
-    headline: "React Frontend Engineer",
-    summary: "Builds component systems and performant web apps.",
-    seniorityLevel: "mid",
-    workModel: "hybrid",
-    contractType: "full-time",
-    location: "rio de janeiro",
-    spokenLanguages: ["english", "portuguese"],
-    noticePeriod: "15 days",
-    openToRelocation: false,
-    salaryExpectationMin: 90000,
-    salaryExpectationMax: 140000,
-    skills: ["React", "TypeScript", "Vite", "Tailwind CSS", "Testing Library"],
-    titles: ["Frontend Engineer", "React Developer"],
-    minYears: 3,
-    maxYears: 8,
-    baseInteraction: 0.95,
-  },
-  {
-    headline: "Fullstack Engineer — React and Node.js",
-    summary: "Delivers end-to-end features across web UI and REST APIs.",
-    seniorityLevel: "mid",
-    workModel: "remote",
-    contractType: "full-time",
-    location: "sao paulo",
-    spokenLanguages: ["english", "portuguese"],
-    noticePeriod: "30 days",
-    openToRelocation: true,
-    salaryExpectationMin: 100000,
-    salaryExpectationMax: 160000,
-    skills: ["React", "Node.js", "TypeScript", "PostgreSQL", "Docker"],
-    titles: ["Fullstack Engineer", "Software Engineer"],
-    minYears: 4,
-    maxYears: 10,
-    baseInteraction: 1.15,
-  },
-  {
-    headline: "Senior Fullstack Developer — React and Node.js",
-    summary:
-      "Leads full-cycle product development from DB schema to UI components.",
-    seniorityLevel: "senior",
-    workModel: "remote",
-    contractType: "full-time",
-    location: "belo horizonte",
-    spokenLanguages: ["english"],
-    noticePeriod: "30 days",
-    openToRelocation: true,
-    salaryExpectationMin: 130000,
-    salaryExpectationMax: 200000,
-    skills: [
-      "React",
-      "Node.js",
-      "TypeScript",
-      "GraphQL",
-      "PostgreSQL",
-      "Redis",
-    ],
-    titles: ["Fullstack Engineer", "Software Engineer", "Tech Lead"],
-    minYears: 7,
-    maxYears: 14,
-    baseInteraction: 1.4,
-  },
-  {
-    headline: "Python Data Engineer",
-    summary: "Creates ETL pipelines and ML-ready datasets.",
-    seniorityLevel: "senior",
-    workModel: "remote",
-    contractType: "contract",
-    location: "belo horizonte",
-    spokenLanguages: ["english"],
-    noticePeriod: "30 days",
-    openToRelocation: true,
-    salaryExpectationMin: 110000,
-    salaryExpectationMax: 170000,
-    skills: ["Python", "Apache Airflow", "Apache Spark", "SQL", "AWS"],
-    titles: ["Data Engineer", "Python Engineer"],
-    minYears: 5,
-    maxYears: 11,
-    baseInteraction: 1.1,
-  },
-  {
-    headline: "C# .NET Backend Developer",
-    summary: "Builds enterprise APIs and cloud-native services.",
-    seniorityLevel: "mid",
-    workModel: "on-site",
-    contractType: "clt",
-    location: "campinas",
-    spokenLanguages: ["portuguese", "english"],
-    noticePeriod: "45 days",
-    openToRelocation: false,
-    salaryExpectationMin: 85000,
-    salaryExpectationMax: 145000,
-    skills: ["C#", ".NET", "SQL Server", "Azure", "Docker"],
-    titles: ["Software Engineer", "Backend Developer"],
-    minYears: 4,
-    maxYears: 10,
-    baseInteraction: 0.9,
-  },
-  {
-    headline: "Java Platform Engineer",
-    summary: "Maintains high-throughput microservices architecture.",
-    seniorityLevel: "staff",
-    workModel: "hybrid",
-    contractType: "pj",
-    location: "florianopolis",
-    spokenLanguages: ["english"],
-    noticePeriod: "60 days",
-    openToRelocation: true,
-    salaryExpectationMin: 140000,
-    salaryExpectationMax: 220000,
-    skills: ["Java", "Spring Boot", "Kubernetes", "PostgreSQL", "RabbitMQ"],
-    titles: ["Platform Engineer", "Software Architect"],
-    minYears: 8,
-    maxYears: 16,
-    baseInteraction: 1.35,
-  },
-  {
-    headline: "DevOps Engineer",
-    summary: "Automates delivery and observability across environments.",
-    seniorityLevel: "senior",
-    workModel: "remote",
-    contractType: "freelance",
-    location: "curitiba",
-    spokenLanguages: ["english", "portuguese"],
-    noticePeriod: "immediate",
-    openToRelocation: true,
-    salaryExpectationMin: 115000,
-    salaryExpectationMax: 190000,
-    skills: ["Docker", "Kubernetes", "Terraform", "AWS", "Prometheus"],
-    titles: ["DevOps Engineer", "Site Reliability Engineer"],
-    minYears: 5,
-    maxYears: 12,
-    baseInteraction: 1.2,
-  },
-  {
-    headline: "Go Backend Engineer",
-    summary: "Builds high-performance microservices and CLIs in Go.",
-    seniorityLevel: "senior",
-    workModel: "remote",
-    contractType: "full-time",
-    location: "porto alegre",
-    spokenLanguages: ["english"],
-    noticePeriod: "30 days",
-    openToRelocation: true,
-    salaryExpectationMin: 125000,
-    salaryExpectationMax: 195000,
-    skills: ["Go", "gRPC", "PostgreSQL", "Redis", "Kubernetes"],
-    titles: ["Backend Engineer", "Software Engineer"],
-    minYears: 5,
-    maxYears: 12,
-    baseInteraction: 1.1,
-  },
-  {
-    headline: "Mobile Engineer — Flutter",
-    summary: "Ships polished cross-platform apps with Flutter and Dart.",
-    seniorityLevel: "mid",
-    workModel: "remote",
-    contractType: "full-time",
-    location: "recife",
-    spokenLanguages: ["english", "portuguese"],
-    noticePeriod: "15 days",
-    openToRelocation: false,
-    salaryExpectationMin: 85000,
-    salaryExpectationMax: 140000,
-    skills: ["Flutter", "Dart", "Firebase", "REST API", "BLoC"],
-    titles: ["Mobile Engineer", "Flutter Developer"],
-    minYears: 3,
-    maxYears: 8,
-    baseInteraction: 1.0,
-  },
-  {
-    headline: "Machine Learning Engineer",
-    summary: "Trains and deploys ML models for production inference.",
-    seniorityLevel: "senior",
-    workModel: "remote",
-    contractType: "contract",
-    location: "sao paulo",
-    spokenLanguages: ["english"],
-    noticePeriod: "30 days",
-    openToRelocation: true,
-    salaryExpectationMin: 140000,
-    salaryExpectationMax: 210000,
-    skills: ["Python", "PyTorch", "scikit-learn", "MLflow", "AWS"],
-    titles: ["Machine Learning Engineer", "Data Scientist"],
-    minYears: 5,
-    maxYears: 12,
-    baseInteraction: 1.2,
-  },
-  {
-    headline: "QA Automation Engineer",
-    summary:
-      "Designs test frameworks that catch regressions before production.",
-    seniorityLevel: "mid",
-    workModel: "hybrid",
-    contractType: "clt",
-    location: "belo horizonte",
-    spokenLanguages: ["english", "portuguese"],
-    noticePeriod: "30 days",
-    openToRelocation: false,
-    salaryExpectationMin: 75000,
-    salaryExpectationMax: 120000,
-    skills: ["Cypress", "Playwright", "TypeScript", "Jest", "CI/CD"],
-    titles: ["QA Engineer", "Software Engineer in Test"],
-    minYears: 3,
-    maxYears: 9,
-    baseInteraction: 0.85,
-  },
-  // --- Out-of-domain stacks ---
-  // These exist so the vocabulary includes their skills and the cross-blueprint
-  // negative generator can produce "Fullstack query + iOS candidate = label 0"
-  // training examples, teaching the model that zero skill overlap → bad match.
-  {
-    headline: "Senior Swift iOS Engineer",
-    summary:
-      "Builds polished native iOS apps with SwiftUI and Core Data integrations.",
-    seniorityLevel: "senior",
-    workModel: "on-site",
-    contractType: "freelance",
-    location: "toronto",
-    spokenLanguages: ["english"],
-    noticePeriod: "60 days",
-    openToRelocation: false,
-    salaryExpectationMin: 140000,
-    salaryExpectationMax: 210000,
-    skills: ["Swift", "SwiftUI", "Xcode", "Core Data", "UIKit"],
-    titles: ["iOS Developer", "Mobile Engineer"],
-    minYears: 7,
-    maxYears: 14,
-    baseInteraction: 1.1,
-  },
-  {
-    headline: "Android Kotlin Engineer",
-    summary: "Ships robust Android apps with Kotlin and Jetpack Compose.",
-    seniorityLevel: "mid",
-    workModel: "hybrid",
-    contractType: "clt",
-    location: "campinas",
-    spokenLanguages: ["portuguese", "english"],
-    noticePeriod: "30 days",
-    openToRelocation: false,
-    salaryExpectationMin: 90000,
-    salaryExpectationMax: 140000,
-    skills: ["Kotlin", "Jetpack Compose", "Android SDK", "Room", "Coroutines"],
-    titles: ["Android Developer", "Mobile Engineer"],
-    minYears: 3,
-    maxYears: 9,
-    baseInteraction: 0.95,
-  },
-  {
-    headline: "Elixir Backend Engineer",
-    summary:
-      "Creates fault-tolerant distributed systems with Elixir and Phoenix.",
-    seniorityLevel: "senior",
-    workModel: "remote",
-    contractType: "full-time",
-    location: "berlin",
-    spokenLanguages: ["english", "german"],
-    noticePeriod: "30 days",
-    openToRelocation: false,
-    salaryExpectationMin: 120000,
-    salaryExpectationMax: 180000,
-    skills: ["Elixir", "Phoenix", "Erlang", "Ecto", "LiveView"],
-    titles: ["Backend Engineer", "Elixir Developer"],
-    minYears: 5,
-    maxYears: 12,
-    baseInteraction: 1.05,
-  },
-] as const;
-
-// Reads the --mode argument to switch between initial and incremental training.
+/** Reads the --mode argument to switch between initial and incremental training. */
 function parseMode(): TrainMode {
   const modeArg = process.argv.find((arg) => arg.startsWith("--mode="));
   if (!modeArg) {
@@ -386,7 +70,7 @@ function parseMode(): TrainMode {
   return parsed === "incremental" ? "incremental" : "initial";
 }
 
-// Loads the timestamp of the last successful training run.
+/** Loads the timestamp of the last successful training run. */
 async function readState(): Promise<TrainingState | null> {
   try {
     const raw = await readFile(trainingStatePath, "utf-8");
@@ -396,30 +80,32 @@ async function readState(): Promise<TrainingState | null> {
   }
 }
 
-// Persists the timestamp used by incremental training.
+/** Persists the timestamp used by incremental training. */
 async function writeState(state: TrainingState): Promise<void> {
   await mkdir(path.dirname(trainingStatePath), { recursive: true });
   await writeFile(trainingStatePath, JSON.stringify(state, null, 2), "utf-8");
 }
 
-// Reads the current version from latest.json and returns the next version string.
-async function resolveNextVersion(): Promise<{
-  current: string;
-  next: string;
-}> {
+async function readCurrentVersion(): Promise<string | null> {
   try {
     const raw = await readFile(latestJsonPath, "utf-8");
     const parsed = JSON.parse(raw) as { version?: string };
-    const current = parsed.version ?? "v1";
-    const num = parseInt(current.replace(/^v/, ""), 10);
-    const next = `v${Number.isFinite(num) ? num + 1 : 2}`;
-    return { current, next };
+    return parsed.version ?? null;
   } catch {
-    return { current: "v1", next: "v2" };
+    return null;
   }
 }
 
-// Writes the updated version pointer.
+async function listExistingVersions(): Promise<string[]> {
+  try {
+    const entries = await readdir(modelsDir, { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
+/** Writes the updated version pointer. */
 async function writeLatestJson(version: string): Promise<void> {
   await writeFile(
     latestJsonPath,
@@ -428,559 +114,200 @@ async function writeLatestJson(version: string): Promise<void> {
   );
 }
 
-// Fetches training rows from Postgres.
-// Initial: rows that have at least one recruiter interaction (interactionScore > 0)
-// plus their full profile data.  Zero-interaction rows are excluded because using
-// a candidate's own profile as the query with label=0 would teach the model that
-// "profile matches itself = bad", which contradicts what the synthetic data teaches.
-// Incremental: only rows with trained_at IS NULL, using candidate_snapshot when available.
-async function loadDataset(
+// ---------------------------------------------------------------------------
+// Data loading
+// ---------------------------------------------------------------------------
+
+/**
+ * Every interaction we are allowed to train on.
+ *
+ * `cutoff` is captured BEFORE any loading starts and applied here. Training
+ * takes minutes; without it, anything a recruiter did during the run was marked
+ * `trained_at` at the end without ever having been read — invisible to this run
+ * and to every future one.
+ */
+async function loadInteractions(
   sqlClient: postgres.Sql,
   mode: TrainMode,
-): Promise<ResumeTrainingRow[]> {
-  if (mode === "initial") {
-    const rows = await sqlClient<ResumeTrainingRow[]>`
-      SELECT
-        r.id AS "resumeId",
-        MAX(ci.query_text) FILTER (WHERE ci.query_text IS NOT NULL) AS "queryText",
-        r.headline_title AS "headlineTitle",
-        r.summary AS "summary",
-        r.total_years_experience AS "totalYearsExperience",
-        r.seniority_level AS "seniorityLevel",
-        r.work_model AS "workModel",
-        r.contract_type AS "contractType",
-        r.location AS "location",
-        COALESCE(r.spoken_languages, ARRAY[]::text[]) AS "spokenLanguages",
-        r.notice_period AS "noticePeriod",
-        r.open_to_relocation AS "openToRelocation",
-        r.salary_expectation_min AS "salaryExpectationMin",
-        r.salary_expectation_max AS "salaryExpectationMax",
-        COALESCE(
-          ARRAY_AGG(DISTINCT sc.name) FILTER (WHERE sc.name IS NOT NULL),
-          ARRAY[]::text[]
-        ) AS "skills",
-        COALESCE(
-          ARRAY_AGG(DISTINCT tc.name) FILTER (WHERE tc.name IS NOT NULL),
-          ARRAY[]::text[]
-        ) AS "titles",
-        COALESCE((
-          SELECT json_agg(
-            json_build_object(
-              'title', we.title,
-              'companyName', we.company_name,
-              'description', we.description,
-              'mainStack', we.main_stack
-            )
-            ORDER BY we.display_order
-          )
-          FROM work_experiences we
-          WHERE we.user_id = r.user_id
-        ), '[]'::json) AS "workExperiences",
-        COALESCE(SUM(
-          CASE
-            WHEN ci.interaction_type = 'EMAIL_COPY' THEN 1.0
-            WHEN ci.interaction_type = 'CONTACT_CLICK' THEN 1.0
-            WHEN ci.interaction_type = 'PROFILE_VIEW' THEN 0.35
-            ELSE 0
-          END
-        ), 0.0) AS "interactionScore"
-      FROM resumes r
-      LEFT JOIN resume_skills rs ON rs.resume_id = r.id
-      LEFT JOIN skills_catalog sc ON sc.id = rs.skill_id
-      LEFT JOIN resume_titles rt ON rt.resume_id = r.id
-      LEFT JOIN titles_catalog tc ON tc.id = rt.title_id
-      LEFT JOIN candidate_interactions ci ON ci.resume_id = r.id
-      GROUP BY r.id
-      HAVING COALESCE(SUM(
-        CASE
-          WHEN ci.interaction_type = 'EMAIL_COPY' THEN 1.0
-          WHEN ci.interaction_type = 'CONTACT_CLICK' THEN 1.0
-          WHEN ci.interaction_type = 'PROFILE_VIEW' THEN 0.35
-          ELSE 0
-        END
-      ), 0.0) > 0
-    `;
-    return rows;
-  }
-
-  // Incremental: build training rows from snapshot data stored at interaction time.
-  // This avoids joins and uses the candidate attributes the recruiter actually saw.
-  const interactionRows = await sqlClient<
+  cutoff: Date,
+): Promise<InteractionTrainingRow[]> {
+  const rows = await sqlClient<
     {
       resumeId: string;
+      interactionType: string;
       queryText: string | null;
       querySnapshot: Record<string, unknown> | null;
       candidateSnapshot: Record<string, unknown> | null;
-      interactionScore: number;
+      displayedRank: number | null;
+      resultCount: number | null;
+      searchSessionId: string | null;
+      propensity: number | null;
+      createdAt: Date;
     }[]
   >`
     SELECT
-      resume_id AS "resumeId",
-      MAX(query_text) FILTER (WHERE query_text IS NOT NULL) AS "queryText",
-      MAX(query_snapshot) FILTER (WHERE query_snapshot IS NOT NULL) AS "querySnapshot",
-      MAX(candidate_snapshot) FILTER (WHERE candidate_snapshot IS NOT NULL) AS "candidateSnapshot",
-      COALESCE(SUM(
-        CASE
-          WHEN interaction_type = 'EMAIL_COPY' THEN 1.0
-          WHEN interaction_type = 'CONTACT_CLICK' THEN 1.0
-          WHEN interaction_type = 'PROFILE_VIEW' THEN 0.35
-          ELSE 0
-        END
-      ), 0.0) AS "interactionScore"
-    FROM candidate_interactions
-    WHERE trained_at IS NULL
-    GROUP BY resume_id
+      ci.resume_id AS "resumeId",
+      ci.interaction_type AS "interactionType",
+      ci.query_text AS "queryText",
+      ci.query_snapshot AS "querySnapshot",
+      ci.candidate_snapshot AS "candidateSnapshot",
+      -- Rows written by the contact-reveal endpoint carry their exposure in the
+      -- older rank_position column and their session inside metadata, because
+      -- that endpoint's request body predates the dedicated columns. Coalescing
+      -- here is what keeps those rows eligible for IPS weighting and for
+      -- skip-above derivation instead of silently falling back to weight 1.
+      COALESCE(ci.displayed_rank, ci.rank_position) AS "displayedRank",
+      ci.result_count AS "resultCount",
+      COALESCE(ci.search_session_id, ci.metadata->>'searchSessionId') AS "searchSessionId",
+      ci.propensity AS "propensity",
+      ci.created_at AS "createdAt"
+    FROM candidate_interactions ci
+    WHERE ci.created_at <= ${cutoff}
+      ${mode === "incremental" ? sqlClient`AND ci.trained_at IS NULL` : sqlClient``}
   `;
 
-  return interactionRows.map((row) => {
-    const snap = row.candidateSnapshot;
-    const qsnap = row.querySnapshot;
-    // Prefer the frozen snapshot; fall back to empty defaults for legacy rows.
-    return {
-      resumeId: row.resumeId,
-      queryText:
-        (qsnap?.semanticQuery as string | undefined) ?? row.queryText ?? null,
-      headlineTitle: (snap?.headlineTitle as string | null) ?? null,
-      summary: (snap?.summary as string | null) ?? null,
-      totalYearsExperience:
-        (snap?.totalYearsExperience as number | null) ?? null,
-      seniorityLevel: (snap?.seniorityLevel as string | null) ?? null,
-      workModel: (snap?.workModel as string | null) ?? null,
-      contractType: (snap?.contractType as string | null) ?? null,
-      location: (snap?.location as string | null) ?? null,
-      spokenLanguages: (snap?.spokenLanguages as string[]) ?? [],
-      noticePeriod: (snap?.noticePeriod as string | null) ?? null,
-      openToRelocation: (snap?.openToRelocation as boolean) ?? false,
-      salaryExpectationMin:
-        (snap?.salaryExpectationMin as number | null) ?? null,
-      salaryExpectationMax:
-        (snap?.salaryExpectationMax as number | null) ?? null,
-      skills: (snap?.skills as string[]) ?? [],
-      titles: (snap?.titles as string[]) ?? [],
-      workExperiences:
-        (snap?.workExperiences as WorkExperienceTrainingRow[]) ?? [],
-      interactionScore: row.interactionScore,
-    } satisfies ResumeTrainingRow;
-  });
+  return rows.map((row) => ({
+    ...row,
+    interactionType: row.interactionType as InteractionTrainingRow["interactionType"],
+  }));
 }
 
-// Produces an integer in the inclusive [min, max] interval.
-function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// Calculates Jaccard overlap to reward complete and partial set matches.
-function setSimilarity(
-  expected: readonly string[],
-  actual: readonly string[],
-): number {
-  if (expected.length === 0 && actual.length === 0) {
-    return 1;
+/**
+ * Candidate profiles for a set of resume ids.
+ *
+ * Skills, titles, work history and posts come from correlated subqueries rather
+ * than `LEFT JOIN … GROUP BY`. That is the shape that makes the fan-out
+ * impossible: there is exactly one output row per resume, so nothing can be
+ * multiplied by "how many skills this person listed".
+ */
+async function loadCandidateProfiles(
+  sqlClient: postgres.Sql,
+  resumeIds: readonly string[],
+): Promise<Map<string, CandidateTrainingProfile>> {
+  if (resumeIds.length === 0) {
+    return new Map();
   }
 
-  const expectedSet = new Set(
-    expected.map((value) => value.trim().toLowerCase()),
-  );
-  const actualSet = new Set(actual.map((value) => value.trim().toLowerCase()));
-  const union = new Set([...expectedSet, ...actualSet]);
+  const rows = await sqlClient<CandidateTrainingProfile[]>`
+    SELECT
+      r.id AS "resumeId",
+      r.headline_title AS "headlineTitle",
+      r.summary AS "summary",
+      r.total_years_experience AS "totalYearsExperience",
+      r.seniority_level AS "seniorityLevel",
+      r.work_model AS "workModel",
+      r.contract_type AS "contractType",
+      r.location AS "location",
+      COALESCE(r.spoken_languages, ARRAY[]::text[]) AS "spokenLanguages",
+      r.notice_period AS "noticePeriod",
+      r.open_to_relocation AS "openToRelocation",
+      r.salary_expectation_min AS "salaryExpectationMin",
+      r.salary_expectation_max AS "salaryExpectationMax",
+      COALESCE((
+        SELECT array_agg(DISTINCT sc.name)
+        FROM resume_skills rs
+        JOIN skills_catalog sc ON sc.id = rs.skill_id
+        WHERE rs.resume_id = r.id
+      ), ARRAY[]::text[]) AS "skills",
+      COALESCE((
+        SELECT array_agg(DISTINCT tc.name)
+        FROM resume_titles rt
+        JOIN titles_catalog tc ON tc.id = rt.title_id
+        WHERE rt.resume_id = r.id
+      ), ARRAY[]::text[]) AS "titles",
+      COALESCE((
+        SELECT json_agg(
+          json_build_object(
+            'title', we.title,
+            'companyName', we.company_name,
+            'description', we.description,
+            'mainStack', we.main_stack
+          )
+          ORDER BY we.display_order
+        )
+        FROM work_experiences we
+        WHERE we.user_id = r.user_id
+      ), '[]'::json) AS "workExperiences",
+      COALESCE((
+        SELECT json_agg(evidence ORDER BY evidence->>'publishedAt' DESC)
+        FROM (
+          SELECT json_build_object(
+            'title', p.title,
+            'excerpt', left(p.body, 240),
+            'source', p.source,
+            'tags', COALESCE(p.tags, '[]'::jsonb),
+            'publishedAt', p.published_at
+          ) AS evidence
+          FROM posts p
+          WHERE p.user_id = r.user_id
+            AND p.status = 'published'
+          ORDER BY p.published_at DESC NULLS LAST
+          LIMIT 10
+        ) recent_posts
+      ), '[]'::json) AS "posts"
+    FROM resumes r
+    WHERE r.id = ANY(${sqlClient.array([...resumeIds])}::uuid[])
+  `;
 
-  if (union.size === 0) {
-    return 0;
-  }
-
-  const intersectionCount = [...expectedSet].filter((value) =>
-    actualSet.has(value),
-  ).length;
-  return intersectionCount / union.size;
+  return new Map(rows.map((row) => [row.resumeId, normalizeProfile(row)]));
 }
 
-// Converts an absolute gap into a similarity score in the [0, 1] interval.
-function proximityScore(
-  expected: number,
-  actual: number,
-  tolerance: number,
-): number {
-  if (tolerance <= 0) {
-    return expected === actual ? 1 : 0;
-  }
-
-  const gap = Math.abs(expected - actual);
-  return Math.max(0, 1 - gap / tolerance);
+/** Postgres hands back nulls where the encoder wants arrays. */
+function normalizeProfile(
+  row: CandidateTrainingProfile,
+): CandidateTrainingProfile {
+  return {
+    ...row,
+    spokenLanguages: row.spokenLanguages ?? [],
+    skills: row.skills ?? [],
+    titles: row.titles ?? [],
+    workExperiences: (row.workExperiences ?? []).map((experience) => ({
+      ...experience,
+      mainStack: experience.mainStack ?? [],
+    })),
+    posts: (row.posts ?? []).map((post) => ({
+      ...post,
+      excerpt: post.excerpt ?? "",
+      tags: Array.isArray(post.tags) ? post.tags : [],
+    })),
+  };
 }
 
-// Collapses a candidate's work history into the two sets that matter for
-// matching: every technology used across roles, and every role title held.
-function collectWorkHistorySignals(
-  workExperiences: WorkExperienceTrainingRow[],
-): { stack: string[]; titles: string[] } {
-  const stack = new Set<string>();
-  const titles = new Set<string>();
-
-  for (const experience of workExperiences) {
-    for (const tech of experience.mainStack) {
-      stack.add(tech);
-    }
-    if (experience.title) {
-      titles.add(experience.title);
-    }
-  }
-
-  return { stack: [...stack], titles: [...titles] };
-}
-
-// How well a candidate's *real job history* covers what the role needs. Uses
-// the same stack/title comparison the recruiter cares about; no history → 0.
-function workHistoryScore(
-  blueprint: TrainingBlueprint,
-  workExperiences: WorkExperienceTrainingRow[],
-): number {
-  if (workExperiences.length === 0) {
-    return 0;
-  }
-
-  const { stack, titles } = collectWorkHistorySignals(workExperiences);
-  const stackScore = setSimilarity(blueprint.skills, stack);
-  const titleScore = setSimilarity(blueprint.titles, titles);
-  return (stackScore + titleScore) / 2;
-}
-
-// Computes a weighted target score: skills=4x, titles=2x, work history=2x and
-// other signals=1x — the single source of truth shared with the runtime.
-function computeWeightedTarget(
-  blueprint: TrainingBlueprint,
-  candidate: ResumeTrainingRow,
-): number {
-  const skillScore = setSimilarity(blueprint.skills, candidate.skills);
-  const titleScore = setSimilarity(blueprint.titles, candidate.titles);
-  const workScore = workHistoryScore(blueprint, candidate.workExperiences);
-  const languageScore = setSimilarity(
-    blueprint.spokenLanguages,
-    candidate.spokenLanguages,
-  );
-
-  const yearsCenter = (blueprint.minYears + blueprint.maxYears) / 2;
-  const yearsScore = proximityScore(
-    yearsCenter,
-    candidate.totalYearsExperience ?? 0,
-    Math.max(3, blueprint.maxYears - blueprint.minYears),
-  );
-
-  const salaryCenter =
-    (blueprint.salaryExpectationMin + blueprint.salaryExpectationMax) / 2;
-  const candidateSalaryCenter =
-    ((candidate.salaryExpectationMin ?? 0) +
-      (candidate.salaryExpectationMax ?? 0)) /
-    2;
-  const salaryScore = proximityScore(
-    salaryCenter,
-    candidateSalaryCenter,
-    90000,
-  );
-
-  const categoricalSignals = [
-    candidate.seniorityLevel === blueprint.seniorityLevel ? 1 : 0,
-    candidate.workModel === blueprint.workModel ? 1 : 0,
-    candidate.contractType === blueprint.contractType ? 1 : 0,
-    candidate.location === blueprint.location ? 1 : 0,
-    candidate.noticePeriod === blueprint.noticePeriod ? 1 : 0,
-    candidate.openToRelocation === blueprint.openToRelocation ? 1 : 0,
-    candidate.headlineTitle?.trim().length ? 1 : 0,
-    candidate.summary?.trim().length ? 1 : 0,
-    languageScore,
-    yearsScore,
-    salaryScore,
-  ];
-
-  const othersScore =
-    categoricalSignals.reduce((sum, value) => sum + value, 0) /
-    categoricalSignals.length;
-
-  const totalWeight =
-    MATCH_WEIGHTS.skills +
-    MATCH_WEIGHTS.titles +
-    MATCH_WEIGHTS.workHistory +
-    MATCH_WEIGHTS.others;
-
-  return (
-    (MATCH_WEIGHTS.skills * skillScore +
-      MATCH_WEIGHTS.titles * titleScore +
-      MATCH_WEIGHTS.workHistory * workScore +
-      MATCH_WEIGHTS.others * othersScore) /
-    totalWeight
-  );
-}
-
-// Builds believable work history for a synthetic candidate from the role's stack
-// and titles. Higher-quality candidates get more roles, richer stacks and real
-// accomplishment text; weak candidates get a thin, generic history.
-function buildSyntheticWorkExperiences(
-  blueprint: TrainingBlueprint,
-  quality: CandidateQuality,
-  stack: readonly string[],
-  titles: readonly string[],
-  index: number,
-): WorkExperienceTrainingRow[] {
-  const roleCount =
-    quality === "perfect"
-      ? 3
-      : quality === "strong"
-        ? 2
-        : quality === "medium"
-          ? 1
-          : Math.random() < 0.5
-            ? 1
-            : 0;
-
-  if (roleCount === 0 || stack.length === 0) {
+/**
+ * Loads the real training rows: one per (query, candidate), with exposure
+ * context, plus the skip-above negatives the sessions imply.
+ */
+async function loadDataset(
+  sqlClient: postgres.Sql,
+  mode: TrainMode,
+  cutoff: Date,
+): Promise<ResumeTrainingRow[]> {
+  const interactions = await loadInteractions(sqlClient, mode, cutoff);
+  if (interactions.length === 0) {
     return [];
   }
 
-  const stackShare =
-    quality === "perfect"
-      ? stack.length
-      : quality === "strong"
-        ? Math.max(2, stack.length - 1)
-        : Math.max(1, Math.floor(stack.length / 2));
-
-  const experiences: WorkExperienceTrainingRow[] = [];
-  for (let roleIndex = 0; roleIndex < roleCount; roleIndex += 1) {
-    const company =
-      COMPANY_POOL[(index + roleIndex) % COMPANY_POOL.length] ?? "TechCorp";
-    const roleStack = [...stack].slice(0, stackShare);
-    const roleTitle =
-      titles[roleIndex % Math.max(1, titles.length)] ?? blueprint.headline;
-    const description =
-      quality === "weak"
-        ? `Contributed to projects at ${company}.`
-        : `Led ${roleTitle} work at ${company}, shipping features with ${roleStack.join(", ")} and driving measurable impact on reliability and delivery speed.`;
-
-    experiences.push({
-      title: roleTitle,
-      companyName: company,
-      description,
-      mainStack: roleStack,
-    });
-  }
-
-  return experiences;
-}
-
-// Creates realistic candidate variations from a role blueprint for supervised learning.
-function createCandidateFromBlueprint(
-  blueprint: TrainingBlueprint,
-  quality: CandidateQuality,
-  index: number,
-): ResumeTrainingRow {
-  const shuffledSkills = [...blueprint.skills].sort(() => Math.random() - 0.5);
-  const shuffledTitles = [...blueprint.titles].sort(() => Math.random() - 0.5);
-
-  let selectedSkills = [...blueprint.skills];
-  let selectedTitles = [...blueprint.titles];
-  let years = randomInt(blueprint.minYears, blueprint.maxYears);
-  let salaryMin = blueprint.salaryExpectationMin;
-  let salaryMax = blueprint.salaryExpectationMax;
-  let location = blueprint.location;
-  let workModel = blueprint.workModel;
-  let spokenLanguages = [...blueprint.spokenLanguages];
-
-  if (quality === "strong") {
-    selectedSkills = shuffledSkills.slice(
-      0,
-      Math.max(3, blueprint.skills.length - 1),
-    );
-    selectedTitles = shuffledTitles.slice(
-      0,
-      Math.max(1, blueprint.titles.length),
-    );
-    years = Math.max(0, years - 1);
-    salaryMax = Math.max(salaryMin + 10000, salaryMax - 8000);
-  }
-
-  if (quality === "medium") {
-    selectedSkills = shuffledSkills.slice(
-      0,
-      Math.max(2, Math.floor(blueprint.skills.length / 2)),
-    );
-    selectedTitles = shuffledTitles.slice(0, 1);
-    years = Math.max(0, years - randomInt(1, 3));
-    salaryMin = Math.max(0, salaryMin - 15000);
-    salaryMax = Math.max(salaryMin + 12000, salaryMax - 22000);
-    workModel = blueprint.workModel === "remote" ? "hybrid" : "remote";
-    spokenLanguages = spokenLanguages.slice(
-      0,
-      Math.max(1, spokenLanguages.length - 1),
-    );
-  }
-
-  if (quality === "weak") {
-    selectedSkills = shuffledSkills.slice(
-      0,
-      Math.max(1, Math.floor(blueprint.skills.length / 3)),
-    );
-    selectedTitles = shuffledTitles.slice(0, 1);
-    years = Math.max(0, years - randomInt(2, 6));
-    salaryMin = Math.max(0, salaryMin - 30000);
-    salaryMax = Math.max(salaryMin + 10000, salaryMax - 45000);
-    location = "remote";
-    workModel = "on-site";
-    spokenLanguages = [blueprint.spokenLanguages[0] ?? "english"];
-  }
-
-  const workExperiences = buildSyntheticWorkExperiences(
-    blueprint,
-    quality,
-    selectedSkills,
-    selectedTitles,
-    index,
+  const aggregates = aggregateInteractions(interactions);
+  const profiles = await loadCandidateProfiles(
+    sqlClient,
+    [...new Set(aggregates.map((aggregate) => aggregate.resumeId))],
   );
 
-  const row: ResumeTrainingRow = {
-    resumeId: `synthetic-${quality}-${index + 1}`,
-    queryText: [
-      `Role: ${blueprint.titles[0] ?? blueprint.headline}`,
-      `Seniority: ${blueprint.seniorityLevel}`,
-      `Core Skills: ${blueprint.skills.join(", ")}`,
-      `Titles: ${blueprint.titles.join(", ")}`,
-      `Location: ${blueprint.location}`,
-      `Work Model: ${blueprint.workModel}`,
-      `Experience: ${blueprint.minYears}+ years`,
-    ].join("\n"),
-    headlineTitle:
-      quality === "weak" ? "Generalist Software Developer" : blueprint.headline,
-    summary:
-      quality === "weak"
-        ? "Works across varied products with broad exposure."
-        : blueprint.summary,
-    totalYearsExperience: years,
-    seniorityLevel: quality === "weak" ? "mid" : blueprint.seniorityLevel,
-    workModel,
-    contractType: blueprint.contractType,
-    location,
-    spokenLanguages,
-    noticePeriod: blueprint.noticePeriod,
-    openToRelocation: blueprint.openToRelocation,
-    salaryExpectationMin: salaryMin,
-    salaryExpectationMax: salaryMax,
-    skills: selectedSkills,
-    titles: selectedTitles,
-    workExperiences,
-    interactionScore: 0,
-  };
+  const rows = buildTrainingRows(aggregates, profiles);
+  const skipAbove = deriveSkipAboveNegatives(rows);
 
-  // Stores the synthetic label in interactionScore and keeps the existing label pipeline unchanged.
-  row.interactionScore = Math.min(2, computeWeightedTarget(blueprint, row) * 2);
-  return row;
-}
-
-// Generates synthetic supervised examples that include perfect and imperfect candidate matches.
-function createSyntheticDataset(count: number): ResumeTrainingRow[] {
-  const rows: ResumeTrainingRow[] = [];
-
-  for (let index = 0; index < count; index += 1) {
-    const blueprint = SYNTHETIC_STACKS[index % SYNTHETIC_STACKS.length]!;
-    const quality = QUALITY_DISTRIBUTION[index % QUALITY_DISTRIBUTION.length]!;
-    rows.push(createCandidateFromBlueprint(blueprint, quality, index));
-  }
-
-  return rows;
-}
-
-// Generates cross-blueprint negative examples: pairs a query from blueprint A
-// with a candidate from a distant blueprint B (guaranteed skill mismatch).
-// These label=0 examples teach the model what a bad match looks like.
-function createCrossBlueprintNegatives(count: number): ResumeTrainingRow[] {
-  const rows: ResumeTrainingRow[] = [];
-  const n = SYNTHETIC_STACKS.length;
-  const halfN = Math.floor(n / 2);
-
-  for (let index = 0; index < count; index += 1) {
-    const queryBlueprintIdx = index % n;
-    // Pick a candidate blueprint from the "opposite" half of the stack to
-    // maximise the chance of zero skill-title overlap.
-    const candidateBlueprintIdx = (queryBlueprintIdx + halfN) % n;
-    const queryBlueprint = SYNTHETIC_STACKS[queryBlueprintIdx]!;
-    const candidateBlueprint = SYNTHETIC_STACKS[candidateBlueprintIdx]!;
-
-    const years = randomInt(
-      candidateBlueprint.minYears,
-      candidateBlueprint.maxYears,
+  if (skipAbove.length > 0) {
+    console.log(
+      `[training] Derived ${skipAbove.length} skip-above negatives from logged exposure`,
     );
-
-    rows.push({
-      resumeId: `synthetic-negative-${index + 1}`,
-      queryText: [
-        `Role: ${queryBlueprint.titles[0] ?? queryBlueprint.headline}`,
-        `Seniority: ${queryBlueprint.seniorityLevel}`,
-        `Core Skills: ${queryBlueprint.skills.join(", ")}`,
-        `Titles: ${queryBlueprint.titles.join(", ")}`,
-        `Work Model: ${queryBlueprint.workModel}`,
-        `Experience: ${queryBlueprint.minYears}+ years`,
-      ].join("\n"),
-      headlineTitle: candidateBlueprint.headline,
-      summary: candidateBlueprint.summary,
-      totalYearsExperience: years,
-      seniorityLevel: candidateBlueprint.seniorityLevel,
-      workModel: candidateBlueprint.workModel,
-      contractType: candidateBlueprint.contractType,
-      location: candidateBlueprint.location,
-      spokenLanguages: [...candidateBlueprint.spokenLanguages],
-      noticePeriod: candidateBlueprint.noticePeriod,
-      openToRelocation: candidateBlueprint.openToRelocation,
-      salaryExpectationMin: candidateBlueprint.salaryExpectationMin,
-      salaryExpectationMax: candidateBlueprint.salaryExpectationMax,
-      skills: [...candidateBlueprint.skills],
-      titles: [...candidateBlueprint.titles],
-      // Work history from the *mismatched* candidate blueprint: a strong track
-      // record in the wrong stack must still score 0 against this query.
-      workExperiences: buildSyntheticWorkExperiences(
-        candidateBlueprint,
-        "strong",
-        candidateBlueprint.skills,
-        candidateBlueprint.titles,
-        index,
-      ),
-      interactionScore: 0, // label = 0: query and candidate are a clear mismatch
-    });
   }
 
-  return rows;
+  return [...rows, ...skipAbove];
 }
 
-// Adds synthetic supervision so the model learns explicit expected-candidate quality patterns.
-// ~70 % are same-blueprint quality variants (positive signal),
-// ~30 % are cross-blueprint negatives (label = 0 mismatch signal).
-function enrichDatasetWithSyntheticRows(
-  mode: TrainMode,
-  dataset: ResumeTrainingRow[],
-): ResumeTrainingRow[] {
-  const targetSize =
-    mode === "initial"
-      ? INITIAL_SYNTHETIC_TARGET
-      : INCREMENTAL_SYNTHETIC_TARGET;
-  const syntheticCount = Math.max(targetSize - dataset.length, 0);
-
-  if (syntheticCount === 0) {
-    return dataset;
-  }
-
-  const positiveCount = Math.round(syntheticCount * 0.5);
-  const negativeCount = syntheticCount - positiveCount;
-
-  return [
-    ...dataset,
-    ...createSyntheticDataset(positiveCount),
-    ...createCrossBlueprintNegatives(negativeCount),
-  ];
-}
-
-// Converts interaction values to model labels in [0, 1].
-function buildLabel(interactionScore: number): number {
-  if (interactionScore <= 0) {
-    return 0;
-  }
-
-  return Math.min(interactionScore / 2, 1);
-}
+// ---------------------------------------------------------------------------
+// Encoding
+// ---------------------------------------------------------------------------
 
 function buildFallbackQueryText(row: ResumeTrainingRow): string {
   return [
@@ -996,58 +323,84 @@ function buildFallbackQueryText(row: ResumeTrainingRow): string {
     .join("\n");
 }
 
-// Builds model-ready feature and label tensors from the training rows.
-// Shuffles rows first so the validation split (last 20 %) contains a
-// representative mix of positives and negatives instead of only one class.
-function buildTrainingMatrices(
-  dataset: ResumeTrainingRow[],
+export function encodeRow(
+  row: ResumeTrainingRow,
   config: PreprocessingConfig,
-): { xs: tf.Tensor2D; ys: tf.Tensor2D } {
-  // Fisher-Yates in-place shuffle so the validationSplit slice is balanced.
-  const shuffled = [...dataset];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
-  }
-
-  const features = shuffled.map((row) =>
-    // Core pairwise comparison: recruiter input (queryText) x candidate profile.
-    toQueryCandidateFeatureVector(
-      {
-        queryText: row.queryText?.trim() || buildFallbackQueryText(row),
-        candidate: {
-          headlineTitle: row.headlineTitle,
-          summary: row.summary,
-          totalYearsExperience: row.totalYearsExperience,
-          seniorityLevel: row.seniorityLevel,
-          workModel: row.workModel,
-          contractType: row.contractType,
-          location: row.location,
-          spokenLanguages: row.spokenLanguages,
-          noticePeriod: row.noticePeriod,
-          openToRelocation: row.openToRelocation,
-          salaryExpectationMin: row.salaryExpectationMin,
-          salaryExpectationMax: row.salaryExpectationMax,
-          skills: row.skills,
-          titles: row.titles,
-          workExperiences: row.workExperiences,
-        },
+  now: number,
+): number[] {
+  return toQueryCandidateFeatureVector(
+    {
+      queryText: row.queryText?.trim() || buildFallbackQueryText(row),
+      candidate: {
+        headlineTitle: row.headlineTitle,
+        summary: row.summary,
+        totalYearsExperience: row.totalYearsExperience,
+        seniorityLevel: row.seniorityLevel,
+        workModel: row.workModel,
+        contractType: row.contractType,
+        location: row.location,
+        spokenLanguages: row.spokenLanguages,
+        noticePeriod: row.noticePeriod,
+        openToRelocation: row.openToRelocation,
+        salaryExpectationMin: row.salaryExpectationMin,
+        salaryExpectationMax: row.salaryExpectationMax,
+        skills: row.skills,
+        titles: row.titles,
+        workExperiences: row.workExperiences,
+        posts: row.posts,
       },
-      config,
-    ),
+    },
+    config,
+    { now },
   );
+}
 
-  const labels = shuffled.map((row) => [buildLabel(row.interactionScore)]);
+interface Matrices {
+  xs: tf.Tensor2D;
+  ys: tf.Tensor2D;
+  labels: number[];
+}
+
+/**
+ * Feature and label tensors.
+ *
+ * No shuffling happens here any more: the split is temporal and done by the
+ * caller, so shuffling before splitting would be exactly the leak the temporal
+ * split exists to prevent. `model.fit({ shuffle: true })` still shuffles within
+ * the training set, which is all that was ever needed.
+ *
+ * `applyIps` turns the inverse-propensity weights into row replication — tfjs
+ * has no `sampleWeight` — and is off for the held-out set, where every example
+ * must count once or the calibration numbers describe a distribution nobody
+ * will ever see.
+ */
+function buildTrainingMatrices(
+  dataset: readonly ResumeTrainingRow[],
+  config: PreprocessingConfig,
+  now: number,
+  applyIps: boolean,
+): Matrices {
+  const rows = applyIps
+    ? expandByImportanceWeight(dataset, (row) =>
+        row.isSynthetic ? 1 : inversePropensityWeight(row),
+      )
+    : [...dataset];
+
+  const features = rows.map((row) => encodeRow(row, config, now));
+  const labels = rows.map(resolveLabel);
 
   return {
     xs: tf.tensor2d(features),
-    ys: tf.tensor2d(labels),
+    ys: tf.tensor2d(labels.map((label) => [label])),
+    labels,
   };
 }
 
-// Builds a compact feed-forward model for candidate relevance scoring.
-// Uses dropout for regularisation to prevent overfitting on the expanded
-// synthetic dataset and a larger first layer to handle more skill diversity.
+/**
+ * Builds a compact feed-forward model for candidate relevance scoring.
+ * Dropout regularises against the expanded synthetic dataset; the wider first
+ * layer handles skill diversity.
+ */
 function buildModel(inputDim: number): tf.Sequential {
   const model = tf.sequential({
     layers: [
@@ -1072,80 +425,167 @@ function buildModel(inputDim: number): tf.Sequential {
   return model;
 }
 
-// Trains the model, then writes model files and preprocessing metadata for the web worker.
-// In incremental mode the existing model weights are loaded first (warm-start),
-// so the network continues learning instead of starting from scratch.
+function modelInputDimension(model: tf.LayersModel): number | null {
+  const shape = model.inputs[0]?.shape;
+  const dim = shape?.[1];
+  return typeof dim === "number" ? dim : null;
+}
+
+/**
+ * The vocabulary a warm-start MUST reuse.
+ *
+ * Warm-starting used to rebuild the preprocessing config from the *current*
+ * dataset every run. The vocabulary order therefore changed between runs, and
+ * the loaded weights — which are bound to feature *positions* — landed on a
+ * permuted feature space. The model kept training, the loss kept going down,
+ * and every learned association was scrambled. Reuse the persisted config or
+ * cold-start; there is no third option that is correct.
+ */
+async function loadPersistedConfig(
+  modelDir: string,
+): Promise<PreprocessingConfig | null> {
+  try {
+    const raw = await readFile(path.join(modelDir, "preprocessing.json"), "utf-8");
+    return preprocessingConfigSchema.parse(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+async function loadWarmStartModel(
+  modelDir: string,
+): Promise<tf.LayersModel | null> {
+  try {
+    return await tf.loadLayersModel(`file://${modelDir}/model.json`);
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Training
+// ---------------------------------------------------------------------------
+
 async function trainModel(
   mode: TrainMode,
   dataset: ResumeTrainingRow[],
-): Promise<string> {
-  const { current: currentVersion, next: nextVersion } =
-    await resolveNextVersion();
+  now: number,
+): Promise<{ version: string; samples: number }> {
+  const { current: currentVersion, next: nextVersion } = resolveNextVersion(
+    await readCurrentVersion(),
+    await listExistingVersions(),
+  );
   const currentModelDir = path.join(modelsDir, currentVersion);
   const newModelDir = path.join(modelsDir, nextVersion);
 
-  const knownLocations = dataset
-    .map((row) => row.location ?? "")
-    .filter((value) => value.trim().length > 0);
-  // Vocabulary must also cover skills/titles that only appear in work history,
-  // otherwise a stack used on the job but not self-declared would be invisible.
-  const knownSkills = dataset.flatMap((row) => [
-    ...row.skills,
-    ...row.workExperiences.flatMap((experience) => experience.mainStack),
-  ]);
-  const knownTitles = dataset.flatMap((row) => [
-    ...row.titles,
-    ...row.workExperiences
-      .map((experience) => experience.title)
-      .filter((value): value is string => Boolean(value && value.trim())),
-  ]);
-  const knownLanguages = dataset.flatMap((row) => row.spokenLanguages);
-  const knownNoticePeriods = dataset
-    .map((row) => row.noticePeriod ?? "")
-    .filter((value) => value.trim().length > 0);
+  // Warm-start is only attempted when BOTH the weights and the exact vocabulary
+  // they were trained against are available.
+  const persistedConfig =
+    mode === "incremental" ? await loadPersistedConfig(currentModelDir) : null;
 
-  const preprocessingConfig = buildDefaultPreprocessingConfig(
-    knownLocations,
-    knownSkills,
-    knownTitles,
-    knownLanguages,
-    knownNoticePeriods,
+  const reusableConfig =
+    persistedConfig && persistedConfig.version === PREPROCESSING_VERSION
+      ? persistedConfig
+      : null;
+
+  let preprocessingConfig: PreprocessingConfig;
+
+  if (reusableConfig) {
+    preprocessingConfig = reusableConfig;
+    console.log(
+      `[training] Reusing persisted vocabulary from ${currentVersion} (${reusableConfig.knownSkills.length} skills)`,
+    );
+  } else {
+    const built = buildVocabularyFromDataset(dataset);
+    preprocessingConfig = built.config;
+
+    const droppedTotal =
+      built.dropped.skills.length +
+      built.dropped.titles.length +
+      built.dropped.locations.length +
+      built.dropped.languages.length +
+      built.dropped.noticePeriods.length;
+
+    if (droppedTotal > 0) {
+      console.warn(
+        `[training] Vocabulary truncated: dropped ${built.dropped.skills.length} skills, ` +
+          `${built.dropped.titles.length} titles, ${built.dropped.locations.length} locations, ` +
+          `${built.dropped.languages.length} languages, ${built.dropped.noticePeriods.length} notice periods.`,
+      );
+      console.warn(
+        `[training] Dropped skills: ${built.dropped.skills.slice(0, 20).join(", ")}${built.dropped.skills.length > 20 ? " …" : ""}`,
+      );
+    }
+  }
+
+  // Temporal split, shared cutoff, with an embargo gap. A random split would
+  // train on the future and report a number nobody can reproduce in production.
+  const split = temporalSplit(dataset);
+  console.log(
+    `[training] Split: ${split.train.length} train / ${split.holdout.length} holdout / ${split.embargoed} embargoed (cutoff ${split.cutoff?.toISOString() ?? "n/a"})`,
   );
 
-  const { xs, ys } = buildTrainingMatrices(dataset, preprocessingConfig);
+  const train = buildTrainingMatrices(
+    split.train,
+    preprocessingConfig,
+    now,
+    true,
+  );
+  const holdout =
+    split.holdout.length > 0
+      ? buildTrainingMatrices(split.holdout, preprocessingConfig, now, false)
+      : null;
 
-  let model: tf.LayersModel;
+  const inputDim = train.xs.shape[1];
+
+  let model: tf.LayersModel | null = null;
+  let warmStarted = false;
 
   if (mode === "incremental") {
-    // Warm-start: resume training from the existing weights instead of
-    // building a new network from scratch (avoids catastrophic forgetting).
-    try {
-      model = await tf.loadLayersModel(`file://${currentModelDir}/model.json`);
-      (model as tf.Sequential).compile({
+    const candidate = reusableConfig
+      ? await loadWarmStartModel(currentModelDir)
+      : null;
+
+    const decision = decideWarmStart({
+      mode,
+      persistedConfig,
+      loadedInputDim: candidate ? modelInputDimension(candidate) : null,
+      dataInputDim: inputDim,
+    });
+
+    if (decision.warmStart && candidate) {
+      (candidate as tf.Sequential).compile({
         optimizer: tf.train.adam(0.0005),
         loss: "binaryCrossentropy",
         metrics: ["mse", "mae"],
       });
+      model = candidate;
+      warmStarted = true;
       console.log(
         `[training] Warm-start from ${currentVersion}, fine-tuning for ${nextVersion}`,
       );
-    } catch {
+    } else {
+      // This whole decision used to live inside a `try/catch` that only wrapped
+      // `loadLayersModel` + `compile`, with `model.fit` outside it — so an
+      // incompatible artifact killed the run instead of cold-starting.
+      candidate?.dispose();
       console.warn(
-        "[training] Could not load existing model, falling back to cold-start",
+        `[training] Cold-starting: ${decision.reason}${"detail" in decision && decision.detail ? ` (${decision.detail})` : ""}`,
       );
-      model = buildModel(xs.shape[1]);
     }
-  } else {
-    model = buildModel(xs.shape[1]);
   }
 
-  await model.fit(xs, ys, {
+  model ??= buildModel(inputDim);
+
+  await model.fit(train.xs, train.ys, {
     epochs: mode === "incremental" ? 20 : 80,
     batchSize: 16,
     shuffle: true,
-    validationSplit: 0.2,
+    ...(holdout ? { validationData: [holdout.xs, holdout.ys] } : {}),
     verbose: 1,
   });
+
+  const calibration = holdout ? await reportCalibration(model, holdout) : null;
 
   await mkdir(newModelDir, { recursive: true });
   await model.save(`file://${newModelDir}`);
@@ -1161,11 +601,17 @@ async function trainModel(
     JSON.stringify(
       {
         version: nextVersion,
-        trainedAt: new Date().toISOString(),
+        trainedAt: new Date(now).toISOString(),
         mode,
         samples: dataset.length,
-        inputDimension: xs.shape[1],
+        trainSamples: split.train.length,
+        holdoutSamples: split.holdout.length,
+        inputDimension: inputDim,
         queryAware: true,
+        preprocessingVersion: PREPROCESSING_VERSION,
+        matchMetric: MATCH_METRIC_ID,
+        warmStartedFrom: warmStarted ? currentVersion : null,
+        calibration,
       },
       null,
       2,
@@ -1173,14 +619,93 @@ async function trainModel(
     "utf-8",
   );
 
-  xs.dispose();
-  ys.dispose();
+  train.xs.dispose();
+  train.ys.dispose();
+  holdout?.xs.dispose();
+  holdout?.ys.dispose();
   model.dispose();
 
-  return nextVersion;
+  return { version: nextVersion, samples: dataset.length };
 }
 
-// Coordinates dataset loading, enrichment, training, and state persistence.
+async function reportCalibration(model: tf.LayersModel, holdout: Matrices) {
+  const output = model.predict(holdout.xs) as tf.Tensor;
+  const predictions = Array.from(await output.data());
+  output.dispose();
+
+  const report = buildCalibrationReport(predictions, holdout.labels);
+  const gates = evaluateCalibrationGates(report);
+
+  console.log(
+    `[training] Calibration on ${report.count} held-out rows: ` +
+      `Brier ${report.brier.toFixed(4)}, BSS ${report.brierSkill.toFixed(4)}, ` +
+      `ECE ${report.ece.toFixed(4)}, MCE ${report.mce.toFixed(4)}`,
+  );
+
+  if (gates.skipped) {
+    console.warn(
+      "[training] Calibration gate skipped — held-out split too small to judge.",
+    );
+  } else if (!gates.passed) {
+    // Loud, and it fails the run: a miscalibrated model still ranks, but the
+    // percentage on the card is the product.
+    for (const failure of gates.failures) {
+      console.error(`[training] GATE FAILED: ${failure}`);
+    }
+    throw new Error(
+      `Calibration gates failed: ${gates.failures.join(" | ")}`,
+    );
+  }
+
+  return {
+    count: report.count,
+    brier: report.brier,
+    brierSkill: report.brierSkill,
+    ece: report.ece,
+    mce: report.mce,
+  };
+}
+
+function buildVocabularyFromDataset(dataset: readonly ResumeTrainingRow[]) {
+  const knownLocations = dataset
+    .map((row) => row.location ?? "")
+    .filter((value) => value.trim().length > 0);
+  // Vocabulary must also cover skills/titles that only appear in work history or
+  // in post tags, otherwise a stack used on the job but not self-declared would
+  // be invisible to the encoder.
+  const knownSkills = dataset.flatMap((row) => [
+    ...row.skills,
+    ...row.workExperiences.flatMap((experience) => experience.mainStack),
+    ...row.posts.flatMap((post) => post.tags),
+  ]);
+  const knownTitles = dataset.flatMap((row) => [
+    ...row.titles,
+    ...row.workExperiences
+      .map((experience) => experience.title)
+      .filter((value): value is string => Boolean(value && value.trim())),
+  ]);
+  const knownLanguages = dataset.flatMap((row) => row.spokenLanguages);
+  const knownNoticePeriods = dataset
+    .map((row) => row.noticePeriod ?? "")
+    .filter((value) => value.trim().length > 0);
+
+  return buildPreprocessingVocabulary(
+    knownLocations,
+    knownSkills,
+    knownTitles,
+    knownLanguages,
+    knownNoticePeriods,
+    // The synthetic blueprint terms are reserved: they are what every generated
+    // positive AND negative is built from, so losing them to truncation makes
+    // those two classes indistinguishable.
+    blueprintVocabulary(),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Entrypoint
+// ---------------------------------------------------------------------------
+
 async function main() {
   const mode = parseMode();
   const databaseUrl = process.env.DATABASE_URL;
@@ -1189,11 +714,23 @@ async function main() {
     throw new Error("DATABASE_URL is required to train the model");
   }
 
+  const lastRun = await readState();
+  if (lastRun) {
+    console.log(`[training] Previous run: ${lastRun.lastTrainingAt}`);
+  }
+
+  // Captured before a single row is read. Everything written after this instant
+  // belongs to the next run.
+  const cutoff = new Date();
   const sqlClient = postgres(databaseUrl, { max: 1 });
 
   try {
-    const loadedDataset = await loadDataset(sqlClient, mode);
-    const dataset = enrichDatasetWithSyntheticRows(mode, loadedDataset);
+    const loadedDataset = await loadDataset(sqlClient, mode, cutoff);
+    const dataset = enrichDatasetWithSyntheticRows(loadedDataset, {
+      minimumSynthetic: SYNTHETIC_FLOOR[mode],
+      ratioToReal: SYNTHETIC_RATIO_TO_REAL,
+      now: cutoff.getTime(),
+    });
 
     if (dataset.length < 20) {
       throw new Error(
@@ -1201,31 +738,43 @@ async function main() {
       );
     }
 
-    const newVersion = await trainModel(mode, dataset);
+    const { version } = await trainModel(mode, dataset, cutoff.getTime());
 
-    // Mark all used interactions as trained ONLY after the model has been saved
-    // successfully, so a failed training run never loses interaction data.
+    // Mark interactions as trained ONLY after the model has been saved, and only
+    // those that existed when loading started — anything recorded during the run
+    // stays untrained instead of being consumed without being read.
     if (mode === "incremental") {
       await sqlClient`
         UPDATE candidate_interactions
         SET trained_at = NOW()
         WHERE trained_at IS NULL
+          AND created_at <= ${cutoff}
       `;
     }
 
     // Update latest.json so the browser worker picks up the new version.
-    await writeLatestJson(newVersion);
+    await writeLatestJson(version);
     await writeState({ lastTrainingAt: new Date().toISOString() });
 
     console.log(
-      `[training] Done. mode=${mode} samples=${dataset.length} output=${newVersion}`,
+      `[training] Done. mode=${mode} samples=${dataset.length} output=${version} preprocessing=${PREPROCESSING_VERSION}`,
     );
   } finally {
     await sqlClient.end({ timeout: 5 });
   }
 }
 
-main().catch((error) => {
-  console.error("[training] Failed", error);
-  process.exit(1);
-});
+// `import.meta.url` guard so the module can be imported by tests without
+// connecting to Postgres and training a model as a side effect.
+const isDirectRun = process.argv[1]
+  ? path.resolve(process.argv[1]) === __filename
+  : false;
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error("[training] Failed", error);
+    process.exit(1);
+  });
+}
+
+export { buildTrainingMatrices, buildVocabularyFromDataset, loadDataset, main };

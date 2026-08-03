@@ -1,3 +1,4 @@
+import type { SearchSource } from "@repo/schemas";
 import { IEmbeddingProvider } from "../../../providers/embedding/embedding-provider.js";
 import {
   IResumeSearchRepository,
@@ -8,6 +9,11 @@ export interface SearchResumesByRecruiterQueryInput {
   query: string;
   topK?: number;
   filters?: RecruiterSearchFilters;
+  /**
+   * Which slices of a candidate to compare against. Omitted keeps the blended
+   * single-vector behaviour, so an unscoped search is unchanged.
+   */
+  sources?: SearchSource[];
 }
 
 export class SearchResumesByRecruiterQueryUseCase {
@@ -26,6 +32,9 @@ export class SearchResumesByRecruiterQueryUseCase {
       queryEmbedding,
       topK: cappedTopK,
       filters: input.filters ?? {},
+      // Passed through untouched, including `undefined`: the repository is what
+      // decides that "no sources" means the blended vector.
+      sources: input.sources,
     });
   }
 }

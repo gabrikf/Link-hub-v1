@@ -106,7 +106,12 @@ export type SeniorityLevel = (typeof SENIORITY_OPTIONS)[number];
 export type WorkModel = (typeof WORK_MODEL_OPTIONS)[number];
 
 export type RankedCandidate = RecruiterSearchResponse["candidates"][number] & {
-  aiScore: number;
+  /**
+   * `null` when the on-device reranker could not run. The results are still
+   * shown, in the API's similarity order — we just have no match percentage to
+   * put on the card, and inventing one from the raw cosine would be a lie.
+   */
+  aiScore: number | null;
 };
 
 export const selectOptionSchema = z.object({

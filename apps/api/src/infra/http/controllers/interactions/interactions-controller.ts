@@ -1,6 +1,10 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
-import { createInteractionInputSchema, interactionSchema } from "@repo/schemas";
+import {
+  createInteractionInputSchema,
+  interactionSchema,
+  type CreateInteractionInput,
+} from "@repo/schemas";
 import { RecordCandidateInteractionUseCase } from "../../../../core/use-case/interactions/record-candidate-interaction-use-case/record-candidate-interaction.use-case.js";
 import { resolve, TOKENS } from "../../../di/container.js";
 import { authGuard } from "../../middleware/auth-guard.js";
@@ -29,18 +33,11 @@ export class InteractionsController {
         },
       },
       async (
-        request: FastifyRequest<{
-          Body: {
-            resumeId: string;
-            interactionType: "EMAIL_COPY" | "CONTACT_CLICK" | "PROFILE_VIEW";
-            queryText?: string | null;
-            semanticSimilarity?: number | null;
-            rankPosition?: number | null;
-            metadata?: Record<string, unknown>;
-            candidateSnapshot?: Record<string, unknown>;
-            querySnapshot?: Record<string, unknown>;
-          };
-        }>,
+        // Typed from the zod schema instead of a hand-written literal. The
+        // hand-written one had already drifted: it omitted `NOT_RELEVANT` and
+        // all four exposure fields, so the route validated them at the edge and
+        // then dropped them before the use case ever saw them.
+        request: FastifyRequest<{ Body: CreateInteractionInput }>,
         reply,
       ) => {
         const recordCandidateInteractionUseCase =
@@ -48,7 +45,7 @@ export class InteractionsController {
             TOKENS.RecordCandidateInteractionUseCase,
           );
 
-        const interaction = await recordCandidateInteractionUseCase.execute({
+        const result = await recordCandidateInteractionUseCase.execute({
           resumeId: request.body.resumeId,
           recruiterId: request.user!.id,
           interactionType: request.body.interactionType,
@@ -58,9 +55,16 @@ export class InteractionsController {
           metadata: request.body.metadata,
           candidateSnapshot: request.body.candidateSnapshot,
           querySnapshot: request.body.querySnapshot,
+          displayedRank: request.body.displayedRank,
+          resultCount: request.body.resultCount,
+          searchSessionId: request.body.searchSessionId,
+          propensity: request.body.propensity,
         });
 
-        reply.status(201).send(interaction);
+        // A duplicate returns the row that already carries the signal, so a
+        // client firing these best-effort never sees an error for tapping the
+        // same button twice.
+        reply.status(201).send(result.interaction);
       },
     );
   }

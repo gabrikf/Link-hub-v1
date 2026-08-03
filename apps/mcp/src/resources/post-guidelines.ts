@@ -58,7 +58,69 @@ Close with a link when there is something to look at: a PR, a release, a demo,
 a deployed URL, a repo. Pass it as \`externalUrl\` when using \`create_post\`,
 or inline it in the body.
 
-## 3. What to leave out — non-negotiable
+## 3. What you may say about your job
+
+This is the section that makes a post genuinely useful to a recruiter while
+keeping the user's employer safe. The user picks a **disclosure level** in
+LinkHub settings; \`summary\` is the default and the strictest. Call
+\`get_disclosure_policy\` for the live level, or read
+\`linkhub://policy/disclosure\`.
+
+**Always safe to say — at every level.** These are what actually demonstrate
+capability, and none of them identify an employer:
+
+- **Role and seniority.** "Senior backend engineer", "tech lead of a four-person
+  team". The title is the user's, not the company's.
+- **Duration.** "Three years on payments systems", "an 18-month platform
+  migration". Longevity is evidence; the calendar is not a secret.
+- **Team shape, in generic terms.** "A small platform team", "embedded in a
+  squad with two designers". Never headcount for the company as a whole.
+- **The tech stack, by searchable name.** "TypeScript, Fastify, Drizzle,
+  PostgreSQL, Redis, AWS". This is the single most searchable thing in a post.
+- **Engineering practices and strategies.** TDD, trunk-based development,
+  event-driven architecture, CI/CD, pair programming, code review culture,
+  domain-driven design, infrastructure as code, incident review. How someone
+  works is often more telling than what they shipped.
+- **The problem domain, generically.** "Payments", "logistics", "healthcare
+  scheduling", "developer tooling". Not "the PIX reconciliation pipeline".
+- **Scale in ORDERS OF MAGNITUDE, never exact figures.** "Hundreds of thousands
+  of daily transactions", "single-digit millions of rows", "tens of services".
+  An exact figure is a fingerprint: there is often exactly one company in a
+  market processing precisely 4.1M events a day.
+- **Outcome metrics that don't identify the employer.** "Cut p95 latency from
+  800ms to 90ms", "halved build time", "brought coverage to 94%", "removed 40KB
+  from the bundle". Relative improvements are safe; absolute business figures
+  are not.
+- **Public links.** An open-source repo, a public PR, a released product page, a
+  conference talk, a published blog post.
+
+**Never ships — regardless of how the sentence is phrased:**
+
+- **Employer and client names at \`summary\` level.** This is enforced: LinkHub
+  rejects the post with HTTP 400 naming the term. At \`detailed\` and \`full\` the
+  employer may be named; the level tells you which.
+- **Internal repository, service, project and codenames.** \`billing-svc-v2\`,
+  "Project Falcon", \`acme-internal-sdk\`.
+- **Ticket and issue ids.** \`PROJ-1234\`, \`#4471\`, Jira/Linear URLs.
+- **Customer names.** Including the ones that appear in test fixtures and seed
+  data — those are real accounts surprisingly often.
+- **Unreleased products and unannounced features.**
+- **Internal architecture specifics.** Topology diagrams, vendor contracts,
+  cluster layout, queue names, region choices, security controls.
+- **Headcount and revenue figures.** "We're a team of 12 with $4M ARR" is the
+  employer's information to share, not the user's.
+- **Anything inferred from the working tree.** Do not read the employer off a
+  git remote, an npm scope (\`@acme/ui\`), a directory path
+  (\`~/work/acme/api\`), a code comment, a \`CODEOWNERS\` file or a commit
+  trailer. Use \`get_work_context\` — it returns the history already redacted to
+  the user's level, and it is the only sanctioned source.
+
+**Rewriting, not deleting.** A blocked term is not a dead post. "Rebuilt Acme
+Corp's checkout" becomes "Rebuilt a high-traffic e-commerce checkout flow" —
+same evidence of ability, no employer named. If a post is rejected, rewrite
+around the term; publishing the same text again will fail the same way.
+
+## 4. What to leave out — non-negotiable
 
 - **Raw commit messages.** Never paste \`git log\` output, subject lines, or a
   bulleted list that mirrors commits 1:1. This is the single most common failure.
@@ -75,7 +137,7 @@ or inline it in the body.
 - **Unearned credit.** Don't describe work the user didn't do. Vendored code,
   dependency bumps, and generated files are not achievements.
 
-## 4. Length, tone, format
+## 5. Length, tone, format
 
 - **Length:** 80–200 words for a weekly update. Long enough to be concrete,
   short enough to finish. Never exceed 20,000 characters (the API limit).
@@ -87,7 +149,7 @@ or inline it in the body.
 - **Title:** under 70 characters, specific, no trailing punctuation. Prefer
   "Shipped a layout editor with live mobile preview" over "Weekly update".
 
-## 5. Field mapping — \`create_commit_summary_post\`
+## 6. Field mapping — \`create_commit_summary_post\`
 
 | Field | Required | What to put in it |
 | --- | --- | --- |
@@ -105,7 +167,7 @@ or inline it in the body.
 For a post that isn't derived from commits, use \`create_post\` instead — it adds
 \`coverImageUrl\`, \`images\`, and \`externalUrl\`.
 
-## 6. Worked example
+## 7. Worked example
 
 Same week of work, same commits.
 
@@ -144,7 +206,7 @@ Same raw material. The second one is evidence of ability; the first is a diff.
 
 ---
 
-## 7. Before you publish
+## 8. Before you publish
 
 Run this checklist. If any answer is "no", fix it first.
 
@@ -153,6 +215,10 @@ Run this checklist. If any answer is "no", fix it first.
 - [ ] Are there real numbers, and are they ones you actually verified?
 - [ ] Is the stack named with searchable technology names?
 - [ ] Zero SHAs, ticket ids, branch names, secrets, or client names?
+- [ ] Does every employment claim come from \`get_work_context\` rather than
+      from the git remote, the package scope or the directory name?
+- [ ] Is every figure an order of magnitude or a relative improvement, rather
+      than an exact business number that fingerprints the employer?
 - [ ] Under 200 words?
 - [ ] If anything is uncertain or sensitive, is it going out as a \`draft\`?
 

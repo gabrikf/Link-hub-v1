@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { DisclosureContext } from "../disclosure.js";
 import { buildWorkflowText } from "./shared.js";
 
 const argsSchema = {
@@ -95,7 +96,10 @@ function resolveWindow(period?: string): Window {
  * safety pass, and the exact `create_commit_summary_post` field mapping. The
  * user never has to paste any rules of their own.
  */
-export function registerWeeklyUpdate(server: McpServer): void {
+export function registerWeeklyUpdate(
+  server: McpServer,
+  disclosure: DisclosureContext,
+): void {
   server.registerPrompt(
     "weekly_update",
     {
@@ -129,6 +133,7 @@ export function registerWeeklyUpdate(server: McpServer): void {
                 periodValue: window.value,
                 repo: args.repo?.trim() || undefined,
                 status,
+                disclosureLevel: disclosure,
               }),
             },
           },

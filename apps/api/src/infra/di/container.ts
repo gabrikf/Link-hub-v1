@@ -14,6 +14,7 @@ import { ITitleCatalogRepository } from "../../core/repositories/title-catalog/t
 import { IResumeSkillRepository } from "../../core/repositories/resume-skill/resume-skill-repository.js";
 import { IResumeTitleRepository } from "../../core/repositories/resume-title/resume-title-repository.js";
 import { IResumeEmbeddingsRepository } from "../../core/repositories/resume-embedding/resume-embedding-repository.js";
+import { IResumeSectionEmbeddingsRepository } from "../../core/repositories/resume-section-embedding/resume-section-embedding-repository.js";
 import { IResumeSearchRepository } from "../../core/repositories/resume-search/resume-search-repository.js";
 import { ICandidateInteractionRepository } from "../../core/repositories/candidate-interaction/candidate-interaction-repository.js";
 import { IWorkExperienceRepository } from "../../core/repositories/work-experience/work-experience-repository.js";
@@ -42,6 +43,7 @@ import { DrizzleTitleCatalogRepository } from "../database/drizzle/repositories/
 import { DrizzleResumeSkillRepository } from "../database/drizzle/repositories/resume-skill.repository.js";
 import { DrizzleResumeTitleRepository } from "../database/drizzle/repositories/resume-title.repository.js";
 import { DrizzleResumeEmbeddingsRepository } from "../database/drizzle/repositories/resume-embedding.repository.js";
+import { DrizzleResumeSectionEmbeddingsRepository } from "../database/drizzle/repositories/resume-section-embedding.repository.js";
 import { DrizzleResumeSearchRepository } from "../database/drizzle/repositories/resume-search.repository.js";
 import { DrizzleCandidateInteractionRepository } from "../database/drizzle/repositories/candidate-interaction.repository.js";
 import { DrizzleWorkExperienceRepository } from "../database/drizzle/repositories/work-experience.repository.js";
@@ -102,6 +104,7 @@ import { EnqueueResumeEmbeddingUseCase } from "../../core/use-case/resumes/enque
 import { ProcessResumeEmbeddingJobUseCase } from "../../core/use-case/resumes/process-resume-embedding-job-use-case/process-resume-embedding-job.use-case.js";
 import { SearchResumesByRecruiterQueryUseCase } from "../../core/use-case/resumes/search-resumes-by-recruiter-query-use-case/search-resumes-by-recruiter-query.use-case.js";
 import { TransformRecruiterSearchInputUseCase } from "../../core/use-case/resumes/transform-recruiter-search-input-use-case/transform-recruiter-search-input.use-case.js";
+import { RevealCandidateContactUseCase } from "../../core/use-case/resumes/reveal-candidate-contact-use-case/reveal-candidate-contact.use-case.js";
 import { RecordCandidateInteractionUseCase } from "../../core/use-case/interactions/record-candidate-interaction-use-case/record-candidate-interaction.use-case.js";
 import { ListMyWorkExperiencesUseCase } from "../../core/use-case/work-experiences/list-my-work-experiences-use-case/list-my-work-experiences.use-case.js";
 import { CreateWorkExperienceUseCase } from "../../core/use-case/work-experiences/create-work-experience-use-case/create-work-experience.use-case.js";
@@ -116,6 +119,10 @@ import { ListPublicPostsUseCase } from "../../core/use-case/posts/list-public-po
 import { GetPostUseCase } from "../../core/use-case/posts/get-post-use-case/get-post.use-case.js";
 import { UpdatePostUseCase } from "../../core/use-case/posts/update-post-use-case/update-post.use-case.js";
 import { DeletePostUseCase } from "../../core/use-case/posts/delete-post-use-case/delete-post.use-case.js";
+import { GetAgentPolicyUseCase } from "../../core/use-case/agent-policy/get-agent-policy-use-case/get-agent-policy.use-case.js";
+import { UpdateAgentPolicyUseCase } from "../../core/use-case/agent-policy/update-agent-policy-use-case/update-agent-policy.use-case.js";
+import { GetWorkContextUseCase } from "../../core/use-case/agent-policy/get-work-context-use-case/get-work-context.use-case.js";
+import { SetWorkExperienceDisclosureUseCase } from "../../core/use-case/agent-policy/set-work-experience-disclosure-use-case/set-work-experience-disclosure.use-case.js";
 import { CreateApiTokenUseCase } from "../../core/use-case/api-tokens/create-api-token-use-case/create-api-token.use-case.js";
 import { ListApiTokensUseCase } from "../../core/use-case/api-tokens/list-api-tokens-use-case/list-api-tokens.use-case.js";
 import { RevokeApiTokenUseCase } from "../../core/use-case/api-tokens/revoke-api-token-use-case/revoke-api-token.use-case.js";
@@ -136,6 +143,9 @@ export const TOKENS = {
   ResumeSkillRepository: Symbol.for("ResumeSkillRepository"),
   ResumeTitleRepository: Symbol.for("ResumeTitleRepository"),
   ResumeEmbeddingsRepository: Symbol.for("ResumeEmbeddingsRepository"),
+  ResumeSectionEmbeddingsRepository: Symbol.for(
+    "ResumeSectionEmbeddingsRepository",
+  ),
   ResumeSearchRepository: Symbol.for("ResumeSearchRepository"),
   CandidateInteractionRepository: Symbol.for("CandidateInteractionRepository"),
   WorkExperienceRepository: Symbol.for("WorkExperienceRepository"),
@@ -195,6 +205,7 @@ export const TOKENS = {
   TransformRecruiterSearchInputUseCase: Symbol.for(
     "TransformRecruiterSearchInputUseCase",
   ),
+  RevealCandidateContactUseCase: Symbol.for("RevealCandidateContactUseCase"),
   RecordCandidateInteractionUseCase: Symbol.for(
     "RecordCandidateInteractionUseCase",
   ),
@@ -216,6 +227,12 @@ export const TOKENS = {
   GetPostUseCase: Symbol.for("GetPostUseCase"),
   UpdatePostUseCase: Symbol.for("UpdatePostUseCase"),
   DeletePostUseCase: Symbol.for("DeletePostUseCase"),
+  GetAgentPolicyUseCase: Symbol.for("GetAgentPolicyUseCase"),
+  UpdateAgentPolicyUseCase: Symbol.for("UpdateAgentPolicyUseCase"),
+  GetWorkContextUseCase: Symbol.for("GetWorkContextUseCase"),
+  SetWorkExperienceDisclosureUseCase: Symbol.for(
+    "SetWorkExperienceDisclosureUseCase",
+  ),
   CreateApiTokenUseCase: Symbol.for("CreateApiTokenUseCase"),
   ListApiTokensUseCase: Symbol.for("ListApiTokensUseCase"),
   RevokeApiTokenUseCase: Symbol.for("RevokeApiTokenUseCase"),
@@ -285,6 +302,13 @@ export function setupContainer() {
     TOKENS.ResumeEmbeddingsRepository,
     {
       useClass: DrizzleResumeEmbeddingsRepository,
+    },
+  );
+
+  container.register<IResumeSectionEmbeddingsRepository>(
+    TOKENS.ResumeSectionEmbeddingsRepository,
+    {
+      useClass: DrizzleResumeSectionEmbeddingsRepository,
     },
   );
 
@@ -1015,6 +1039,15 @@ export function setupContainer() {
         const embeddingProvider = c.resolve<IEmbeddingProvider>(
           TOKENS.EmbeddingProvider,
         );
+        // Posts are a first-class search source, so the indexing job needs to
+        // read them to build the `posts` section vector.
+        const postRepository = c.resolve<IPostRepository>(
+          TOKENS.PostsRepository,
+        );
+        const resumeSectionEmbeddingsRepository =
+          c.resolve<IResumeSectionEmbeddingsRepository>(
+            TOKENS.ResumeSectionEmbeddingsRepository,
+          );
 
         return new ProcessResumeEmbeddingJobUseCase(
           resumesRepository,
@@ -1023,6 +1056,8 @@ export function setupContainer() {
           workExperienceRepository,
           resumeEmbeddingsRepository,
           embeddingProvider,
+          postRepository,
+          resumeSectionEmbeddingsRepository,
         );
       },
     },
@@ -1068,6 +1103,26 @@ export function setupContainer() {
     },
   );
 
+  container.register<RevealCandidateContactUseCase>(
+    TOKENS.RevealCandidateContactUseCase,
+    {
+      useFactory: (c) => {
+        const resumeSearchRepository = c.resolve<IResumeSearchRepository>(
+          TOKENS.ResumeSearchRepository,
+        );
+        const candidateInteractionRepository =
+          c.resolve<ICandidateInteractionRepository>(
+            TOKENS.CandidateInteractionRepository,
+          );
+
+        return new RevealCandidateContactUseCase(
+          resumeSearchRepository,
+          candidateInteractionRepository,
+        );
+      },
+    },
+  );
+
   container.register<RecordCandidateInteractionUseCase>(
     TOKENS.RecordCandidateInteractionUseCase,
     {
@@ -1076,9 +1131,21 @@ export function setupContainer() {
           c.resolve<ICandidateInteractionRepository>(
             TOKENS.CandidateInteractionRepository,
           );
+        const resumesRepository = c.resolve<IResumesRepository>(
+          TOKENS.ResumesRepository,
+        );
 
         return new RecordCandidateInteractionUseCase(
           candidateInteractionRepository,
+          {
+            // Without this the self-interaction guard is INERT: the use case
+            // makes `findResumeOwnerId` optional and silently skips the check
+            // when it is absent, so rating your own profile — the cheapest way
+            // to poison the ranking model — would sail straight through while
+            // every other guardrail looked active.
+            findResumeOwnerId: async (resumeId) =>
+              (await resumesRepository.findById(resumeId))?.userId ?? null,
+          },
         );
       },
     },
@@ -1295,8 +1362,24 @@ export function setupContainer() {
       const usersRepository = c.resolve<IUsersRepository>(
         TOKENS.UsersRepository,
       );
+      const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+        TOKENS.WorkExperienceRepository,
+      );
+      const resumesRepository = c.resolve<IResumesRepository>(
+        TOKENS.ResumesRepository,
+      );
+      const enqueueResumeEmbeddingUseCase =
+        c.resolve<EnqueueResumeEmbeddingUseCase>(
+          TOKENS.EnqueueResumeEmbeddingUseCase,
+        );
 
-      return new CreatePostUseCase(postsRepository, usersRepository);
+      return new CreatePostUseCase(
+        postsRepository,
+        usersRepository,
+        workExperienceRepository,
+        resumesRepository,
+        enqueueResumeEmbeddingUseCase,
+      );
     },
   });
 
@@ -1338,8 +1421,27 @@ export function setupContainer() {
       const postsRepository = c.resolve<IPostRepository>(
         TOKENS.PostsRepository,
       );
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+      const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+        TOKENS.WorkExperienceRepository,
+      );
+      const resumesRepository = c.resolve<IResumesRepository>(
+        TOKENS.ResumesRepository,
+      );
+      const enqueueResumeEmbeddingUseCase =
+        c.resolve<EnqueueResumeEmbeddingUseCase>(
+          TOKENS.EnqueueResumeEmbeddingUseCase,
+        );
 
-      return new UpdatePostUseCase(postsRepository);
+      return new UpdatePostUseCase(
+        postsRepository,
+        usersRepository,
+        workExperienceRepository,
+        resumesRepository,
+        enqueueResumeEmbeddingUseCase,
+      );
     },
   });
 
@@ -1348,10 +1450,87 @@ export function setupContainer() {
       const postsRepository = c.resolve<IPostRepository>(
         TOKENS.PostsRepository,
       );
+      const resumesRepository = c.resolve<IResumesRepository>(
+        TOKENS.ResumesRepository,
+      );
+      const enqueueResumeEmbeddingUseCase =
+        c.resolve<EnqueueResumeEmbeddingUseCase>(
+          TOKENS.EnqueueResumeEmbeddingUseCase,
+        );
 
-      return new DeletePostUseCase(postsRepository);
+      return new DeletePostUseCase(
+        postsRepository,
+        resumesRepository,
+        enqueueResumeEmbeddingUseCase,
+      );
     },
   });
+
+  container.register<GetAgentPolicyUseCase>(TOKENS.GetAgentPolicyUseCase, {
+    useFactory: (c) => {
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+      const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+        TOKENS.WorkExperienceRepository,
+      );
+
+      return new GetAgentPolicyUseCase(
+        usersRepository,
+        workExperienceRepository,
+      );
+    },
+  });
+
+  container.register<UpdateAgentPolicyUseCase>(
+    TOKENS.UpdateAgentPolicyUseCase,
+    {
+      useFactory: (c) => {
+        const usersRepository = c.resolve<IUsersRepository>(
+          TOKENS.UsersRepository,
+        );
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+
+        return new UpdateAgentPolicyUseCase(
+          usersRepository,
+          workExperienceRepository,
+        );
+      },
+    },
+  );
+
+  container.register<GetWorkContextUseCase>(TOKENS.GetWorkContextUseCase, {
+    useFactory: (c) => {
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+      const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+        TOKENS.WorkExperienceRepository,
+      );
+
+      return new GetWorkContextUseCase(
+        usersRepository,
+        workExperienceRepository,
+      );
+    },
+  });
+
+  container.register<SetWorkExperienceDisclosureUseCase>(
+    TOKENS.SetWorkExperienceDisclosureUseCase,
+    {
+      useFactory: (c) => {
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+
+        return new SetWorkExperienceDisclosureUseCase(
+          workExperienceRepository,
+        );
+      },
+    },
+  );
 
   container.register<CreateApiTokenUseCase>(TOKENS.CreateApiTokenUseCase, {
     useFactory: (c) => {

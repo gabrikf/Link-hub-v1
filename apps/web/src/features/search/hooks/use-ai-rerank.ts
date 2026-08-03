@@ -4,6 +4,7 @@ import type {
   RecruiterSearchResult,
 } from "@repo/schemas";
 import { getRerankerWorker } from "../../../lib/reranker-worker-singleton";
+import type { RankedCandidate } from "../types/advanced-search";
 
 type RecruiterSearchFilters = NonNullable<RecruiterSearchInput["whereQuery"]>;
 
@@ -20,7 +21,23 @@ interface WorkerError {
   type: "RERANK_ERROR";
   payload: {
     message: string;
+    code?: string;
   };
+}
+
+/**
+ * Outcome of a rerank attempt.
+ *
+ * `degraded` is the whole point. `rerank()` used to be awaited inside the search
+ * mutation's `mutationFn`, so a failed model fetch, a stale artifact or a CDN
+ * blip failed the ENTIRE search — the recruiter saw an error and nothing else,
+ * on top of 50 perfectly good candidates the API had already returned. Ranking
+ * is an enhancement; losing it must cost the ordering, not the search.
+ */
+export interface RerankOutcome {
+  candidates: RankedCandidate[];
+  degraded: boolean;
+  reason: string | null;
 }
 
 export function useAiRerank() {
@@ -33,9 +50,9 @@ export function useAiRerank() {
       filters?: RecruiterSearchFilters;
       semanticSkills?: string[];
       semanticTitles?: string[];
-    }): Promise<RankedResult[]> => {
+    }): Promise<RerankOutcome> => {
       if (input.candidates.length === 0) {
-        return [];
+        return { candidates: [], degraded: false, reason: null };
       }
 
       setIsModelLoading(true);
@@ -96,7 +113,23 @@ export function useAiRerank() {
           },
         );
 
-        return rankedCandidates;
+        return { candidates: rankedCandidates, degraded: false, reason: null };
+      } catch (error) {
+        // Fall back to the API's similarity ordering, which the response is
+        // already sorted by. `aiScore: null` is the honest value: there is no
+        // match percentage, and showing the raw cosine as if it were one would
+        // be worse than showing none.
+        return {
+          candidates: input.candidates.map((candidate) => ({
+            ...candidate,
+            aiScore: null,
+          })),
+          degraded: true,
+          reason:
+            error instanceof Error
+              ? error.message
+              : "On-device ranking is unavailable",
+        };
       } finally {
         setIsModelLoading(false);
       }

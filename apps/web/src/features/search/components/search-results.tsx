@@ -8,11 +8,12 @@ import {
   FiBriefcase,
   FiChevronDown,
   FiChevronUp,
-  FiCopy,
   FiExternalLink,
   FiGitCommit,
   FiGlobe,
+  FiMail,
   FiMapPin,
+  FiThumbsDown,
   FiUser,
 } from "react-icons/fi";
 import { Avatar } from "../../../shared-components/avatar";
@@ -245,26 +246,38 @@ function ShippedWork({ evidence }: ShippedWorkProps) {
   );
 }
 
+type CandidateAction = (candidate: RankedCandidate, index: number) => void;
+
 type CandidateCardProps = {
   candidate: RankedCandidate;
   index: number;
-  onCopyEmail: (candidate: RankedCandidate, index: number) => void;
+  onCopyEmail: CandidateAction;
+  onViewProfile: CandidateAction;
+  onNotRelevant: CandidateAction;
 };
 
 const CandidateCard = memo(function CandidateCard({
   candidate,
   index,
   onCopyEmail,
+  onViewProfile,
+  onNotRelevant,
 }: CandidateCardProps) {
   const match = describeMatch(candidate.aiScore);
   const years = candidate.totalYearsExperience;
+  // Local only: the card stays on screen (the recruiter may have mis-tapped)
+  // but stops pretending it is still a live suggestion.
+  const [isDismissed, setIsDismissed] = useState(false);
 
   // The card had no background at all: in dark mode it was invisible except for
   // its border, while every other card in the app carries a fill.
   return (
     <article
       style={{ animationDelay: `${index * 0.07}s` }}
-      className="anim-fade-up rounded-xl border border-zinc-200 bg-white p-4 transition-all duration-300 hover:border-violet-400/70 hover:shadow-[0_0_26px_-8px_rgba(139,92,246,0.55)] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-violet-500/60"
+      className={cx(
+        "anim-fade-up rounded-xl border border-zinc-200 bg-white p-4 transition-all duration-300 hover:border-violet-400/70 hover:shadow-[0_0_26px_-8px_rgba(139,92,246,0.55)] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-violet-500/60",
+        isDismissed && "opacity-60",
+      )}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
@@ -282,6 +295,11 @@ const CandidateCard = memo(function CandidateCard({
                 to="/profile/$username"
                 params={{ username: candidate.username }}
                 title={candidate.name}
+                // Opening a candidate's profile is a real, if weak, preference
+                // signal — and until now nothing in the app ever emitted
+                // PROFILE_VIEW, so the training branch that weights it was
+                // unreachable.
+                onClick={() => onViewProfile(candidate, index)}
                 className={`inline-flex max-w-full items-center gap-1 rounded-sm text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-100 ${FOCUS_RING}`}
               >
                 <FiUser className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -325,15 +343,34 @@ const CandidateCard = memo(function CandidateCard({
             </span>
           </span>
 
+          {/* Search listings no longer carry email addresses at all — the field
+              is `null` for everyone. This asks the server to reveal ONE
+              address, which is also what records the CONTACT_CLICK. */}
           <Button
             type="button"
             variant="outline"
             fullWidth={false}
             onClick={() => onCopyEmail(candidate, index)}
           >
-            <FiCopy className="h-4 w-4" aria-hidden="true" />
-            Copy Email
+            <FiMail className="h-4 w-4" aria-hidden="true" />
+            Reveal Email
           </Button>
+
+          {/* The only explicit negative a recruiter can give us. Everything
+              else the model learns from is a positive or an inference from
+              absence, which is far noisier than one deliberate "no". */}
+          <button
+            type="button"
+            disabled={isDismissed}
+            onClick={() => {
+              setIsDismissed(true);
+              onNotRelevant(candidate, index);
+            }}
+            className={`inline-flex cursor-pointer items-center gap-1 rounded-sm text-xs font-medium text-zinc-500 hover:text-zinc-700 disabled:cursor-default disabled:no-underline dark:text-zinc-400 dark:hover:text-zinc-200 ${FOCUS_RING}`}
+          >
+            <FiThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
+            {isDismissed ? "Marked not relevant" : "Not relevant"}
+          </button>
         </div>
       </div>
 
@@ -446,14 +483,26 @@ type SearchResultsProps = {
   isBusy: boolean;
   /** False until the first search completes — separates "not yet" from "none". */
   hasSearched: boolean;
-  onCopyEmail: (candidate: RankedCandidate, index: number) => void;
+  /**
+   * Set when the on-device reranker failed. Visible, but non-blocking: the
+   * results below are real, they are just in the API's order.
+   */
+  degradedNotice?: string | null;
+  onCopyEmail: CandidateAction;
+  onViewProfile?: CandidateAction;
+  onNotRelevant?: CandidateAction;
 };
+
+const noopAction: CandidateAction = () => {};
 
 export function SearchResults({
   results,
   isBusy,
   hasSearched,
+  degradedNotice = null,
   onCopyEmail,
+  onViewProfile = noopAction,
+  onNotRelevant = noopAction,
 }: SearchResultsProps) {
   // A search in flight used to render nothing at all — no cards, no empty
   // state — so the page looked broken for the seconds the reranker takes.
@@ -483,6 +532,17 @@ export function SearchResults({
         work history weigh heaviest. It is not a probability of anything.
       </p>
 
+      {/* Non-blocking on purpose: the candidates below are real and the search
+          succeeded. Only the on-device ranking is missing. */}
+      {degradedNotice ? (
+        <p
+          role="status"
+          className={`mb-4 rounded-lg px-3 py-2 text-xs ${BADGE.warning}`}
+        >
+          {degradedNotice}
+        </p>
+      ) : null}
+
       <div className="grid gap-3">
         {isLoadingFirstResults ? (
           <>
@@ -499,6 +559,8 @@ export function SearchResults({
             candidate={candidate}
             index={index}
             onCopyEmail={onCopyEmail}
+            onViewProfile={onViewProfile}
+            onNotRelevant={onNotRelevant}
           />
         ))}
 

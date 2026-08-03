@@ -8,5 +8,8 @@
     "rootDir": "src"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  // Tests are compiled by vitest, never shipped: emitting them into `dist`
+  // would also drag `vitest` into the published type surface, and consumers do
+  // not have it installed.
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
 }

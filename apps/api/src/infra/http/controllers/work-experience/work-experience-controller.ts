@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod/v4";
 import {
+  agentDisclosureLevelSchema,
   createWorkExperienceInputSchema,
   publicWorkExperienceSchema,
   updateWorkExperienceInputSchema,
@@ -18,9 +19,23 @@ import { CreateWorkExperienceUseCase } from "../../../../core/use-case/work-expe
 import { UpdateWorkExperienceUseCase } from "../../../../core/use-case/work-experiences/update-work-experience-use-case/update-work-experience.use-case.js";
 import { DeleteWorkExperienceUseCase } from "../../../../core/use-case/work-experiences/delete-work-experience-use-case/delete-work-experience.use-case.js";
 import { GetPublicWorkExperiencesByUsernameUseCase } from "../../../../core/use-case/work-experiences/get-public-work-experiences-by-username-use-case/get-public-work-experiences-by-username.use-case.js";
+import { SetWorkExperienceDisclosureUseCase } from "../../../../core/use-case/agent-policy/set-work-experience-disclosure-use-case/set-work-experience-disclosure.use-case.js";
 
 const workExperienceIdParamsSchema = z.object({
   id: z.string().uuid(),
+});
+
+/**
+ * `null` is the meaningful value here, not an omission: it clears the override
+ * so the role goes back to inheriting the account-level disclosure setting.
+ */
+const setDisclosureBodySchema = z.object({
+  disclosureLevel: agentDisclosureLevelSchema.nullable(),
+});
+
+/** The base schema is shared and owned elsewhere, so the override is layered on. */
+const workExperienceWithDisclosureSchema = workExperienceSchema.extend({
+  disclosureLevel: agentDisclosureLevelSchema.nullable().optional(),
 });
 
 export class WorkExperienceController {
@@ -168,6 +183,52 @@ export class WorkExperienceController {
         });
 
         reply.status(200).send({ success: true });
+      },
+    );
+
+    app.patch(
+      "/me/work-experiences/:id/disclosure",
+      {
+        // `authGuard`, not `apiAccessGuard`: an agent must never be able to
+        // relax the rule that constrains what it may say about this employer.
+        preHandler: authGuard,
+        schema: {
+          tags: ["Work Experience"],
+          summary:
+            "Set or clear this role's override of the agent disclosure level",
+          params: workExperienceIdParamsSchema,
+          body: setDisclosureBodySchema,
+          response: {
+            200: workExperienceWithDisclosureSchema,
+            ...commonErrorResponses([
+              "badRequest",
+              "unauthorized",
+              "forbidden",
+              "notFound",
+              "internalServerError",
+            ]),
+          },
+        },
+      },
+      async (
+        request: FastifyRequest<{
+          Params: { id: string };
+          Body: { disclosureLevel: "summary" | "detailed" | "full" | null };
+        }>,
+        reply,
+      ) => {
+        const setWorkExperienceDisclosureUseCase =
+          resolve<SetWorkExperienceDisclosureUseCase>(
+            TOKENS.SetWorkExperienceDisclosureUseCase,
+          );
+
+        const result = await setWorkExperienceDisclosureUseCase.execute({
+          userId: request.user!.id,
+          workExperienceId: request.params.id,
+          disclosureLevel: request.body.disclosureLevel,
+        });
+
+        reply.status(200).send(result);
       },
     );
 

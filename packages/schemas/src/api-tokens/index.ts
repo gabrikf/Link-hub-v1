@@ -1,6 +1,12 @@
 import { z } from "zod/v4";
 
-export const apiTokenScopeSchema = z.enum(["posts:read", "posts:write"]);
+export const apiTokenScopeSchema = z.enum([
+  "posts:read",
+  "posts:write",
+  // Lets an agent read the profile/resume/work history the disclosure policy
+  // allows it to see. Read-only by design: agents never edit the resume.
+  "profile:read",
+]);
 
 export type ApiTokenScope = z.infer<typeof apiTokenScopeSchema>;
 
@@ -19,7 +25,7 @@ export const createApiTokenSchemaInput = z.object({
   name: z.string().min(1, "Name is required"),
   scopes: z
     .array(apiTokenScopeSchema)
-    .default(["posts:write", "posts:read"]),
+    .default(["posts:read", "posts:write", "profile:read"]),
   expiresAt: z.coerce.date().nullable().optional(),
 });
 

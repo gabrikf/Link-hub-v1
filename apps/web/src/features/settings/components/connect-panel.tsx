@@ -6,12 +6,14 @@ import {
   type ReactNode,
 } from "react";
 import {
+  FiAlertTriangle,
   FiCheck,
   FiCheckCircle,
   FiChevronDown,
   FiCopy,
   FiGitCommit,
   FiPlay,
+  FiShield,
   FiTerminal,
   FiThumbsDown,
   FiThumbsUp,
@@ -23,6 +25,7 @@ import {
   SURFACE_GLASS,
 } from "../../../shared-components/surface";
 import { CONNECT_PANEL_ID, resolveApiUrl } from "../lib/mcp-config";
+import { DISCLOSURE_PANEL_ID } from "./disclosure-panel";
 import { useClipboard } from "../lib/use-clipboard";
 
 // The MCP server is NOT published to npm — it is run locally from the built
@@ -160,7 +163,7 @@ function buildTabs(apiUrl: string, token: string): ToolTab[] {
       ],
       verify: [
         "Fully quit and reopen Claude Desktop — it only reads the config at startup.",
-        'Open the tools menu in the composer: "linkhub" should be listed with 5 tools.',
+        'Open the tools menu in the composer: "linkhub" should be listed with 7 tools.',
         'Ask "list my LinkHub posts" — a token problem shows up here as an "Invalid or expired LinkHub token" error.',
       ],
       invokeLabel: "Composer → attachments (+) → linkhub",
@@ -603,15 +606,129 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
           ))}
         </ul>
         <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-          It then strips commit SHAs, branch names, ticket ids, secrets and
-          private client detail before publishing, and shows you the draft
-          first. The full house style also lives on the server as the{" "}
+          The full house style also lives on the server as the{" "}
           <code className="font-mono">linkhub://guides/post-quality</code>{" "}
           resource, which your agent can read on its own at any time.
         </p>
       </Step>
 
-      <Step index={3} title="Same week of commits, two very different posts">
+      <Step index={3} title="What stops your employer's name getting out">
+        {/* This section used to promise that the agent "strips private client
+            detail" — flatly, as if guaranteed. It isn't: instructing a model is
+            not the same as enforcing a rule, and the difference is exactly what
+            a user needs to understand before pointing this at a work laptop.
+            The two are now separated explicitly. */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/5">
+            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+              <FiShield className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              Enforced by LinkHub
+            </div>
+            <p className="mt-2 text-xs text-zinc-700 dark:text-zinc-300">
+              These are checked on our servers. The agent cannot opt out of
+              them, and neither can a leaked token.
+            </p>
+            <ul className="mt-2 space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+              <li className="flex gap-2">
+                <FiCheck
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  At <strong>Summary</strong> level, a post naming one of your
+                  employers or a term you blocked is <strong>rejected</strong>{" "}
+                  before it is saved — the agent gets an error telling it to
+                  rewrite.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <FiCheck
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  Work history read by the agent is redacted{" "}
+                  <strong>before it leaves LinkHub</strong>, so the employer
+                  name is never in its context to begin with.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <FiCheck
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  A token can read your policy but never change it. Only you
+                  can, from this page.
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-500/30 dark:bg-amber-500/5">
+            <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+              <FiAlertTriangle
+                className="h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              Guidance to the model — not a guarantee
+            </div>
+            <p className="mt-2 text-xs text-zinc-700 dark:text-zinc-300">
+              The server instructs your agent to do these. They are
+              instructions a model follows, so treat them as strong defaults
+              rather than a promise, and read the draft before it goes out.
+            </p>
+            <ul className="mt-2 space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+              <li className="flex gap-2">
+                <FiAlertTriangle
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  Stripping commit SHAs, branch names, ticket ids, internal
+                  service names and file paths.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <FiAlertTriangle
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  Not repeating a secret, token or connection string it happens
+                  to see in a diff — and telling you it was there.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <FiAlertTriangle
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+                  aria-hidden="true"
+                />
+                <span>
+                  Showing you the draft first, and publishing as a draft when
+                  anything is uncertain.
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
+          Pick your level under{" "}
+          <a
+            href={`#${DISCLOSURE_PANEL_ID}`}
+            className={`font-medium text-violet-700 underline underline-offset-2 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200 ${FOCUS_RING} rounded`}
+          >
+            What your agent may share
+          </a>
+          . Give the token the{" "}
+          <code className="font-mono">profile:read</code> scope so the server
+          can read it — without it your agent assumes the strictest level and
+          will not name any employer at all.
+        </p>
+      </Step>
+
+      <Step index={4} title="Same week of commits, two very different posts">
         <div className="grid gap-3 lg:grid-cols-2">
           <ExampleCard
             tone="weak"

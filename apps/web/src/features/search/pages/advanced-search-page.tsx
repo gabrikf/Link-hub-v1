@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { FiActivity } from "react-icons/fi";
 import {
+  revealCandidateContact,
   searchRecruiterResumes,
   trackInteraction,
   type RecruiterSearchResponse,
@@ -24,6 +25,25 @@ import {
   type RankedCandidate,
 } from "../types/advanced-search";
 import { buildRecruiterSearchPayload } from "../utils/advanced-search";
+import type { CreateInteractionInput } from "@repo/schemas";
+
+/**
+ * Exponent of the rank→exposure power law logged alongside each interaction.
+ * Kept in step with `POSITION_BIAS_ETA` in apps/training: the client records
+ * what it believes the exposure was, and training is free to trust it or
+ * recompute.
+ */
+const POSITION_BIAS_ETA = 0.8;
+
+function rankExposureProbability(rank: number): number {
+  return Math.min(1, Math.pow(1 / Math.max(rank, 1), POSITION_BIAS_ETA));
+}
+
+function createSearchSessionId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 export function AdvancedSearchPage() {
   const navigate = useNavigate();
@@ -36,6 +56,11 @@ export function AdvancedSearchPage() {
   const [lastSearchInput, setLastSearchInput] = useState<
     RecruiterSearchResponse["input"] | null
   >(null);
+  // Identifies one page of results. Every interaction produced while looking at
+  // it carries the same id, which is what lets training group a session together
+  // and derive "examined but skipped" negatives from the ranks inside it.
+  const [searchSessionId, setSearchSessionId] = useState<string | null>(null);
+  const [rerankNotice, setRerankNotice] = useState<string | null>(null);
 
   const form = useForm<AdvancedSearchFormValues>({
     resolver: zodResolver(advancedSearchFormSchema),
@@ -81,18 +106,27 @@ export function AdvancedSearchPage() {
       input: ReturnType<typeof buildRecruiterSearchPayload>["payload"],
     ) => {
       const semanticResults = await searchRecruiterResumes(input);
-      const results = await rerank({
+      // `rerank` no longer throws: a model or CDN failure comes back as
+      // `degraded` with the API's own ordering intact, so one flaky asset load
+      // can no longer wipe out 50 good candidates.
+      const outcome = await rerank({
         candidates: semanticResults.candidates,
         semanticQuery: semanticResults.input.semanticQuery,
         filters: semanticResults.input.filters,
         semanticSkills: semanticResults.input.semanticSkills,
         semanticTitles: semanticResults.input.semanticTitles,
       });
-      return { results, searchInput: semanticResults.input };
+      return { outcome, searchInput: semanticResults.input };
     },
-    onSuccess: ({ results, searchInput }) => {
-      setRankedResults(results);
+    onSuccess: ({ outcome, searchInput }) => {
+      setRankedResults(outcome.candidates);
       setLastSearchInput(searchInput);
+      setSearchSessionId(createSearchSessionId());
+      setRerankNotice(
+        outcome.degraded
+          ? "On-device ranking is unavailable right now, so results are shown in the search engine's own order."
+          : null,
+      );
       // Distinguishes "no search has run" from "this search found nobody" —
       // one empty state used to serve both.
       setHasSearched(true);
@@ -126,17 +160,36 @@ export function AdvancedSearchPage() {
     }
   });
 
-  const handleCopyEmail = useCallback(
-    async (candidate: RankedCandidate, index: number) => {
-      await navigator.clipboard.writeText(candidate.email);
-      setFeedbackMessage(`Email copied: ${candidate.email}`);
+  /**
+   * One place that writes a training signal.
+   *
+   * Only `EMAIL_COPY` was ever emitted before, so `CONTACT_CLICK`,
+   * `PROFILE_VIEW` and `NOT_RELEVANT` existed end to end — schema, DB column,
+   * training weight — with nothing on the producing side. The 0.35-weighted
+   * PROFILE_VIEW branch in training was literally dead code.
+   *
+   * Exposure travels with every signal: the session, the candidate's 1-based
+   * rank, the size of the result set, and the propensity that rank implies. That
+   * is what the offline position-bias correction consumes.
+   */
+  const track = useCallback(
+    (
+      candidate: RankedCandidate,
+      index: number,
+      interactionType: CreateInteractionInput["interactionType"],
+    ) => {
+      const rank = index + 1;
 
       void trackInteraction({
         resumeId: candidate.resumeId,
-        interactionType: "EMAIL_COPY",
+        interactionType,
         queryText: lastSearchInput?.semanticQuery ?? null,
         semanticSimilarity: candidate.similarity,
-        rankPosition: index + 1,
+        rankPosition: rank,
+        displayedRank: rank,
+        resultCount: rankedResults.length,
+        searchSessionId,
+        propensity: rankExposureProbability(rank),
         metadata: {
           aiScore: candidate.aiScore,
         },
@@ -159,10 +212,61 @@ export function AdvancedSearchPage() {
         },
         querySnapshot: lastSearchInput ?? undefined,
       }).catch(() => {
-        // Tracking should never block recruiter workflow.
+        // Tracking must never block, or degrade, the recruiter's workflow.
       });
     },
-    [lastSearchInput],
+    [lastSearchInput, rankedResults.length, searchSessionId],
+  );
+
+  /**
+   * Copying an email is now a deliberate reveal, not a field read.
+   *
+   * Search listings return `email: null` for every candidate — the address left
+   * the listing payload so a signed-up account can no longer page the whole
+   * candidate base out of the product. `POST /resumes/:resumeId/contact` returns
+   * one address, refuses candidates who are not open to work, and writes the
+   * `CONTACT_CLICK` interaction itself. Because the server writes that row, this
+   * handler deliberately does NOT `track()` anything: two rows for one click
+   * would count as two preferences and saturate the candidate's training label.
+   */
+  const handleCopyEmail = useCallback(
+    async (candidate: RankedCandidate, index: number) => {
+      try {
+        const contact = await revealCandidateContact(candidate.resumeId, {
+          queryText: lastSearchInput?.semanticQuery,
+          semanticSimilarity: candidate.similarity,
+          rankPosition: index + 1,
+          searchSessionId: searchSessionId ?? undefined,
+        });
+
+        await navigator.clipboard.writeText(contact.email);
+        setFeedbackMessage(`Email copied: ${contact.email}`);
+      } catch (error) {
+        setFeedbackMessage(
+          error instanceof Error
+            ? error.message
+            : "This candidate's contact details are unavailable.",
+        );
+      }
+    },
+    [lastSearchInput, searchSessionId],
+  );
+
+  const handleViewProfile = useCallback(
+    (candidate: RankedCandidate, index: number) => {
+      track(candidate, index, "PROFILE_VIEW");
+    },
+    [track],
+  );
+
+  const handleNotRelevant = useCallback(
+    (candidate: RankedCandidate, index: number) => {
+      // The only explicit negative the product collects. Everything else is
+      // inferred from absence, which is far too noisy to train on.
+      track(candidate, index, "NOT_RELEVANT");
+      setFeedbackMessage(`Thanks — ${candidate.name} marked as not relevant.`);
+    },
+    [track],
   );
 
   const {
@@ -251,7 +355,10 @@ export function AdvancedSearchPage() {
         results={rankedResults}
         isBusy={isBusy}
         hasSearched={hasSearched}
+        degradedNotice={rerankNotice}
         onCopyEmail={handleCopyEmail}
+        onViewProfile={handleViewProfile}
+        onNotRelevant={handleNotRelevant}
       />
     </main>
   );

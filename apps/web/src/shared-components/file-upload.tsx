@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   FiAlertCircle,
   FiImage,
@@ -7,6 +7,7 @@ import {
   FiX,
 } from "react-icons/fi";
 import { uploadImage } from "../lib/upload-api";
+import { AvatarCropper } from "./avatar-cropper";
 
 export type FileUploadAspect = "banner" | "cover" | "square";
 
@@ -18,6 +19,12 @@ type FileUploadProps = {
   aspect?: FileUploadAspect;
   className?: string;
   helperText?: string;
+  /**
+   * Opt-in: route the picked file through a circular crop dialog and upload the
+   * cropped result instead of the original. Off by default so banner, cover and
+   * post-image call sites keep the plain pick-and-upload path.
+   */
+  cropToCircle?: boolean;
 };
 
 const ASPECT_CLASS: Record<FileUploadAspect, string> = {
@@ -50,6 +57,7 @@ export function FileUpload({
   aspect = "cover",
   className,
   helperText,
+  cropToCircle = false,
 }: FileUploadProps) {
   const reactId = useId();
   const inputId = `file-upload-${reactId}`;
@@ -61,10 +69,19 @@ export function FileUpload({
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [previewLoaded, setPreviewLoaded] = useState(false);
+  /** Validated file waiting on the crop dialog. Only ever set when cropping. */
+  const [pendingCrop, setPendingCrop] = useState<File | null>(null);
 
-  useEffect(() => {
+  /**
+   * A new URL means a new `<img>` that has not loaded yet, so the sheen must
+   * come back. Adjusted during render rather than in an effect: an effect would
+   * paint one frame of the OLD image marked as loaded before correcting itself.
+   */
+  const [loadedValue, setLoadedValue] = useState(value);
+  if (value !== loadedValue) {
+    setLoadedValue(value);
     setPreviewLoaded(false);
-  }, [value]);
+  }
 
   const isUploading = status === "uploading";
   const hasError = status === "error";
@@ -80,14 +97,7 @@ export function FileUpload({
     return null;
   };
 
-  const handleFile = async (file: File) => {
-    const validationError = validate(file);
-    if (validationError) {
-      setStatus("error");
-      setError(validationError);
-      return;
-    }
-
+  const upload = async (file: File) => {
     setStatus("uploading");
     setError(null);
 
@@ -103,6 +113,47 @@ export function FileUpload({
           : "Couldn't upload the image. Please try again.",
       );
     }
+  };
+
+  /**
+   * Size/MIME validation runs BEFORE the crop dialog on purpose — decoding a
+   * 200 MB TIFF just to tell the user it was rejected is a cheap way to hang
+   * the tab.
+   */
+  const handleFile = async (file: File) => {
+    const validationError = validate(file);
+    if (validationError) {
+      setStatus("error");
+      setError(validationError);
+      return;
+    }
+
+    if (cropToCircle) {
+      setStatus("idle");
+      setError(null);
+      setPendingCrop(file);
+      return;
+    }
+
+    await upload(file);
+  };
+
+  /** Lets the user re-pick the SAME file — without this, `change` never fires. */
+  const resetPicker = () => {
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
+
+  const handleCropCancel = () => {
+    setPendingCrop(null);
+    resetPicker();
+  };
+
+  const handleCropped = async (croppedFile: File) => {
+    setPendingCrop(null);
+    resetPicker();
+    await upload(croppedFile);
   };
 
   const openPicker = () => {
@@ -274,6 +325,14 @@ export function FileUpload({
           Upload an image file — it's stored securely and served over a CDN.
         </p>
       )}
+
+      {cropToCircle ? (
+        <AvatarCropper
+          file={pendingCrop}
+          onCancel={handleCropCancel}
+          onCropped={handleCropped}
+        />
+      ) : null}
     </div>
   );
 }

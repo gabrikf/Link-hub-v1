@@ -49,6 +49,17 @@ export const users = pgTable("users", {
   openToWork: boolean("open_to_work").notNull().default(false),
   location: text("location"),
   persona: text("persona"),
+  // How much an agent acting for this user may reveal about their work history.
+  // See `agentDisclosureLevelSchema` in @repo/schemas. Defaults to the most
+  // restrictive level so an untouched account never leaks an employer's name.
+  agentDisclosureLevel: text("agent_disclosure_level")
+    .notNull()
+    .default("summary"),
+  // string[] — terms the agent must never emit, whatever the disclosure level.
+  agentBlockedTerms: jsonb("agent_blocked_terms")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
   password: text("password").notNull(),
   googleId: text("google_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -150,6 +161,14 @@ export const posts = pgTable(
     status: text("status").notNull().default("published"),
     externalUrl: text("external_url"),
     metadata: jsonb("metadata"),
+    // The role this post came out of, when the author (or the MCP) attributes
+    // it to one. Drives per-employer disclosure: a post tied to a role inherits
+    // that role's redaction level. `set null` because losing the role must not
+    // delete the post — it only makes the post unattributed.
+    workExperienceId: uuid("work_experience_id").references(
+      () => workExperiences.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()
@@ -171,6 +190,12 @@ export const posts = pgTable(
         sql`(COALESCE(${table.publishedAt}, ${table.createdAt})) DESC`,
       )
       .where(sql`${table.status} = 'published'`),
+    index("posts_work_experience_id_idx").on(table.workExperienceId),
+    // `tags` is jsonb, so a btree index can only answer whole-document
+    // equality. GIN with the default jsonb_ops is what makes containment
+    // (`tags @> '["typescript"]'`) an index scan instead of a seq scan over
+    // every post.
+    index("posts_tags_gin_idx").using("gin", table.tags),
   ],
 );
 
@@ -276,6 +301,10 @@ export const workExperiences = pgTable(
     isCurrent: boolean("is_current").notNull().default(false),
     description: text("description"),
     mainStack: text("main_stack").array().notNull().default([]),
+    // Per-employer override of `users.agent_disclosure_level`. NULL means the
+    // role inherits the account default — the common case, and why this can't
+    // be NOT NULL with a default.
+    disclosureLevel: text("disclosure_level"),
     displayOrder: integer("display_order").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
@@ -410,19 +439,70 @@ export const resumeTitles = pgTable(
   ],
 );
 
-export const resumeEmbeddings = pgTable("resume_embeddings", {
-  resumeId: uuid("resume_id")
-    .primaryKey()
-    .references(() => resumes.id, { onDelete: "cascade" }),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  embedding: vector("embedding", { dimensions: 1536 }).notNull(),
-  contentHash: text("content_hash"),
-  embeddingModel: text("embedding_model").notNull(),
-  embeddingVersion: integer("embedding_version").notNull().default(1),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+// The blended, all-sources vector: one row per resume, still what the plain
+// (unscoped) recruiter search matches against. Per-source vectors live in
+// `resume_section_embeddings` below.
+export const resumeEmbeddings = pgTable(
+  "resume_embeddings",
+  {
+    resumeId: uuid("resume_id")
+      .primaryKey()
+      .references(() => resumes.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    contentHash: text("content_hash"),
+    embeddingModel: text("embedding_model").notNull(),
+    embeddingVersion: integer("embedding_version").notNull().default(1),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    // HAZARD: this index was created by hand in 0006_resume_embeddings.sql and
+    // was invisible to Drizzle, so every `drizzle-kit generate` was one snapshot
+    // away from proposing a DROP for it. Declaring it here puts it in the
+    // snapshot and ends that. The migration that first introduces this
+    // declaration uses `CREATE INDEX IF NOT EXISTS`, because databases migrated
+    // through 0006 already have the index.
+    index("idx_resume_embeddings_vector")
+      .using("ivfflat", table.embedding.op("vector_cosine_ops"))
+      .with({ lists: 100 }),
+  ],
+);
+
+// Per-source vectors, one row per (user, source), so a recruiter can scope the
+// semantic search to what a candidate *wrote about shipping* (posts) rather than
+// what their resume claims (profile). `source` holds a `searchSourceSchema`
+// value from @repo/schemas: "profile" | "work" | "posts".
+export const resumeSectionEmbeddings = pgTable(
+  "resume_section_embeddings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    contentHash: text("content_hash").notNull(),
+    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    embeddingModel: text("embedding_model").notNull(),
+    embeddingVersion: text("embedding_version").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    unique("resume_section_embeddings_user_id_source_unique").on(
+      table.userId,
+      table.source,
+    ),
+    index("resume_section_embeddings_source_idx").on(table.source),
+    index("idx_resume_section_embeddings_vector")
+      .using("ivfflat", table.embedding.op("vector_cosine_ops"))
+      .with({ lists: 100 }),
+  ],
+);
 
 export const candidateInteractions = pgTable(
   "candidate_interactions",
@@ -441,6 +521,14 @@ export const candidateInteractions = pgTable(
     metadata: jsonb("metadata"),
     candidateSnapshot: jsonb("candidate_snapshot"),
     querySnapshot: jsonb("query_snapshot"),
+    // Exposure context, all nullable because rows written before this existed
+    // simply have no exposure information. Together they let training correct
+    // for position bias: a candidate ignored at rank 40 is not the same signal
+    // as a candidate ignored at rank 1.
+    displayedRank: integer("displayed_rank"),
+    resultCount: integer("result_count"),
+    searchSessionId: text("search_session_id"),
+    propensity: real("propensity"),
     trainedAt: timestamp("trained_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
@@ -473,6 +561,7 @@ export const userRelations = relations(users, ({ many }) => ({
   profileBlocks: many(profileBlocks),
   workExperiences: many(workExperiences),
   resumes: many(resumes),
+  resumeSectionEmbeddings: many(resumeSectionEmbeddings),
   candidateInteractions: many(candidateInteractions),
   createdSkills: many(skillsCatalog),
   createdTitles: many(titlesCatalog),
@@ -496,6 +585,10 @@ export const postsRelations = relations(posts, ({ one }) => ({
   user: one(users, {
     fields: [posts.userId],
     references: [users.id],
+  }),
+  workExperience: one(workExperiences, {
+    fields: [posts.workExperienceId],
+    references: [workExperiences.id],
   }),
 }));
 

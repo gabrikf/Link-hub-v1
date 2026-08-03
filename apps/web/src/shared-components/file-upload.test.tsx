@@ -1,13 +1,46 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FileUpload } from "./file-upload";
+import { getCroppedImg } from "../lib/crop-image";
 import { uploadImage } from "../lib/upload-api";
 
 vi.mock("../lib/upload-api", () => ({
   uploadImage: vi.fn(),
 }));
 
+/**
+ * The crop dialog itself is exercised in avatar-cropper.test.tsx. Here the real
+ * AvatarCropper is rendered (real Dialog, real buttons) with only its two
+ * browser-only dependencies faked: `react-easy-crop`, which never emits a crop
+ * area in jsdom because every element measures 0x0, and the canvas rasteriser.
+ */
+vi.mock("react-easy-crop", () => ({
+  default: function CropperStub({
+    onCropComplete,
+  }: {
+    onCropComplete?: (area: unknown, pixels: unknown) => void;
+  }) {
+    useEffect(() => {
+      onCropComplete?.(
+        { x: 0, y: 0, width: 100, height: 100 },
+        { x: 0, y: 0, width: 400, height: 400 },
+      );
+    }, [onCropComplete]);
+    return <div data-testid="cropper" />;
+  },
+}));
+
+vi.mock("../lib/crop-image", () => ({
+  getCroppedImg: vi.fn(),
+}));
+
 const uploadImageMock = vi.mocked(uploadImage);
+const getCroppedImgMock = vi.mocked(getCroppedImg);
+
+// jsdom implements neither half of the object-URL store.
+URL.createObjectURL = vi.fn(() => "blob:avatar");
+URL.revokeObjectURL = vi.fn();
 
 /** Build a File whose `size` we can force without allocating real bytes. */
 const makeFile = (name: string, type: string, size: number): File => {
@@ -25,6 +58,7 @@ const fileInput = (): HTMLInputElement => {
 describe("FileUpload", () => {
   beforeEach(() => {
     uploadImageMock.mockReset();
+    getCroppedImgMock.mockReset();
   });
 
   it("rejects an unsupported MIME type without uploading", async () => {
@@ -127,5 +161,116 @@ describe("FileUpload", () => {
     expect(clear).toBeInTheDocument();
     expect(replace.contains(clear)).toBe(false);
     expect(clear.contains(replace)).toBe(false);
+  });
+});
+
+/**
+ * `cropToCircle` is opt-in precisely so the banner / background / post-image
+ * call sites keep the plain pick-and-upload path — the first test here is the
+ * regression guard for that.
+ */
+describe("FileUpload cropToCircle", () => {
+  const croppedFile = new File(["y"], "a.webp", { type: "image/webp" });
+
+  beforeEach(() => {
+    uploadImageMock.mockReset();
+    getCroppedImgMock.mockReset().mockResolvedValue(croppedFile);
+  });
+
+  it("uploads immediately and never opens a cropper when the prop is absent", async () => {
+    uploadImageMock.mockResolvedValue("https://cdn.example.com/a.png");
+    const onChange = vi.fn();
+    render(<FileUpload label="Banner" value={null} onChange={onChange} />);
+
+    const file = makeFile("a.png", "image/png", 1024);
+    fireEvent.change(fileInput(), { target: { files: [file] } });
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith("https://cdn.example.com/a.png"),
+    );
+    expect(uploadImageMock).toHaveBeenCalledWith(file);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens the cropper and uploads nothing until the crop is confirmed", () => {
+    render(
+      <FileUpload label="Avatar" cropToCircle value={null} onChange={vi.fn()} />,
+    );
+
+    fireEvent.change(fileInput(), {
+      target: { files: [makeFile("a.png", "image/png", 1024)] },
+    });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(uploadImageMock).not.toHaveBeenCalled();
+  });
+
+  it("uploads the CROPPED file, not the original, on confirm", async () => {
+    uploadImageMock.mockResolvedValue("https://cdn.example.com/cropped.webp");
+    const onChange = vi.fn();
+    render(
+      <FileUpload label="Avatar" cropToCircle value={null} onChange={onChange} />,
+    );
+
+    const original = makeFile("a.png", "image/png", 1024);
+    fireEvent.change(fileInput(), { target: { files: [original] } });
+    fireEvent.click(screen.getByRole("button", { name: /save photo/i }));
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        "https://cdn.example.com/cropped.webp",
+      ),
+    );
+    // Identity, not deep equality: vitest compares two `File`s structurally and
+    // would happily call these interchangeable.
+    expect(uploadImageMock.mock.calls[0][0]).toBe(croppedFile);
+    expect(uploadImageMock.mock.calls[0][0]).not.toBe(original);
+    expect(getCroppedImgMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the cropper and uploads nothing on cancel", async () => {
+    render(
+      <FileUpload label="Avatar" cropToCircle value={null} onChange={vi.fn()} />,
+    );
+
+    fireEvent.change(fileInput(), {
+      target: { files: [makeFile("a.png", "image/png", 1024)] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(uploadImageMock).not.toHaveBeenCalled();
+    expect(getCroppedImgMock).not.toHaveBeenCalled();
+  });
+
+  it("resets the input on cancel so re-picking the same file still fires change", () => {
+    render(
+      <FileUpload label="Avatar" cropToCircle value={null} onChange={vi.fn()} />,
+    );
+
+    const input = fileInput();
+    fireEvent.change(input, {
+      target: { files: [makeFile("a.png", "image/png", 1024)] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    // A non-empty value would make the browser suppress `change` for the very
+    // same file, leaving the user unable to retry after cancelling.
+    expect(input.value).toBe("");
+  });
+
+  it("rejects an oversized file BEFORE decoding it in the cropper", async () => {
+    render(
+      <FileUpload label="Avatar" cropToCircle value={null} onChange={vi.fn()} />,
+    );
+
+    fireEvent.change(fileInput(), {
+      target: { files: [makeFile("huge.png", "image/png", 6 * 1024 * 1024)] },
+    });
+
+    expect(await screen.findByText(/too large/i)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

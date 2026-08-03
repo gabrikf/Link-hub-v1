@@ -19,6 +19,17 @@ describe("describeMatch", () => {
     expect(describeMatch(140).percent).toBe("100%");
   });
 
+  it("says so when there is no score, instead of showing a fake 0%", () => {
+    // A failed rerank must not read as "this candidate is a 0% match". Rank 1
+    // and rank 50 are equally unscored when the model never ran.
+    const missing = describeMatch(null);
+
+    expect(missing.percent).toBe("—");
+    expect(missing.label).toBe("Match unavailable");
+    expect(missing.percent).not.toBe("0%");
+    expect(missing.label).not.toBe("Weak match");
+  });
+
   it("labels each band so the number is interpretable", () => {
     expect(describeMatch(0.9).label).toBe("Strong match");
     expect(describeMatch(0.6).label).toBe("Good match");

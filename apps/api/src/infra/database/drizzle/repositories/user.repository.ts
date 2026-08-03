@@ -1,4 +1,5 @@
 import { eq, or } from "drizzle-orm";
+import type { AgentDisclosureLevel } from "@repo/schemas";
 import { UserEntity } from "../../../../core/entity/user/user-entity.js";
 import { IUsersRepository } from "../../../../core/repositories/user/user-repository.js";
 import { db } from "../index.js";
@@ -29,6 +30,8 @@ export class DrizzleUserRepository implements IUsersRepository {
       openToWork: user.openToWork,
       location: user.location,
       persona: user.persona,
+      agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
+      agentBlockedTerms: user.agentBlockedTerms,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -55,6 +58,8 @@ export class DrizzleUserRepository implements IUsersRepository {
       openToWork: user.openToWork,
       location: user.location,
       persona: user.persona,
+      agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
+      agentBlockedTerms: user.agentBlockedTerms,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -81,6 +86,8 @@ export class DrizzleUserRepository implements IUsersRepository {
       openToWork: user.openToWork,
       location: user.location,
       persona: user.persona,
+      agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
+      agentBlockedTerms: user.agentBlockedTerms,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -107,6 +114,8 @@ export class DrizzleUserRepository implements IUsersRepository {
       openToWork: user.openToWork,
       location: user.location,
       persona: user.persona,
+      agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
+      agentBlockedTerms: user.agentBlockedTerms,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -136,6 +145,8 @@ export class DrizzleUserRepository implements IUsersRepository {
       openToWork: user.openToWork,
       location: user.location,
       persona: user.persona,
+      agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
+      agentBlockedTerms: user.agentBlockedTerms,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -158,6 +169,8 @@ export class DrizzleUserRepository implements IUsersRepository {
         openToWork: user.openToWork,
         location: user.location,
         persona: user.persona,
+        agentDisclosureLevel: user.agentDisclosureLevel,
+        agentBlockedTerms: user.agentBlockedTerms,
         password: user.password,
         googleId: user.googleId,
         updatedAt: user.updatedAt,
@@ -184,6 +197,9 @@ export class DrizzleUserRepository implements IUsersRepository {
       openToWork: updatedUser.openToWork,
       location: updatedUser.location,
       persona: updatedUser.persona,
+      agentDisclosureLevel:
+        updatedUser.agentDisclosureLevel as AgentDisclosureLevel,
+      agentBlockedTerms: updatedUser.agentBlockedTerms,
       googleId: updatedUser.googleId,
       createdAt: updatedUser.createdAt,
       updatedAt: updatedUser.updatedAt,
@@ -226,6 +242,9 @@ export class DrizzleUserRepository implements IUsersRepository {
       openToWork: createdUser.openToWork,
       location: createdUser.location,
       persona: createdUser.persona,
+      agentDisclosureLevel:
+        createdUser.agentDisclosureLevel as AgentDisclosureLevel,
+      agentBlockedTerms: createdUser.agentBlockedTerms,
       googleId: createdUser.googleId,
       createdAt: createdUser.createdAt,
       updatedAt: createdUser.updatedAt,

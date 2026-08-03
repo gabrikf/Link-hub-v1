@@ -5,7 +5,15 @@ import {
 } from "../../../entity/post/post-entity.js";
 import { ResourceNotFoundError } from "../../../errors/index.js";
 import { IPostRepository } from "../../../repositories/post/post-repository.js";
+import { IResumesRepository } from "../../../repositories/resume/resume-repository.js";
 import { IUsersRepository } from "../../../repositories/user/user-repository.js";
+import { IWorkExperienceRepository } from "../../../repositories/work-experience/work-experience-repository.js";
+import {
+  assertPostRespectsDisclosure,
+  loadDisclosureContext,
+} from "../../agent-policy/enforce-post-disclosure.js";
+import { EnqueueResumeEmbeddingUseCase } from "../../resumes/enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
+import { reembedResumeAfterPost } from "../shared/reembed-resume-after-post.js";
 
 export interface ICreatePostInput {
   userId: string;
@@ -24,12 +32,17 @@ export interface ICreatePostInput {
   status?: PostStatus;
   externalUrl?: string | null;
   metadata?: Record<string, unknown> | null;
+  /** Attributes the post to a role, so it inherits that role's disclosure level. */
+  workExperienceId?: string | null;
 }
 
 export class CreatePostUseCase {
   constructor(
     private postsRepository: IPostRepository,
     private usersRepository: IUsersRepository,
+    private workExperienceRepository?: IWorkExperienceRepository,
+    private resumesRepository?: IResumesRepository,
+    private enqueueResumeEmbeddingUseCase?: EnqueueResumeEmbeddingUseCase,
   ) {}
 
   async execute(input: ICreatePostInput) {
@@ -46,6 +59,27 @@ export class CreatePostUseCase {
       input.authType === "pat" ? input.source ?? "manual" : "manual";
     const status = input.status ?? "published";
 
+    // The disclosure policy constrains software writing on the user's behalf,
+    // not the user writing about their own career — so only PATs are checked.
+    if (input.authType === "pat") {
+      const context = await loadDisclosureContext({
+        userId: input.userId,
+        usersRepository: this.usersRepository,
+        workExperienceRepository: this.workExperienceRepository,
+      });
+
+      if (context) {
+        assertPostRespectsDisclosure({
+          user: context.user,
+          workExperiences: context.workExperiences,
+          workExperienceId: input.workExperienceId,
+          title: input.title,
+          body: input.body,
+          tags: input.tags,
+        });
+      }
+    }
+
     const post = PostEntity.create({
       userId: input.userId,
       source,
@@ -57,9 +91,22 @@ export class CreatePostUseCase {
       status,
       externalUrl: input.externalUrl ?? null,
       metadata: input.metadata ?? null,
+      workExperienceId: input.workExperienceId ?? null,
       publishedAt: status === "published" ? new Date() : null,
     });
 
-    return this.postsRepository.create(post);
+    const created = await this.postsRepository.create(post);
+
+    // Only a published post is visible to recruiter search, so a draft has
+    // nothing to re-embed yet.
+    if (created.status === "published") {
+      await reembedResumeAfterPost(
+        input.userId,
+        this.resumesRepository,
+        this.enqueueResumeEmbeddingUseCase,
+      );
+    }
+
+    return created;
   }
 }

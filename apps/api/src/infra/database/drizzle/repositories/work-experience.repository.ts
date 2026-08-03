@@ -1,4 +1,5 @@
 import { asc, desc, eq } from "drizzle-orm";
+import type { AgentDisclosureLevel } from "@repo/schemas";
 import { WorkExperienceEntity } from "../../../../core/entity/work-experience/work-experience-entity.js";
 import { IWorkExperienceRepository } from "../../../../core/repositories/work-experience/work-experience-repository.js";
 import { db } from "../index.js";
@@ -22,6 +23,7 @@ function toEntity(row: WorkExperienceRow): WorkExperienceEntity {
     isCurrent: row.isCurrent,
     description: row.description,
     mainStack: row.mainStack,
+    disclosureLevel: row.disclosureLevel as AgentDisclosureLevel | null,
     displayOrder: row.displayOrder,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -85,6 +87,7 @@ export class DrizzleWorkExperienceRepository
         isCurrent: workExperience.isCurrent,
         description: workExperience.description,
         mainStack: workExperience.mainStack,
+        disclosureLevel: workExperience.disclosureLevel,
         displayOrder: workExperience.displayOrder,
         createdAt: workExperience.createdAt,
         updatedAt: workExperience.updatedAt,
@@ -112,6 +115,7 @@ export class DrizzleWorkExperienceRepository
         isCurrent: workExperience.isCurrent,
         description: workExperience.description,
         mainStack: workExperience.mainStack,
+        disclosureLevel: workExperience.disclosureLevel,
         displayOrder: workExperience.displayOrder,
         updatedAt: workExperience.updatedAt,
       })

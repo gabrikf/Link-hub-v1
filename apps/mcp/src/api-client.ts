@@ -1,4 +1,5 @@
 import type {
+  AgentPolicy,
   CreatePostInput,
   Post,
   UpdatePostInput,
@@ -29,6 +30,38 @@ interface OperationSuccess {
   success: boolean;
 }
 
+/** One role as returned by `GET /me/work-context` — already redacted server-side. */
+export interface WorkContextRole {
+  id: string;
+  title: string;
+  seniorityHint: string | null;
+  employmentType: string | null;
+  workModel: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  isCurrent: boolean;
+  durationMonths: number | null;
+  stack: string[];
+  practices: string[];
+  domain: string | null;
+  /** Null whenever the effective level for this role is `summary`. */
+  companyName: string | null;
+  achievements: string[];
+}
+
+export interface WorkContext {
+  disclosureLevel: "summary" | "detailed" | "full";
+  roles: WorkContextRole[];
+}
+
+/**
+ * Paths that need the `profile:read` scope. A 403 on any of them means the
+ * user's token predates that scope (or was created without it), which is a
+ * fixable setup problem rather than a permissions failure — so it gets its own
+ * message instead of the generic "not allowed".
+ */
+const PROFILE_READ_PATHS = new Set(["/me/agent-policy", "/me/work-context"]);
+
 /**
  * Thin, typed HTTP client for the LinkHub `/me/posts` API. It is a pure
  * transport layer: it authenticates with the PAT, (de)serializes JSON, and
@@ -42,6 +75,19 @@ export class LinkHubApiClient {
   constructor(config: LinkHubConfig) {
     this.baseUrl = config.apiUrl;
     this.token = config.token;
+  }
+
+  /** The disclosure contract in force. Requires the `profile:read` scope. */
+  getAgentPolicy(): Promise<AgentPolicy> {
+    return this.request<AgentPolicy>("GET", "/me/agent-policy");
+  }
+
+  /**
+   * The user's work history, ALREADY redacted to their disclosure level.
+   * Requires the `profile:read` scope.
+   */
+  getWorkContext(): Promise<WorkContext> {
+    return this.request<WorkContext>("GET", "/me/work-context");
   }
 
   createPost(body: CreatePostInput): Promise<Post> {
@@ -102,7 +148,7 @@ export class LinkHubApiClient {
 
     if (!response.ok) {
       throw new LinkHubApiError(
-        await this.describeError(response),
+        await this.describeError(response, path),
         response.status,
       );
     }
@@ -114,16 +160,34 @@ export class LinkHubApiClient {
   }
 
   /** Maps an error response into a clear, actionable message. */
-  private async describeError(response: Response): Promise<string> {
+  private async describeError(
+    response: Response,
+    path: string,
+  ): Promise<string> {
     const serverMessage = await this.extractMessage(response);
     const suffix = serverMessage ? ` (${serverMessage})` : "";
+    const basePath = path.split("?")[0] ?? path;
 
     switch (response.status) {
       case 400:
-        return `LinkHub rejected the request as invalid${suffix}.`;
+        // A disclosure-policy rejection arrives as a 400 whose message already
+        // names the offending term and the fix, so it is passed through intact
+        // rather than wrapped in a generic "invalid request".
+        return serverMessage
+          ? serverMessage
+          : "LinkHub rejected the request as invalid.";
       case 401:
         return "Invalid or expired LinkHub token. Create a fresh Personal Access Token in LinkHub settings and set LINKHUB_API_TOKEN.";
       case 403:
+        if (PROFILE_READ_PATHS.has(basePath)) {
+          return (
+            "Your token is missing the profile:read scope — create a new token in " +
+            "LinkHub settings (Settings → Personal access tokens → Create token) " +
+            "with profile:read checked, and set it as LINKHUB_API_TOKEN. Without " +
+            "it this server cannot read your disclosure policy, so it will assume " +
+            "the strictest one."
+          );
+        }
         return `Your LinkHub token is not allowed to perform this action${suffix}. Ensure it has the posts:write / posts:read scopes.`;
       case 404:
         return `Post not found${suffix}.`;

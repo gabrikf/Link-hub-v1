@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
+import { z } from "zod/v4";
 import {
   createPostSchemaInput,
   listPostsQuerySchema,
@@ -8,9 +9,7 @@ import {
   postSchema,
   updatePostSchemaInput,
   usernameParamsSchema,
-  type CreatePostInput,
   type ListPostsQuery,
-  type UpdatePostInput,
 } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
 import { apiAccessGuard } from "../../middleware/api-access-guard.js";
@@ -21,6 +20,38 @@ import { ListPublicPostsUseCase } from "../../../../core/use-case/posts/list-pub
 import { GetPostUseCase } from "../../../../core/use-case/posts/get-post-use-case/get-post.use-case.js";
 import { UpdatePostUseCase } from "../../../../core/use-case/posts/update-post-use-case/update-post.use-case.js";
 import { DeletePostUseCase } from "../../../../core/use-case/posts/delete-post-use-case/delete-post.use-case.js";
+
+/**
+ * Attributes a post to one of the author's roles, so the disclosure policy can
+ * apply that role's override instead of the account default.
+ *
+ * Layered on here rather than in @repo/schemas because the shared post schemas
+ * are owned elsewhere; `.extend()` keeps every existing field, message and
+ * bound intact while adding one optional key.
+ */
+const workExperienceIdField = {
+  workExperienceId: z
+    .string()
+    .uuid()
+    .nullable()
+    .optional()
+    .describe(
+      "Id of the work experience this post came out of. Inherits that role's disclosure level.",
+    ),
+};
+
+const createPostBodySchema = createPostSchemaInput.extend(
+  workExperienceIdField,
+);
+const updatePostBodySchema = updatePostSchemaInput.extend(
+  workExperienceIdField,
+);
+const postResponseSchema = postSchema.extend({
+  workExperienceId: z.string().nullable().optional(),
+});
+
+type CreatePostBody = z.infer<typeof createPostBodySchema>;
+type UpdatePostBody = z.infer<typeof updatePostBodySchema>;
 
 export class PostsController {
   static handle(server: FastifyInstance) {
@@ -35,7 +66,7 @@ export class PostsController {
           summary: "List current user posts",
           querystring: listPostsQuerySchema,
           response: {
-            200: postSchema.array(),
+            200: postResponseSchema.array(),
             ...commonErrorResponses(["unauthorized", "internalServerError"]),
           },
         },
@@ -67,7 +98,7 @@ export class PostsController {
           summary: "Get current user post by id",
           params: postParamsSchema,
           response: {
-            200: postSchema,
+            200: postResponseSchema,
             ...commonErrorResponses([
               "unauthorized",
               "forbidden",
@@ -96,9 +127,9 @@ export class PostsController {
         schema: {
           tags: ["Posts"],
           summary: "Create a post",
-          body: createPostSchemaInput,
+          body: createPostBodySchema,
           response: {
-            201: postSchema,
+            201: postResponseSchema,
             ...commonErrorResponses([
               "badRequest",
               "unauthorized",
@@ -108,7 +139,7 @@ export class PostsController {
           },
         },
       },
-      async (request: FastifyRequest<{ Body: CreatePostInput }>, reply) => {
+      async (request: FastifyRequest<{ Body: CreatePostBody }>, reply) => {
         const createPostUseCase = resolve<CreatePostUseCase>(
           TOKENS.CreatePostUseCase,
         );
@@ -131,9 +162,9 @@ export class PostsController {
           tags: ["Posts"],
           summary: "Update a post",
           params: postParamsSchema,
-          body: updatePostSchemaInput,
+          body: updatePostBodySchema,
           response: {
-            200: postSchema,
+            200: postResponseSchema,
             ...commonErrorResponses([
               "badRequest",
               "unauthorized",
@@ -147,7 +178,7 @@ export class PostsController {
       async (
         request: FastifyRequest<{
           Params: { id: string };
-          Body: UpdatePostInput;
+          Body: UpdatePostBody;
         }>,
         reply,
       ) => {
@@ -158,6 +189,9 @@ export class PostsController {
         const result = await updatePostUseCase.execute({
           userId: request.user!.id,
           postId: request.params.id,
+          // The use case enforces the disclosure policy for agents only, so it
+          // has to know which kind of caller this is.
+          authType: request.user!.authType,
           ...request.body,
         });
 
@@ -207,7 +241,7 @@ export class PostsController {
           params: usernameParamsSchema,
           querystring: listPostsQuerySchema,
           response: {
-            200: postSchema.array(),
+            200: postResponseSchema.array(),
             ...commonErrorResponses(["notFound", "internalServerError"]),
           },
         },

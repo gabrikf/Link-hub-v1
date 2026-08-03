@@ -924,7 +924,11 @@ describe(
         expect(c.userId).toBeTypeOf("string");
         expect(c.resumeId).toBeTypeOf("string");
         expect(c.username).toBeTypeOf("string");
-        expect(c.email).toBeTypeOf("string");
+        // The address is PII and `/resumes/search` is reachable by any
+        // signed-up account, so the listing carries the key but never a value.
+        // See the PII suite in search-boundaries.e2e.test.ts.
+        expect(c).toHaveProperty("email");
+        expect(c.email).toBeNull();
 
         // Fields used by toQueryCandidateFeatureVector
         expect(c.skills).toBeInstanceOf(Array);

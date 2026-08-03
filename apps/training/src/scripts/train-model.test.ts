@@ -18,11 +18,24 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, beforeAll } from "vitest";
 import {
+  PREPROCESSING_VERSION,
+  assertPreprocessingCompatible,
   toQueryCandidateFeatureVector,
   preprocessingConfigSchema,
   type PreprocessingConfig,
   type CandidateFeaturesInput,
+  type PostFeature,
 } from "@repo/schemas";
+
+/**
+ * Pinned clock. Post recency is a real feature now, so a floating `Date.now()`
+ * would make every score in this file drift by a little every day.
+ */
+const NOW = Date.UTC(2026, 6, 1);
+
+function daysAgo(days: number): string {
+  return new Date(NOW - days * 24 * 60 * 60 * 1000).toISOString();
+}
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -66,6 +79,7 @@ function predict(
   const vector = toQueryCandidateFeatureVector(
     { queryText, candidate },
     preprocessing,
+    { now: NOW },
   );
   const tensor = tf.tensor2d([vector]);
   const output = model.predict(tensor) as tf.Tensor;
@@ -96,9 +110,34 @@ const RECRUITER_QUERY = [
 // Candidate fixtures
 // ---------------------------------------------------------------------------
 
+const PERFECT_POSTS: PostFeature[] = [
+  {
+    title: "Shipping React in production",
+    excerpt: "Notes from building with react, node.js and typescript.",
+    source: "commit",
+    tags: ["react", "node.js"],
+    publishedAt: daysAgo(20),
+  },
+  {
+    title: "Docker for Node apps",
+    excerpt: "How we containerised our node.js services with docker.",
+    source: "commit",
+    tags: ["node.js", "docker"],
+    publishedAt: daysAgo(35),
+  },
+  {
+    title: "PostgreSQL tuning",
+    excerpt: "What actually moved the needle on our postgresql queries.",
+    source: "manual",
+    tags: ["postgresql"],
+    publishedAt: daysAgo(50),
+  },
+];
+
 /**
  * PERFECT candidate: exact skill + title overlap, matching seniority,
- * work model, and experience range. Should score ≥ 0.90.
+ * work model, experience range, and published proof of shipped work.
+ * Should score ≥ 0.90.
  */
 const PERFECT_CANDIDATE: CandidateFeaturesInput = {
   headlineTitle: "Fullstack Engineer — React and Node.js",
@@ -131,6 +170,10 @@ const PERFECT_CANDIDATE: CandidateFeaturesInput = {
       mainStack: ["Node.js", "React", "Docker"],
     },
   ],
+  // Since preprocessing v3, "perfect" includes published evidence of shipped
+  // work. Commit-sourced posts are written straight from commit history, which
+  // makes them the least gameable thing on a profile.
+  posts: PERFECT_POSTS,
 };
 
 /**
@@ -235,5 +278,71 @@ describe("Model scoring — Fullstack React/Node.js query", () => {
     const score = predict(model, preprocessing, RECRUITER_QUERY, BAD_CANDIDATE);
     console.log(`  bad      → ${(score * 100).toFixed(1)}%`);
     expect(score).toBeLessThanOrEqual(0.1);
+  });
+});
+
+describe("Shipped model artifacts", () => {
+  let model: tf.LayersModel;
+  let preprocessing: PreprocessingConfig;
+
+  beforeAll(async () => {
+    [model, preprocessing] = await Promise.all([
+      loadModel(),
+      loadPreprocessing(),
+    ]);
+  });
+
+  it("are built against the preprocessing version this code encodes with", () => {
+    // The loudest possible failure for a stale artifact. Before this, a config
+    // from an older version parsed cleanly (its `version` was only ever
+    // `z.string()`) and the mismatch surfaced as a dimension error deep inside
+    // TensorFlow — or not at all, if the widths happened to line up.
+    expect(preprocessing.version).toBe(PREPROCESSING_VERSION);
+
+    const inputDim = model.inputs[0]?.shape?.[1];
+    expect(typeof inputDim).toBe("number");
+    expect(() =>
+      assertPreprocessingCompatible(preprocessing, inputDim as number),
+    ).not.toThrow();
+  });
+
+  it("reserved the synthetic blueprint vocabulary instead of truncating it", () => {
+    // Once ~25-30 real resumes existed, React/Node/TypeScript used to fall off
+    // the end of the 160-slot skill list — and the synthetic positives and
+    // negatives, built entirely from those skills, became near-identical
+    // vectors carrying opposite labels.
+    for (const skill of ["react", "node.js", "typescript"]) {
+      expect(preprocessing.knownSkills).toContain(skill);
+    }
+  });
+});
+
+describe("Post evidence changes the score", () => {
+  let model: tf.LayersModel;
+  let preprocessing: PreprocessingConfig;
+
+  beforeAll(async () => {
+    [model, preprocessing] = await Promise.all([
+      loadModel(),
+      loadPreprocessing(),
+    ]);
+  });
+
+  it("scores a candidate with relevant shipped work above the same candidate without it", () => {
+    // Guards against the post features being present in the vector but inert —
+    // which is exactly what happened at serve time while the worker dropped
+    // `workEvidence` on the floor.
+    const withPosts = predict(
+      model,
+      preprocessing,
+      RECRUITER_QUERY,
+      PERFECT_CANDIDATE,
+    );
+    const withoutPosts = predict(model, preprocessing, RECRUITER_QUERY, {
+      ...PERFECT_CANDIDATE,
+      posts: [],
+    });
+
+    expect(withPosts).toBeGreaterThan(withoutPosts);
   });
 });

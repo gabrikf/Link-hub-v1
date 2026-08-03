@@ -1,22 +1,25 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
-import { z } from "zod/v4";
 import {
   addResumeSkillInputSchema,
   addResumeTitleInputSchema,
   bulkResumeSkillsInputSchema,
   bulkResumeTitlesInputSchema,
+  candidateContactSchema,
   catalogItemSchema,
   createCatalogItemInputSchema,
   publicResumeSchema,
-  recruiterSearchFiltersSchema,
   recruiterSearchInputSchema,
-  recruiterSearchResultSchema,
+  recruiterSearchResponseSchema,
   resumeSchema,
   resumeSkillSchema,
   resumeTitleSchema,
+  revealCandidateContactInputSchema,
+  revealCandidateContactParamsSchema,
+  searchSourceSchema,
   upsertResumeInputSchema,
   usernameParamsSchema,
+  type SearchSource,
 } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
 import { authGuard } from "../../middleware/auth-guard.js";
@@ -34,16 +37,13 @@ import { GetPublicResumeByUsernameUseCase } from "../../../../core/use-case/resu
 import { SaveResumeSkillsBulkUseCase } from "../../../../core/use-case/resumes/save-resume-skills-bulk-use-case/save-resume-skills-bulk.use-case.js";
 import { SaveResumeTitlesBulkUseCase } from "../../../../core/use-case/resumes/save-resume-titles-bulk-use-case/save-resume-titles-bulk.use-case.js";
 import { TransformRecruiterSearchInputUseCase } from "../../../../core/use-case/resumes/transform-recruiter-search-input-use-case/transform-recruiter-search-input.use-case.js";
+import { RevealCandidateContactUseCase } from "../../../../core/use-case/resumes/reveal-candidate-contact-use-case/reveal-candidate-contact.use-case.js";
 
-const recruiterSearchResponseSchema = z.object({
-  input: z.object({
-    semanticQuery: z.string().min(1),
-    filters: recruiterSearchFiltersSchema,
-    semanticSkills: z.array(z.string()).optional(),
-    semanticTitles: z.array(z.string()).optional(),
-  }),
-  candidates: recruiterSearchResultSchema.array(),
-});
+// NOTE: the search response schema is imported from @repo/schemas, not
+// redeclared here. A local copy used to shadow it, and because Fastify
+// serialises the reply *through the schema*, every field added to the shared
+// schema (`sourceSimilarity`, most recently) was silently stripped off the wire
+// while the types said it was there (defect F30).
 
 function parseStringArrayField(raw?: unknown): string[] | undefined {
   if (raw === undefined || raw === null) {
@@ -120,6 +120,27 @@ function parseTopK(raw?: unknown): number | undefined {
   return parsed;
 }
 
+/**
+ * `sources` arrives as a real array over JSON but as a comma-separated string
+ * over multipart, and an unknown value must not 400 the whole search — an
+ * unrecognised source is dropped and the search falls back to the blended
+ * vector, which is the safe default.
+ */
+function parseSourcesField(raw?: unknown): SearchSource[] | undefined {
+  const values = parseStringArrayField(raw);
+
+  if (!values) {
+    return undefined;
+  }
+
+  const parsed = values.flatMap((value) => {
+    const result = searchSourceSchema.safeParse(value.trim());
+    return result.success ? [result.data] : [];
+  });
+
+  return parsed.length > 0 ? parsed : undefined;
+}
+
 function normalizeSearchInputBody(
   body: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -128,6 +149,7 @@ function normalizeSearchInputBody(
     semanticSkills: parseStringArrayField(body.semanticSkills),
     semanticTitles: parseStringArrayField(body.semanticTitles),
     topK: parseTopK(body.topK),
+    sources: parseSourcesField(body.sources),
     whereQuery: parseObjectField(body.whereQuery),
     filters: parseObjectField(body.filters),
   };
@@ -638,6 +660,7 @@ export class ResumeController {
             semanticSkills: parseStringArrayField(fields.semanticSkills),
             semanticTitles: parseStringArrayField(fields.semanticTitles),
             topK: parseTopK(fields.topK),
+            sources: parseSourcesField(fields.sources),
             whereQuery: parseObjectField(fields.whereQuery),
             filters: parseObjectField(fields.filters),
           };
@@ -654,8 +677,62 @@ export class ResumeController {
           semanticSkills: parsedInput.semanticSkills,
           semanticTitles: parsedInput.semanticTitles,
           topK: parsedInput.topK,
+          sources: parsedInput.sources,
           whereQuery: parsedInput.whereQuery,
           filters: parsedInput.filters,
+        });
+
+        reply.status(200).send(result);
+      },
+    );
+
+    app.post(
+      "/resumes/:resumeId/contact",
+      {
+        preHandler: authGuard,
+        schema: {
+          tags: ["Resume"],
+          summary: "Reveal one candidate's contact details",
+          description:
+            "Returns the email address for a single candidate and records a " +
+            "CONTACT_CLICK interaction. Search listings never include emails.",
+          params: revealCandidateContactParamsSchema,
+          body: revealCandidateContactInputSchema,
+          response: {
+            200: candidateContactSchema,
+            ...commonErrorResponses([
+              "badRequest",
+              "unauthorized",
+              "notFound",
+              "internalServerError",
+            ]),
+          },
+        },
+      },
+      async (
+        request: FastifyRequest<{
+          Params: { resumeId: string };
+          Body?: {
+            queryText?: string;
+            semanticSimilarity?: number;
+            rankPosition?: number;
+            searchSessionId?: string;
+          };
+        }>,
+        reply,
+      ) => {
+        const revealCandidateContactUseCase =
+          resolve<RevealCandidateContactUseCase>(
+            TOKENS.RevealCandidateContactUseCase,
+          );
+
+        const result = await revealCandidateContactUseCase.execute({
+          resumeId: request.params.resumeId,
+          recruiterId: request.user!.id,
+          queryText: request.body?.queryText,
+          semanticSimilarity: request.body?.semanticSimilarity,
+          rankPosition: request.body?.rankPosition,
+          searchSessionId: request.body?.searchSessionId,
         });
 
         reply.status(200).send(result);
