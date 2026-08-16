@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:worker": "tsx watch src/infra/queue/run-resume-embedding-worker.ts",
+    "dev:digest-worker": "tsx watch src/infra/queue/run-activity-digest-worker.ts",
     "build": "tsc -p .",
     "start": "node dist/index.js",
     "start:worker": "node dist/infra/queue/run-resume-embedding-worker.js",
+    "start:digest-worker": "node dist/infra/queue/run-activity-digest-worker.js",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",

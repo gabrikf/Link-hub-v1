@@ -77,9 +77,56 @@ describe("CreateBlockUseCase", () => {
     expect(mobileMatch?.config).toEqual({ body: "Hello world" });
     expect(pcMatch?.gridW).toBe(12);
     expect(mobileMatch?.gridW).toBe(4);
-    // The mirror lands in the counterpart tab (same tab group), not pinned.
+    // Tabs are per-viewport, so the mirror lands in the MOBILE layout's own
+    // default tab — never in the pc tab the block was created in.
+    const mobileTabs = await tabsRepository.findByUserAndViewport(
+      "user-1",
+      "mobile",
+    );
     expect(mobileMatch?.pinnedAllTabs).toBe(false);
-    expect(mobileMatch?.tabId).not.toBeNull();
+    expect(mobileMatch?.tabId).toBe(mobileTabs[0]?.id);
+    expect(mobileMatch?.tabId).not.toBe(pcMatch?.tabId);
+  });
+
+  it("puts the mirror in the other viewport's default tab, not a counterpart of the chosen one", async () => {
+    // Seed both viewports, then add a SECOND pc tab and create a block in it.
+    await sut.execute("user-1", {
+      kind: "text",
+      viewport: "pc",
+      config: { body: "seed" },
+    });
+
+    const projects = ProfileTabEntity.create({
+      userId: "user-1",
+      viewport: "pc",
+      title: "Projects",
+      order: 1,
+    });
+    await tabsRepository.create(projects);
+
+    const block = await sut.execute("user-1", {
+      kind: "text",
+      viewport: "pc",
+      tabId: projects.id,
+      config: { body: "in projects" },
+    });
+
+    expect(block.tabId).toBe(projects.id);
+
+    const mobileTabs = await tabsRepository.findByUserAndViewport(
+      "user-1",
+      "mobile",
+    );
+    // "Projects" exists on desktop only — the mobile layout keeps the one tab
+    // the user actually created there.
+    expect(mobileTabs).toHaveLength(1);
+
+    const mobileBlocks = await blocksRepository.findByUserAndViewport(
+      "user-1",
+      "mobile",
+    );
+    const mobileMatch = mobileBlocks.find((b) => b.groupId === block.groupId);
+    expect(mobileMatch?.tabId).toBe(mobileTabs[0]?.id);
   });
 
   it("mirrors a pinned block as pinned in both viewports", async () => {

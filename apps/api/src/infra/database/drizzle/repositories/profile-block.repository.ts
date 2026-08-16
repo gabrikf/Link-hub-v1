@@ -209,12 +209,16 @@ export class DrizzleProfileBlocksRepository
     });
   }
 
-  async deleteByTabId(
+  async findByTabId(
     tabId: string,
     tx?: TransactionContext,
-  ): Promise<void> {
-    await resolveExecutor(tx)
-      .delete(profileBlocks)
-      .where(eq(profileBlocks.tabId, tabId));
+  ): Promise<ProfileBlockEntity[]> {
+    const rows = await resolveExecutor(tx)
+      .select()
+      .from(profileBlocks)
+      .where(eq(profileBlocks.tabId, tabId))
+      .orderBy(asc(profileBlocks.gridY), asc(profileBlocks.gridX));
+
+    return rows.map(toEntity);
   }
 }

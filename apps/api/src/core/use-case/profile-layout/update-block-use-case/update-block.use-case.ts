@@ -3,7 +3,6 @@ import {
   customBlockConfigSchemaByKind,
   CustomBlockKind,
   ProfileBlock,
-  ProfileViewport,
   UpdateBlockInput,
 } from "@repo/schemas";
 import {
@@ -17,12 +16,16 @@ import { IProfileBlocksRepository } from "../../../repositories/profile-block/pr
 import { IProfileTabsRepository } from "../../../repositories/profile-tab/profile-tabs-repository.js";
 import { toBlockDTO } from "../assemble-layout.js";
 
-/** How a block's tab association should change (mirrored across viewports). */
+/**
+ * How the EDITED row's tab association should change. Unlike config and
+ * visibility this is never mirrored: tabs belong to a single viewport, so a
+ * block's tab (and whether it is pinned) is a per-viewport property.
+ */
 type TabChange =
   | { type: "none" }
   | { type: "pin" }
-  | { type: "unpin"; tabGroupId: string | null }
-  | { type: "move"; tabGroupId: string };
+  | { type: "unpin"; tabId: string | null }
+  | { type: "move"; tabId: string };
 
 export class UpdateBlockUseCase {
   constructor(
@@ -63,45 +66,22 @@ export class UpdateBlockUseCase {
       configData = configResult.data;
     }
 
-    // Resolve the tab-association change once, against the current viewport, as
-    // a groupId so it can be re-resolved per viewport below.
-    const tabChange = await this.resolveTabChange(userId, block.viewport, input);
+    // Resolve the tab-association change against the block's OWN viewport. A
+    // tab id from the other viewport is rejected here rather than silently
+    // anchoring the block to a tab its layout does not contain.
+    const tabChange = await this.resolveTabChange(userId, block, input);
 
-    // Apply every shared-field change (config, visibility, pin/tab association)
-    // to ALL rows sharing this block's logical identity — across both
-    // viewports — in ONE transaction so a mid-loop failure can't leave the pc
-    // and mobile rows with divergent config/visibility/tab association.
-    // Positions (gridX/Y/W/H) are intentionally left untouched: they stay
-    // per-viewport and are only mutated by update-block-positions.
+    // Content changes (config, visibility) apply to ALL rows sharing this
+    // block's logical identity — across both viewports — in ONE transaction so
+    // a mid-loop failure can't leave the pc and mobile rows with divergent
+    // content. Positions (gridX/Y/W/H) and the tab association stay per-viewport
+    // and are only ever written for the row being edited.
     const currentRow = await this.unitOfWork.runInTransaction(async (tx) => {
       const groupRows = await this.blocksRepository.findByGroupId(
         userId,
         block.groupId,
         tx,
       );
-
-      const tabsByViewport = new Map<
-        ProfileViewport,
-        Awaited<ReturnType<IProfileTabsRepository["findByUserAndViewport"]>>
-      >();
-      const resolveTabId = async (
-        viewport: ProfileViewport,
-        tabGroupId: string | null,
-      ): Promise<string | null> => {
-        if (tabGroupId === null) {
-          return null;
-        }
-        let tabs = tabsByViewport.get(viewport);
-        if (!tabs) {
-          tabs = await this.tabsRepository.findByUserAndViewport(
-            userId,
-            viewport,
-            tx,
-          );
-          tabsByViewport.set(viewport, tabs);
-        }
-        return tabs.find((tab) => tab.groupId === tabGroupId)?.id ?? null;
-      };
 
       let current: ProfileBlockEntity = block;
 
@@ -114,19 +94,19 @@ export class UpdateBlockUseCase {
           row.setVisibility(input.isVisible);
         }
 
-        if (tabChange.type === "pin") {
-          row.setPinned(true);
-        } else if (tabChange.type === "unpin") {
-          const tabId = await resolveTabId(row.viewport, tabChange.tabGroupId);
-          row.setPinned(false, tabId);
-        } else if (tabChange.type === "move") {
-          const tabId = await resolveTabId(row.viewport, tabChange.tabGroupId);
-          if (tabId === null) {
-            // The target tab group is missing in this viewport (legacy skew) —
-            // pin rather than silently anchoring to a non-existent tab.
+        if (row.id === blockId) {
+          if (tabChange.type === "pin") {
             row.setPinned(true);
-          } else {
-            row.moveToTab(tabId);
+          } else if (tabChange.type === "unpin") {
+            // No tab to unpin into (viewport has none) — staying pinned keeps
+            // the block visible instead of anchoring it nowhere.
+            if (tabChange.tabId === null) {
+              row.setPinned(true);
+            } else {
+              row.setPinned(false, tabChange.tabId);
+            }
+          } else if (tabChange.type === "move") {
+            row.moveToTab(tabChange.tabId);
           }
         }
 
@@ -144,51 +124,47 @@ export class UpdateBlockUseCase {
 
   private async resolveTabChange(
     userId: string,
-    viewport: ProfileViewport,
+    block: ProfileBlockEntity,
     input: UpdateBlockInput,
   ): Promise<TabChange> {
     if (input.pinnedAllTabs !== undefined) {
       if (input.pinnedAllTabs) {
         return { type: "pin" };
       }
-      const tabGroupId = await this.resolveTargetTabGroup(
+      const tabId = await this.resolveTargetTab(
         userId,
-        viewport,
+        block,
         input.tabId ?? null,
       );
-      return { type: "unpin", tabGroupId };
+      return { type: "unpin", tabId };
     }
 
     if (input.tabId !== undefined) {
       if (input.tabId === null) {
         return { type: "pin" };
       }
-      const tabGroupId = await this.resolveTargetTabGroup(
-        userId,
-        viewport,
-        input.tabId,
-      );
-      if (tabGroupId === null) {
+      const tabId = await this.resolveTargetTab(userId, block, input.tabId);
+      if (tabId === null) {
         throw new BadRequestError("Target tab does not exist");
       }
-      return { type: "move", tabGroupId };
+      return { type: "move", tabId };
     }
 
     return { type: "none" };
   }
 
   /**
-   * Resolve a requested tab id (in the current viewport) to its shared groupId.
-   * A null request falls back to the first tab of the viewport.
+   * Resolve a requested tab id within the block's own viewport. A null request
+   * falls back to the first tab of that viewport.
    */
-  private async resolveTargetTabGroup(
+  private async resolveTargetTab(
     userId: string,
-    viewport: ProfileViewport,
+    block: ProfileBlockEntity,
     requestedTabId: string | null,
   ): Promise<string | null> {
     const tabs = await this.tabsRepository.findByUserAndViewport(
       userId,
-      viewport,
+      block.viewport,
     );
 
     if (requestedTabId) {
@@ -196,9 +172,9 @@ export class UpdateBlockUseCase {
       if (!target) {
         throw new BadRequestError("Target tab does not exist");
       }
-      return target.groupId;
+      return target.id;
     }
 
-    return tabs[0]?.groupId ?? null;
+    return tabs[0]?.id ?? null;
   }
 }

@@ -35,18 +35,15 @@ describe("RenameTabUseCase", () => {
     expect(result.title).toBe("New title");
   });
 
-  it("mirrors the rename to the other viewport by groupId", async () => {
-    const groupId = crypto.randomUUID();
+  it("leaves the other viewport's tab title alone", async () => {
     const pc = ProfileTabEntity.create({
       userId: "user-1",
-      groupId,
       viewport: "pc",
       title: "Old",
       order: 0,
     });
     const mobile = ProfileTabEntity.create({
       userId: "user-1",
-      groupId,
       viewport: "mobile",
       title: "Old",
       order: 0,
@@ -57,7 +54,8 @@ describe("RenameTabUseCase", () => {
     await sut.execute("user-1", pc.id, "Renamed");
 
     expect((await tabsRepository.findById(pc.id))?.title).toBe("Renamed");
-    expect((await tabsRepository.findById(mobile.id))?.title).toBe("Renamed");
+    // Tabs are per-viewport: the similarly-named mobile tab is a different tab.
+    expect((await tabsRepository.findById(mobile.id))?.title).toBe("Old");
   });
 
   it("throws when the tab does not exist", async () => {

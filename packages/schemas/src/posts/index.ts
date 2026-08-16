@@ -3,7 +3,19 @@ import { httpUrlSchema } from "../profile-blocks/index.js";
 
 export const postSourceSchema = z.enum(["manual", "mcp", "agent", "commit"]);
 
-export const postStatusSchema = z.enum(["draft", "published"]);
+/**
+ * `pending_review` is the "written by software, waiting for a human" state. It
+ * is NOT public: it is excluded from the public profile feed and from the
+ * recruiter-search embeddings exactly like a draft. The difference from
+ * `draft` is intent — a draft is the author's own unfinished writing, while a
+ * `pending_review` post is finished text that only the human approving it can
+ * make public (see the approve endpoint).
+ */
+export const postStatusSchema = z.enum([
+  "draft",
+  "pending_review",
+  "published",
+]);
 
 export const postSchema = z.object({
   id: z.string(),
@@ -48,8 +60,19 @@ export const createPostSchemaInput = z.object({
   metadata: postMetadataSchema.nullable().optional(),
 });
 
+/**
+ * No `source`, on purpose — provenance is write-once.
+ *
+ * `source` says who AUTHORED a post, which cannot become true or false later.
+ * Accepting it on a patch let a web session hand-write a post and then relabel
+ * it `commit`/`agent`/`mcp`, forging the machine-authored badge the review flow
+ * exists to make trustworthy. Zod strips unknown keys, so a client that still
+ * sends `source` gets it ignored rather than an error — the right outcome for a
+ * field no caller was ever supposed to control. It is set once, at creation, by
+ * `createPostSchemaInput` + `CreatePostUseCase` (which forces `manual` for any
+ * non-PAT caller).
+ */
 export const updatePostSchemaInput = z.object({
-  source: postSourceSchema.optional(),
   title: z.string().max(200).nullable().optional(),
   body: z.string().min(1).max(20000).optional(),
   coverImageUrl: httpUrlSchema.nullable().optional(),

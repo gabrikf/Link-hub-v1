@@ -8,8 +8,10 @@ const argsSchema = {
     .string()
     .optional()
     .describe(
-      "Repository name to summarize, e.g. 'linkhub-v.1'. Defaults to the git " +
-        "repository in the current working directory.",
+      "Narrow the run to ONE repository, e.g. 'linkhub-v.1'. Omit it — the " +
+        "normal case — and the post covers every repository listed in " +
+        "~/.linkhub/repos.json (or the extractor's settings, or the current " +
+        "working directory if neither exists).",
     ),
   status: z
     .string()
@@ -28,7 +30,7 @@ const ESTABLISH_WINDOW = `The window starts at the user's most recent LinkHub co
 
 1. Call **\`list_my_posts\`** (\`limit: 20\`).
 2. Find the newest post with \`source=commit\`. Its \`createdAt\` timestamp is your start boundary — call it \`<START>\`.
-3. Use \`--since="<START>"\` (an ISO timestamp is fine: \`--since="2026-07-18T09:12:00Z"\`) on every \`git log\` below.
+3. Use \`--since="<START>"\` (an ISO timestamp is fine: \`--since="2026-07-18T09:12:00Z"\`) on every \`git log\` below — the same boundary in every repository, since the last post covered all of them at once.
 4. **If there is no such post yet**, this is the user's first commit summary. Fall back to \`--since="14 days ago"\` and say so when you report back, so they know the window you chose.
 5. **If there are commits but none since that post**, do not publish anything. Tell the user their last summary is already up to date and stop.
 
@@ -53,13 +55,14 @@ export function registerSinceLastPost(
         "Like weekly_update, but the time window is derived from LinkHub " +
         "instead of a fixed period: it finds your most recent commit-summary " +
         "post and summarizes only the git work done since then, so nothing is " +
-        "posted twice. Same house style, safety pass and " +
+        "posted twice. Covers every repository you configured, aggregated into " +
+        "one post. Same house style, safety pass and " +
         "create_commit_summary_post mapping. Arguments: repo, status.",
       argsSchema,
     },
     (args) => ({
       description: `Summarize everything shipped${
-        args.repo ? ` in ${args.repo}` : ""
+        args.repo ? ` in ${args.repo}` : " across every configured repository"
       } since the last LinkHub commit summary`,
       messages: [
         {

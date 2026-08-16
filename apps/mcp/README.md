@@ -270,8 +270,8 @@ Use the `weekly_update` prompt to get that text right. Stored with
 | `summary` | string | yes | The finished Markdown body. |
 | `title` | string | no | Headline (< 70 chars). Omitting it derives one from repo + period, which is worse — always pass one. |
 | `period` | string | no | `"weekly"`, `"daily"`, or a range like `"2026-07-14..2026-07-21"`. |
-| `repo` | string | no | Repository name only — not the path, not the remote URL. Omit for private/client work. |
-| `commitCount` | number | no | Count of the user's own commits. Counted, not estimated. |
+| `repo` | string | no | The scope of the summary: one repository's name (never a path or remote URL), or the count when the post aggregates several — `"4 repositories"`. Omit for private/client work. |
+| `commitCount` | number | no | Count of the user's own commits, summed across every repository covered. Counted, not estimated. |
 | `tags` | string[] | no | 2–5 lowercase, stack-first tags. |
 | `status` | `"draft"` \| `"published"` | no | Defaults to `published`. |
 
@@ -331,17 +331,41 @@ anything.
 
 | Prompt | Arguments | What it does |
 | --- | --- | --- |
-| `weekly_update` | `period?`, `repo?`, `status?` | The headline workflow. Walks the agent through bounding the git window, reading the commits *and the diffs*, extracting what shipped / impact / metrics / stack / links, writing the post in house style, running the safety and disclosure pass, and publishing via `create_commit_summary_post`. |
+| `weekly_update` | `period?`, `repo?`, `status?` | The headline workflow. Walks the agent through resolving which repositories to cover, bounding the git window, reading the commits *and the diffs* in each, aggregating what shipped / impact / metrics / stack / links into one post, writing it in house style, running the safety and disclosure pass, and publishing via `create_commit_summary_post`. |
 | `since_last_post` | `repo?`, `status?` | Same workflow, but the window comes from LinkHub: it calls `list_my_posts`, finds your newest `source=commit` post, and summarizes only work done since then — so repeated runs never double-post. Falls back to 14 days if you have no commit summary yet. |
 
 | Argument | Accepted values |
 | --- | --- |
 | `period` | `daily`, `weekly` (default), `monthly`, a range like `2026-07-14..2026-07-21`, or any git date expression such as `3 days ago`. |
-| `repo` | Repository name, e.g. `linkhub-v.1`. Defaults to the git repo in the working directory. |
+| `repo` | Repository name, e.g. `linkhub-v.1`. Pass it only to NARROW the run to that one repository; by default the post covers every repository you configured. |
 | `status` | `published` (default) or `draft`. |
 
 Both prompts inline your **active disclosure policy**, so the agent knows what it
 may say about the employer before it writes a word.
+
+### Which repositories a post covers
+
+One post covers your whole week, across every project — the agent resolves the
+set before it reads any history, taking the first of:
+
+1. **`~/.linkhub/repos.json`**, written by the LinkHub setup wizard:
+
+   ```json
+   { "repos": ["/home/you/code/api", "/home/you/code/app"] }
+   ```
+
+   Paths that are no longer git repositories are skipped and reported.
+
+2. **`~/.linkhub/extractor.json`** — the local extractor's `repos` array, so you
+   do not configure the same list twice.
+
+3. **The current working directory alone**, if neither file exists. The agent
+   says so, and points you at `~/.linkhub/repos.json`.
+
+The agent never scans your home directory for repositories: it is slow, and it
+would find checkouts you never meant to publish anything about. Repository
+names, paths and remotes never appear in the post itself — several projects
+become one set of capabilities, not a roll call.
 
 ### Invoking a prompt
 
@@ -465,11 +489,12 @@ matches `ACME CORP` but a company called `Sun` does not match inside `sunset`.
 the tool runs no AI and publishes `summary` verbatim:
 
 1. You invoke `weekly_update` (or `since_last_post`).
-2. The agent bounds the window, reads `git log` **and** `git diff --stat` for
+2. The agent resolves the repository set (see above), then for each repository
+   bounds the window, reads `git -C <path> log` **and** `git diff --stat` for
    the period, and opens the files that changed most.
-3. It extracts the facts: repo, commit count, the 2–5 user-visible capabilities
-   that shipped, their impact, any metric it can actually verify, the stack
-   touched, and a public link if one exists.
+3. It aggregates the facts across all of them: scope marker, total commit count,
+   the 2–5 user-visible capabilities that shipped, their impact, any metric it
+   can actually verify, the stack touched, and a public link if one exists.
 4. It writes 80–200 words of first-person Markdown about outcomes, runs the
    safety and disclosure pass, and shows you the draft.
 5. It calls `create_commit_summary_post`.

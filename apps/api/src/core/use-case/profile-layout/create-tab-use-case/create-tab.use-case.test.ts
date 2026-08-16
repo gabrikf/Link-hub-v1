@@ -1,17 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryProfileTabsRepository } from "../../../repositories/profile-tab/in-memory-profile-tabs-repository.js";
-import { InMemoryUnitOfWork } from "../../../providers/unit-of-work/in-memory-unit-of-work.js";
 import { CreateTabUseCase } from "./create-tab.use-case.js";
 
 describe("CreateTabUseCase", () => {
   let tabsRepository: InMemoryProfileTabsRepository;
-  let unitOfWork: InMemoryUnitOfWork;
   let sut: CreateTabUseCase;
 
   beforeEach(() => {
     tabsRepository = new InMemoryProfileTabsRepository();
-    unitOfWork = new InMemoryUnitOfWork();
-    sut = new CreateTabUseCase(tabsRepository, unitOfWork);
+    sut = new CreateTabUseCase(tabsRepository);
   });
 
   it("creates a tab at order 0 for an empty viewport", async () => {
@@ -24,8 +21,8 @@ describe("CreateTabUseCase", () => {
     expect(tab.order).toBe(0);
   });
 
-  it("mirrors the tab into the other viewport with a shared groupId", async () => {
-    await sut.execute("user-1", { viewport: "pc", title: "Projects" });
+  it("does not create a desktop tab when a mobile tab is created", async () => {
+    await sut.execute("user-1", { viewport: "mobile", title: "Projects" });
 
     const pcTabs = await tabsRepository.findByUserAndViewport("user-1", "pc");
     const mobileTabs = await tabsRepository.findByUserAndViewport(
@@ -33,31 +30,37 @@ describe("CreateTabUseCase", () => {
       "mobile",
     );
 
-    expect(pcTabs).toHaveLength(1);
+    // The whole point of the change: the two editors no longer duplicate each
+    // other's tabs.
     expect(mobileTabs).toHaveLength(1);
-    // Same logical identity, same title/order — only the viewport differs.
-    expect(pcTabs[0]?.groupId).toBe(mobileTabs[0]?.groupId);
-    expect(mobileTabs[0]?.title).toBe("Projects");
-    expect(mobileTabs[0]?.order).toBe(0);
-    // Both viewports are seeded, but they remain distinct rows.
-    expect(pcTabs[0]?.id).not.toBe(mobileTabs[0]?.id);
-    expect(tabsRepository.getAll()).toHaveLength(2);
+    expect(pcTabs).toHaveLength(0);
+    expect(tabsRepository.getAll()).toHaveLength(1);
   });
 
-  it("appends new tabs at the next order in both viewports", async () => {
+  it("does not create a mobile tab when a desktop tab is created", async () => {
+    await sut.execute("user-1", { viewport: "pc", title: "Projects" });
+
+    expect(
+      await tabsRepository.findByUserAndViewport("user-1", "mobile"),
+    ).toHaveLength(0);
+  });
+
+  it("numbers each viewport's tabs independently", async () => {
     await sut.execute("user-1", { viewport: "pc", title: "First" });
-    const second = await sut.execute("user-1", {
+    const secondPc = await sut.execute("user-1", {
       viewport: "pc",
       title: "Second",
     });
+    const firstMobile = await sut.execute("user-1", {
+      viewport: "mobile",
+      title: "Mobile only",
+    });
 
-    expect(second.order).toBe(1);
+    expect(secondPc.order).toBe(1);
+    // Mobile starts its own sequence rather than continuing the pc one.
+    expect(firstMobile.order).toBe(0);
 
-    const mobileTabs = await tabsRepository.findByUserAndViewport(
-      "user-1",
-      "mobile",
-    );
-    expect(mobileTabs.map((tab) => tab.order)).toEqual([0, 1]);
-    expect(mobileTabs.map((tab) => tab.title)).toEqual(["First", "Second"]);
+    const pcTabs = await tabsRepository.findByUserAndViewport("user-1", "pc");
+    expect(pcTabs.map((tab) => tab.title)).toEqual(["First", "Second"]);
   });
 });

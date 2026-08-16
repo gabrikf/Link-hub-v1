@@ -166,6 +166,42 @@ describe("per-source resume documents", () => {
     expect(documents.posts).toBeUndefined();
   });
 
+  it("never embeds a post that is still waiting for review", () => {
+    // A machine-authored post the human has not approved yet must not reach
+    // recruiter search — approval is what makes it public, not authorship.
+    const documents = buildResumeSourceDocuments({
+      resume: makeResume(),
+      skills: [],
+      titles: [],
+      posts: [
+        makePost({
+          source: "commit",
+          status: "pending_review",
+          title: "Unapproved commit summary",
+        }),
+      ],
+    });
+
+    expect(documents.posts).toBeUndefined();
+  });
+
+  it("embeds only the approved post when review-pending ones sit alongside it", () => {
+    const documents = buildResumeSourceDocuments({
+      resume: makeResume(),
+      skills: [],
+      titles: [],
+      posts: [
+        makePost({ status: "published", title: "Approved and public" }),
+        makePost({ status: "pending_review", title: "Awaiting approval" }),
+        makePost({ status: "draft", title: "Never finished" }),
+      ],
+    });
+
+    expect(documents.posts).toContain("Approved and public");
+    expect(documents.posts).not.toContain("Awaiting approval");
+    expect(documents.posts).not.toContain("Never finished");
+  });
+
   it("bounds roles and truncates descriptions so the model never 400s", () => {
     const manyRoles = Array.from({ length: 30 }, (_, index) =>
       makeWorkExperience({

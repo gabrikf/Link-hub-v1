@@ -1,7 +1,15 @@
-import type { ApiToken, CreateApiTokenOutput } from "@repo/schemas";
+import type { ApiToken, CreateApiTokenOutput, GitConnection } from "@repo/schemas";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { FiKey, FiPlus, FiTrash2 } from "react-icons/fi";
+import {
+  FiChevronDown,
+  FiHelpCircle,
+  FiKey,
+  FiPlus,
+  FiSliders,
+  FiTrash2,
+  FiZap,
+} from "react-icons/fi";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyTokens, useRevokeToken } from "../../../lib/token-queries";
 import { useUserInfoStore } from "../../../lib/user-info-store";
@@ -12,42 +20,28 @@ import {
 } from "../../../shared-components/skeleton";
 import {
   BADGE,
+  FOCUS_RING,
   SURFACE_EMPTY,
   SURFACE_GLASS,
 } from "../../../shared-components/surface";
+import { AutoPostWizard } from "../components/auto-post-wizard/auto-post-wizard";
 import { ConnectPanel } from "../components/connect-panel";
+import { ConnectionsPanel } from "../components/connections-panel";
 import { DisclosurePanel } from "../components/disclosure-panel";
+import { HowItWorksDialog } from "../components/how-it-works-dialog";
 import { CONNECT_PANEL_ID } from "../lib/mcp-config";
 import { CreateTokenDialog } from "../components/create-token-dialog";
+import { listenForAnchorClicks, revealAndScrollTo } from "../lib/reveal-anchor";
 import {
   formatDate,
   formatLastUsed,
   getTokenStatus,
   maskTokenPrefix,
 } from "../lib/token-format";
-
-/**
- * Survives a route change within the tab, but never a reload — matching the
- * one-time nature of the plaintext token itself.
- */
-const STASHED_TOKEN_KEY = "linkhub:last-created-token";
-
-function readStashedToken(): CreateApiTokenOutput | null {
-  try {
-    const raw = window.sessionStorage.getItem(STASHED_TOKEN_KEY);
-    return raw ? (JSON.parse(raw) as CreateApiTokenOutput) : null;
-  } catch {
-    return null;
-  }
-}
-
-function stashToken(token: CreateApiTokenOutput): void {
-  try {
-    window.sessionStorage.setItem(STASHED_TOKEN_KEY, JSON.stringify(token));
-  } catch {
-    // Private mode / quota. The in-memory copy still drives this session.
-  }
-}
+// Shared with the wizard's inline token block, so a PAT minted mid-wizard is
+// recoverable here after the dialog closes. See `lib/token-stash.ts` for why
+// sessionStorage is the right lifetime.
+import { readStashedToken, stashToken } from "../lib/token-stash";
 
 function StatusBadge({ token }: { token: ApiToken }) {
   const status = getTokenStatus(token);
@@ -215,12 +209,30 @@ function TokenListSkeleton() {
   );
 }
 
+/** Scroll/anchor target for the collapsed advanced area. */
+export const ADVANCED_SETTINGS_ID = "advanced-settings";
+
+/**
+ * Why these controls exist, said once, where they now live.
+ *
+ * The disclosure level is not decoration: the server rejects a post that
+ * violates it. Demoting it behind a disclosure without saying that would read
+ * as "we hid the useless stuff".
+ */
+const ADVANCED_INTRO =
+  "These control what a post is allowed to contain, and the credentials your tools authenticate with. The wizard sets sane defaults — you only need these to change them.";
+
 export function SettingsPage() {
   const navigate = useNavigate();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  // The connection a "Finish setup" click resumes into — the wizard opens at
+  // its Verify step. Null means a fresh run starting at Source.
+  const [wizardResume, setWizardResume] = useState<GitConnection | null>(null);
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false);
   // Seeded from sessionStorage so navigating to another page and back does not
   // strand the user with a token they can no longer read. It was plain
   // component state, so every snippet silently reverted to the `lh_pat_xxxx`
@@ -229,18 +241,18 @@ export function SettingsPage() {
   const [lastCreated, setLastCreated] = useState<CreateApiTokenOutput | null>(
     readStashedToken,
   );
+  /** Revoked tokens are history, not inventory — opt in to seeing them. */
+  const [showRevoked, setShowRevoked] = useState(false);
 
   const handleTokenCreated = (token: CreateApiTokenOutput) => {
     setLastCreated(token);
     stashToken(token);
 
-    // The Create button is in the header; the panel that consumes the token is
-    // at the very bottom, under a potentially long token list. Nothing
-    // connected the two, so the pre-filled snippets were easy to never see.
+    // The panel that consumes the token lives inside a collapsed disclosure,
+    // and scrolling to a closed `<details>` moves nothing — so open it on the
+    // way. Without this the pre-filled snippets were easy to never see.
     window.requestAnimationFrame(() => {
-      document
-        .getElementById(CONNECT_PANEL_ID)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      revealAndScrollTo(CONNECT_PANEL_ID);
     });
   };
 
@@ -250,13 +262,32 @@ export function SettingsPage() {
     }
   }, [hasSession, navigate]);
 
+  // Same reason, for the links the panels point at each other with: the
+  // disclosure panel now sits inside the collapsed advanced area.
+  useEffect(() => listenForAnchorClicks(), []);
+
   const tokensQuery = useMyTokens(hasSession);
   const revokeToken = useRevokeToken();
 
   const tokens = tokensQuery.data ?? [];
+  const activeTokens = tokens.filter((token) => !token.revokedAt);
+  const revokedTokens = tokens.filter((token) => Boolean(token.revokedAt));
+  const visibleTokens = showRevoked
+    ? [...activeTokens, ...revokedTokens]
+    : activeTokens;
 
   const handleRevoke = (id: string) => {
     revokeToken.mutate(id);
+  };
+
+  const openWizard = () => {
+    setWizardResume(null);
+    setWizardOpen(true);
+  };
+
+  const openWizardAtVerify = (connection: GitConnection) => {
+    setWizardResume(connection);
+    setWizardOpen(true);
   };
 
   return (
@@ -269,85 +300,218 @@ export function SettingsPage() {
         <div className="anim-float absolute -top-20 right-10 h-72 w-72 rounded-full bg-violet-500/15 blur-3xl" />
       </div>
 
-      <header className="anim-fade-up flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">
-            Settings
-          </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Manage personal access tokens and connect your AI coding tools to
-            LinkHub.
-          </p>
-        </div>
-        <Button
-          type="button"
-          fullWidth={false}
-          className="rounded-full"
-          onClick={() => setDialogOpen(true)}
-        >
-          <FiPlus className="h-4 w-4" aria-hidden="true" />
-          Create token
-        </Button>
+      <header className="anim-fade-up space-y-1">
+        <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">
+          Settings
+        </h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Connect your AI coding tools to LinkHub and let them post for you.
+        </p>
       </header>
 
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <FiKey
-            className="h-4 w-4 text-zinc-500 dark:text-zinc-400"
-            aria-hidden="true"
-          />
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Personal access tokens
-          </h2>
-        </div>
-
-        {tokensQuery.isLoading ? (
-          <TokenListSkeleton />
-        ) : tokensQuery.isError ? (
-          <p className="text-sm text-red-600 dark:text-red-400">
-            Could not load your tokens. Please try again.
-          </p>
-        ) : tokens.length === 0 ? (
-          <div className={`anim-fade-up p-10 text-center ${SURFACE_EMPTY}`}>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              You don&apos;t have any tokens yet. Create one to let your AI
-              tools post to LinkHub.
-            </p>
+      {/* One unified section instead of the old stacked trio with competing
+          headlines. The wizard is the primary path; the connection rows sit
+          under the same header; the full MCP manual lives in a collapsed
+          disclosure for power users. */}
+      <section className={`anim-fade-up p-5 sm:p-6 ${SURFACE_GLASS}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+              <FiZap className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                Automatic posts
+              </h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Your work becomes a weekly post. Metadata only — never code,
+                never names.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               type="button"
-              variant="soft"
+              variant="ghost"
               fullWidth={false}
-              className="mt-4 rounded-full"
-              onClick={() => setDialogOpen(true)}
+              className="rounded-full"
+              onClick={() => setHowItWorksOpen(true)}
+            >
+              <FiHelpCircle className="h-4 w-4" aria-hidden="true" />
+              How this works
+            </Button>
+            <Button
+              type="button"
+              fullWidth={false}
+              className="rounded-full"
+              onClick={openWizard}
             >
               <FiPlus className="h-4 w-4" aria-hidden="true" />
-              Create your first token
+              Add source
             </Button>
           </div>
-        ) : (
-          <ul className="space-y-3">
-            {tokens.map((token) => (
-              <TokenRow
-                key={token.id}
-                token={token}
-                onRevoke={handleRevoke}
-                // Scoped to the row actually being revoked. `isPending` alone
-                // is mutation-wide, so it used to freeze (and would now spin)
-                // every Revoke button on the page at once.
-                isRevoking={
-                  revokeToken.isPending && revokeToken.variables === token.id
-                }
-              />
-            ))}
-          </ul>
-        )}
+        </div>
+
+        <ConnectionsPanel
+          enabled={hasSession}
+          embedded
+          onAddSource={openWizard}
+          onFinishSetup={openWizardAtVerify}
+          // Lets the panel re-read the stashed one-time secret when the wizard
+          // closes — the wizard promises the panel resurfaces it.
+          wizardOpen={wizardOpen}
+        />
+
+        {/* The complete MCP manual, demoted but intact: the wizard is the
+            guided path, this is everything for people who read config files
+            for fun. */}
+        <details className="group mt-5 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/60">
+          <summary
+            className={`flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
+          >
+            Manual agent setup &amp; snippets
+            <FiChevronDown
+              className="ml-auto h-4 w-4 shrink-0 transition group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="mt-3">
+            <ConnectPanel token={lastCreated?.token ?? null} />
+          </div>
+        </details>
       </section>
 
-      {/* Above the connect panel on purpose: the privacy contract is what the
-          user should decide BEFORE they hand a token to an agent, not after. */}
-      <DisclosurePanel enabled={hasSession} />
+      {/* Everything most people never open, in one place instead of two
+          full-height sections above the thing they came for. Collapsed, not
+          removed, and not a separate route: the links between these panels and
+          the connect snippets are same-page anchors, which `revealAnchorTarget`
+          keeps working by opening this element before scrolling. */}
+      <details
+        id={ADVANCED_SETTINGS_ID}
+        className={`anim-fade-up group p-5 sm:p-6 ${SURFACE_GLASS}`}
+      >
+        <summary
+          className={`flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
+        >
+          <FiSliders className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Advanced settings
+          {/* Named contents, or a collapsed disclosure is just a mystery box. */}
+          <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
+            Disclosure rules and access tokens
+          </span>
+          <FiChevronDown
+            className="ml-auto h-4 w-4 shrink-0 transition group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
 
-      <ConnectPanel token={lastCreated?.token ?? null} />
+        <div className="mt-4 space-y-6">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            {ADVANCED_INTRO}
+          </p>
+
+          <DisclosurePanel enabled={hasSession} />
+
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <FiKey
+                  className="h-4 w-4 text-zinc-500 dark:text-zinc-400"
+                  aria-hidden="true"
+                />
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Personal access tokens
+                </h2>
+              </div>
+              {/* Moved off the page header: the wizard mints the token each
+                  flow needs inline, so creating one by hand is the exception,
+                  and it belongs next to the list it lands in. */}
+              <Button
+                type="button"
+                variant="soft"
+                size="sm"
+                fullWidth={false}
+                className="rounded-full"
+                onClick={() => setDialogOpen(true)}
+              >
+                <FiPlus className="h-4 w-4" aria-hidden="true" />
+                Create token
+              </Button>
+            </div>
+
+            {tokensQuery.isLoading ? (
+              <TokenListSkeleton />
+            ) : tokensQuery.isError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                Could not load your tokens. Please try again.
+              </p>
+            ) : (
+              <>
+                {activeTokens.length === 0 ? (
+                  <div
+                    className={`anim-fade-up p-10 text-center ${SURFACE_EMPTY}`}
+                  >
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {revokedTokens.length > 0
+                        ? // Saying "no tokens yet" here would be a lie the
+                          // user can disprove — they created every one of
+                          // these and revoked them.
+                          "No active tokens. Every token on this account has been revoked."
+                        : "You don't have any tokens yet. Create one to let your AI tools post to LinkHub."}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="soft"
+                      fullWidth={false}
+                      className="mt-4 rounded-full"
+                      onClick={() => setDialogOpen(true)}
+                    >
+                      <FiPlus className="h-4 w-4" aria-hidden="true" />
+                      {revokedTokens.length > 0
+                        ? "Create a token"
+                        : "Create your first token"}
+                    </Button>
+                  </div>
+                ) : null}
+
+                {visibleTokens.length > 0 ? (
+                  <ul className="space-y-3">
+                    {visibleTokens.map((token) => (
+                      <TokenRow
+                        key={token.id}
+                        token={token}
+                        onRevoke={handleRevoke}
+                        // Scoped to the row actually being revoked.
+                        // `isPending` alone is mutation-wide, so it used to
+                        // freeze (and would now spin) every Revoke button on
+                        // the page at once.
+                        isRevoking={
+                          revokeToken.isPending &&
+                          revokeToken.variables === token.id
+                        }
+                      />
+                    ))}
+                  </ul>
+                ) : null}
+
+                {revokedTokens.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    fullWidth={false}
+                    onClick={() => setShowRevoked((value) => !value)}
+                  >
+                    {showRevoked
+                      ? "Hide revoked"
+                      : `Show ${revokedTokens.length} revoked`}
+                  </Button>
+                ) : null}
+              </>
+            )}
+          </section>
+        </div>
+      </details>
 
       <CreateTokenDialog
         open={dialogOpen}
@@ -360,6 +524,28 @@ export function SettingsPage() {
         // persisted, and a reload drops it.
         onOpenChange={setDialogOpen}
         onCreated={handleTokenCreated}
+      />
+
+      <AutoPostWizard
+        open={wizardOpen}
+        onOpenChange={(open) => {
+          setWizardOpen(open);
+          if (!open) {
+            setWizardResume(null);
+            // A PAT minted inside the wizard is stashed, not lifted — pick it
+            // up here so the manual-setup snippets below carry it after close.
+            const stashed = readStashedToken();
+            if (stashed) {
+              setLastCreated(stashed);
+            }
+          }
+        }}
+        resumeConnection={wizardResume}
+      />
+
+      <HowItWorksDialog
+        open={howItWorksOpen}
+        onOpenChange={setHowItWorksOpen}
       />
     </main>
   );

@@ -31,7 +31,6 @@ import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyResumeQuery } from "../../../lib/profile-queries";
 import { detectLinkIcon, LINK_ICON_OPTIONS } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
-import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
@@ -700,20 +699,17 @@ export function DashboardPage() {
         className={`anim-fade-up w-full space-y-4 p-5 ${SURFACE} lg:w-1/3`}
         style={{ animationDelay: "0.12s" }}
       >
-        <div className="flex gap-2 items-center">
-          <Avatar
-            name={meQuery.data?.name}
-            imageUrl={meQuery.data?.userPhoto}
-            size={36}
-          />
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              Profile
-            </h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Update your public identity.
-            </p>
-          </div>
+        {/* Text-only heading, like every other dashboard section header. The
+            avatar used to sit here too, so the photo rendered twice within the
+            same card — once beside the title and again in the identity row
+            immediately below it. */}
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Profile
+          </h2>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Update your public identity.
+          </p>
         </div>
 
         {meQuery.isLoading ? (

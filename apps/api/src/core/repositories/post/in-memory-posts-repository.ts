@@ -17,6 +17,20 @@ export class InMemoryPostsRepository implements IPostRepository {
     return post ?? null;
   }
 
+  /** Mirrors the drizzle repository's `metadata->>'digestKey'` predicate. */
+  async findByDigestKey(
+    userId: string,
+    digestKey: string,
+  ): Promise<PostEntity | null> {
+    const post = this.posts.find(
+      (candidate) =>
+        candidate.userId === userId &&
+        candidate.metadata?.digestKey === digestKey,
+    );
+
+    return post ?? null;
+  }
+
   async listByUserId(
     userId: string,
     options: PostListOptions,
@@ -33,6 +47,9 @@ export class InMemoryPostsRepository implements IPostRepository {
   ): Promise<PostEntity[]> {
     return this.posts
       .filter(
+        // Mirrors the drizzle repository's `status = 'published'` predicate:
+        // an allowlist, so a new non-public status (`pending_review`) is
+        // excluded by construction rather than by remembering to deny it.
         (candidate) =>
           candidate.userId === userId && candidate.status === "published",
       )

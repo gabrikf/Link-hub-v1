@@ -22,8 +22,9 @@ export function PublicProfileSkeleton() {
     <>
       <LoadingLabel>Loading profile</LoadingLabel>
 
-      {/* Cover strip — same height as `ProfileCover`. */}
-      <Skeleton className="h-32 w-full rounded-none sm:h-44" />
+      {/* Cover strip — same height as `ProfileCover` (`h-44` at every width, so
+          the meta row can clear the overlapping avatar on narrow cards). */}
+      <Skeleton className="h-44 w-full rounded-none" />
 
       {/* Same pull-up as the loaded card, so the avatar overlaps the cover. */}
       <div className="-mt-14 px-6 pb-8 sm:px-8">

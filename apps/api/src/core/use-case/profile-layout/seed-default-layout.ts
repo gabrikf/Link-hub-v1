@@ -13,7 +13,7 @@ import {
 import { IProfileBlocksRepository } from "../../repositories/profile-block/profile-block-repository.js";
 import { IProfileTabsRepository } from "../../repositories/profile-tab/profile-tabs-repository.js";
 
-/** The two viewports every logical tab/block is mirrored across. */
+/** The two viewports a logical block is mirrored across. (Tabs are not mirrored.) */
 export const VIEWPORTS: ProfileViewport[] = ["pc", "mobile"];
 
 export interface SeededViewport {
@@ -28,10 +28,13 @@ export interface SeededLayout {
 
 /**
  * Pure factory: build the entities to persist for BOTH viewports at once — one
- * default tab plus the blocks in {@link DEFAULT_BUILTIN_BLOCKS} (header pinned
- * across tabs, the rest stacked full-width inside the tab). The pc-row and
- * mobile-row of each logical tab/block share a `groupId` so the structure
- * mirrors; only the per-viewport grid width differs.
+ * default tab per viewport plus the blocks in {@link DEFAULT_BUILTIN_BLOCKS}
+ * (header pinned across tabs, the rest stacked full-width inside the tab).
+ *
+ * Each viewport gets its OWN tab — the two are independent from the start.
+ * Blocks still pair up across viewports through a shared `groupId` (so content
+ * is authored once), but each row anchors to the tab of its own viewport and
+ * carries its own grid width.
  *
  * Note this only affects accounts seeded from now on. Existing users already
  * have a persisted layout, so the empty-check below short-circuits and they will
@@ -39,14 +42,12 @@ export interface SeededLayout {
  * from the layout editor.
  */
 export function seedDefaultLayout(userId: string): SeededLayout {
-  const tabGroupId = crypto.randomUUID();
   // One shared groupId per built-in block, reused across both viewports.
   const blockGroupIds = DEFAULT_BUILTIN_BLOCKS.map(() => crypto.randomUUID());
 
   const buildViewport = (viewport: ProfileViewport): SeededViewport => {
     const tab = ProfileTabEntity.create({
       userId,
-      groupId: tabGroupId,
       viewport,
       title: DEFAULT_TAB_TITLE,
       order: 0,
@@ -95,11 +96,11 @@ async function persistViewport(
 
 /**
  * Returns the persisted tabs + blocks for a viewport, seeding the canonical
- * default layout on first access. Because the structure mirrors across
- * viewports, seeding writes BOTH viewports together (sharing groupIds) whenever
- * the requested one is empty — so the pc/mobile layouts stay in lock-step from
- * the very first access. Shared by the authenticated layout endpoint and the
- * block-creation flow.
+ * default layout on first access. Seeding writes BOTH viewports together
+ * whenever the requested one is empty — not because their tabs are linked (they
+ * are not) but so a block created in one viewport always has a counterpart row,
+ * and its tab, waiting in the other. Shared by the authenticated layout endpoint
+ * and the block-creation flow.
  *
  * Concurrency: a cheap unlocked empty-check serves the common (already-seeded)
  * case. On first access it seeds inside a single transaction guarded by a
@@ -153,8 +154,8 @@ export async function ensureSeededViewport(
     const seeded = seedDefaultLayout(userId);
     const otherViewport: ProfileViewport = viewport === "pc" ? "mobile" : "pc";
 
-    // Persist the requested viewport, and mirror to the other viewport too so
-    // the structure stays paired by groupId. Only seed the other viewport if it
+    // Persist the requested viewport, and seed the other viewport too so both
+    // have a default tab to anchor blocks to. Only seed the other viewport if it
     // is also empty (a legacy account may already have it configured, in which
     // case we leave it untouched rather than duplicating rows).
     const otherExisting = await tabsRepository.findByUserAndViewport(

@@ -13,7 +13,6 @@ function toEntity(row: ProfileTabRow): ProfileTabEntity {
   return new ProfileTabEntity({
     id: row.id,
     userId: row.userId,
-    groupId: row.groupId,
     viewport: row.viewport as ProfileViewport,
     title: row.title,
     order: row.order,
@@ -42,25 +41,6 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
     return rows.map(toEntity);
   }
 
-  async findByGroupId(
-    userId: string,
-    groupId: string,
-    tx?: TransactionContext,
-  ): Promise<ProfileTabEntity[]> {
-    const rows = await resolveExecutor(tx)
-      .select()
-      .from(profileTabs)
-      .where(
-        and(
-          eq(profileTabs.userId, userId),
-          eq(profileTabs.groupId, groupId),
-        ),
-      )
-      .orderBy(asc(profileTabs.order), asc(profileTabs.createdAt));
-
-    return rows.map(toEntity);
-  }
-
   async findById(
     id: string,
     tx?: TransactionContext,
@@ -82,7 +62,6 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
       .values({
         id: tab.id,
         userId: tab.userId,
-        groupId: tab.groupId,
         viewport: tab.viewport,
         title: tab.title,
         order: tab.order,
@@ -108,17 +87,8 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
     return toEntity(updated);
   }
 
-  async delete(id: string): Promise<void> {
-    await db.delete(profileTabs).where(eq(profileTabs.id, id));
-  }
-
-  async deleteByGroupId(
-    groupId: string,
-    tx?: TransactionContext,
-  ): Promise<void> {
-    await resolveExecutor(tx)
-      .delete(profileTabs)
-      .where(eq(profileTabs.groupId, groupId));
+  async delete(id: string, tx?: TransactionContext): Promise<void> {
+    await resolveExecutor(tx).delete(profileTabs).where(eq(profileTabs.id, id));
   }
 
   async reorder(

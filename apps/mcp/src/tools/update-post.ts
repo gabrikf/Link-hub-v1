@@ -23,7 +23,12 @@ const inputSchema = {
   tags: z.array(z.string()).optional().describe("Replace the tags."),
   status: postStatusSchema
     .optional()
-    .describe("Change status to 'draft' or 'published'."),
+    .describe(
+      "Change status. Only forward moves are accepted: 'draft' -> 'published' " +
+        "and 'pending_review' -> 'published'. A published post can never be " +
+        "moved back to 'draft' or 'pending_review' — take it down with " +
+        "delete_post instead.",
+    ),
 };
 
 /** `update_post` — PATCH an existing post with any subset of updatable fields. */
@@ -38,7 +43,14 @@ export function registerUpdatePost(
       description:
         "Update an existing LinkHub post by id. Provide only the fields you " +
         "want to change (title, body, coverImageUrl, images, externalUrl, " +
-        "tags, status). " +
+        "tags, status). IMPORTANT: only posts the user wrote themselves " +
+        "(source='manual') accept content edits. A machine-authored post " +
+        "(source='mcp', 'agent' or 'commit' — including every post created " +
+        "through this MCP server) accepts a STATUS CHANGE AND NOTHING ELSE; " +
+        "any attempt to change its title, body, tags, images, links or " +
+        "metadata is rejected with 403. That is deliberate: a reader can only " +
+        "trust an auto-generated post if it was not polished afterwards. To " +
+        "change what such a post says, delete it and write a new one. " +
         "Returns the updated post summary.",
       inputSchema,
     },

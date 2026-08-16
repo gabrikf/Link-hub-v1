@@ -133,18 +133,16 @@ describe("UpdateBlockUseCase", () => {
     expect(result.pinnedAllTabs).toBe(false);
   });
 
-  async function seedMirroredTab(userId = "user-1") {
-    const groupId = crypto.randomUUID();
+  /** One tab per viewport — independent tabs that happen to share a title. */
+  async function seedTabPerViewport(userId = "user-1") {
     const pc = ProfileTabEntity.create({
       userId,
-      groupId,
       viewport: "pc",
       title: "Main",
       order: 0,
     });
     const mobile = ProfileTabEntity.create({
       userId,
-      groupId,
       viewport: "mobile",
       title: "Main",
       order: 0,
@@ -191,7 +189,7 @@ describe("UpdateBlockUseCase", () => {
   }
 
   it("mirrors a config edit to both viewports without touching positions", async () => {
-    const { pc: pcTab, mobile: mobileTab } = await seedMirroredTab();
+    const { pc: pcTab, mobile: mobileTab } = await seedTabPerViewport();
     const { pc, mobile } = await seedMirroredBlock(pcTab.id, mobileTab.id);
 
     await sut.execute("user-1", pc.id, { config: { body: "updated" } });
@@ -209,7 +207,7 @@ describe("UpdateBlockUseCase", () => {
   });
 
   it("mirrors a visibility toggle to both viewports", async () => {
-    const { pc: pcTab, mobile: mobileTab } = await seedMirroredTab();
+    const { pc: pcTab, mobile: mobileTab } = await seedTabPerViewport();
     const { pc, mobile } = await seedMirroredBlock(pcTab.id, mobileTab.id);
 
     await sut.execute("user-1", pc.id, { isVisible: false });
@@ -218,8 +216,8 @@ describe("UpdateBlockUseCase", () => {
     expect((await blocksRepository.findById(mobile.id))?.isVisible).toBe(false);
   });
 
-  it("mirrors a pin toggle to both viewports", async () => {
-    const { pc: pcTab, mobile: mobileTab } = await seedMirroredTab();
+  it("pins only the edited viewport's row", async () => {
+    const { pc: pcTab, mobile: mobileTab } = await seedTabPerViewport();
     const { pc, mobile } = await seedMirroredBlock(pcTab.id, mobileTab.id);
 
     await sut.execute("user-1", pc.id, { pinnedAllTabs: true });
@@ -228,24 +226,55 @@ describe("UpdateBlockUseCase", () => {
     const mobileRow = await blocksRepository.findById(mobile.id);
     expect(pcRow?.pinnedAllTabs).toBe(true);
     expect(pcRow?.tabId).toBeNull();
-    expect(mobileRow?.pinnedAllTabs).toBe(true);
-    expect(mobileRow?.tabId).toBeNull();
+    // Pinning on desktop says nothing about mobile: tabs are per-viewport now.
+    expect(mobileRow?.pinnedAllTabs).toBe(false);
+    expect(mobileRow?.tabId).toBe(mobileTab.id);
   });
 
-  it("mirrors an unpin, resolving each viewport's own tab row", async () => {
-    const { pc: pcTab, mobile: mobileTab } = await seedMirroredTab();
+  it("unpins only the edited viewport's row, into that viewport's first tab", async () => {
+    const { pc: pcTab } = await seedTabPerViewport();
     const { pc, mobile } = await seedMirroredBlock(null, null);
 
     const result = await sut.execute("user-1", pc.id, {
       pinnedAllTabs: false,
     });
 
-    // The returned (pc) row anchors to the pc tab; the mobile mirror anchors to
-    // the mobile tab of the SAME group — not the pc tab id.
     expect(result.tabId).toBe(pcTab.id);
+    // The mobile row keeps whatever it had — here, still pinned.
     const mobileRow = await blocksRepository.findById(mobile.id);
-    expect(mobileRow?.tabId).toBe(mobileTab.id);
-    expect(mobileRow?.pinnedAllTabs).toBe(false);
+    expect(mobileRow?.tabId).toBeNull();
+  });
+
+  it("lets a block sit in different tabs per viewport", async () => {
+    const { pc: pcTab, mobile: mobileTab } = await seedTabPerViewport();
+    const pcProjects = ProfileTabEntity.create({
+      userId: "user-1",
+      viewport: "pc",
+      title: "Projects",
+      order: 1,
+    });
+    await tabsRepository.create(pcProjects);
+
+    const { pc, mobile } = await seedMirroredBlock(pcTab.id, mobileTab.id);
+
+    await sut.execute("user-1", pc.id, { tabId: pcProjects.id });
+
+    // Desktop: "Projects". Mobile: still its own default tab.
+    expect((await blocksRepository.findById(pc.id))?.tabId).toBe(
+      pcProjects.id,
+    );
+    expect((await blocksRepository.findById(mobile.id))?.tabId).toBe(
+      mobileTab.id,
+    );
+  });
+
+  it("rejects a tab id from the other viewport", async () => {
+    const { pc: pcTab, mobile: mobileTab } = await seedTabPerViewport();
+    const { pc } = await seedMirroredBlock(pcTab.id, mobileTab.id);
+
+    await expect(
+      sut.execute("user-1", pc.id, { tabId: mobileTab.id }),
+    ).rejects.toBeInstanceOf(BadRequestError);
   });
 
   it("throws when the block is not found", async () => {

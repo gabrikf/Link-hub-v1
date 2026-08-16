@@ -454,11 +454,15 @@ describe("Agent policy E2E", () => {
       await seedRole(user, "Acme Corp");
       const pat = await mintPat(token);
 
+      // The post the agent edits has to be one the HUMAN wrote (source
+      // 'manual'): a machine-authored post refuses every content patch
+      // outright, which would short-circuit the disclosure check this test is
+      // about. Covered separately below.
       const created = await ctx.app.inject({
         method: "POST",
         url: "/me/posts",
-        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
-        body: JSON.stringify({ source: "mcp", body: "A clean post." }),
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: "A clean post." }),
       });
       const postId = created.json().id as string;
 
@@ -471,6 +475,34 @@ describe("Agent policy E2E", () => {
 
       expect(response.statusCode).toBe(400);
       expect(response.json().message).toContain("Project Falcon");
+    });
+
+    it("refuses an agent PATCH of its OWN post's content, before disclosure even runs", async () => {
+      const { user, token } = await authedUser({
+        agentBlockedTerms: ["Project Falcon"],
+      });
+      await seedRole(user, "Acme Corp");
+      const pat = await mintPat(token);
+
+      const created = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+        body: JSON.stringify({ source: "mcp", body: "A clean post." }),
+      });
+      const postId = created.json().id as string;
+
+      const response = await ctx.app.inject({
+        method: "PATCH",
+        url: `/me/posts/${postId}`,
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+        body: JSON.stringify({ body: "A harmless-looking rewrite." }),
+      });
+
+      // 403, not 400: an mcp-authored post is immutable regardless of what the
+      // new text says. Provenance is checked before content.
+      expect(response.statusCode).toBe(403);
+      expect(response.json().message).toContain("immutable");
     });
   });
 });

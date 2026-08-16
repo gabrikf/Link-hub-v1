@@ -274,3 +274,96 @@ describe("FileUpload cropToCircle", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * The avatar variant is the Instagram/WhatsApp treatment: the persistent
+ * preview is a CIRCLE (same shape `Avatar` renders everywhere else), clicking
+ * it changes the photo, and removal is a labelled button beside it instead of
+ * an X floating over the corner of a square.
+ */
+describe("FileUpload avatar variant", () => {
+  const renderAvatar = (
+    props: Partial<React.ComponentProps<typeof FileUpload>> = {},
+  ) =>
+    render(
+      <FileUpload
+        label="Profile picture"
+        variant="avatar"
+        value={null}
+        onChange={vi.fn()}
+        {...props}
+      />,
+    );
+
+  const previewGroup = () =>
+    screen.getByRole("group", { name: /(change|add) photo/i });
+
+  it("previews as a circle, not a square tile", () => {
+    renderAvatar({ value: "https://cdn.example.com/a.png" });
+
+    expect(previewGroup()).toHaveClass("rounded-full");
+    expect(previewGroup()).not.toHaveClass("rounded-2xl");
+  });
+
+  it("labels the pick control 'Add photo' when empty", () => {
+    renderAvatar();
+
+    expect(screen.getByRole("button", { name: "Add photo" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: /remove/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers 'Change photo' on the preview once a photo exists", () => {
+    renderAvatar({ value: "https://cdn.example.com/a.png" });
+
+    expect(screen.getByRole("button", { name: "Change photo" })).toBeEnabled();
+  });
+
+  it("removes via a labelled button, never a floating X", () => {
+    renderAvatar({ value: "https://cdn.example.com/a.png" });
+
+    // The tile variant's corner control must not be present here.
+    expect(
+      screen.queryByRole("button", { name: /remove image/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /remove photo/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("Remove photo fires onChange(null) and resets the input", () => {
+    const onChange = vi.fn();
+    renderAvatar({ value: "https://cdn.example.com/a.png", onChange });
+
+    const input = fileInput();
+    input.value = "";
+
+    fireEvent.click(screen.getByRole("button", { name: /remove photo/i }));
+
+    expect(onChange).toHaveBeenCalledWith(null);
+    expect(input.value).toBe("");
+  });
+
+  it("keeps Change and Remove as siblings, never nested (D3)", () => {
+    renderAvatar({ value: "https://cdn.example.com/a.png" });
+
+    const change = screen.getByRole("button", { name: "Change photo" });
+    const remove = screen.getByRole("button", { name: /remove photo/i });
+
+    expect(change.contains(remove)).toBe(false);
+    expect(remove.contains(change)).toBe(false);
+    expect(fileInput()).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("still routes a picked file through the crop dialog", () => {
+    renderAvatar({ cropToCircle: true });
+
+    fireEvent.change(fileInput(), {
+      target: { files: [makeFile("a.png", "image/png", 1024)] },
+    });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(uploadImageMock).not.toHaveBeenCalled();
+  });
+});

@@ -40,9 +40,9 @@ export class CreateBlockUseCase {
       throw new BadRequestError("Invalid block config for the given kind");
     }
 
-    // Seed the requested viewport on first access — this also mirrors the seed
-    // to the other viewport (shared groupIds), so both viewports have tabs. Runs
-    // in its own advisory-locked transaction (see ensureSeededViewport).
+    // Seed the requested viewport on first access — this also seeds the other
+    // viewport, so both have a tab to anchor the block's rows to. Runs in its
+    // own advisory-locked transaction (see ensureSeededViewport).
     await ensureSeededViewport(
       this.tabsRepository,
       this.blocksRepository,
@@ -64,25 +64,26 @@ export class CreateBlockUseCase {
         tx,
       );
 
-      // Resolve the target grouping against the CURRENT viewport, then carry it
-      // across viewports by the tab's groupId (positions/tabIds are
-      // per-viewport, but which logical tab a block belongs to is shared).
-      let targetTabGroupId: string | null;
+      // Resolve the target tab against the CURRENT viewport only. Tabs no
+      // longer correspond across viewports, so there is nothing to carry over:
+      // the mirrored row lands in the other viewport's DEFAULT (first) tab and
+      // the user can move it from there. Pinning, by contrast, is meaningful in
+      // both viewports, so a pinned block is created pinned in both.
+      let currentTabId: string | null;
       let pinnedAllTabs = false;
 
       if (input.tabId === null) {
-        targetTabGroupId = null;
+        currentTabId = null;
         pinnedAllTabs = true;
       } else if (typeof input.tabId === "string") {
         const targetTab = currentTabs.find((tab) => tab.id === input.tabId);
         if (!targetTab) {
           throw new BadRequestError("Target tab does not exist");
         }
-        targetTabGroupId = targetTab.groupId;
+        currentTabId = targetTab.id;
       } else {
-        const firstTab = currentTabs[0];
-        targetTabGroupId = firstTab?.groupId ?? null;
-        pinnedAllTabs = targetTabGroupId === null;
+        currentTabId = currentTabs[0]?.id ?? null;
+        pinnedAllTabs = currentTabId === null;
       }
 
       let created: ProfileBlockEntity | undefined;
@@ -94,11 +95,15 @@ export class CreateBlockUseCase {
           tx,
         );
 
-        const tabId =
-          pinnedAllTabs || targetTabGroupId === null
-            ? null
-            : (viewportTabs.find((tab) => tab.groupId === targetTabGroupId)
-                ?.id ?? null);
+        const tabId = pinnedAllTabs
+          ? null
+          : viewport === input.viewport
+            ? currentTabId
+            : (viewportTabs[0]?.id ?? null);
+
+        // `pinnedAllTabs` is a per-viewport flag now. A row that resolved to no
+        // tab at all would render nowhere, so it is pinned instead of orphaned.
+        const rowPinned = pinnedAllTabs || tabId === null;
 
         const position = this.resolvePosition(
           await this.blocksRepository.findByUserAndViewport(
@@ -125,7 +130,7 @@ export class CreateBlockUseCase {
           gridW: position.gridW,
           gridH: position.gridH,
           isVisible: true,
-          pinnedAllTabs,
+          pinnedAllTabs: rowPinned,
           config: configResult.data,
         });
 

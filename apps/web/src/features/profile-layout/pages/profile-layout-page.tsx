@@ -58,6 +58,7 @@ import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
 import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
+import { SURFACE } from "../../../shared-components/surface";
 import { PublicProfilePreview } from "../../profile/components/public-profile-preview";
 import { CUSTOM_BLOCK_META } from "../block-meta";
 import { ButtonBlockDialog } from "../components/button-block-dialog";
@@ -136,6 +137,10 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
  * saving happened at all — and every mutation's `onError` just rolled the
  * optimistic patch back, so a failed save looked like the block spontaneously
  * snapping to its old position, silently, and again on every retry.
+ *
+ * It reads as plain helper text, not a chip: it lives in the page's status line
+ * (above the title) rather than competing for room with the controls in the
+ * toolbar. Phrasing content only — the status line is a `<p>`.
  */
 function SaveIndicator({
   status,
@@ -151,7 +156,7 @@ function SaveIndicator({
         variant="danger"
         size="sm"
         fullWidth={false}
-        className="rounded-2xl"
+        className="rounded-full"
         onClick={onRetry}
       >
         <FiAlertCircle className="h-4 w-4" aria-hidden="true" />
@@ -161,10 +166,10 @@ function SaveIndicator({
   }
 
   return (
-    <p
+    <span
       role="status"
       aria-live="polite"
-      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+      className="inline-flex items-center gap-1.5"
     >
       {status === "saving" ? (
         <>
@@ -180,12 +185,9 @@ function SaveIndicator({
           All changes saved
         </>
       ) : (
-        <>
-          <FiCheck className="h-3.5 w-3.5 opacity-0" aria-hidden="true" />
-          Changes save automatically
-        </>
+        "Changes save automatically"
       )}
-    </p>
+    </span>
   );
 }
 
@@ -209,7 +211,8 @@ export function ProfileLayoutPage() {
 
   // Autosave feedback for the debounced position writes (mutation state is
   // read straight off the mutations further down).
-  const [positionSaveState, setPositionSaveState] = useState<SaveStatus>("idle");
+  const [positionSaveState, setPositionSaveState] =
+    useState<SaveStatus>("idle");
   const retrySaveRef = useRef<(() => void) | null>(null);
 
   // `useSyncExternalStore`, not `useState` + `useEffect`: the media query IS an
@@ -387,12 +390,27 @@ export function ProfileLayoutPage() {
   const deleteTabMutation = useMutation({
     mutationFn: deleteTab,
     onMutate: (tabId: string) => {
-      const previous = patchLayout(viewport, (current) => ({
-        tabs: current.tabs.filter((tab) => tab.id !== tabId),
-        blocks: current.blocks.filter(
-          (block) => block.pinnedAllTabs || block.tabId !== tabId,
-        ),
-      }));
+      const previous = patchLayout(viewport, (current) => {
+        const remaining = current.tabs.filter((tab) => tab.id !== tabId);
+        // Mirrors the server: the deleted tab's blocks are NOT dropped — their
+        // content is shared with the other viewport's rows — they fall back to
+        // this viewport's first remaining tab.
+        const fallbackTabId =
+          [...remaining].sort((a, b) => a.order - b.order)[0]?.id ?? null;
+
+        return {
+          tabs: remaining,
+          blocks: current.blocks.map((block) =>
+            block.pinnedAllTabs || block.tabId !== tabId
+              ? block
+              : {
+                  ...block,
+                  tabId: fallbackTabId,
+                  pinnedAllTabs: fallbackTabId === null,
+                },
+          ),
+        };
+      });
       return { previous };
     },
     onError: (_error, _vars, context) => rollback(context?.previous),
@@ -702,8 +720,7 @@ export function ProfileLayoutPage() {
 
   const dialogBlock = editingBlock ?? null;
   const dialogKind: CustomBlockKind | null =
-    editingBlock &&
-    CUSTOM_KINDS.includes(editingBlock.kind as CustomBlockKind)
+    editingBlock && CUSTOM_KINDS.includes(editingBlock.kind as CustomBlockKind)
       ? (editingBlock.kind as CustomBlockKind)
       : addKind;
 
@@ -741,13 +758,38 @@ export function ProfileLayoutPage() {
       </div>
 
       <header className="anim-fade-up space-y-1">
-        <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">
+        {/*
+          One quiet status line for the page: which layout is being edited (the
+          toolbar's toggle switches it) and the autosave state. Both used to be
+          crammed into the toolbar — a chip wedged beside the controls plus a
+          separate sentence under the bar.
+        */}
+        {isTooNarrow ? null : (
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <span>
+              Editing the{" "}
+              <span className="font-semibold text-zinc-700 dark:text-zinc-200">
+                {viewport === "pc" ? "desktop" : "mobile"}
+              </span>{" "}
+              layout — desktop and mobile keep their own tabs and arrangement.
+            </span>
+            <span
+              aria-hidden="true"
+              className="text-zinc-300 dark:text-zinc-700"
+            >
+              •
+            </span>
+            <SaveIndicator status={saveStatus} onRetry={handleRetrySave} />
+          </p>
+        )}
+
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl dark:text-zinc-100">
           Profile layout
         </h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Design independent layouts for desktop and mobile. Arrange blocks in a
-          freeform grid, group them into content tabs, and pin blocks so they
-          show everywhere.
+          freeform grid, group them into content tabs — each viewport has its
+          own — and pin blocks so they show everywhere.
         </p>
       </header>
 
@@ -767,21 +809,27 @@ export function ProfileLayoutPage() {
             Open the layout studio on a larger screen
           </h2>
           <p className="max-w-sm text-sm text-zinc-600 dark:text-zinc-400">
-            Arranging blocks needs a canvas at least 1024px wide — on this screen
-            a grid column would be about 15px across. Your published profile is
-            unaffected, and you can still design the mobile layout from a
-            desktop browser.
+            Arranging blocks needs a canvas at least 1024px wide — on this
+            screen a grid column would be about 15px across. Your published
+            profile is unaffected, and you can still design the mobile layout
+            from a desktop browser.
           </p>
         </section>
       ) : (
-      <div className="w-full space-y-5">
+        <div className="w-full space-y-5">
           {/* Viewport switch + live-preview trigger */}
-          <div className="anim-fade-up flex flex-col gap-3 sm:flex-row sm:items-stretch">
-            <div className="flex flex-1 items-center gap-2 rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="anim-fade-up flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              className={`flex items-center gap-1 p-1.5 sm:inline-flex ${SURFACE}`}
+            >
               {(
                 [
                   { value: "pc", label: "PC layout", Icon: FiMonitor },
-                  { value: "mobile", label: "Mobile layout", Icon: FiSmartphone },
+                  {
+                    value: "mobile",
+                    label: "Mobile layout",
+                    Icon: FiSmartphone,
+                  },
                 ] as const
               ).map((option) => {
                 const isActive = viewport === option.value;
@@ -795,7 +843,9 @@ export function ProfileLayoutPage() {
                       setActiveTabId(null);
                     }}
                     className={[
-                      "inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition",
+                      // `flex-1` here (plus a `flex-1` bar) is what stretched
+                      // the toggle across the page; it sizes to its labels now.
+                      "inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition sm:flex-none",
                       isActive
                         ? "bg-violet-700 text-white shadow-sm dark:bg-violet-600"
                         : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800",
@@ -825,18 +875,7 @@ export function ProfileLayoutPage() {
               <FiEye className="h-4 w-4" aria-hidden="true" />
               Preview
             </Button>
-
-            <SaveIndicator status={saveStatus} onRetry={handleRetrySave} />
           </div>
-
-          <p className="anim-fade-up text-xs text-zinc-500 dark:text-zinc-400">
-            You are editing the{" "}
-            <span className="font-semibold text-violet-700 dark:text-violet-300">
-              {viewport === "pc" ? "desktop" : "mobile"}
-            </span>{" "}
-            layout. PC and mobile layouts are saved separately — switch above to
-            edit the other.
-          </p>
 
           {/* Pinned zone */}
           <section className="anim-fade-up space-y-3 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-500/30 dark:bg-violet-500/5">
@@ -930,9 +969,9 @@ export function ProfileLayoutPage() {
                     </button>
                     {/*
                       Unguarded before, and it sits 3px from the rename pencil:
-                      one mis-click deleted the tab AND every non-pinned block
-                      in it (see the optimistic patch in `deleteTabMutation`).
-                      Every other destructive action in the app confirms first.
+                      one mis-click destroyed a tab and dumped its blocks into
+                      another one. Every other destructive action in the app
+                      confirms first.
                     */}
                     <Button
                       type="button"
@@ -943,7 +982,7 @@ export function ProfileLayoutPage() {
                       disabled={orderedTabs.length <= 1}
                       shouldHaveConfirmation
                       confirmationTitle={`Delete “${tab.title}”?`}
-                      confirmationDescription="The tab and every block inside it are removed from this viewport's layout. Pinned blocks are kept. This can't be undone."
+                      confirmationDescription="The tab is removed from this layout only — the other viewport keeps its own tabs. Blocks inside it move to the first tab of this layout, and pinned blocks are untouched."
                       onClick={() => handleDeleteTab(tab.id)}
                       className="h-6 w-6 p-0 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
                     >
@@ -1056,7 +1095,7 @@ export function ProfileLayoutPage() {
               />
             )}
           </section>
-      </div>
+        </div>
       )}
 
       {/* Live preview modal */}

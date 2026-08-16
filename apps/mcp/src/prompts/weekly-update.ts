@@ -16,8 +16,10 @@ const argsSchema = {
     .string()
     .optional()
     .describe(
-      "Repository name to summarize, e.g. 'linkhub-v.1'. Defaults to the git " +
-        "repository in the current working directory.",
+      "Narrow the run to ONE repository, e.g. 'linkhub-v.1'. Omit it — the " +
+        "normal case — and the post covers every repository listed in " +
+        "~/.linkhub/repos.json (or the extractor's settings, or the current " +
+        "working directory if neither exists).",
     ),
   status: z
     .string()
@@ -105,8 +107,11 @@ export function registerWeeklyUpdate(
     {
       title: "Turn my commits into a LinkHub post",
       description:
-        "Summarize recent git work into a recruiter-quality LinkHub post. " +
-        "Walks you through reading the git log for the period, extracting what " +
+        "Summarize recent git work into a recruiter-quality LinkHub post — one " +
+        "post covering EVERY repository the user configured in " +
+        "~/.linkhub/repos.json, not just the current directory. " +
+        "Walks you through resolving the repository set, reading each one's git " +
+        "log for the period, extracting what " +
         "actually shipped and its impact, writing it in LinkHub house style " +
         "(outcome over mechanics, real metrics, named stack), stripping " +
         "secrets and internal identifiers, and publishing with " +
@@ -120,7 +125,7 @@ export function registerWeeklyUpdate(
 
       return {
         description: `Turn ${window.label} of commits${
-          args.repo ? ` in ${args.repo}` : ""
+          args.repo ? ` in ${args.repo}` : " across every configured repository"
         } into a LinkHub post`,
         messages: [
           {

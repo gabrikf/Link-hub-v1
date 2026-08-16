@@ -8,12 +8,6 @@ export interface IProfileTabsRepository {
     viewport: ProfileViewport,
     tx?: TransactionContext,
   ): Promise<ProfileTabEntity[]>;
-  /** All tab rows (both viewports) sharing a logical identity. */
-  findByGroupId(
-    userId: string,
-    groupId: string,
-    tx?: TransactionContext,
-  ): Promise<ProfileTabEntity[]>;
   findById(
     id: string,
     tx?: TransactionContext,
@@ -23,9 +17,8 @@ export interface IProfileTabsRepository {
     tx?: TransactionContext,
   ): Promise<ProfileTabEntity>;
   rename(id: string, title: string): Promise<ProfileTabEntity>;
-  delete(id: string): Promise<void>;
-  /** Delete every tab row (both viewports) sharing a logical identity. */
-  deleteByGroupId(groupId: string, tx?: TransactionContext): Promise<void>;
+  /** Delete a single tab row — tabs are per-viewport, so this never touches the other viewport. */
+  delete(id: string, tx?: TransactionContext): Promise<void>;
   reorder(
     userId: string,
     viewport: ProfileViewport,

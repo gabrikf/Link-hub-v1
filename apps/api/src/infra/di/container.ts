@@ -18,7 +18,10 @@ import { IResumeSectionEmbeddingsRepository } from "../../core/repositories/resu
 import { IResumeSearchRepository } from "../../core/repositories/resume-search/resume-search-repository.js";
 import { ICandidateInteractionRepository } from "../../core/repositories/candidate-interaction/candidate-interaction-repository.js";
 import { IWorkExperienceRepository } from "../../core/repositories/work-experience/work-experience-repository.js";
+import { IGitConnectionRepository } from "../../core/repositories/git-connection/git-connection-repository.js";
+import { IActivityEventRepository } from "../../core/repositories/activity-event/activity-event-repository.js";
 import { IHashProvider } from "../../core/providers/hash/hash-provider.js";
+import { IWebhookSecretProvider } from "../../core/providers/webhook-secret/webhook-secret-provider.js";
 import { IJwtProvider } from "../../core/providers/jwt/jwt-provider.js";
 import { ITokenProvider } from "../../core/providers/token/token-provider.js";
 import { IEmbeddingProvider } from "../../core/providers/embedding/embedding-provider.js";
@@ -26,6 +29,7 @@ import { IRecruiterQueryConversionProvider } from "../../core/providers/query-co
 import { IGoogleOAuthProvider } from "../../core/providers/oauth/google-oauth-provider.js";
 import { ILinkedInOAuthProvider } from "../../core/providers/oauth/linkedin-oauth-provider.js";
 import { IResumeEmbeddingQueue } from "../../core/providers/queue/resume-embedding-queue.js";
+import { IActivityDigestQueue } from "../../core/providers/queue/activity-digest-queue.js";
 import { IResumeParsingProvider } from "../../core/providers/resume-parsing/resume-parsing-provider.js";
 import { IFileStorageProvider } from "../../core/providers/storage/file-storage-provider.js";
 import { IUnitOfWork } from "../../core/providers/unit-of-work/unit-of-work.js";
@@ -47,10 +51,13 @@ import { DrizzleResumeSectionEmbeddingsRepository } from "../database/drizzle/re
 import { DrizzleResumeSearchRepository } from "../database/drizzle/repositories/resume-search.repository.js";
 import { DrizzleCandidateInteractionRepository } from "../database/drizzle/repositories/candidate-interaction.repository.js";
 import { DrizzleWorkExperienceRepository } from "../database/drizzle/repositories/work-experience.repository.js";
+import { DrizzleGitConnectionRepository } from "../database/drizzle/repositories/git-connection.repository.js";
+import { DrizzleActivityEventRepository } from "../database/drizzle/repositories/activity-event.repository.js";
 import { DrizzleUnitOfWork } from "../database/drizzle/drizzle-unit-of-work.js";
 import { Argon2HashProvider } from "../providers/argon2-hash-provider.js";
 import { JwtProvider } from "../providers/jwt-provider.js";
 import { CryptoTokenProvider } from "../providers/crypto-token-provider.js";
+import { CryptoWebhookSecretProvider } from "../providers/crypto-webhook-secret-provider.js";
 import { OpenAiEmbeddingProvider } from "../providers/openai-embedding-provider.js";
 import { CachedEmbeddingProvider } from "../providers/cached-embedding-provider.js";
 import { DeterministicEmbeddingProvider } from "../providers/deterministic-embedding-provider.js";
@@ -59,6 +66,7 @@ import { OpenAiRecruiterQueryConversionProvider } from "../providers/openai-recr
 import { GoogleOAuthProvider } from "../providers/google-oauth-provider.js";
 import { LinkedInOAuthProvider } from "../providers/linkedin-oauth-provider.js";
 import { BullMqResumeEmbeddingQueue } from "../providers/bullmq-resume-embedding-queue.js";
+import { BullMqActivityDigestQueue } from "../providers/bullmq-activity-digest-queue.js";
 import { OpenAiResumeParsingProvider } from "../providers/openai-resume-parsing-provider.js";
 import { DeterministicResumeParsingProvider } from "../providers/deterministic-resume-parsing-provider.js";
 import {
@@ -119,6 +127,7 @@ import { ListPublicPostsUseCase } from "../../core/use-case/posts/list-public-po
 import { GetPostUseCase } from "../../core/use-case/posts/get-post-use-case/get-post.use-case.js";
 import { UpdatePostUseCase } from "../../core/use-case/posts/update-post-use-case/update-post.use-case.js";
 import { DeletePostUseCase } from "../../core/use-case/posts/delete-post-use-case/delete-post.use-case.js";
+import { ApprovePostUseCase } from "../../core/use-case/posts/approve-post-use-case/approve-post.use-case.js";
 import { GetAgentPolicyUseCase } from "../../core/use-case/agent-policy/get-agent-policy-use-case/get-agent-policy.use-case.js";
 import { UpdateAgentPolicyUseCase } from "../../core/use-case/agent-policy/update-agent-policy-use-case/update-agent-policy.use-case.js";
 import { GetWorkContextUseCase } from "../../core/use-case/agent-policy/get-work-context-use-case/get-work-context.use-case.js";
@@ -126,6 +135,16 @@ import { SetWorkExperienceDisclosureUseCase } from "../../core/use-case/agent-po
 import { CreateApiTokenUseCase } from "../../core/use-case/api-tokens/create-api-token-use-case/create-api-token.use-case.js";
 import { ListApiTokensUseCase } from "../../core/use-case/api-tokens/list-api-tokens-use-case/list-api-tokens.use-case.js";
 import { RevokeApiTokenUseCase } from "../../core/use-case/api-tokens/revoke-api-token-use-case/revoke-api-token.use-case.js";
+import { CreateGitConnectionUseCase } from "../../core/use-case/activity/create-git-connection-use-case/create-git-connection.use-case.js";
+import { ListGitConnectionsUseCase } from "../../core/use-case/activity/list-git-connections-use-case/list-git-connections.use-case.js";
+import { UpdateGitConnectionUseCase } from "../../core/use-case/activity/update-git-connection-use-case/update-git-connection.use-case.js";
+import { DeleteGitConnectionUseCase } from "../../core/use-case/activity/delete-git-connection-use-case/delete-git-connection.use-case.js";
+import { BuildCandidateEvidenceUseCase } from "../../core/use-case/activity/build-candidate-evidence-use-case/build-candidate-evidence.use-case.js";
+import { GenerateActivityDigestUseCase } from "../../core/use-case/activity/generate-activity-digest-use-case/generate-activity-digest.use-case.js";
+import { SweepDueActivityDigestsUseCase } from "../../core/use-case/activity/sweep-due-activity-digests-use-case/sweep-due-activity-digests.use-case.js";
+import { IngestActivityUseCase } from "../../core/use-case/activity/ingest-activity-use-case/ingest-activity.use-case.js";
+import { GetConnectionHealthUseCase } from "../../core/use-case/activity/get-connection-health-use-case/get-connection-health.use-case.js";
+import { PreviewActivityDigestUseCase } from "../../core/use-case/activity/preview-activity-digest-use-case/preview-activity-digest.use-case.js";
 
 // Tokens for dependency injection
 export const TOKENS = {
@@ -149,9 +168,12 @@ export const TOKENS = {
   ResumeSearchRepository: Symbol.for("ResumeSearchRepository"),
   CandidateInteractionRepository: Symbol.for("CandidateInteractionRepository"),
   WorkExperienceRepository: Symbol.for("WorkExperienceRepository"),
+  GitConnectionRepository: Symbol.for("GitConnectionRepository"),
+  ActivityEventRepository: Symbol.for("ActivityEventRepository"),
   HashProvider: Symbol.for("HashProvider"),
   JwtProvider: Symbol.for("JwtProvider"),
   TokenProvider: Symbol.for("TokenProvider"),
+  WebhookSecretProvider: Symbol.for("WebhookSecretProvider"),
   EmbeddingProvider: Symbol.for("EmbeddingProvider"),
   RecruiterQueryConversionProvider: Symbol.for(
     "RecruiterQueryConversionProvider",
@@ -160,6 +182,7 @@ export const TOKENS = {
   FileStorageProvider: Symbol.for("FileStorageProvider"),
   UnitOfWork: Symbol.for("UnitOfWork"),
   ResumeEmbeddingQueue: Symbol.for("ResumeEmbeddingQueue"),
+  ActivityDigestQueue: Symbol.for("ActivityDigestQueue"),
   GoogleOAuthProvider: Symbol.for("GoogleOAuthProvider"),
   LinkedInOAuthProvider: Symbol.for("LinkedInOAuthProvider"),
   CreateUserUseCase: Symbol.for("CreateUserUseCase"),
@@ -227,6 +250,7 @@ export const TOKENS = {
   GetPostUseCase: Symbol.for("GetPostUseCase"),
   UpdatePostUseCase: Symbol.for("UpdatePostUseCase"),
   DeletePostUseCase: Symbol.for("DeletePostUseCase"),
+  ApprovePostUseCase: Symbol.for("ApprovePostUseCase"),
   GetAgentPolicyUseCase: Symbol.for("GetAgentPolicyUseCase"),
   UpdateAgentPolicyUseCase: Symbol.for("UpdateAgentPolicyUseCase"),
   GetWorkContextUseCase: Symbol.for("GetWorkContextUseCase"),
@@ -236,6 +260,16 @@ export const TOKENS = {
   CreateApiTokenUseCase: Symbol.for("CreateApiTokenUseCase"),
   ListApiTokensUseCase: Symbol.for("ListApiTokensUseCase"),
   RevokeApiTokenUseCase: Symbol.for("RevokeApiTokenUseCase"),
+  CreateGitConnectionUseCase: Symbol.for("CreateGitConnectionUseCase"),
+  ListGitConnectionsUseCase: Symbol.for("ListGitConnectionsUseCase"),
+  UpdateGitConnectionUseCase: Symbol.for("UpdateGitConnectionUseCase"),
+  DeleteGitConnectionUseCase: Symbol.for("DeleteGitConnectionUseCase"),
+  IngestActivityUseCase: Symbol.for("IngestActivityUseCase"),
+  GetConnectionHealthUseCase: Symbol.for("GetConnectionHealthUseCase"),
+  PreviewActivityDigestUseCase: Symbol.for("PreviewActivityDigestUseCase"),
+  BuildCandidateEvidenceUseCase: Symbol.for("BuildCandidateEvidenceUseCase"),
+  GenerateActivityDigestUseCase: Symbol.for("GenerateActivityDigestUseCase"),
+  SweepDueActivityDigestsUseCase: Symbol.for("SweepDueActivityDigestsUseCase"),
 } as const;
 
 /**
@@ -330,6 +364,14 @@ export function setupContainer() {
     },
   );
 
+  container.register<IGitConnectionRepository>(TOKENS.GitConnectionRepository, {
+    useClass: DrizzleGitConnectionRepository,
+  });
+
+  container.register<IActivityEventRepository>(TOKENS.ActivityEventRepository, {
+    useClass: DrizzleActivityEventRepository,
+  });
+
   // Register providers
   container.register<IUnitOfWork>(TOKENS.UnitOfWork, {
     useClass: DrizzleUnitOfWork,
@@ -351,6 +393,10 @@ export function setupContainer() {
 
   container.register<ITokenProvider>(TOKENS.TokenProvider, {
     useClass: CryptoTokenProvider,
+  });
+
+  container.register<IWebhookSecretProvider>(TOKENS.WebhookSecretProvider, {
+    useClass: CryptoWebhookSecretProvider,
   });
 
   container.register<IEmbeddingProvider>(TOKENS.EmbeddingProvider, {
@@ -380,6 +426,14 @@ export function setupContainer() {
   container.register<IResumeEmbeddingQueue>(TOKENS.ResumeEmbeddingQueue, {
     useClass: BullMqResumeEmbeddingQueue,
   });
+
+  // Registered as a singleton: it owns a Redis connection and the sweep's job
+  // scheduler, and a fresh queue (plus a fresh socket) per resolution would leak
+  // connections on every enqueue.
+  container.registerSingleton<IActivityDigestQueue>(
+    TOKENS.ActivityDigestQueue,
+    BullMqActivityDigestQueue,
+  );
 
   container.register<IRecruiterQueryConversionProvider>(
     TOKENS.RecruiterQueryConversionProvider,
@@ -640,9 +694,8 @@ export function setupContainer() {
       const profileTabsRepository = c.resolve<IProfileTabsRepository>(
         TOKENS.ProfileTabsRepository,
       );
-      const unitOfWork = c.resolve<IUnitOfWork>(TOKENS.UnitOfWork);
 
-      return new CreateTabUseCase(profileTabsRepository, unitOfWork);
+      return new CreateTabUseCase(profileTabsRepository);
     },
   });
 
@@ -1466,6 +1519,27 @@ export function setupContainer() {
     },
   });
 
+  container.register<ApprovePostUseCase>(TOKENS.ApprovePostUseCase, {
+    useFactory: (c) => {
+      const postsRepository = c.resolve<IPostRepository>(
+        TOKENS.PostsRepository,
+      );
+      const resumesRepository = c.resolve<IResumesRepository>(
+        TOKENS.ResumesRepository,
+      );
+      const enqueueResumeEmbeddingUseCase =
+        c.resolve<EnqueueResumeEmbeddingUseCase>(
+          TOKENS.EnqueueResumeEmbeddingUseCase,
+        );
+
+      return new ApprovePostUseCase(
+        postsRepository,
+        resumesRepository,
+        enqueueResumeEmbeddingUseCase,
+      );
+    },
+  });
+
   container.register<GetAgentPolicyUseCase>(TOKENS.GetAgentPolicyUseCase, {
     useFactory: (c) => {
       const usersRepository = c.resolve<IUsersRepository>(
@@ -1569,6 +1643,215 @@ export function setupContainer() {
       return new RevokeApiTokenUseCase(apiTokenRepository);
     },
   });
+
+  container.register<CreateGitConnectionUseCase>(
+    TOKENS.CreateGitConnectionUseCase,
+    {
+      useFactory: (c) => {
+        const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+          TOKENS.GitConnectionRepository,
+        );
+        const usersRepository = c.resolve<IUsersRepository>(
+          TOKENS.UsersRepository,
+        );
+        const webhookSecretProvider = c.resolve<IWebhookSecretProvider>(
+          TOKENS.WebhookSecretProvider,
+        );
+
+        return new CreateGitConnectionUseCase(
+          gitConnectionRepository,
+          usersRepository,
+          webhookSecretProvider,
+        );
+      },
+    },
+  );
+
+  container.register<ListGitConnectionsUseCase>(
+    TOKENS.ListGitConnectionsUseCase,
+    {
+      useFactory: (c) => {
+        const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+          TOKENS.GitConnectionRepository,
+        );
+
+        return new ListGitConnectionsUseCase(gitConnectionRepository);
+      },
+    },
+  );
+
+  container.register<UpdateGitConnectionUseCase>(
+    TOKENS.UpdateGitConnectionUseCase,
+    {
+      useFactory: (c) => {
+        const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+          TOKENS.GitConnectionRepository,
+        );
+
+        return new UpdateGitConnectionUseCase(gitConnectionRepository);
+      },
+    },
+  );
+
+  container.register<DeleteGitConnectionUseCase>(
+    TOKENS.DeleteGitConnectionUseCase,
+    {
+      useFactory: (c) => {
+        const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+          TOKENS.GitConnectionRepository,
+        );
+
+        return new DeleteGitConnectionUseCase(gitConnectionRepository);
+      },
+    },
+  );
+
+  container.register<IngestActivityUseCase>(TOKENS.IngestActivityUseCase, {
+    useFactory: (c) => {
+      const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+        TOKENS.GitConnectionRepository,
+      );
+      const activityEventRepository = c.resolve<IActivityEventRepository>(
+        TOKENS.ActivityEventRepository,
+      );
+      // Shared with the PAT lookup path on purpose: `hash()` is the one sha-256
+      // in the process, so a fingerprint computed here and one computed by the
+      // guard can never disagree.
+      const tokenProvider = c.resolve<ITokenProvider>(TOKENS.TokenProvider);
+
+      return new IngestActivityUseCase(
+        gitConnectionRepository,
+        activityEventRepository,
+        tokenProvider,
+      );
+    },
+  });
+
+  container.register<GetConnectionHealthUseCase>(
+    TOKENS.GetConnectionHealthUseCase,
+    {
+      useFactory: (c) => {
+        const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+          TOKENS.GitConnectionRepository,
+        );
+        const activityEventRepository = c.resolve<IActivityEventRepository>(
+          TOKENS.ActivityEventRepository,
+        );
+
+        return new GetConnectionHealthUseCase(
+          gitConnectionRepository,
+          activityEventRepository,
+        );
+      },
+    },
+  );
+
+  container.register<PreviewActivityDigestUseCase>(
+    TOKENS.PreviewActivityDigestUseCase,
+    {
+      useFactory: (c) => {
+        const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+          TOKENS.GitConnectionRepository,
+        );
+        const usersRepository = c.resolve<IUsersRepository>(
+          TOKENS.UsersRepository,
+        );
+        // NOT optional, for the same reason as on the digest generator: a
+        // missing work-experience repository would not degrade to "no
+        // enforcement" — it would preview a work connection's text at the
+        // account default level.
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+        const buildCandidateEvidenceUseCase =
+          c.resolve<BuildCandidateEvidenceUseCase>(
+            TOKENS.BuildCandidateEvidenceUseCase,
+          );
+
+        return new PreviewActivityDigestUseCase(
+          gitConnectionRepository,
+          usersRepository,
+          workExperienceRepository,
+          buildCandidateEvidenceUseCase,
+        );
+      },
+    },
+  );
+
+  container.register<BuildCandidateEvidenceUseCase>(
+    TOKENS.BuildCandidateEvidenceUseCase,
+    {
+      useFactory: (c) => {
+        const activityEventRepository = c.resolve<IActivityEventRepository>(
+          TOKENS.ActivityEventRepository,
+        );
+
+        return new BuildCandidateEvidenceUseCase(activityEventRepository);
+      },
+    },
+  );
+
+  container.register<GenerateActivityDigestUseCase>(
+    TOKENS.GenerateActivityDigestUseCase,
+    {
+      useFactory: (c) => {
+        const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+          TOKENS.GitConnectionRepository,
+        );
+        const postsRepository = c.resolve<IPostRepository>(
+          TOKENS.PostsRepository,
+        );
+        const usersRepository = c.resolve<IUsersRepository>(
+          TOKENS.UsersRepository,
+        );
+        // NOT optional here, unlike on `CreatePostUseCase`. The digest resolves
+        // its disclosure level through the work history, so a missing work
+        // experience repository would not degrade to "no enforcement" — it
+        // would publish a work connection's digest at the account default.
+        const workExperienceRepository = c.resolve<IWorkExperienceRepository>(
+          TOKENS.WorkExperienceRepository,
+        );
+        const buildCandidateEvidenceUseCase =
+          c.resolve<BuildCandidateEvidenceUseCase>(
+            TOKENS.BuildCandidateEvidenceUseCase,
+          );
+        // Reused rather than writing posts directly, so a digest goes through
+        // the same creation path (and the same disclosure check) as an MCP
+        // agent's post.
+        const createPostUseCase = c.resolve<CreatePostUseCase>(
+          TOKENS.CreatePostUseCase,
+        );
+
+        return new GenerateActivityDigestUseCase(
+          gitConnectionRepository,
+          postsRepository,
+          usersRepository,
+          workExperienceRepository,
+          buildCandidateEvidenceUseCase,
+          createPostUseCase,
+        );
+      },
+    },
+  );
+
+  container.register<SweepDueActivityDigestsUseCase>(
+    TOKENS.SweepDueActivityDigestsUseCase,
+    {
+      useFactory: (c) => {
+        const gitConnectionRepository = c.resolve<IGitConnectionRepository>(
+          TOKENS.GitConnectionRepository,
+        );
+        const activityDigestQueue = c.resolve<IActivityDigestQueue>(
+          TOKENS.ActivityDigestQueue,
+        );
+
+        return new SweepDueActivityDigestsUseCase(
+          gitConnectionRepository,
+          activityDigestQueue,
+        );
+      },
+    },
+  );
 
   return container;
 }

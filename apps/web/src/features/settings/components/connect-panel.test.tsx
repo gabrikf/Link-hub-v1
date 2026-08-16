@@ -46,8 +46,8 @@ describe("ConnectPanel", () => {
     expect(
       screen.getByText(/filled in with the token you just created/i),
     ).toBeInTheDocument();
-    // The token is unrecoverable after a reload, so say so.
-    expect(screen.getByText(/gone as soon as you reload/i)).toBeInTheDocument();
+    // The token dies with the tab (session-scoped stash), so say exactly that.
+    expect(screen.getByText(/gone when this tab closes/i)).toBeInTheDocument();
   });
 
   it("switches the visible snippet when another tool tab is selected", async () => {
@@ -118,10 +118,16 @@ describe("ConnectPanel", () => {
     const { container } = render(<ConnectPanel token={null} />);
 
     await user.click(screen.getByRole("tab", { name: "Claude Code" }));
-    expect(codeTextOf(container)).toContain("/linkhub:weekly_update");
+    expect(codeTextOf(container)).toContain("/mcp__linkhub__weekly_update");
 
     await user.click(screen.getByRole("tab", { name: "VS Code" }));
     expect(codeTextOf(container)).toContain("/mcp.linkhub.weekly_update");
+
+    // Claude Desktop has no slash commands at all. Showing "/weekly_update"
+    // in a copy box is what sent users to type it and get "Unknown command".
+    await user.click(screen.getByRole("tab", { name: "Claude Desktop" }));
+    expect(codeTextOf(container)).toContain("+ menu → linkhub → weekly_update");
+    expect(codeTextOf(container)).not.toContain("/weekly_update");
   });
 
   it("describes what the agent collects from commits", () => {

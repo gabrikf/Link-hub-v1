@@ -17,11 +17,23 @@ vi.mock("react-easy-crop", () => ({
   default: function CropperStub({
     zoom,
     rotation,
+    aspect,
+    cropShape,
+    objectFit,
+    restrictPosition,
+    zoomWithScroll,
     onCropComplete,
+    onZoomChange,
   }: {
     zoom: number;
     rotation: number;
+    aspect?: number;
+    cropShape?: string;
+    objectFit?: string;
+    restrictPosition?: boolean;
+    zoomWithScroll?: boolean;
     onCropComplete?: (area: unknown, pixels: unknown) => void;
+    onZoomChange?: (zoom: number) => void;
   }) {
     useEffect(() => {
       if (!cropperStub.emitsCropArea) return;
@@ -36,7 +48,22 @@ vi.mock("react-easy-crop", () => ({
         data-testid="cropper"
         data-zoom={String(zoom)}
         data-rotation={String(rotation)}
-      />
+        data-aspect={String(aspect)}
+        data-crop-shape={String(cropShape)}
+        data-object-fit={String(objectFit)}
+        data-restrict-position={String(restrictPosition)}
+        data-zoom-with-scroll={String(zoomWithScroll)}
+      >
+        {/* Stand-ins for a wheel / pinch gesture. react-easy-crop reports those
+            through `onZoomChange` with a RAW value, so the clamp has to live on
+            our side of the callback, not only on the slider. */}
+        <button type="button" onClick={() => onZoomChange?.(12)}>
+          stub gesture zoom past max
+        </button>
+        <button type="button" onClick={() => onZoomChange?.(-4)}>
+          stub gesture zoom past min
+        </button>
+      </div>
     );
   },
 }));
@@ -221,6 +248,60 @@ describe("AvatarCropper object-URL lifecycle", () => {
   });
 });
 
+/**
+ * These are the props that produce the Instagram/WhatsApp crop frame, and each
+ * one is load-bearing: drop `restrictPosition` and the photo can be dragged off
+ * the mask leaving empty gaps inside the circle; drop `objectFit="cover"` and it
+ * starts letterboxed instead of filling the frame; drop `aspect` and the output
+ * stops being square.
+ */
+describe("AvatarCropper crop frame", () => {
+  it("locks a circular 1:1 frame the image cannot be panned out of", () => {
+    render(
+      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+    );
+
+    const cropper = screen.getByTestId("cropper");
+    expect(cropper).toHaveAttribute("data-aspect", "1");
+    expect(cropper).toHaveAttribute("data-crop-shape", "round");
+    expect(cropper).toHaveAttribute("data-object-fit", "cover");
+    expect(cropper).toHaveAttribute("data-restrict-position", "true");
+  });
+
+  it("zooms with the scroll wheel / pinch as well as the slider", () => {
+    render(
+      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+    );
+
+    expect(screen.getByTestId("cropper")).toHaveAttribute(
+      "data-zoom-with-scroll",
+      "true",
+    );
+  });
+
+  it("hands the zoomed crop rectangle straight to the rasteriser", async () => {
+    render(
+      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+    );
+
+    fireEvent.change(screen.getByRole("slider", { name: "Zoom" }), {
+      target: { value: "2" },
+    });
+    fireEvent.click(saveButton());
+
+    // The reported area is in SOURCE pixels; it must reach `getCroppedImg`
+    // untouched, since that is the only place it gets scaled.
+    await waitFor(() =>
+      expect(getCroppedImgMock.mock.calls[0][1]).toEqual({
+        x: 12,
+        y: 34,
+        width: 400,
+        height: 400,
+      }),
+    );
+  });
+});
+
 describe("AvatarCropper controls", () => {
   const zoomSlider = () => screen.getByRole("slider", { name: "Zoom" });
 
@@ -271,6 +352,22 @@ describe("AvatarCropper controls", () => {
 
     fireEvent.click(rotate);
     expect(cropper()).toHaveAttribute("data-rotation", "0");
+  });
+
+  it("clamps a wheel/pinch zoom that overshoots either end", () => {
+    render(
+      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /stub gesture zoom past max/i }),
+    );
+    expect(screen.getByTestId("cropper")).toHaveAttribute("data-zoom", "4");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /stub gesture zoom past min/i }),
+    );
+    expect(screen.getByTestId("cropper")).toHaveAttribute("data-zoom", "1");
   });
 
   it("resets zoom and rotation when a new file arrives", () => {

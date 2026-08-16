@@ -19,6 +19,14 @@ const AVAILABLE_SCOPES: Array<{ value: ApiTokenScope; description: string }> = [
     description:
       "Read your work history, already redacted to your disclosure level. Without it your agent assumes the strictest level and can't name any employer.",
   },
+  {
+    value: "activity:write",
+    // Kept OUT of DEFAULT_SCOPES on purpose: only the hook and the extractor
+    // upload activity, and an agent token has no business appending to the
+    // activity log.
+    description:
+      "Upload sanitized activity metadata (extractor / Claude hook). Not granted by default.",
+  },
 ];
 
 const DEFAULT_SCOPES: ApiTokenScope[] = [

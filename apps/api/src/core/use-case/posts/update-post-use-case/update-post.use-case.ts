@@ -15,6 +15,10 @@ import {
   loadDisclosureContext,
 } from "../../agent-policy/enforce-post-disclosure.js";
 import { EnqueueResumeEmbeddingUseCase } from "../../resumes/enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
+import {
+  assertMachineAuthoredPostIsImmutable,
+  assertPostStatusTransition,
+} from "../shared/post-status-rules.js";
 import { reembedResumeAfterPost } from "../shared/reembed-resume-after-post.js";
 
 /**
@@ -27,12 +31,33 @@ function afterPatch<T>(patched: T | undefined, current: T): T {
   return patched === undefined ? current : patched;
 }
 
+/**
+ * NOTE the absence of `source`, and do not add it back.
+ *
+ * `source` is provenance — a claim about WHO WROTE the text — not content, and
+ * there is no legitimate reason to change who wrote something after the fact.
+ * It is set once, at creation, where `CreatePostUseCase` forces `manual` unless
+ * the caller authenticated with a PAT.
+ *
+ * Accepting it here was a forgery hole in both directions, and neither was
+ * caught by `assertMachineAuthoredPostIsImmutable`:
+ *
+ * - Upward: that assertion is a NO-OP for a `manual` post, so a web/JWT user
+ *   could hand-write a post and then PATCH `source: "commit"` onto it, minting
+ *   the machine-authored badge the review feature exists to make trustworthy.
+ * - Downward: relabelling a machine post to `manual` would unlock the very
+ *   content edits that assertion prevents.
+ *
+ * The field is DROPPED rather than validated. A validated field is one an
+ * accidental `if` can re-open; a field that does not exist in the input type,
+ * in the request schema, or in `PostEntity.updateContent` cannot be set by any
+ * caller on any path — web session, PAT, or the MCP `update_post` tool.
+ */
 export interface IUpdatePostInput {
   userId: string;
   postId: string;
   /** How the caller authenticated — only PATs are subject to the disclosure policy. */
   authType?: "jwt" | "pat";
-  source?: PostSource;
   title?: string | null;
   body?: string;
   coverImageUrl?: string | null;
@@ -62,6 +87,18 @@ export class UpdatePostUseCase {
 
     if (post.userId !== input.userId) {
       throw new ForbiddenError("You do not have access to this post");
+    }
+
+    // Provenance first: a post the user did not write themselves accepts a
+    // status change — plus, for the OWNER in a real session, an externalUrl —
+    // and nothing else. Checked before the disclosure policy because a
+    // rejected patch should not even load context. The authType matters here:
+    // a PAT may not attach a link either, or an agent could retarget what a
+    // frozen post's text appears to vouch for.
+    assertMachineAuthoredPostIsImmutable(post.source, input, input.authType);
+
+    if (input.status !== undefined) {
+      assertPostStatusTransition(post.status, input.status);
     }
 
     // A partial update still has to be checked against the FULL resulting post:
@@ -96,7 +133,7 @@ export class UpdatePostUseCase {
         : undefined;
 
     post.updateContent({
-      source: input.source,
+      // No `source`: provenance is write-once, see `IUpdatePostInput`.
       title: input.title,
       body: input.body,
       coverImageUrl: input.coverImageUrl,

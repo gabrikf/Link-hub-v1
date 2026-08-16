@@ -162,6 +162,140 @@ describe("Posts E2E (JWT session)", () => {
     expect(getResponse.statusCode).toBe(403);
   });
 
+  describe("machine-authored posts: review, approve, never edit", () => {
+    async function seedPendingReviewPost(userId: string) {
+      const post = makePost({
+        userId,
+        source: "commit",
+        title: "Weekly update",
+        body: "written by software",
+        status: "pending_review",
+        publishedAt: null,
+      });
+      await ctx.postsRepository.create(post);
+      return post;
+    }
+
+    it("accepts status='pending_review' on create and keeps publishedAt null", async () => {
+      const { token } = await authedUser();
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: "awaiting review", status: "pending_review" }),
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json().status).toBe("pending_review");
+      expect(response.json().publishedAt).toBeNull();
+    });
+
+    it("returns 403 when patching the CONTENT of a machine-authored post", async () => {
+      const { user, token } = await authedUser();
+      const post = await seedPendingReviewPost(user.id);
+
+      const response = await ctx.app.inject({
+        method: "PATCH",
+        url: `/me/posts/${post.id}`,
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: "polished by the candidate" }),
+      });
+
+      expect(response.statusCode).toBe(403);
+      const stored = await ctx.postsRepository.findById(post.id);
+      expect(stored!.body).toBe("written by software");
+    });
+
+    it("approves a pending_review post (200) and publishes it verbatim", async () => {
+      const { user, token } = await authedUser();
+      const post = await seedPendingReviewPost(user.id);
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: `/me/posts/${post.id}/approve`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const approved = response.json();
+      expect(approved.status).toBe("published");
+      expect(approved.publishedAt).not.toBeNull();
+      expect(approved.body).toBe("written by software");
+    });
+
+    it("keeps a pending_review post out of the public feed until it is approved", async () => {
+      const author = await ctx.seedUser({ login: "reviewer" });
+      const token = await ctx.signJwt(author.id);
+      const post = await seedPendingReviewPost(author.id);
+
+      const before = await ctx.app.inject({
+        method: "GET",
+        url: "/profile/reviewer/posts",
+      });
+      expect(before.json()).toHaveLength(0);
+
+      await ctx.app.inject({
+        method: "POST",
+        url: `/me/posts/${post.id}/approve`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      const after = await ctx.app.inject({
+        method: "GET",
+        url: "/profile/reviewer/posts",
+      });
+      expect(after.json()).toHaveLength(1);
+    });
+
+    it("returns 403 when approving someone else's post", async () => {
+      const { token } = await authedUser();
+      const otherUser = await ctx.seedUser();
+      const foreignPost = await seedPendingReviewPost(otherUser.id);
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: `/me/posts/${foreignPost.id}/approve`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.statusCode).toBe(403);
+    });
+
+    it("returns 401 when approving without a token", async () => {
+      const { user } = await authedUser();
+      const post = await seedPendingReviewPost(user.id);
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: `/me/posts/${post.id}/approve`,
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("returns 400 when un-publishing a post via PATCH", async () => {
+      const { user, token } = await authedUser();
+      const post = makePost({
+        userId: user.id,
+        source: "manual",
+        body: "public",
+        status: "published",
+        publishedAt: new Date(),
+      });
+      await ctx.postsRepository.create(post);
+
+      const response = await ctx.app.inject({
+        method: "PATCH",
+        url: `/me/posts/${post.id}`,
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "draft" }),
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+  });
+
   it("returns 404 when getting a missing (but well-formed) post id", async () => {
     const { token } = await authedUser();
     const missingId = crypto.randomUUID();
@@ -291,6 +425,40 @@ describe("Public feed E2E — GET /profile/:username/posts (no auth)", () => {
     expect(
       posts.every((p: { status: string }) => p.status === "published"),
     ).toBe(true);
+  });
+
+  it("never serves post metadata publicly — it can hold a repository name", async () => {
+    const author = await ctx.seedUser({ login: "author" });
+
+    await ctx.postsRepository.create(
+      makePost({
+        userId: author.id,
+        // A commit-summary post: the one writer that fills metadata, because a
+        // coding agent supplies it rather than the deterministic template.
+        source: "commit",
+        body: "published",
+        status: "published",
+        publishedAt: new Date("2024-03-01"),
+        metadata: {
+          repo: "acme-internal-billing",
+          commitCount: 12,
+          period: "weekly",
+        },
+      }),
+    );
+
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/profile/author/posts",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const [post] = response.json();
+    expect(post.body).toBe("published");
+    expect(post).not.toHaveProperty("metadata");
+    // The strong assertion: the repo name must not appear ANYWHERE in the
+    // public payload, whatever shape a future projection gives it.
+    expect(response.body).not.toContain("acme-internal-billing");
   });
 
   it("respects limit and offset", async () => {

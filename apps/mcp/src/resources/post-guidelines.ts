@@ -58,6 +58,47 @@ Close with a link when there is something to look at: a PR, a release, a demo,
 a deployed URL, a repo. Pass it as \`externalUrl\` when using \`create_post\`,
 or inline it in the body.
 
+**A week spread across several repositories is still one post.** Most developers
+move between an API, a front end, a mobile app and a side project in the same
+week; the reader is hiring the person, not browsing their checkouts. Group the
+bullets by capability, never one bullet per project, and never a "in project A…
+in project B…" structure. Breadth belongs in the post as the stack and the range
+of problems solved — "an availability endpoint and the booking screen that
+consumes it" — never as a roll call of repositories, whose names may not appear
+in a post at all (section 4).
+
+## 2b. Write for search as well as for the reader
+
+Recruiters do not scroll feeds; they search. LinkHub matches their queries
+against every post with semantic embeddings, and the weighting is not even:
+**the title and tags count double, the body counts once and is clipped when
+long**. A capability buried in paragraph six barely registers; the same
+capability named in the title and tags is what surfaces this profile at all.
+
+So every post must contain — while still never naming the employer, a repo, or
+an internal link — all four of these:
+
+1. **What shipped, in feature-domain terms.** "Payment retry flow", "profile
+   layout editor", "webhook ingestion pipeline" — the words a hiring manager
+   would actually type. Not "various fixes", not a module name only this
+   codebase knows.
+2. **The tech stack, twice.** Once as prose in the body ("TypeScript, Fastify,
+   Drizzle, PostgreSQL") and once more as \`tags\`. Tags are the
+   highest-leverage searchable surface in the product; a post without them is
+   invisible to a stack-filtered search however good its body is.
+3. **The architecture or pattern, and what it enables.** "Event-driven
+   ingestion with idempotent replays, so a flaky webhook can never
+   double-count an event." "Clean architecture with in-memory test doubles, so
+   the whole domain suite runs without a database." The pattern name alone is
+   a buzzword; pattern plus the capability or scale it buys is evidence.
+4. **One real decision and its trade-off.** "Chose a deterministic template
+   over an LLM for digests — reproducible numbers, at the cost of prose
+   variety." One is enough, and it is the sentence that reads as senior.
+
+None of this loosens section 3 below: feature domains, stacks, patterns and
+trade-offs are all sayable at every disclosure level precisely because none of
+them identify an employer.
+
 ## 3. What you may say about your job
 
 This is the section that makes a post genuinely useful to a recruiter while
@@ -131,7 +172,9 @@ around the term; publishing the same text again will fail the same way.
   one, do not repeat it — and mention to the user that it appeared.
 - **Private repository detail.** If the work is in a private or client repo,
   describe the *capability* and omit the client, the repo name, and anything
-  proprietary. When in doubt, ask the user before publishing.
+  proprietary. When in doubt, ask the user before publishing. When a post covers
+  several repositories and only some are private, that is not a licence to name
+  the public ones as the "real" scope — repository names stay out either way.
 - **Filler.** "Excited to share", "hard work pays off", "game-changing",
   "leveraging synergies". Hype reads as noise; specifics read as competence.
 - **Unearned credit.** Don't describe work the user didn't do. Vendored code,
@@ -156,13 +199,16 @@ around the term; publishing the same text again will fail the same way.
 | \`summary\` | yes | The finished Markdown body, written per this guide. The tool publishes it verbatim; it runs no AI of its own. |
 | \`title\` | no | The headline (< 70 chars). Omitted → derived from repo + period, which is worse. Always pass one. |
 | \`period\` | no | What the summary covers: \`"weekly"\`, \`"daily"\`, or a range like \`"2026-07-14..2026-07-21"\`. |
-| \`repo\` | no | Repository name only, e.g. \`"linkhub-v.1"\` — not the full path, not the remote URL. Omit for private/client work. |
-| \`commitCount\` | no | Number of the user's own commits the summary is based on. Count them; don't estimate. |
-| \`tags\` | no | 2–5 lowercase tags, stack-first: \`["typescript", "fastify", "postgres"]\`. These are searchable — use real technology names, not \`["update"]\`. |
-| \`status\` | no | \`"published"\` (default) or \`"draft"\`. Use \`"draft"\` when the user hasn't approved the text, or when anything in it might be sensitive. |
+| \`repo\` | no | The **scope** of the summary, not a project label. One repository: its name only, e.g. \`"linkhub-v.1"\` — not the full path, not the remote URL. Several repositories in one post: the count, e.g. \`"4 repositories"\`. Never one repo's name when the post covers more, and never a list of names. Omit for private/client work. |
+| \`commitCount\` | no | Number of the user's own commits the summary is based on, summed across every repository covered. Count them; don't estimate. |
+| \`tags\` | always pass it | 2–5 lowercase tags naming the technologies: \`["typescript", "fastify", "postgres"]\`. Tags are embedded at double weight for recruiter search (see 2b) — a post without them is invisible to a stack-filtered search. Real technology names, never \`["update"]\`. |
+| \`status\` | no | \`"published"\` (default), \`"pending_review"\` or \`"draft"\`. Use \`"pending_review"\` whenever this runs unattended — the post stays private until the user approves it. Use \`"draft"\` when the user hasn't approved the text, or when anything in it might be sensitive. |
 
 \`repo\`, \`commitCount\` and \`period\` are stored as post metadata with
-\`source: "commit"\`. Everything the reader sees comes from \`title\` + \`summary\`.
+\`source: "commit"\`. The prose a reader reads is \`title\` + \`summary\`, but the
+metadata travels with the post — including on the public profile feed — so it is
+publishable text too, held to the same rules: a scope marker, never a path, a
+remote or a client's repository name.
 
 For a post that isn't derived from commits, use \`create_post\` instead — it adds
 \`coverImageUrl\`, \`images\`, and \`externalUrl\`.
@@ -213,7 +259,10 @@ Run this checklist. If any answer is "no", fix it first.
 - [ ] Could a non-engineer read the first sentence and know what shipped?
 - [ ] Is every bullet an outcome, not a file or a commit?
 - [ ] Are there real numbers, and are they ones you actually verified?
-- [ ] Is the stack named with searchable technology names?
+- [ ] Is the stack named with searchable technology names — in the body AND as
+      \`tags\`?
+- [ ] Would this post match the searches it deserves: feature domain in the
+      title, the pattern with its payoff, one decision with its trade-off?
 - [ ] Zero SHAs, ticket ids, branch names, secrets, or client names?
 - [ ] Does every employment claim come from \`get_work_context\` rather than
       from the git remote, the package scope or the directory name?
@@ -239,10 +288,12 @@ export function registerPostGuidelines(server: McpServer): void {
       description:
         "House style for LinkHub posts: what makes a post recruiter-worthy " +
         "(outcome over mechanics, real metrics, named stack, links to shipped " +
-        "work), what must never appear (raw commit messages, ticket ids, " +
-        "secrets, private repo detail), length/tone targets, a worked " +
-        "weak-vs-strong example, and the exact field mapping for " +
-        "create_commit_summary_post. Read this before writing any post.",
+        "work), how recruiter search weighs it (title and tags count double — " +
+        "name the feature domain, the stack, the pattern and one trade-off), " +
+        "what must never appear (raw commit messages, ticket ids, secrets, " +
+        "private repo detail), length/tone targets, a worked weak-vs-strong " +
+        "example, and the exact field mapping for create_commit_summary_post. " +
+        "Read this before writing any post.",
       mimeType: "text/markdown",
     },
     (uri) => ({

@@ -3,6 +3,7 @@ import {
   updatePostSchemaInput,
   type CreatePostInput,
   type Post,
+  type PostStatus,
   type UpdatePostInput,
 } from "@repo/schemas";
 import { useEffect, useState } from "react";
@@ -39,7 +40,7 @@ export function PostComposerDialog({
   const [images, setImages] = useState<string[]>([EMPTY_IMAGE_ROW]);
   const [tags, setTags] = useState<string[]>([]);
   const [externalUrl, setExternalUrl] = useState("");
-  const [status, setStatus] = useState<"draft" | "published">("published");
+  const [status, setStatus] = useState<PostStatus>("published");
   const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +62,13 @@ export function PostComposerDialog({
     setShowPreview(false);
     setError(null);
   }, [open, initialPost]);
+
+  // A post waiting for review can only move forward to "published" (the server
+  // rejects `pending_review -> draft`), so "draft" is not offered for one.
+  const statusOptions: PostStatus[] =
+    initialPost?.status === "pending_review"
+      ? ["pending_review", "published"]
+      : ["draft", "published"];
 
   const updateImage = (index: number, url: string) =>
     setImages((current) => current.map((row, i) => (i === index ? url : row)));
@@ -242,7 +250,7 @@ export function PostComposerDialog({
             Status
           </span>
           <div className="flex gap-2">
-            {(["draft", "published"] as const).map((option) => (
+            {statusOptions.map((option) => (
               <button
                 key={option}
                 type="button"
@@ -254,7 +262,7 @@ export function PostComposerDialog({
                     : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800",
                 ].join(" ")}
               >
-                {option}
+                {option.replace("_", " ")}
               </button>
             ))}
           </div>

@@ -97,8 +97,8 @@ export class CreatePostUseCase {
 
     const created = await this.postsRepository.create(post);
 
-    // Only a published post is visible to recruiter search, so a draft has
-    // nothing to re-embed yet.
+    // Only a published post is visible to recruiter search, so a draft (or a
+    // post still waiting for review) has nothing to re-embed yet.
     if (created.status === "published") {
       await reembedResumeAfterPost(
         input.userId,

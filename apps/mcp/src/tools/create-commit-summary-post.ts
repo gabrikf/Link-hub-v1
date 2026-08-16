@@ -29,7 +29,16 @@ const inputSchema = {
   repo: z
     .string()
     .optional()
-    .describe("Repository name the work happened in, e.g. 'linkhub-v.1'."),
+    .describe(
+      "SCOPE of the summary. Stored as post metadata: shown in the user's " +
+        "review queue, and served alongside the post on their public profile — " +
+        "so treat it as publishable, not as a private note. One repository: its " +
+        "name, e.g. 'linkhub-v.1' (name only, never a path or remote URL). " +
+        "SEVERAL repositories aggregated into one post: the count instead, e.g. " +
+        "'4 repositories' — never one repo's name, which would claim the post " +
+        "covers only that repo, and never a list of names. Omit it entirely for " +
+        "private or client work.",
+    ),
   commitCount: z
     .number()
     .int()
@@ -49,10 +58,22 @@ const inputSchema = {
     .describe("Optional tags, e.g. ['changelog', 'shipped']."),
   status: postStatusSchema
     .optional()
-    .describe("'draft' or 'published'. Defaults to 'published'."),
+    .describe(
+      "'draft', 'pending_review' or 'published'. Defaults to 'published'. " +
+        "Use 'pending_review' whenever this runs unattended (a commit hook, a " +
+        "scheduled job, or any time the user has not read this exact summary): " +
+        "the post stays private until the human approves it, and its content " +
+        "is frozen from then on.",
+    ),
 };
 
-/** Derives a fallback title from repo/period when the caller omits one. */
+/**
+ * Derives a fallback title from repo/period when the caller omits one.
+ *
+ * `repo` may be an aggregate marker ("4 repositories") rather than a name, which
+ * is why the scope is interpolated verbatim: "4 repositories — weekly update"
+ * is honest, while any attempt to phrase it as a single project would not be.
+ */
 function deriveTitle(repo?: string, period?: string): string {
   const scope = repo ? `${repo}` : "Project";
   const when = period ? ` — ${period} update` : " update";
@@ -66,6 +87,12 @@ function deriveTitle(repo?: string, period?: string): string {
  * what shipped, then calls this tool to publish it. The post is stored with
  * source='commit' and metadata={ repo, commitCount, period }. This tool performs
  * NO AI/summarization — it only persists the summary the host composed.
+ *
+ * One call is one post, however many repositories it covers: the workflow
+ * prompts resolve a repository SET and aggregate it, so `repo` is a scope marker
+ * ("4 repositories") as often as it is a name. Nothing here reduces a multi-repo
+ * run to one of its repositories — that would be a metadata claim the post text
+ * contradicts.
  */
 export function registerCreateCommitSummaryPost(
   server: McpServer,
@@ -80,9 +107,11 @@ export function registerCreateCommitSummaryPost(
         "Publish a summary of recent git work to the user's LinkHub profile, " +
         "where recruiters and hiring managers read it. THIS TOOL RUNS NO AI: " +
         "it publishes `summary` verbatim, so the post is only as good as the " +
-        "text you send. Before calling it, collect from the repository: (a) the " +
-        "repo name, (b) the number of the user's own commits in the period " +
-        "(`git log --since=... --author=... --no-merges`), (c) the 2-5 " +
+        "text you send. It also accepts work spanning SEVERAL repositories as " +
+        "one post — see `repo`. Before calling it, collect from every " +
+        "repository covered: (a) the scope marker for `repo`, (b) the number of " +
+        "the user's own commits in the period, summed across repositories " +
+        "(`git -C <path> log --since=... --author=... --no-merges`), (c) the 2-5 " +
         "user-visible capabilities that actually shipped — collapse many " +
         "commits about one feature into one item and drop wip/format/dep " +
         "commits, (d) the impact of each on a user or the system, (e) any real " +
@@ -91,10 +120,15 @@ export function registerCreateCommitSummaryPost(
         "touched, by searchable name ('TypeScript, Fastify, PostgreSQL'), and " +
         "(g) a public link to the shipped work if one exists. Then write " +
         "`summary` as 80-200 words of first-person Markdown describing OUTCOMES, " +
-        "not mechanics. NEVER pass raw commit messages, SHAs, branch names, " +
+        "not mechanics — and when several repositories are covered, describe " +
+        "the capabilities across them rather than listing the projects; " +
+        "repository names, paths and remotes never appear in a post. NEVER pass " +
+        "raw commit messages, SHAs, branch names, " +
         "ticket ids, secrets or private client detail. Always pass an explicit " +
-        "`title` (<70 chars). Use status='draft' if the user has not approved " +
-        "the text. Full house style: read the resource " +
+        "`title` (<70 chars). Use status='pending_review' if this is running " +
+        "unattended, or status='draft' if the user has not approved the text. " +
+        "A commit-sourced post cannot be edited after creation — only approved " +
+        "or deleted. Full house style: read the resource " +
         "linkhub://guides/post-quality, or invoke the `weekly_update` prompt " +
         "for the whole guided workflow. Saved with source='commit' and " +
         "metadata { repo, commitCount, period }. " +

@@ -1,7 +1,12 @@
 import { BaseEntity, type BaseEntityProps } from "../index.js";
 
 export type PostSource = "manual" | "mcp" | "agent" | "commit";
-export type PostStatus = "draft" | "published";
+/**
+ * `pending_review` is machine-authored content waiting for the human to
+ * approve it. It is treated as non-public everywhere a draft is: never listed
+ * on the public profile, never embedded into recruiter search.
+ */
+export type PostStatus = "draft" | "pending_review" | "published";
 
 export interface PostEntityProps extends BaseEntityProps {
   userId: string;
@@ -38,8 +43,13 @@ export interface CreatePostEntityProps {
   publishedAt?: Date | null;
 }
 
+/**
+ * `source` is deliberately not here: provenance is set by the constructor and
+ * never changes. An entity that cannot express "this post was written by
+ * someone else than it says" is what makes the guarantee structural rather than
+ * a check some future caller can forget. See `IUpdatePostInput`.
+ */
 export interface UpdatePostEntityProps {
-  source?: PostSource;
   title?: string | null;
   body?: string;
   coverImageUrl?: string | null;
@@ -83,9 +93,6 @@ export class PostEntity extends BaseEntity<PostEntityProps> {
   }
 
   updateContent(data: UpdatePostEntityProps) {
-    if (typeof data.source !== "undefined") {
-      this.source = data.source;
-    }
     if (typeof data.title !== "undefined") {
       this.title = data.title ?? null;
     }

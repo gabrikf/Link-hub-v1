@@ -34,10 +34,23 @@ const inputSchema = {
   tags: z
     .array(z.string())
     .optional()
-    .describe("Optional tags to categorize the post."),
+    .describe(
+      "2–5 lowercase tags naming the technologies the work touched, e.g. " +
+        '["typescript", "fastify", "postgres"]. Always pass them: tags (and ' +
+        "the title) are embedded at twice the body's weight for recruiter " +
+        "search, so a post without technology tags is invisible to a " +
+        "stack-filtered search. Real technology names, never generic words " +
+        'like "update".',
+    ),
   status: postStatusSchema
     .optional()
-    .describe("'draft' or 'published'. Defaults to 'published'."),
+    .describe(
+      "'draft', 'pending_review' or 'published'. Defaults to 'published'. " +
+        "Use 'pending_review' whenever you are posting unattended — i.e. the " +
+        "user has not read this exact text in this session. The post stays " +
+        "private until the human approves it, and its content is then frozen, " +
+        "which is what makes it trustworthy to a reader.",
+    ),
   workExperienceId: z
     .string()
     .uuid()
@@ -64,10 +77,17 @@ export function registerCreatePost(
       title: "Create LinkHub post",
       description:
         "Create a new post on the user's LinkHub profile. Provide the body in " +
-        "Markdown; title, cover image, images, external URL, tags and status " +
-        "are optional. The post is tagged with source='mcp'. Returns the new " +
-        "post id and a shareable summary. For a summary of recent git work, " +
-        "use create_commit_summary_post instead. " +
+        "Markdown; title, cover image, images, external URL and status are " +
+        "optional. Always include `tags` naming the technologies — recruiter " +
+        "search embeds the title and tags at twice the body's weight, so a " +
+        "post without them is effectively unfindable. The post is tagged with " +
+        "source='mcp'. Returns the new post id and a shareable summary. For a " +
+        "summary of recent git work, use create_commit_summary_post instead. " +
+        "If this post is being written " +
+        "unattended (no human is reading it right now), send " +
+        "status='pending_review' so the user approves it before it goes " +
+        "public. Once created, an MCP-authored post cannot be edited — only " +
+        "approved or deleted. " +
         renderPolicyForToolDescription(disclosure),
       inputSchema,
     },

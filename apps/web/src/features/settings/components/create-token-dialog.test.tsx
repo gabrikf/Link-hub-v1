@@ -138,5 +138,34 @@ describe("CreateTokenDialog", () => {
         expect.objectContaining({ scopes: ["posts:read", "profile:read"] }),
       );
     });
+
+    it("offers activity:write but never grants it by default", async () => {
+      const user = userEvent.setup();
+      mutateAsync.mockResolvedValue(createdToken);
+
+      render(
+        <CreateTokenDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />,
+      );
+
+      // Available for the extractor / Claude hook…
+      const activityScope = screen.getByRole("checkbox", {
+        name: /activity:write/,
+      });
+      expect(activityScope).toBeInTheDocument();
+      expect(
+        screen.getByText(/Not granted by default/),
+      ).toBeInTheDocument();
+
+      // …but unchecked, and absent from what an untouched form submits.
+      expect(activityScope).not.toBeChecked();
+      await user.type(screen.getByLabelText("Name"), "Agent token");
+      await user.click(screen.getByRole("button", { name: "Create token" }));
+
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scopes: ["posts:write", "posts:read", "profile:read"],
+        }),
+      );
+    });
   });
 });

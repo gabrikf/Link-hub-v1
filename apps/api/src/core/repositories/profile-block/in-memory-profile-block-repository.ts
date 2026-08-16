@@ -93,8 +93,10 @@ export class InMemoryProfileBlocksRepository
     });
   }
 
-  async deleteByTabId(tabId: string): Promise<void> {
-    this.blocks = this.blocks.filter((candidate) => candidate.tabId !== tabId);
+  async findByTabId(tabId: string): Promise<ProfileBlockEntity[]> {
+    return this.blocks
+      .filter((candidate) => candidate.tabId === tabId)
+      .sort((a, b) => a.gridY - b.gridY || a.gridX - b.gridX);
   }
 
   getAll() {

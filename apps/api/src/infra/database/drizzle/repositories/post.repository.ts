@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import {
   PostEntity,
   type PostSource,
@@ -61,6 +61,33 @@ export class DrizzlePostsRepository implements IPostRepository {
 
   async findById(id: string): Promise<PostEntity | null> {
     const [post] = await db.select().from(posts).where(eq(posts.id, id));
+
+    if (!post) {
+      return null;
+    }
+
+    return toEntity(post);
+  }
+
+  /**
+   * Scoped by `userId` first so the query uses `posts_user_id_idx` and then
+   * filters the (small) result on the jsonb key, rather than asking Postgres to
+   * scan every post in the table for a `metadata` field with no index on it.
+   */
+  async findByDigestKey(
+    userId: string,
+    digestKey: string,
+  ): Promise<PostEntity | null> {
+    const [post] = await db
+      .select()
+      .from(posts)
+      .where(
+        and(
+          eq(posts.userId, userId),
+          sql`${posts.metadata} ->> 'digestKey' = ${digestKey}`,
+        ),
+      )
+      .limit(1);
 
     if (!post) {
       return null;

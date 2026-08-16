@@ -49,33 +49,19 @@ describe("ReorderTabsUseCase", () => {
     expect(ordered[1]?.id).toBe(a.id);
   });
 
-  it("mirrors the reorder to the other viewport by groupId", async () => {
-    const groupA = crypto.randomUUID();
-    const groupB = crypto.randomUUID();
+  it("does not reorder the other viewport's tabs", async () => {
+    const make = (viewport: "pc" | "mobile", title: string, order: number) =>
+      ProfileTabEntity.create({ userId: "user-1", viewport, title, order });
 
-    const make = (
-      viewport: "pc" | "mobile",
-      groupId: string,
-      title: string,
-      order: number,
-    ) =>
-      ProfileTabEntity.create({
-        userId: "user-1",
-        groupId,
-        viewport,
-        title,
-        order,
-      });
-
-    const pcA = make("pc", groupA, "A", 0);
-    const pcB = make("pc", groupB, "B", 1);
-    const mobileA = make("mobile", groupA, "A", 0);
-    const mobileB = make("mobile", groupB, "B", 1);
+    const pcA = make("pc", "A", 0);
+    const pcB = make("pc", "B", 1);
+    const mobileA = make("mobile", "A", 0);
+    const mobileB = make("mobile", "B", 1);
     for (const tab of [pcA, pcB, mobileA, mobileB]) {
       await tabsRepository.create(tab);
     }
 
-    // Reorder only the pc list; mobile must follow the same logical order.
+    // Reorder only the pc list; mobile keeps its own order.
     await sut.execute("user-1", { viewport: "pc", tabIds: [pcB.id, pcA.id] });
 
     const pcOrdered = await tabsRepository.findByUserAndViewport("user-1", "pc");
@@ -84,8 +70,28 @@ describe("ReorderTabsUseCase", () => {
       "mobile",
     );
 
-    expect(pcOrdered.map((t) => t.groupId)).toEqual([groupB, groupA]);
-    expect(mobileOrdered.map((t) => t.groupId)).toEqual([groupB, groupA]);
+    expect(pcOrdered.map((t) => t.id)).toEqual([pcB.id, pcA.id]);
+    expect(mobileOrdered.map((t) => t.id)).toEqual([mobileA.id, mobileB.id]);
+  });
+
+  it("only validates the ids of the requested viewport", async () => {
+    const { a, b } = await seedTabs();
+    const mobile = ProfileTabEntity.create({
+      userId: "user-1",
+      viewport: "mobile",
+      title: "Mobile",
+      order: 0,
+    });
+    await tabsRepository.create(mobile);
+
+    // A mobile tab id is foreign to the pc list, even though the user owns it.
+    await expect(
+      sut.execute("user-1", { viewport: "pc", tabIds: [a.id, mobile.id] }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+
+    await expect(
+      sut.execute("user-1", { viewport: "pc", tabIds: [b.id, a.id] }),
+    ).resolves.toEqual({ success: true });
   });
 
   it("throws when an id is not owned", async () => {

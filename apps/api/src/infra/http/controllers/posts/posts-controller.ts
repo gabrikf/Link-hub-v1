@@ -20,6 +20,7 @@ import { ListPublicPostsUseCase } from "../../../../core/use-case/posts/list-pub
 import { GetPostUseCase } from "../../../../core/use-case/posts/get-post-use-case/get-post.use-case.js";
 import { UpdatePostUseCase } from "../../../../core/use-case/posts/update-post-use-case/update-post.use-case.js";
 import { DeletePostUseCase } from "../../../../core/use-case/posts/delete-post-use-case/delete-post.use-case.js";
+import { ApprovePostUseCase } from "../../../../core/use-case/posts/approve-post-use-case/approve-post.use-case.js";
 
 /**
  * Attributes a post to one of the author's roles, so the disclosure policy can
@@ -49,6 +50,19 @@ const updatePostBodySchema = updatePostSchemaInput.extend(
 const postResponseSchema = postSchema.extend({
   workExperienceId: z.string().nullable().optional(),
 });
+
+/**
+ * The same post, minus `metadata`, for the UNAUTHENTICATED profile feed.
+ *
+ * `metadata` is provenance the OWNER needs — the review queue renders repo,
+ * commit count and period from it — and it is the one field on a post that can
+ * still hold a repository name, because a coding agent supplies it rather than
+ * the deterministic template. Serving it on a public route would publish the
+ * exact identifier every other layer of this feature works to keep out, so the
+ * public projection drops the whole bag rather than trusting each writer to
+ * have filled it in safely.
+ */
+const publicPostResponseSchema = postResponseSchema.omit({ metadata: true });
 
 type CreatePostBody = z.infer<typeof createPostBodySchema>;
 type UpdatePostBody = z.infer<typeof updatePostBodySchema>;
@@ -199,6 +213,44 @@ export class PostsController {
       },
     );
 
+    app.post(
+      "/me/posts/:id/approve",
+      {
+        preHandler: apiAccessGuard("posts:write"),
+        schema: {
+          tags: ["Posts"],
+          summary: "Approve a post awaiting review",
+          description:
+            "Publishes a post that is waiting for review. This is the only way " +
+            "a machine-authored post becomes public — its content stays " +
+            "immutable, so approving is consent to the text as written.",
+          params: postParamsSchema,
+          response: {
+            200: postResponseSchema,
+            ...commonErrorResponses([
+              "badRequest",
+              "unauthorized",
+              "forbidden",
+              "notFound",
+              "internalServerError",
+            ]),
+          },
+        },
+      },
+      async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+        const approvePostUseCase = resolve<ApprovePostUseCase>(
+          TOKENS.ApprovePostUseCase,
+        );
+
+        const result = await approvePostUseCase.execute({
+          userId: request.user!.id,
+          postId: request.params.id,
+        });
+
+        reply.status(200).send(result);
+      },
+    );
+
     app.delete(
       "/me/posts/:id",
       {
@@ -241,7 +293,7 @@ export class PostsController {
           params: usernameParamsSchema,
           querystring: listPostsQuerySchema,
           response: {
-            200: postResponseSchema.array(),
+            200: publicPostResponseSchema.array(),
             ...commonErrorResponses(["notFound", "internalServerError"]),
           },
         },

@@ -2,6 +2,10 @@
 export * from "./auth/index.js";
 export * from "./api-tokens/index.js";
 export * from "./agent-policy/index.js";
+// Automatic developer-activity ingestion: connections, the payload the Claude
+// Code hook / forge webhooks / the extractor CLI post, and the enums that make
+// (source, externalDeliveryId) a shared idempotency key across all three.
+export * from "./activity/index.js";
 // Shared evaluation maths (IR metrics, calibration). Not zod, but it lives here
 // for the same reason the schemas do: the API, the web reranker and the offline
 // training pipeline must all compute these identically or their numbers cannot

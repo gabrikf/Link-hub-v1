@@ -82,6 +82,20 @@ const postsRoute = createRoute({
   ),
 });
 
+/**
+ * Nested under `/dashboard/posts` on purpose: the top bar's Posts item matches
+ * with `startsWith("/dashboard/posts")`, so the queue reads as part of Posts
+ * without adding a seventh nav icon.
+ */
+const postsReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dashboard/posts/review",
+  component: lazyRouteComponent(
+    () => import("./features/posts/pages/review-queue-page"),
+    "ReviewQueuePage",
+  ),
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/dashboard/settings",
@@ -98,6 +112,7 @@ const routeTree = rootRoute.addChildren([
   advancedSearchRoute,
   profileLayoutRoute,
   postsRoute,
+  postsReviewRoute,
   settingsRoute,
 ]);
 

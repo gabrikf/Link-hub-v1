@@ -1,10 +1,13 @@
 import { ProfileViewport } from "@repo/schemas";
 import { BaseEntity, type BaseEntityProps } from "../index.js";
 
+/**
+ * A content tab of ONE viewport. Tabs are not mirrored: the pc and mobile
+ * layouts own separate sets of tabs, so there is no cross-viewport identity to
+ * carry here.
+ */
 export interface ProfileTabEntityProps extends BaseEntityProps {
   userId: string;
-  /** Shared logical identity linking the pc-row and mobile-row of this tab. */
-  groupId?: string;
   viewport: ProfileViewport;
   title: string;
   order: number;
@@ -12,7 +15,6 @@ export interface ProfileTabEntityProps extends BaseEntityProps {
 
 export interface CreateProfileTabEntityProps {
   userId: string;
-  groupId?: string;
   viewport: ProfileViewport;
   title: string;
   order?: number;
@@ -20,7 +22,6 @@ export interface CreateProfileTabEntityProps {
 
 export class ProfileTabEntity extends BaseEntity<ProfileTabEntityProps> {
   public userId: string;
-  public groupId: string;
   public viewport: ProfileViewport;
   public title: string;
   public order: number;
@@ -28,7 +29,6 @@ export class ProfileTabEntity extends BaseEntity<ProfileTabEntityProps> {
   constructor(props: ProfileTabEntityProps) {
     super(props);
     this.userId = props.userId;
-    this.groupId = props.groupId ?? crypto.randomUUID();
     this.viewport = props.viewport;
     this.title = props.title;
     this.order = props.order;

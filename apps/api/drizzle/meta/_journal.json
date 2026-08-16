@@ -127,6 +127,20 @@
       "when": 1785603111637,
       "tag": "0017_tiny_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786759231175,
+      "tag": "0018_whole_ben_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786793962584,
+      "tag": "0019_skinny_venus",
+      "breakpoints": true
     }
   ]
 }

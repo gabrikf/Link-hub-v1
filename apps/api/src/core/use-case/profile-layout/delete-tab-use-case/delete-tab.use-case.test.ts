@@ -24,196 +24,103 @@ describe("DeleteTabUseCase", () => {
     sut = new DeleteTabUseCase(tabsRepository, blocksRepository, unitOfWork);
   });
 
+  async function seedTab(
+    viewport: "pc" | "mobile",
+    title: string,
+    order: number,
+    userId = "user-1",
+  ) {
+    const tab = ProfileTabEntity.create({ userId, viewport, title, order });
+    await tabsRepository.create(tab);
+    return tab;
+  }
+
   async function seedTwoTabs(userId = "user-1") {
-    const first = ProfileTabEntity.create({
-      userId,
-      viewport: "pc",
-      title: "First",
-      order: 0,
-    });
-    const second = ProfileTabEntity.create({
-      userId,
-      viewport: "pc",
-      title: "Second",
-      order: 1,
-    });
-    await tabsRepository.create(first);
-    await tabsRepository.create(second);
+    const first = await seedTab("pc", "First", 0, userId);
+    const second = await seedTab("pc", "Second", 1, userId);
     return { first, second };
   }
 
-  it("deletes an owned tab and its blocks", async () => {
-    const { first } = await seedTwoTabs();
-
+  async function seedBlock(
+    viewport: "pc" | "mobile",
+    tabId: string | null,
+    groupId = crypto.randomUUID(),
+    userId = "user-1",
+  ) {
     const block = ProfileBlockEntity.create({
-      userId: "user-1",
-      viewport: "pc",
-      tabId: first.id,
+      userId,
+      groupId,
+      viewport,
+      tabId,
       kind: "text",
       gridX: 0,
       gridY: 0,
-      gridW: 12,
+      gridW: viewport === "pc" ? 12 : 4,
       gridH: 4,
+      pinnedAllTabs: tabId === null,
       config: { body: "hi" },
     });
     await blocksRepository.create(block);
+    return block;
+  }
 
-    const result = await sut.execute("user-1", first.id);
+  it("deletes an owned tab and re-homes its blocks onto the first remaining tab", async () => {
+    const { first, second } = await seedTwoTabs();
+    const block = await seedBlock("pc", second.id);
+
+    const result = await sut.execute("user-1", second.id);
 
     expect(result.success).toBe(true);
-    expect(await tabsRepository.findById(first.id)).toBeNull();
-    expect(blocksRepository.getAll()).toHaveLength(0);
+    expect(await tabsRepository.findById(second.id)).toBeNull();
+
+    // The block survives — its content is shared with the mobile row, so
+    // deleting it here would destroy content the other viewport still shows.
+    const moved = await blocksRepository.findById(block.id);
+    expect(moved?.tabId).toBe(first.id);
+    expect(moved?.pinnedAllTabs).toBe(false);
   });
 
-  it("deletes the mirrored tab and its blocks in both viewports", async () => {
-    const keepGroup = crypto.randomUUID();
-    const dropGroup = crypto.randomUUID();
+  it("leaves the other viewport's tabs and block assignments untouched", async () => {
+    const pcKeep = await seedTab("pc", "Keep", 0);
+    const pcDrop = await seedTab("pc", "Drop", 1);
+    const mobileTab = await seedTab("mobile", "Mobile only", 0);
 
-    // Two logical tabs, each mirrored across pc + mobile (4 tab rows).
-    const rows = [
-      { viewport: "pc" as const, groupId: keepGroup, order: 0 },
-      { viewport: "mobile" as const, groupId: keepGroup, order: 0 },
-      { viewport: "pc" as const, groupId: dropGroup, order: 1 },
-      { viewport: "mobile" as const, groupId: dropGroup, order: 1 },
-    ];
-    const created = [];
-    for (const row of rows) {
-      const tab = ProfileTabEntity.create({
-        userId: "user-1",
-        groupId: row.groupId,
-        viewport: row.viewport,
-        title: "T",
-        order: row.order,
-      });
-      await tabsRepository.create(tab);
-      created.push(tab);
-    }
+    // One logical block: a pc row in the doomed tab, a mobile row in the
+    // mobile tab. Only the pc row may be touched.
+    const groupId = crypto.randomUUID();
+    const pcBlock = await seedBlock("pc", pcDrop.id, groupId);
+    const mobileBlock = await seedBlock("mobile", mobileTab.id, groupId);
 
-    const dropPc = created.find(
-      (t) => t.groupId === dropGroup && t.viewport === "pc",
-    )!;
-    const dropMobile = created.find(
-      (t) => t.groupId === dropGroup && t.viewport === "mobile",
-    )!;
+    await sut.execute("user-1", pcDrop.id);
 
-    // A block anchored to each dropped viewport tab row.
-    for (const tab of [dropPc, dropMobile]) {
-      await blocksRepository.create(
-        ProfileBlockEntity.create({
-          userId: "user-1",
-          viewport: tab.viewport,
-          tabId: tab.id,
-          kind: "text",
-          gridX: 0,
-          gridY: 0,
-          gridW: tab.viewport === "pc" ? 12 : 4,
-          gridH: 4,
-          config: { body: "x" },
-        }),
-      );
-    }
-
-    await sut.execute("user-1", dropPc.id);
-
-    // Both viewport rows of the dropped group are gone; the kept group remains.
-    expect(await tabsRepository.findById(dropPc.id)).toBeNull();
-    expect(await tabsRepository.findById(dropMobile.id)).toBeNull();
+    expect(await tabsRepository.findById(mobileTab.id)).not.toBeNull();
     expect(tabsRepository.getAll()).toHaveLength(2);
-    expect(blocksRepository.getAll()).toHaveLength(0);
+
+    expect((await blocksRepository.findById(pcBlock.id))?.tabId).toBe(
+      pcKeep.id,
+    );
+    expect((await blocksRepository.findById(mobileBlock.id))?.tabId).toBe(
+      mobileTab.id,
+    );
   });
 
-  it("preserves pinned blocks while removing the tab's own blocks in both viewports", async () => {
-    const keepGroup = crypto.randomUUID();
-    const dropGroup = crypto.randomUUID();
+  it("leaves pinned blocks pinned", async () => {
+    const { second } = await seedTwoTabs();
+    const pinned = await seedBlock("pc", null);
 
-    // Two logical tabs mirrored across pc + mobile (4 tab rows) so the dropped
-    // tab is not the last remaining tab of either viewport.
-    const tabRows = [
-      { viewport: "pc" as const, groupId: keepGroup, order: 0 },
-      { viewport: "mobile" as const, groupId: keepGroup, order: 0 },
-      { viewport: "pc" as const, groupId: dropGroup, order: 1 },
-      { viewport: "mobile" as const, groupId: dropGroup, order: 1 },
-    ];
-    const tabs = [];
-    for (const row of tabRows) {
-      const tab = ProfileTabEntity.create({
-        userId: "user-1",
-        groupId: row.groupId,
-        viewport: row.viewport,
-        title: "T",
-        order: row.order,
-      });
-      await tabsRepository.create(tab);
-      tabs.push(tab);
-    }
+    await sut.execute("user-1", second.id);
 
-    const dropPc = tabs.find(
-      (t) => t.groupId === dropGroup && t.viewport === "pc",
-    )!;
-    const dropMobile = tabs.find(
-      (t) => t.groupId === dropGroup && t.viewport === "mobile",
-    )!;
-
-    // A per-tab block anchored to each dropped viewport tab row.
-    for (const tab of [dropPc, dropMobile]) {
-      await blocksRepository.create(
-        ProfileBlockEntity.create({
-          userId: "user-1",
-          viewport: tab.viewport,
-          tabId: tab.id,
-          kind: "text",
-          gridX: 0,
-          gridY: 0,
-          gridW: tab.viewport === "pc" ? 12 : 4,
-          gridH: 4,
-          config: { body: "per-tab" },
-        }),
-      );
-    }
-
-    // A pinned block (tabId null, pinnedAllTabs) mirrored across both viewports.
-    const pinnedGroup = crypto.randomUUID();
-    for (const viewport of ["pc", "mobile"] as const) {
-      await blocksRepository.create(
-        ProfileBlockEntity.create({
-          userId: "user-1",
-          groupId: pinnedGroup,
-          viewport,
-          tabId: null,
-          kind: "header",
-          gridX: 0,
-          gridY: 0,
-          gridW: viewport === "pc" ? 12 : 4,
-          gridH: 4,
-          pinnedAllTabs: true,
-          config: null,
-        }),
-      );
-    }
-
-    await sut.execute("user-1", dropPc.id);
-
-    const remaining = blocksRepository.getAll();
-    // Both pinned rows survive in both viewports; both per-tab rows are gone.
-    expect(remaining).toHaveLength(2);
-    expect(remaining.every((block) => block.pinnedAllTabs)).toBe(true);
-    expect(remaining.every((block) => block.groupId === pinnedGroup)).toBe(true);
-    expect(remaining.map((block) => block.viewport).sort()).toEqual([
-      "mobile",
-      "pc",
-    ]);
+    const row = await blocksRepository.findById(pinned.id);
+    expect(row?.pinnedAllTabs).toBe(true);
+    expect(row?.tabId).toBeNull();
   });
 
-  it("refuses to delete the last remaining tab", async () => {
-    const tab = ProfileTabEntity.create({
-      userId: "user-1",
-      viewport: "pc",
-      title: "Only",
-      order: 0,
-    });
-    await tabsRepository.create(tab);
+  it("refuses to delete the last remaining tab of the viewport", async () => {
+    const only = await seedTab("pc", "Only", 0);
+    // A tab in the OTHER viewport must not make this one deletable.
+    await seedTab("mobile", "Mobile", 0);
 
-    await expect(sut.execute("user-1", tab.id)).rejects.toBeInstanceOf(
+    await expect(sut.execute("user-1", only.id)).rejects.toBeInstanceOf(
       BadRequestError,
     );
   });

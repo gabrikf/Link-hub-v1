@@ -61,6 +61,39 @@ describe("ListPublicPostsUseCase", () => {
     expect(result.every((p) => p.status === "published")).toBe(true);
   });
 
+  it("excludes a post that is still waiting for review", async () => {
+    // The point of `pending_review`: written by software, not public until the
+    // human approves it. A visitor must never see one.
+    const user = await seedUser("author");
+
+    await postsRepository.create(
+      makePost({
+        userId: user.id,
+        body: "approved post",
+        status: "published",
+        publishedAt: new Date("2024-02-01"),
+      }),
+    );
+    await postsRepository.create(
+      makePost({
+        userId: user.id,
+        source: "commit",
+        body: "awaiting approval",
+        status: "pending_review",
+      }),
+    );
+
+    const result = await sut.execute({
+      username: "author",
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.body).toBe("approved post");
+    expect(result.some((p) => p.status === "pending_review")).toBe(false);
+  });
+
   it("does not leak another user's posts", async () => {
     const author = await seedUser("author");
     const other = await seedUser("other");

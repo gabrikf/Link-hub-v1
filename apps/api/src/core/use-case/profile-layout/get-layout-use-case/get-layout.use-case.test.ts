@@ -41,13 +41,13 @@ describe("GetLayoutUseCase", () => {
     const again = (await sut.execute("user-1", "pc")) as ProfileLayout;
     expect(again.tabs).toHaveLength(1);
     expect(again.blocks).toHaveLength(DEFAULT_BLOCK_COUNT);
-    // Seeding mirrors: requesting a single viewport also seeds its counterpart
-    // (shared groupIds), so the store holds BOTH viewports (2 tabs, 2x the blocks).
+    // Requesting a single viewport also seeds its counterpart, so the store
+    // holds BOTH viewports (a tab each, 2x the blocks).
     expect(tabsRepository.getAll()).toHaveLength(2);
     expect(blocksRepository.getAll()).toHaveLength(MIRRORED_BLOCK_COUNT);
   });
 
-  it("seeds mirrored viewports that share groupIds", async () => {
+  it("seeds each viewport its own tab, and blocks that pair by groupId", async () => {
     await sut.execute("user-1", "pc");
 
     const pcTabs = await tabsRepository.findByUserAndViewport("user-1", "pc");
@@ -55,7 +55,10 @@ describe("GetLayoutUseCase", () => {
       "user-1",
       "mobile",
     );
-    expect(pcTabs[0]?.groupId).toBe(mobileTabs[0]?.groupId);
+    // Independent tabs — no shared identity, and each anchors its own blocks.
+    expect(pcTabs).toHaveLength(1);
+    expect(mobileTabs).toHaveLength(1);
+    expect(pcTabs[0]?.id).not.toBe(mobileTabs[0]?.id);
 
     const pcBlocks = await blocksRepository.findByUserAndViewport(
       "user-1",

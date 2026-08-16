@@ -19,6 +19,15 @@ type ProfileCoverProps = {
  * — open-to-work, persona and location — over its lower edge, right where the
  * overlapping avatar meets the cover. Rendered from the page/preview shell so
  * profile-blocks.tsx stays untouched.
+ *
+ * The meta row is placed by CONTAINER width (`@container` on the strip), not by
+ * viewport width: the avatar that overlaps the cover is centred in the card, so
+ * whether it lands on top of the chips depends on how wide the card is, and the
+ * same card is rendered inside phone frames and dashboard columns on a wide
+ * screen. Below `@2xl` the centred avatar sweeps the middle of the lower edge,
+ * so the row is lifted clear of the circle (see the offsets below); from `@2xl`
+ * up the card is wide enough that the avatar never reaches the chips and the
+ * row keeps sitting on the lower edge.
  */
 export function ProfileCover({
   bannerImageUrl,
@@ -34,8 +43,11 @@ export function ProfileCover({
   return (
     <div
       className={[
-        "relative w-full overflow-hidden rounded-t-3xl",
-        compact ? "h-24" : "h-32 sm:h-44",
+        "@container relative w-full overflow-hidden rounded-t-3xl",
+        // Narrow cards get a taller strip so the lifted meta row still has the
+        // share control above it and the avatar below it. Wide cards keep the
+        // heights they always had.
+        compact ? "h-32 @2xl:h-24" : "h-44",
       ].join(" ")}
     >
       {banner ? (
@@ -63,7 +75,15 @@ export function ProfileCover({
       ) : null}
 
       {hasMeta ? (
-        <div className="absolute inset-x-3 bottom-3 flex flex-wrap items-end justify-between gap-2">
+        <div
+          className={[
+            "absolute inset-x-3 flex flex-wrap items-end justify-between gap-2",
+            // The bottom offset must clear the avatar's pull-up (`-mt-14` = 56px
+            // on the page, `-mt-10` = 40px in the compact previews) plus a gap,
+            // otherwise the circle is drawn straight over the chips.
+            compact ? "bottom-14 @2xl:bottom-3" : "bottom-20 @2xl:bottom-3",
+          ].join(" ")}
+        >
           <div className="flex flex-wrap items-center gap-2">
             {openToWork ? <OpenToWorkBadge /> : null}
             {persona ? <PersonaChip persona={persona} /> : null}

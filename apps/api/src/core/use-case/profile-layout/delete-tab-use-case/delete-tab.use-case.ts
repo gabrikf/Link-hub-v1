@@ -36,24 +36,35 @@ export class DeleteTabUseCase {
       );
     }
 
-    // Delete the logical tab across BOTH viewports (all rows sharing its
-    // groupId) plus the blocks anchored to each of those viewport tab rows — in
-    // one transaction so a mid-delete failure can't drop the tab in one
-    // viewport while leaving it (or its blocks) in the other. Note this only
-    // removes per-tab blocks (deleteByTabId); blocks pinned across all tabs
-    // (tabId null) are intentionally preserved.
+    // Delete ONLY this viewport's tab row — the other viewport owns its own
+    // tabs and must not be touched.
+    //
+    // Its blocks are NOT deleted. A block's content (kind/config) is shared
+    // with its counterpart row in the other viewport, so deleting the row here
+    // would either destroy content the user still has on the other viewport or
+    // leave the two viewports holding different sets of blocks. Instead the
+    // blocks fall back to this viewport's default area — the first remaining
+    // tab — where the user can see them and move them on. Only this viewport's
+    // rows are re-homed; the other viewport's assignment is untouched.
+    //
+    // One transaction: re-home first, then drop the tab, so the schema's
+    // ON DELETE CASCADE never has any row left to take with it.
     await this.unitOfWork.runInTransaction(async (tx) => {
-      const groupTabs = await this.tabsRepository.findByGroupId(
-        userId,
-        tab.groupId,
-        tx,
-      );
+      const fallbackTab = siblings.find((sibling) => sibling.id !== tab.id);
+      const orphans = await this.blocksRepository.findByTabId(tab.id, tx);
 
-      for (const groupTab of groupTabs) {
-        await this.blocksRepository.deleteByTabId(groupTab.id, tx);
+      for (const block of orphans) {
+        if (fallbackTab) {
+          block.moveToTab(fallbackTab.id);
+        } else {
+          // Unreachable given the guard above, but a block with a dangling tab
+          // renders nowhere — pinning it keeps it visible rather than lost.
+          block.setPinned(true);
+        }
+        await this.blocksRepository.update(block, tx);
       }
 
-      await this.tabsRepository.deleteByGroupId(tab.groupId, tx);
+      await this.tabsRepository.delete(tab.id, tx);
     });
 
     return { success: true };

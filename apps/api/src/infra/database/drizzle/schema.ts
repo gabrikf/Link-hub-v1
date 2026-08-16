@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   integer,
 } from "drizzle-orm/pg-core";
@@ -225,10 +226,10 @@ export const profileTabs = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    // Shared logical identity that links the pc-row and mobile-row of the SAME
-    // logical tab. Structure (title/order/existence) mirrors across viewports by
-    // groupId; only block positions differ per viewport.
-    groupId: uuid("group_id").notNull(),
+    // Tabs are fully PER-VIEWPORT: a tab row belongs to exactly one viewport and
+    // has no counterpart in the other. Creating/renaming/reordering/deleting a
+    // tab in the mobile editor leaves the pc layout untouched, and vice versa —
+    // which is what the editor promises ("Design independent layouts").
     viewport: text("viewport").notNull(),
     title: text("title").notNull(),
     order: integer("order").notNull().default(0),
@@ -240,7 +241,6 @@ export const profileTabs = pgTable(
   },
   (table) => [
     index("profile_tabs_user_id_viewport_idx").on(table.userId, table.viewport),
-    index("profile_tabs_group_id_idx").on(table.groupId),
   ],
 );
 
@@ -252,10 +252,18 @@ export const profileBlocks = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     // Shared logical identity that links the pc-row and mobile-row of the SAME
-    // logical block. Kind/config/visibility/pin/tab-association mirror across
-    // viewports by groupId; only gridX/Y/W/H differ per viewport.
+    // logical block. Kind/config/visibility mirror across viewports by groupId
+    // so content is authored once. Everything else is PER-VIEWPORT: gridX/Y/W/H,
+    // and — since tabs no longer correspond one-to-one across viewports —
+    // `tabId` and `pinnedAllTabs` too. A block can sit in "Projects" on pc and
+    // in the default tab on mobile.
     groupId: uuid("group_id").notNull(),
     viewport: text("viewport").notNull(),
+    // Cascade is a backstop only: `DeleteTabUseCase` re-homes a deleted tab's
+    // blocks onto the viewport's first remaining tab BEFORE dropping the tab
+    // row, so no block is ever deleted by a tab deletion. Were the cascade to
+    // fire (raw SQL, user deletion), it would only ever touch rows of the same
+    // viewport as the tab — the other viewport's rows are unreachable from here.
     tabId: uuid("tab_id").references(() => profileTabs.id, {
       onDelete: "cascade",
     }),
@@ -544,6 +552,200 @@ export const candidateInteractions = pgTable(
   ],
 );
 
+/**
+ * A source of developer activity the user has connected: their personal GitHub,
+ * their work GitLab, the Claude Code hook on their laptop, the local extractor.
+ *
+ * `kind` is the privacy switch. A "work" connection never contributes anything
+ * identifying (see `activity_events` below) and its disclosure level is
+ * INHERITED: `disclosure_level_override` when the user set one on this specific
+ * connection, otherwise `work_experiences.disclosure_level` of the linked role,
+ * otherwise the account-level `users.agent_disclosure_level`. The chain is
+ * resolved in one place — `resolveConnectionDisclosure` in
+ * core/use-case/activity/shared — so the ingestion path and the digest path can
+ * never disagree about it.
+ *
+ * "mixed" is one machine holding personal AND work repositories, and it is held
+ * to the WORK rules end to end (`GitConnectionEntity.isWork()`): once both kinds
+ * of activity are aggregated into one digest, no number in it can be attributed
+ * to the personal half, so the employer's rules have to govern all of it. It may
+ * carry a `work_experience_id` and inherits that employer's level exactly as a
+ * "work" row does.
+ */
+export const gitConnections = pgTable(
+  "git_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // "github" | "gitlab" | "claude_code" | "extractor" — `gitConnectionProviderSchema`.
+    provider: text("provider").notNull(),
+    // "personal" | "work" | "mixed" — `gitConnectionKindSchema`. Plain text with
+    // NO check constraint or pg enum on purpose: the values are validated by the
+    // schema package at the edge, and a database-level enum would turn adding a
+    // fourth kind into a migration that locks the table.
+    kind: text("kind").notNull(),
+    /** User-facing label, e.g. "Personal GitHub". Chosen by the user, never derived from a repo or org name. */
+    displayName: text("display_name").notNull(),
+    /**
+     * The forge account id. Nullable because `claude_code` and `extractor` are
+     * local tools with no remote account at all — see the two partial unique
+     * indexes below for how that nullability is kept from defeating uniqueness.
+     */
+    externalAccountId: text("external_account_id"),
+    /**
+     * The role a WORK connection belongs to. `set null` because losing the role
+     * must not delete the connection (and with it the activity history) — it
+     * only makes the connection fall back to the account disclosure level.
+     */
+    workExperienceId: uuid("work_experience_id").references(
+      () => workExperiences.id,
+      { onDelete: "set null" },
+    ),
+    /** Per-connection override of the inherited level. NULL = inherit, the common case. */
+    disclosureLevelOverride: text("disclosure_level_override"),
+    /** Shared secret for verifying forge webhook signatures. Never leaves the API. */
+    webhookSecret: text("webhook_secret"),
+    autoPostEnabled: boolean("auto_post_enabled").notNull().default(false),
+    // "weekly" | "biweekly" | "monthly" | "off" — `digestCadenceSchema`. Weekly
+    // is the floor on purpose: daily digests were removed so a profile can
+    // never become a commit firehose.
+    cadence: text("cadence").notNull().default("weekly"),
+    /**
+     * Opt-in for including the coding agent's own task summary text in a digest.
+     * Defaults to FALSE and must stay that way: that text is free-form prose
+     * written by an agent about work that may be an employer's, and shipping it
+     * by default would leak exactly what the disclosure policy exists to hold back.
+     */
+    includeAgentSummary: boolean("include_agent_summary")
+      .notNull()
+      .default(false),
+    lastDigestAt: timestamp("last_digest_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    index("git_connections_user_id_idx").on(table.userId),
+    index("git_connections_work_experience_id_idx").on(table.workExperienceId),
+    /**
+     * Reconnecting the same forge account must update the existing row, not
+     * create a second one that then receives duplicate webhooks.
+     *
+     * This is a PARTIAL unique index on purpose. A plain
+     * `UNIQUE (user_id, provider, external_account_id)` would be silently inert
+     * for `claude_code`/`extractor`: NULLs compare as distinct in Postgres, so
+     * a user could accumulate unlimited null-account rows for the same provider
+     * and every one of them would look unique.
+     */
+    uniqueIndex("git_connections_user_provider_account_unique")
+      .on(table.userId, table.provider, table.externalAccountId)
+      .where(sql`${table.externalAccountId} is not null`),
+    /**
+     * The null-account half of the rule above: a local tool has no account id,
+     * so identity falls back to (user, provider, kind). That still allows the
+     * split that matters — a personal extractor AND a work extractor — while
+     * making a re-run of the setup command idempotent.
+     *
+     * `kind` being part of the key means the arity follows
+     * `gitConnectionKindSchema`: with "mixed" added, one user may now hold up to
+     * THREE null-account rows for the same provider (personal + work + mixed).
+     * That is intended — they are three different disclosure scopes, and the
+     * index only exists to stop a re-run creating a second row in the SAME
+     * scope. Nothing here assumes a kind is unique per user.
+     */
+    uniqueIndex("git_connections_user_provider_kind_unique")
+      .on(table.userId, table.provider, table.kind)
+      .where(sql`${table.externalAccountId} is null`),
+  ],
+);
+
+/**
+ * The raw ingestion log: one row per delivered activity, append-only.
+ *
+ * PRIVACY — the omissions here are the design, not an oversight. Do not "helpfully"
+ * add any of the following back:
+ *
+ * - No repo name, branch name, file path or commit message. `repo_fingerprint`
+ *   is a hash, so "you worked across 4 repos" stays computable while the repos
+ *   stay unnamed.
+ * - No third-party identities. Co-authors, reviewers and approvers never agreed
+ *   to be in this product, so they are hashed at INGESTION time (never at render
+ *   time, which would mean the clear value was stored) into
+ *   `counterparty_fingerprints`. Distinct-count questions — "approved by 9
+ *   distinct reviewers" — are answerable from hashes alone.
+ * - No hour-of-day and no timezone offset. `occurred_on` is a DATE, the coarsest
+ *   granularity that still supports the per-week and per-month aggregation the
+ *   digests need. A timestamp here would publish the user's sleep schedule.
+ * - `payload` holds ALREADY-REDACTED context only. Raw webhook bodies must never
+ *   reach this column.
+ */
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => gitConnections.id, { onDelete: "cascade" }),
+    // "hook" | "github" | "gitlab" | "extractor" — `activitySourceSchema`.
+    source: text("source").notNull(),
+    /**
+     * The delivering system's own id for this event: X-GitHub-Delivery, the
+     * GitLab webhook id, `${sessionId}:${turn}` for the Claude Code hook, the
+     * extractor's upload id. Paired with `source` it is the idempotency key.
+     */
+    externalDeliveryId: text("external_delivery_id").notNull(),
+    // `activityEventKindSchema`.
+    kind: text("kind").notNull(),
+    /** DATE, deliberately — see the privacy note above. */
+    occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    /** A hash. Never a repository name. */
+    repoFingerprint: text("repo_fingerprint").notNull(),
+    /** Normalized language/framework tags — the only free-text that survives ingestion. */
+    technologies: text("technologies").array().notNull().default([]),
+    /** False when the event is third-party warranting, e.g. a review the user GAVE. */
+    actorIsOwner: boolean("actor_is_owner").notNull().default(true),
+    /** HASHED distinct reviewer/approver ids. See the privacy note above. */
+    counterpartyFingerprints: text("counterparty_fingerprints")
+      .array()
+      .notNull()
+      .default([]),
+    payload: jsonb("payload"),
+    // No `updated_at`: this table is an append-only log. An event that was
+    // delivered differently is a new delivery, not an edit of an old one.
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    /**
+     * THE idempotency key. Webhook redelivery, a manual resend and a
+     * double-firing Claude Code hook all collide here, which is what lets the
+     * repository turn them into a no-op via `ON CONFLICT DO NOTHING` instead of
+     * an error the caller has to interpret.
+     */
+    unique("activity_events_source_external_delivery_id_unique").on(
+      table.source,
+      table.externalDeliveryId,
+    ),
+    // Every digest reads one user's events over one date window.
+    index("activity_events_user_id_occurred_on_idx").on(
+      table.userId,
+      table.occurredOn,
+    ),
+    index("activity_events_connection_id_idx").on(table.connectionId),
+    // `technologies @> '{typescript}'` is a seq scan without this.
+    index("activity_events_technologies_gin_idx").using(
+      "gin",
+      table.technologies,
+    ),
+  ],
+);
+
 export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   user: one(users, {
     fields: [refreshTokens.userId],
@@ -565,6 +767,8 @@ export const userRelations = relations(users, ({ many }) => ({
   candidateInteractions: many(candidateInteractions),
   createdSkills: many(skillsCatalog),
   createdTitles: many(titlesCatalog),
+  gitConnections: many(gitConnections),
+  activityEvents: many(activityEvents),
 }));
 
 export const oauthAccountRelations = relations(oauthAccounts, ({ one }) => ({
@@ -620,13 +824,40 @@ export const profileBlocksRelations = relations(profileBlocks, ({ one }) => ({
 
 export const workExperiencesRelations = relations(
   workExperiences,
-  ({ one }) => ({
+  ({ one, many }) => ({
     user: one(users, {
       fields: [workExperiences.userId],
       references: [users.id],
     }),
+    gitConnections: many(gitConnections),
   }),
 );
+
+export const gitConnectionsRelations = relations(
+  gitConnections,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [gitConnections.userId],
+      references: [users.id],
+    }),
+    workExperience: one(workExperiences, {
+      fields: [gitConnections.workExperienceId],
+      references: [workExperiences.id],
+    }),
+    activityEvents: many(activityEvents),
+  }),
+);
+
+export const activityEventsRelations = relations(activityEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [activityEvents.userId],
+    references: [users.id],
+  }),
+  connection: one(gitConnections, {
+    fields: [activityEvents.connectionId],
+    references: [gitConnections.id],
+  }),
+}));
 
 export const resumesRelations = relations(resumes, ({ one, many }) => ({
   user: one(users, {

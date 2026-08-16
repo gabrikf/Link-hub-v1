@@ -1,0 +1,9 @@
+{
+  // The build config exists only to keep `*.test.ts` out of `dist/`: this
+  // package ships two executables users actually run, so the emitted tree
+  // should contain the CLIs and nothing else. Type CHECKING still uses the
+  // plain `tsconfig.json`, which includes the tests — `npm run check-types`
+  // must cover them or the privacy assertions could rot untyped.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/test-support.ts"]
+}

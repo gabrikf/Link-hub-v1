@@ -3,9 +3,16 @@ import type {
   Post,
   UpdatePostInput,
 } from "@repo/schemas";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { FiEdit2, FiExternalLink, FiPlus, FiTrash2 } from "react-icons/fi";
+import {
+  FiChevronRight,
+  FiEdit2,
+  FiExternalLink,
+  FiLock,
+  FiPlus,
+  FiTrash2,
+} from "react-icons/fi";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import {
   useCreatePost,
@@ -21,13 +28,18 @@ import {
   Skeleton,
 } from "../../../shared-components/skeleton";
 import {
+  BADGE,
   SURFACE,
   SURFACE_EMPTY,
+  SURFACE_INSET,
 } from "../../../shared-components/surface";
+import { AttachLinkControl } from "../components/attach-link-control";
 import { PostComposerDialog } from "../components/post-composer-dialog";
 import { markdownExcerpt } from "../lib/markdown";
 import {
   formatPostDate,
+  isMachineAuthored,
+  selectPendingReview,
   SOURCE_META,
   STATUS_META,
 } from "../lib/post-format";
@@ -71,6 +83,7 @@ export function PostsPage() {
   const deletePost = useDeletePost();
 
   const posts = postsQuery.data ?? [];
+  const pendingCount = selectPendingReview(posts).length;
 
   const openCreate = () => {
     setEditingPost(null);
@@ -134,6 +147,29 @@ export function PostsPage() {
           New post
         </Button>
       </header>
+
+      {/* Only shown when there is actually something to triage — an always-on
+          link to an empty inbox trains people to ignore it. */}
+      {pendingCount > 0 ? (
+        <Link
+          to="/dashboard/posts/review"
+          className={`anim-fade-up flex items-center gap-3 px-4 py-3 text-sm transition hover:border-violet-400 dark:hover:border-violet-500/70 ${SURFACE_INSET}`}
+        >
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE.warning}`}
+          >
+            {pendingCount}
+          </span>
+          <span className="text-zinc-700 dark:text-zinc-200">
+            {pendingCount === 1 ? "post is" : "posts are"} waiting for your
+            review
+          </span>
+          <span className="ml-auto inline-flex items-center gap-1 font-medium text-violet-700 dark:text-violet-300">
+            Open review queue
+            <FiChevronRight className="h-4 w-4" aria-hidden="true" />
+          </span>
+        </Link>
+      ) : null}
 
       {mutationError ? (
         <FeedbackMessage tone="error" message={mutationError} />
@@ -223,16 +259,44 @@ export function PostsPage() {
                   ) : null}
 
                   <div className="flex items-center gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      fullWidth={false}
-                      onClick={() => openEdit(post)}
-                    >
-                      <FiEdit2 className="h-4 w-4" aria-hidden="true" />
-                      Edit
-                    </Button>
+                    {/* No Edit for a post the user did not write: the server
+                        rejects every content field on it (403), and offering a
+                        button that always fails is worse than explaining why
+                        there isn't one. Pending ones route to the queue, where
+                        the full text and the reason live. */}
+                    {post.status === "pending_review" ? (
+                      <Link to="/dashboard/posts/review">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          fullWidth={false}
+                        >
+                          Review
+                        </Button>
+                      </Link>
+                    ) : isMachineAuthored(post.source) ? (
+                      // The body is frozen, but `externalUrl` is provenance,
+                      // not content — the one field a machine post accepts.
+                      <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                        <FiLock className="h-3.5 w-3.5" aria-hidden="true" />
+                        Body written by software — you can attach a link
+                        {!post.externalUrl ? (
+                          <AttachLinkControl post={post} />
+                        ) : null}
+                      </span>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        fullWidth={false}
+                        onClick={() => openEdit(post)}
+                      >
+                        <FiEdit2 className="h-4 w-4" aria-hidden="true" />
+                        Edit
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="danger"

@@ -22,6 +22,15 @@ export interface IProfileBlocksRepository {
     groupId: string,
     tx?: TransactionContext,
   ): Promise<ProfileBlockEntity[]>;
+  /**
+   * Blocks anchored to one tab. Since a tab belongs to a single viewport, this
+   * only ever returns rows of that viewport — used to re-home them when the tab
+   * is deleted.
+   */
+  findByTabId(
+    tabId: string,
+    tx?: TransactionContext,
+  ): Promise<ProfileBlockEntity[]>;
   findById(
     id: string,
     tx?: TransactionContext,
@@ -42,5 +51,4 @@ export interface IProfileBlocksRepository {
     viewport: ProfileViewport,
     positions: BlockPositionUpdate[],
   ): Promise<void>;
-  deleteByTabId(tabId: string, tx?: TransactionContext): Promise<void>;
 }
