@@ -29,6 +29,9 @@ LOGS="$NIGHTLY/logs"
 STATE_CLI="node $ROOT/scripts/nightly/state.mjs"
 PROMPTS="$ROOT/scripts/nightly/prompts"
 PIDFILE="$NIGHTLY/run.pid"
+# An EXPLICIT stop request. Inferring it from a missing pidfile made any
+# accident that removed that file look like the user asking to stop.
+STOPFILE="$NIGHTLY/stop.request"
 
 HOURS=8
 BUDGET_USD=0
@@ -87,7 +90,7 @@ API_URL="http://localhost:$API_PORT"
 WEB_URL="http://localhost:$WEB_PORT"
 
 log() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
-die() { log "FATAL: $*"; exit 1; }
+die() { log "FATAL: $*"; rm -f "$PIDFILE"; exit 1; }
 
 # ─────────────────────────────── services ──────────────────────────────────
 
@@ -212,7 +215,7 @@ looks_like_usage_limit() {
 wait_for_reset() {
   local seconds="$1" waited=0 chunk
   while [ "$waited" -lt "$seconds" ]; do
-    if [ ! -f "$PIDFILE" ]; then
+    if [ -f "$STOPFILE" ]; then
       log "stop requested during the usage-limit wait — exiting"
       return 1
     fi
@@ -658,11 +661,13 @@ cmd_start() {
     die "a nightly run is already going (pid $(cat "$PIDFILE")). Stop it first."
   fi
   echo $$ > "$PIDFILE"
-  # EXIT as well as INT/TERM: every `die` in preflight exits without unwinding
-  # INT/TERM, which left a stale pidfile and made the NEXT start refuse with
-  # "a nightly run is already going". Cleaning up on EXIT covers both paths.
-  trap 'rm -f "$PIDFILE"' EXIT
-  trap 'log "shutting down"; rm -f "$PIDFILE"; exit 0' INT TERM
+  # NO EXIT TRAP. bash runs an inherited EXIT trap when a SUBSHELL exits, and
+  # port_open() uses `( exec 3<>/dev/tcp/... )` — so an EXIT trap that removes
+  # the pidfile deleted it on the very first health check. Nothing noticed until
+  # the usage-limit wait, which read the missing file as "stop requested" and
+  # ended the run 15 minutes into an 8-hour night. die() cleans up instead.
+  rm -f "$STOPFILE"
+  trap 'log "shutting down"; touch "$STOPFILE"; rm -f "$PIDFILE"; exit 0' INT TERM
 
   command -v claude >/dev/null || die "the \`claude\` CLI is not on PATH"
   build_claude_env
@@ -674,8 +679,13 @@ cmd_start() {
     # MEMORY.md holds what previous iterations learned. Wiping those to reset a
     # deadline would make each run rediscover the same bugs and re-litigate the
     # same rejections. Only the machine state and the logs are per-run.
-    rm -f "$NIGHTLY/STATE.json" "$NIGHTLY/run.pid"
+    # NOT run.pid — cmd_start wrote THIS process's pid there a few lines above,
+    # and deleting it made wait_for_reset (which read a missing pidfile as "the
+    # user asked to stop") end the night 15 minutes in, the first time the plan
+    # limit was hit. Only STATE.json is per-run.
+    rm -f "$NIGHTLY/STATE.json"
     rm -rf "$LOGS"; mkdir -p "$LOGS"
+    echo $$ > "$PIDFILE"
     log "archived the previous run to $(basename "$archive")"
     log "carried forward: QUEUE.json and MEMORY.md (use --fresh-all to discard them too)"
   fi
@@ -746,6 +756,7 @@ cmd_status() {
 cmd_stop() {
   [ -f "$PIDFILE" ] || { echo "not running"; return 0; }
   local pid; pid="$(cat "$PIDFILE")"
+  touch "$STOPFILE"
   kill "$pid" 2>/dev/null && echo "signalled $pid" || echo "pid $pid was already gone"
   rm -f "$PIDFILE"
 }
