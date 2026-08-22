@@ -24,10 +24,12 @@ const inputSchema = {
   status: postStatusSchema
     .optional()
     .describe(
-      "Change status. Only forward moves are accepted: 'draft' -> 'published' " +
-        "and 'pending_review' -> 'published'. A published post can never be " +
-        "moved back to 'draft' or 'pending_review' — take it down with " +
-        "delete_post instead.",
+      "Change status. Only 'draft' -> 'published' is accepted here. A post " +
+        "in 'pending_review' is waiting for the user, and only the user, " +
+        "signed in to LinkHub, can publish it — publishing it from this tool " +
+        "is refused with 403, so ask them to approve it in the app instead. " +
+        "A published post can never be moved back to 'draft' or " +
+        "'pending_review' — take it down with delete_post instead.",
     ),
 };
 

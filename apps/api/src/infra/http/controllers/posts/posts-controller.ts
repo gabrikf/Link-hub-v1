@@ -233,7 +233,9 @@ export class PostsController {
           description:
             "Publishes a post that is waiting for review. This is the only way " +
             "a machine-authored post becomes public — its content stays " +
-            "immutable, so approving is consent to the text as written.",
+            "immutable, so approving is consent to the text as written. Only " +
+            "the owner signed in to LinkHub may approve: an API token is " +
+            "refused with 403, even for a post it wrote itself.",
           params: postParamsSchema,
           response: {
             200: postResponseSchema,
@@ -255,6 +257,9 @@ export class PostsController {
         const result = await approvePostUseCase.execute({
           userId: request.user!.id,
           postId: request.params.id,
+          // Approving is the human's consent to machine-written text, so the
+          // use case has to know whether a person or a token is asking.
+          authType: request.user!.authType,
         });
 
         reply.status(200).send(result);

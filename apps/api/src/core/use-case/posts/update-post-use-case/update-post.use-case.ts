@@ -18,6 +18,7 @@ import { EnqueueResumeEmbeddingUseCase } from "../../resumes/enqueue-resume-embe
 import {
   assertMachineAuthoredPostIsImmutable,
   assertPostStatusTransition,
+  assertReviewReleaseIsHumanConsent,
 } from "../shared/post-status-rules.js";
 import { reembedResumeAfterPost } from "../shared/reembed-resume-after-post.js";
 
@@ -99,6 +100,11 @@ export class UpdatePostUseCase {
 
     if (input.status !== undefined) {
       assertPostStatusTransition(post.status, input.status);
+      assertReviewReleaseIsHumanConsent(
+        post.status,
+        input.status,
+        input.authType,
+      );
     }
 
     // A partial update still has to be checked against the FULL resulting post:
