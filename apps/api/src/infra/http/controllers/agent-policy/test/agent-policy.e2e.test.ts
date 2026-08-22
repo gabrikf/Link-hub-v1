@@ -447,6 +447,80 @@ describe("Agent policy E2E", () => {
       expect(response.json().workExperienceId).toBe(role.id);
     });
 
+    it("rejects an agent post that names the employer only in externalUrl", async () => {
+      const { user, token } = await authedUser();
+      await seedRole(user, "Nubank");
+      const pat = await mintPat(token);
+
+      // The link is rendered as the post's <a href> on the public profile, so
+      // it reaches the same anonymous reader the body does.
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+        body: JSON.stringify({
+          source: "mcp",
+          title: "Shipped a ledger reconciliation job",
+          body: "Cut p99 from 900ms to 120ms. TypeScript, Fastify, PostgreSQL.",
+          tags: ["typescript"],
+          externalUrl: "https://github.com/nubank-internal/ledger/pull/4471",
+        }),
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().message).toContain("Nubank");
+    });
+
+    it("rejects an agent post that names the employer only in an image URL", async () => {
+      const { user, token } = await authedUser();
+      await seedRole(user, "Nubank");
+      const pat = await mintPat(token);
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+        body: JSON.stringify({
+          source: "mcp",
+          body: "A clean body.",
+          coverImageUrl: "https://cdn.example.com/nubank/architecture.png",
+          images: ["https://cdn.example.com/nubank/diagram.png"],
+        }),
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().message).toContain("Nubank");
+    });
+
+    it("blocks an agent PATCH that introduces the employer via externalUrl", async () => {
+      const { user, token } = await authedUser();
+      await seedRole(user, "Nubank");
+      const pat = await mintPat(token);
+
+      // Manual post for the same reason as the test below: a machine-authored
+      // post refuses a PAT's externalUrl outright, which would short-circuit
+      // the disclosure check this test is about.
+      const created = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: "A clean post." }),
+      });
+      const postId = created.json().id as string;
+
+      const response = await ctx.app.inject({
+        method: "PATCH",
+        url: `/me/posts/${postId}`,
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+        body: JSON.stringify({
+          externalUrl: "https://github.com/nubank-internal/ledger/pull/4471",
+        }),
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().message).toContain("Nubank");
+    });
+
     it("blocks an agent PATCH that introduces a blocked term", async () => {
       const { user, token } = await authedUser({
         agentBlockedTerms: ["Project Falcon"],
