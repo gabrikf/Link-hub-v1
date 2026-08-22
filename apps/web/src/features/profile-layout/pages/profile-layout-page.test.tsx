@@ -50,11 +50,14 @@ function renderPage() {
     defaultOptions: { queries: { retry: false } },
   });
 
-  return render(
-    <QueryClientProvider client={client}>
-      <ProfileLayoutPage />
-    </QueryClientProvider>,
-  );
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <ProfileLayoutPage />
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 /** Wait for the layout query to settle — the loading copy is gone either way. */
@@ -114,6 +117,39 @@ describe("ProfileLayoutPage — GET /me/layout fails", () => {
 
     const text = container.textContent ?? "";
 
+    expect(text).not.toMatch(ERROR_COPY);
+    expect(text).toContain("Changes save automatically");
+
+    const groups = screen
+      .queryAllByRole("group")
+      .map((element) => element.getAttribute("aria-label") ?? "");
+    expect(
+      groups.some((label) => label.startsWith("Profile header block")),
+    ).toBe(true);
+  });
+
+  it("keeps the editor when a background refetch fails but the layout is already loaded", async () => {
+    fetchLayout.mockResolvedValue({
+      pc: buildDefaultLayout("pc"),
+      mobile: buildDefaultLayout("mobile"),
+    });
+
+    const { container, client } = renderPage();
+    await settle(container);
+    expect(container.textContent ?? "").toContain("Changes save automatically");
+
+    // Exactly what invalidateLayout() does after every successful mutation,
+    // with the api hiccuping on the refetch it triggers.
+    fetchLayout.mockRejectedValue(new Error("transient 503"));
+    await client.invalidateQueries({ queryKey: ["layout"] });
+
+    await waitFor(() => {
+      expect(fetchLayout.mock.calls.length).toBeGreaterThan(1);
+    });
+
+    // The layout is in the cache and the save already succeeded — nothing is
+    // fabricated, so the editor must stay up.
+    const text = container.textContent ?? "";
     expect(text).not.toMatch(ERROR_COPY);
     expect(text).toContain("Changes save automatically");
 
