@@ -71,6 +71,17 @@ The two are not yet cross-linked in an automated way. Until they are: a bug conf
 
 Gitignored by default (see the gitignore block appended to the repo root). Screenshots stay on disk; reports reference them by path, and the report is the durable record. Screenshots are checkpoints and failures only, theme named in the filename. A disclosure finding's evidence is always a set — the policy screen, the agent's exact tool call and response, the rendered post on the logged-out public profile, and the raw API payload — never a single screenshot.
 
+## Registered bugs
+
+Registered from `.nightly/QUEUE.json` on 2026-08-22 (run `2026-08-22T18:58:46.702Z`, iteration 4 — TRIAGE). Ids are stable forever; status lives in each file.
+
+| Bug | Severity | Area | One line |
+|---|---|---|---|
+| [BUG-20260822-disclosure-external-url](bugs/BUG-20260822-disclosure-external-url.md) | Critical / P0 | posts | `externalUrl` is never disclosure-scanned, so an agent publishes the employer's name in a public clickable link at `summary` |
+| [BUG-20260822-disclosure-cross-role](bugs/BUG-20260822-disclosure-cross-role.md) | Critical / P0 | posts | Marking one job `full` un-blocks **every** other employer's name for agent-authored posts |
+| [BUG-20260822-links-keyboard-reorder](bugs/BUG-20260822-links-keyboard-reorder.md) | High / P1 | dashboard | Profile links cannot be reordered by keyboard — the drag lifts and announces itself, then arrows do nothing |
+| [BUG-20260822-open-to-work-switch-name](bugs/BUG-20260822-open-to-work-switch-name.md) | Low / P3 | dashboard | The "Open to work" switch has no accessible name |
+
 ## Adopted from
 
-Nothing yet — this is a fresh bootstrap, not a migration. `.nightly/QUEUE.json`'s `confirmed[]` array (7 bugs as of 2026-08-22) is pre-existing durable knowledge from a prior hand-off; it is indexed here by reference (see "Relationship to `.nightly/`" above) rather than copied, until a QA cycle formally registers each one into `bugs/`.
+Nothing yet — this is a fresh bootstrap, not a migration. The four bugs above are the first entries the loop registered here. `.nightly/QUEUE.json`'s remaining `confirmed[]` entries (7 bugs carried in from a prior hand-off — `public-posts-contract`, `links-url-scheme`, `agent-self-publish`, `auth-unhandled-rejection`, `layout-vertical-keyboard`, `layout-error-fabricated`, `dashboard-error-state`) are still indexed here by reference only (see "Relationship to `.nightly/`" above); they were not re-reproduced by the triage that registered the four above, so copying them in would present hand-off knowledge as this cycle's verified work.
