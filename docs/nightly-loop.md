@@ -228,6 +228,30 @@ The invocations also redirect `</dev/null`, since a detached `nohup` run
 otherwise makes `claude` wait ~3s for stdin that never arrives and log a warning
 every iteration.
 
+### Headless start-up is slow, and that is not a hang
+
+Claude Code loads every plugin and skill before its first token. Measured on
+this machine, same prompt and model:
+
+| Invocation | Wall clock |
+|---|---|
+| no tools, `--strict-mcp-config` | 22–55s |
+| two turns touching Bash | **187s to the result, process exits at 190s** |
+
+That 3-second gap after the result is the documented background-shell grace
+period ([fixed in 2.1.163](https://github.com/anthropics/claude-code/issues/65498)) —
+so the process does exit promptly once it is genuinely finished.
+
+This matters because preflight originally capped the probe at 180s and killed it
+about ten seconds short, three launches in a row, with **empty stderr** — which
+reads exactly like a hang or an auth failure and is neither. The probe cap is now
+600s. Budget roughly 1–3 minutes of start-up per iteration on top of the real
+work.
+
+`--bare` would cut most of that start-up, but it must NOT be used here: it makes
+Anthropic auth strictly `ANTHROPIC_API_KEY`/`apiKeyHelper` and never reads OAuth,
+which would move the whole run onto per-token USD billing.
+
 ### The Stop hook
 
 This repo runs the gate on Claude Code's `Stop` hook, so it fires when an
@@ -310,11 +334,11 @@ git diff --stat develop..nightly/qa-hardening
 ### What it needs
 
 - `claude` CLI on PATH **signed in to a Claude subscription**, and permission to
-  run unattended (`--dangerously-skip-permissions`) — it edits files and commits
-  without asking. Preflight confirms the billing route before spending.
-  `--permission-mode bypassPermissions` looks equivalent but hung print mode on
-  this machine for 180s with empty stderr and no output; use
-  `--permission-mode <mode>` to override only if your build prefers it.
+  run unattended. By default it passes `--allowedTools` naming every tool the
+  loop needs, rather than disabling permission checks wholesale: nothing listed
+  prompts, and unlike the bypass flag it needs no one-time interactive
+  acceptance. `--bypass-permissions` switches to
+  `--dangerously-skip-permissions` if you prefer it.
 - The docker stack up (it starts it if not), and a seeded database.
 - Playwright's chromium (`npx playwright install chromium`).
 - A funded `OPENAI_API_KEY` for the embedding-backed search and resume-import

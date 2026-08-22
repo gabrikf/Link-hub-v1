@@ -55,7 +55,14 @@ ALLOW_API_BILLING=0
 # `--permission-mode bypassPermissions` appears equivalent but hung print mode
 # here for 180s with EMPTY stderr and no output — see the preflight diagnostics.
 # Override with --permission-mode <mode> if your build prefers it.
-PERMISSION_ARGS=(--dangerously-skip-permissions)
+# Name every tool the loop needs rather than disabling permission checks
+# wholesale. Nothing listed here prompts, so print mode never blocks, and unlike
+# the bypass flag it needs no one-time interactive acceptance. This is the form
+# that was verified end to end on this machine, with a real Bash tool call.
+# Anything NOT listed still prompts, and a prompt in print mode blocks until the
+# iteration timeout — so the list must stay complete.
+ALLOWED_TOOLS="Bash BashOutput KillShell Read Edit Write Glob Grep Task TodoWrite WebFetch WebSearch NotebookEdit Skill SlashCommand"
+PERMISSION_ARGS=(--allowedTools "$ALLOWED_TOOLS")
 # Claude plans refill on a rolling ~5-hour window. Hitting that limit is not a
 # failure of the code or the loop — it is a clock. So the loop WAITS for the
 # reset and resumes the same phase, instead of burning its three-strikes guard
@@ -427,8 +434,13 @@ preflight() {
   # Diagnose properly rather than guessing "are you logged in?" for every
   # failure mode. Auth was already confirmed by check_billing_route above, so a
   # failure here is almost never credentials.
+  # 600, not 180. Claude Code headless start-up here is ~50s with no tools and
+  # ~190s for a two-turn task that touches Bash, because it loads every plugin
+  # and skill before the first token. A 180s cap killed the probe THREE TIMES
+  # about ten seconds before it would have succeeded, and the empty stderr made
+  # it look like a hang or an auth failure. It is neither: it is start-up cost.
   local probe probe_code probe_err="$LOGS/preflight.stderr"
-  probe="$(timeout 180 "${CLAUDE_ENV[@]}" claude -p 'Reply with exactly: READY. Do not use any tools.' \
+  probe="$(timeout 600 "${CLAUDE_ENV[@]}" claude -p 'Reply with exactly: READY. Do not use any tools.' \
     --model "$MODEL_CHEAP" \
     "${PERMISSION_ARGS[@]}" \
     --output-format json \
@@ -437,12 +449,17 @@ preflight() {
   probe_code=$?
 
   if [ "$probe_code" -eq 124 ]; then
-    log "FATAL: the probe TIMED OUT after 180s."
+    log "FATAL: the probe TIMED OUT after 600s."
     log "  This is NOT an auth problem — the subscription was confirmed above."
     log "  The process produced no result and never exited. The usual cause is a"
     log "  permission flag awaiting a one-time acceptance that print mode cannot give."
-    log "  Run this ONCE interactively, accept the warning, then start the loop again:"
-    log "      claude ${PERMISSION_ARGS[*]} -p 'hi' --model sonnet --strict-mcp-config"
+    log ""
+    log "  Fix A — accept the warning once, INTERACTIVELY (no -p; -p is what hangs):"
+    log "      claude ${PERMISSION_ARGS[*]}"
+    log "    accept the prompt, then /exit, then start the loop again."
+    log ""
+    log "  Fix B — try the bypass flag instead of the tool allowlist:"
+    log "      bash scripts/nightly/run.sh start --bypass-permissions --hours $HOURS"
     log "  stderr tail:"; tail -5 "$probe_err" 2>/dev/null | sed 's/^/    /'
     exit 1
   fi
@@ -584,6 +601,7 @@ while [ $# -gt 0 ]; do
     --fresh) FRESH=1; shift ;;
     --allow-api-billing) ALLOW_API_BILLING=1; shift ;;
     --permission-mode) PERMISSION_ARGS=(--permission-mode "$2"); shift 2 ;;
+    --bypass-permissions) PERMISSION_ARGS=(--dangerously-skip-permissions); shift ;;
     --no-resume-after-limit) RESUME_AFTER_LIMIT=0; shift ;;
     --max-limit-wait-hours) MAX_LIMIT_WAIT_HOURS="$2"; shift 2 ;;
     *) die "unknown option: $1" ;;
