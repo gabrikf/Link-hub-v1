@@ -15,6 +15,7 @@ import { InMemoryApiTokenRepository } from "../../../core/repositories/api-token
 import { InMemoryWorkExperienceRepository } from "../../../core/repositories/work-experience/in-memory-work-experience-repository.js";
 import { InMemoryGitConnectionRepository } from "../../../core/repositories/git-connection/in-memory-git-connection-repository.js";
 import { InMemoryActivityEventRepository } from "../../../core/repositories/activity-event/in-memory-activity-event-repository.js";
+import { InMemoryLinksRepository } from "../../../core/repositories/link/in-memory-links-repository.js";
 import { CryptoTokenProvider } from "../../providers/crypto-token-provider.js";
 import { CryptoWebhookSecretProvider } from "../../providers/crypto-webhook-secret-provider.js";
 import { JwtProvider } from "../../providers/jwt-provider.js";
@@ -40,7 +41,10 @@ import { IngestActivityUseCase } from "../../../core/use-case/activity/ingest-ac
 import { BuildCandidateEvidenceUseCase } from "../../../core/use-case/activity/build-candidate-evidence-use-case/build-candidate-evidence.use-case.js";
 import { GetConnectionHealthUseCase } from "../../../core/use-case/activity/get-connection-health-use-case/get-connection-health.use-case.js";
 import { PreviewActivityDigestUseCase } from "../../../core/use-case/activity/preview-activity-digest-use-case/preview-activity-digest.use-case.js";
+import { CreateLinkUseCase } from "../../../core/use-case/links/create-link-use-case/create-link.use-case.js";
+import { UpdateLinkUseCase } from "../../../core/use-case/links/update-link-use-case/update-link.use-case.js";
 import { PostsController } from "../controllers/posts/posts-controller.js";
+import { LinksController } from "../controllers/links/links-controller.js";
 import { ApiTokensController } from "../controllers/api-tokens/api-tokens-controller.js";
 import { AgentPolicyController } from "../controllers/agent-policy/agent-policy-controller.js";
 import { ActivityController } from "../controllers/activity/activity-controller.js";
@@ -62,6 +66,7 @@ export interface TestAppHandles {
   workExperienceRepository: InMemoryWorkExperienceRepository;
   gitConnectionRepository: InMemoryGitConnectionRepository;
   activityEventRepository: InMemoryActivityEventRepository;
+  linksRepository: InMemoryLinksRepository;
   tokenProvider: CryptoTokenProvider;
   webhookSecretProvider: CryptoWebhookSecretProvider;
   jwtProvider: JwtProvider;
@@ -101,6 +106,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   const workExperienceRepository = new InMemoryWorkExperienceRepository();
   const gitConnectionRepository = new InMemoryGitConnectionRepository();
   const activityEventRepository = new InMemoryActivityEventRepository();
+  const linksRepository = new InMemoryLinksRepository();
   const tokenProvider = new CryptoTokenProvider();
   const webhookSecretProvider = new CryptoWebhookSecretProvider();
   const jwtProvider = new JwtProvider({
@@ -124,6 +130,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     TOKENS.ActivityEventRepository,
     activityEventRepository,
   );
+  container.registerInstance(TOKENS.LinksRepository, linksRepository);
   container.registerInstance(TOKENS.TokenProvider, tokenProvider);
   container.registerInstance(
     TOKENS.WebhookSecretProvider,
@@ -244,6 +251,15 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     ),
   );
 
+  container.registerInstance(
+    TOKENS.CreateLinkUseCase,
+    new CreateLinkUseCase(linksRepository, usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.UpdateLinkUseCase,
+    new UpdateLinkUseCase(linksRepository),
+  );
+
   const app = fastify();
 
   app.setErrorHandler(errorHandler);
@@ -258,6 +274,10 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   // here without breaking registration.
   WorkExperienceController.handle(app);
   ActivityController.handle(app);
+  // Only the create/update use-cases are registered above: the other link
+  // routes resolve theirs lazily inside the handler, so they stay unavailable
+  // (and unused) here without breaking registration.
+  LinksController.handle(app);
   // Registered as a real plugin, not called like the controllers above: the
   // raw-body content-type parser it declares is only encapsulated — and the
   // rest of the app only keeps default JSON parsing — because it lives inside
@@ -276,6 +296,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     workExperienceRepository,
     gitConnectionRepository,
     activityEventRepository,
+    linksRepository,
     tokenProvider,
     webhookSecretProvider,
     jwtProvider,
