@@ -154,6 +154,29 @@ describe("GetWorkContextUseCase", () => {
     expect(context.roles[0].achievements[0]).not.toContain("Nubank");
   });
 
+  it("keeps a summary-level employer redacted inside a full-level role", async () => {
+    const user = await seedUser();
+    await workExperienceRepository.create(
+      makeRole(user.id, {
+        companyName: "VTEX",
+        disclosureLevel: "full",
+        description: "Migrated the ledger we later reused at PagBank.",
+        displayOrder: 0,
+      }),
+    );
+    await workExperienceRepository.create(
+      makeRole(user.id, { companyName: "PagBank", displayOrder: 1 }),
+    );
+
+    const context = await sut.execute(user.id);
+
+    // The permissive role may name ITSELF...
+    expect(context.roles[0].companyName).toBe("VTEX");
+    // ...but not the employer the user deliberately left at summary.
+    expect(context.roles[0].achievements[0]).not.toContain("PagBank");
+    expect(context.roles[0].achievements[0]).toContain("[employer]");
+  });
+
   it("honours a per-role override over the account default", async () => {
     const user = await seedUser({ agentDisclosureLevel: "summary" });
     await workExperienceRepository.create(

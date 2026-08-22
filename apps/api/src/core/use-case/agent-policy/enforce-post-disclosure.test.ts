@@ -28,11 +28,16 @@ function userAt(
   });
 }
 
-function roleAt(userId: string, companyName: string): WorkExperienceEntity {
+function roleAt(
+  userId: string,
+  companyName: string,
+  disclosureLevel: "summary" | "detailed" | "full" | null = null,
+): WorkExperienceEntity {
   return WorkExperienceEntity.create({
     userId,
     title: "Senior Software Engineer",
     companyName,
+    disclosureLevel,
     employmentType: "full-time",
     workModel: "remote",
     locationCity: null,
@@ -152,6 +157,57 @@ describe("assertPostRespectsDisclosure — URL fields a public reader sees", () 
         workExperienceId: role.id,
         body: "A clean body.",
         externalUrl: "https://github.com/nubank-internal/ledger/pull/4471",
+      }),
+    ).not.toThrow();
+  });
+});
+
+/**
+ * Raising ONE role's level says "you may name THIS employer" — not "you may
+ * name all of them". A developer who marks their open-source or already-public
+ * stint `full` while leaving the NDA employer on `summary` must still be
+ * protected from an agent that attributes the post to the permissive role.
+ */
+describe("assertPostRespectsDisclosure — a permissive role must not un-block the others", () => {
+  it("still blocks an employer whose own role stayed at summary", () => {
+    const user = userAt("summary");
+    const open = roleAt(user.id, "VTEX", "full");
+    const underNda = roleAt(user.id, "PagBank");
+
+    expect(() =>
+      assertPostRespectsDisclosure({
+        user,
+        workExperiences: [open, underNda],
+        workExperienceId: open.id,
+        body: "Shipped a reconciliation ledger at PagBank this quarter.",
+      }),
+    ).toThrow(/PagBank/);
+  });
+
+  it("blocks the employer of a role pinned to summary under a full account", () => {
+    const user = userAt("full");
+    const underNda = roleAt(user.id, "PagBank", "summary");
+
+    expect(() =>
+      assertPostRespectsDisclosure({
+        user,
+        workExperiences: [underNda],
+        body: "Shipped a reconciliation ledger at PagBank this quarter.",
+      }),
+    ).toThrow(/PagBank/);
+  });
+
+  it("still allows naming the attributed employer itself", () => {
+    const user = userAt("summary");
+    const open = roleAt(user.id, "VTEX", "full");
+    const underNda = roleAt(user.id, "PagBank");
+
+    expect(() =>
+      assertPostRespectsDisclosure({
+        user,
+        workExperiences: [open, underNda],
+        workExperienceId: open.id,
+        body: "Shipped a reconciliation ledger at VTEX this quarter.",
       }),
     ).not.toThrow();
   });
