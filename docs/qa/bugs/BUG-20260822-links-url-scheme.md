@@ -1,6 +1,6 @@
 # BUG-20260822-links-url-scheme: a profile link can be saved as `javascript:` or `data:` — the public profile stores and serves it unchecked
 
-- **Status:** open
+- **Status:** verified (fixed `66db662`, independently reviewed at iteration 15)
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Sam, the reader who arrives cold (the person a stored-XSS payload would land on); Diego owns the surface that stores it
@@ -79,10 +79,67 @@ should survive the re-rating:
 - **Root cause:** *symptom* — dangerous URL schemes are storable and publicly served. *Cause* — `packages/schemas/src/links/index.ts` validates with a bare `z.string().url()` in three places (`linkSchema.url`, `createLinkSchemaInput.url`, `updateLinkSchemaInput.url`), and `z.string().url()` accepts any scheme. The repo already has the right validator thirty lines away in `packages/schemas/src/profile-blocks/index.ts` — `httpUrlSchema` — whose own doc comment says *"Every user-supplied URL that reaches an href or media src must use this."* The links module simply never adopted it. `packages/schemas/src/posts/index.ts` already does, which is why a post's `externalUrl` is safe and a link's `url` is not.
 - **Root Cause (taxonomy):** api-contract
 - **Direction for the fix (decided at triage):** `url: httpUrlSchema` on the two **input** schemas — `createLinkSchemaInput.url` and `updateLinkSchemaInput.url` — then `npm run build:schemas`. Do **not** hand-roll a scheme regex. **Leave `linkSchema.url` alone for now.** It is the **response** schema: tightening it turns any pre-existing non-http row into a failed serialization, so one bad row would 500 the whole profile — a strictly worse harm than the latent one being fixed. The dev database has zero such rows, but this run cannot see production data, and the two input schemas are the entire path by which a *new* bad row can be created. Tightening `linkSchema` is a separate task that starts with a production data check.
-- **Fix commit:** —
+- **What actually shipped:** `createLinkSchemaInput.url` and `updateLinkSchemaInput.url` now use `httpUrlSchemaWith("Invalid URL format")`. The message argument exists because dropping in the bare `httpUrlSchema` replaced the user-visible *"Invalid URL format"* wording that `apps/web/src/features/dashboard/components/dashboard-link-form.test.tsx` already asserts — so `packages/schemas/src/profile-blocks/index.ts` grew an `httpUrlSchemaWith(invalidUrlMessage?)` factory and `httpUrlSchema` became `httpUrlSchemaWith()`, leaving every existing caller (posts, profile, blocks, mcp) byte-identical. That existing test was **not** edited. `linkSchema.url` was left alone as triage directed, and now carries a comment saying why.
+- **Fix commit:** `66db662` (red `9981b0c`)
 - **Regression test:** contract test in `packages/schemas` — assert `createLinkSchemaInput` and `updateLinkSchemaInput` **reject** `javascript:`, `JaVaScRiPt:`, `data:`, `vbscript:` and accept `https:`. That test fails today. Then an api-level test via `build-test-app.ts` + `server.inject`: `POST /links` with a `javascript:` url expects `400`. `e2e/journeys/04-link-sharing.spec.ts` already asserts no live non-http(s) href renders.
-- **Gate:** —
+- **Gate:** `guardrails PASS` (re-run independently at review).
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+Reviewed at iteration 15 by an agent that did not write the fix. **Verdict:
+approved.**
+
+**Red-then-green, proved rather than read off the commit message.** At
+`9981b0c` — with `npm run build:schemas` run *there* first, because `apps/api`
+resolves `@repo/schemas` through `packages/schemas/dist` and a stale `dist`
+would have made the api test lie:
+
+| | red `9981b0c` | tip `66db662` |
+|---|---|---|
+| `packages/schemas/src/links/url-scheme.test.ts` | 12 failed \| 2 passed | 14 passed |
+| `apps/api/…/links/test/links.e2e.test.ts` | 8 failed \| 1 passed | 9 passed |
+
+The failures at red are `expected true to be false` (the schema **accepted** the
+dangerous URL) and `expected 201/200 to be 400` — the symptom itself, not an
+import error or a bad selector. The tests that pass at red are the `http(s)`
+positive controls, which is what rules out the `title`-vs-`label` trap.
+
+**Reviewed by hand as well as by test.**
+
+- *Root cause, not symptom.* No type assertion, no `eslint-disable`, no `.skip`,
+  no swallowed error, no timing hack. No schema widened; two narrowed.
+- *The `httpUrlSchemaWith` extraction was checked, not assumed.* Against the
+  built `dist`, `httpUrlSchema` still emits `"Invalid URL"` + `"Only http(s)
+  URLs are allowed"`, still trims and still accepts `https:` —
+  `z.string().url(undefined)` is identical to `z.string().url()`. Only the links
+  inputs differ, and only in the first message.
+- *No import cycle:* `profile-blocks/index.ts` imports nothing local.
+- *Blast radius on the write path is complete.* `POST /links` and
+  `PUT /links/:id` are the only routes carrying a `url` (reorder and
+  toggle-visibility carry none), and in production code only
+  `create-link.use-case.ts` calls `LinkEntity.create` / `linksRepository.create`.
+  The two tightened input schemas are the whole surface by which a new row is
+  written.
+- *No edited tests, no scope creep.* Fix commit is 2 files, +24/−9.
+
+**The user-visible harm is gone at a real entry point, not just in a unit test.**
+Port 3333 is still the unrelated "Retro DOC API" (see iterations 11–13), so no
+live curl was possible. Instead the review rendered the real `DashboardLinkForm`
+with the real `zodResolver(linkFormSchema)` and typed each dangerous URL into the
+URL field: the user now sees **"Only http(s) URLs are allowed"**, submit is
+blocked for `javascript:`, `JaVaScRiPt:`, `data:text/html` and `vbscript:`, and
+`https://github.com/gabrielk` still submits. That throwaway file was deleted.
+The api side is covered by the committed `app.inject()` test, which asserts the
+**repository contents** (zero rows / the unchanged https URL), not just a 400.
+
+### Residual — accepted, and its own task
+
+`linkSchema.url` (the **response** shape) is still a bare `z.string().url()`, and
+`apps/web/src/features/profile/components/profile-blocks.tsx:247` still renders
+`href={link.url}` with no render-time filter. A row written *before* this gate
+existed would therefore still reach the public profile's `href`. Triage is right
+that tightening the response schema instead would turn one legacy row into a
+**500 on the entire profile**, which is strictly worse than the latent harm.
+`linkhub_dev` is clean (`0` of `1` rows non-http, re-queried at review). Closing
+this needs a production data audit plus a render-time guard — a separate task,
+not a reason to hold the fix.
