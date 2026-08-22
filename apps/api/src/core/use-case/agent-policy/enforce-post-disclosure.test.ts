@@ -22,6 +22,9 @@ function userAt(
     password: "hashed",
     agentDisclosureLevel: level,
     agentBlockedTerms: blockedTerms,
+    description: null,
+    avatarUrl: null,
+    googleId: null,
   });
 }
 

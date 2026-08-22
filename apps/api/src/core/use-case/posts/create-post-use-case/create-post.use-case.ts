@@ -76,6 +76,9 @@ export class CreatePostUseCase {
           title: input.title,
           body: input.body,
           tags: input.tags,
+          externalUrl: input.externalUrl,
+          coverImageUrl: input.coverImageUrl,
+          images: input.images,
         });
       }
     }

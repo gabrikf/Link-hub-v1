@@ -10,11 +10,29 @@ import {
   resolveEffectiveLevel,
 } from "./redact-work-disclosure.js";
 
-/** The text fields of a post that a reader (and therefore a recruiter) sees. */
+/**
+ * The fields of a post that a reader (and therefore a recruiter) sees.
+ *
+ * The URLs are here for the same reason the prose is: they are SERVED to
+ * anonymous readers. `externalUrl` is rendered as the post's `<a href>` on the
+ * public profile and `coverImageUrl`/`images` as its `<img src>`, so
+ * "github.com/acme-internal/..." publishes the employer just as plainly as
+ * writing the name in the body — and an agent attaching the PR link it just
+ * read is the ordinary case, not an attack.
+ *
+ * `metadata` is deliberately absent: it is stripped from the public projection
+ * (`publicPostResponseSchema` omits it) so it reaches no one but its owner. The
+ * digest path, which is the only writer that fills it, scans it separately in
+ * `assertTemplateIsClean`. If metadata ever starts being served, it belongs
+ * here.
+ */
 export interface PostDisclosureContent {
   title?: string | null;
   body?: string | null;
   tags?: string[] | null;
+  externalUrl?: string | null;
+  coverImageUrl?: string | null;
+  images?: string[] | null;
 }
 
 export interface EnforcePostDisclosureInput extends PostDisclosureContent {
@@ -76,12 +94,16 @@ export function assertPostRespectsDisclosure(
 
   if (blockedTerms.length === 0) return;
 
-  // Tags are joined with a separator that can't create an accidental match
-  // across two tags, then scanned as one string.
+  // Every field is joined with a separator that can't create an accidental
+  // match across two of them, then scanned as one string. A newline is not a
+  // letter/digit/underscore, so it reads as a word boundary to the matcher.
   const haystack = [
     input.title ?? "",
     input.body ?? "",
     ...(input.tags ?? []),
+    input.externalUrl ?? "",
+    input.coverImageUrl ?? "",
+    ...(input.images ?? []),
   ].join("\n");
 
   const violations = findDisclosureViolations(haystack, blockedTerms);

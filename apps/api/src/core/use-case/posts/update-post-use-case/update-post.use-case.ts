@@ -122,6 +122,9 @@ export class UpdatePostUseCase {
           title: afterPatch(input.title, post.title),
           body: afterPatch(input.body, post.body),
           tags: afterPatch(input.tags, post.tags),
+          externalUrl: afterPatch(input.externalUrl, post.externalUrl),
+          coverImageUrl: afterPatch(input.coverImageUrl, post.coverImageUrl),
+          images: afterPatch(input.images, post.images),
         });
       }
     }
