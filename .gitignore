@@ -78,6 +78,7 @@ docs/qa/sessions/
 .playwright/e2e-*.json
 .playwright/e2e-results/
 .playwright/e2e-html/
+.playwright/*.log
 
 # deep-review generates hundreds of artifact files per round.
 .deep-review/
