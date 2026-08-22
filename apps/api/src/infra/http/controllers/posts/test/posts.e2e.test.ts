@@ -6,6 +6,7 @@
  * into the tsyringe container, and the real controllers, zod validation and
  * guards run end-to-end via `app.inject()`. No Postgres, Redis or OpenAI.
  */
+import { publicPostSchema } from "@repo/schemas";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makePost } from "../../../../../core/entity/post/post-test-factory.js";
 import {
@@ -459,6 +460,39 @@ describe("Public feed E2E — GET /profile/:username/posts (no auth)", () => {
     // The strong assertion: the repo name must not appear ANYWHERE in the
     // public payload, whatever shape a future projection gives it.
     expect(response.body).not.toContain("acme-internal-billing");
+  });
+
+  /**
+   * The other half of BUG-20260822-public-posts-contract.
+   *
+   * `apps/web/src/lib/post-queries.test.ts` proves the web parses a captured
+   * payload; this proves the payload the route emits TODAY is the one that
+   * schema accepts. Without it, a later change to the projection would only
+   * surface as an error state on a real profile.
+   */
+  it("emits exactly what the web parses the public feed with", async () => {
+    const author = await ctx.seedUser({ login: "author" });
+
+    await ctx.postsRepository.create(
+      makePost({
+        userId: author.id,
+        source: "commit",
+        body: "published",
+        status: "published",
+        publishedAt: new Date("2024-03-01"),
+        metadata: { repo: "acme-internal-billing", commitCount: 12 },
+      }),
+    );
+
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/profile/author/posts",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const parsed = publicPostSchema.array().safeParse(response.json());
+    expect(parsed.error?.issues ?? []).toEqual([]);
+    expect(parsed.success).toBe(true);
   });
 
   it("respects limit and offset", async () => {

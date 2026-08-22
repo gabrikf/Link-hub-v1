@@ -7,6 +7,7 @@ import {
   operationSuccessSchema,
   postParamsSchema,
   postSchema,
+  publicPostSchema,
   updatePostSchemaInput,
   usernameParamsSchema,
   type ListPostsQuery,
@@ -55,15 +56,13 @@ const postResponseSchema = postSchema.extend({
 /**
  * The same post, minus `metadata`, for the UNAUTHENTICATED profile feed.
  *
- * `metadata` is provenance the OWNER needs — the review queue renders repo,
- * commit count and period from it — and it is the one field on a post that can
- * still hold a repository name, because a coding agent supplies it rather than
- * the deterministic template. Serving it on a public route would publish the
- * exact identifier every other layer of this feature works to keep out, so the
- * public projection drops the whole bag rather than trusting each writer to
- * have filled it in safely.
+ * The omission itself now lives in `@repo/schemas` as `publicPostSchema`, and
+ * this route derives from it rather than re-deriving the projection locally —
+ * the web parses the response with that same declaration, so the two sides
+ * cannot drift apart again. See the comment on `publicPostSchema` for why
+ * `metadata` may never be served publicly.
  */
-const publicPostResponseSchema = postResponseSchema.omit({ metadata: true });
+const publicPostResponseSchema = publicPostSchema.extend(workExperienceIdField);
 
 type CreatePostBody = z.infer<typeof createPostBodySchema>;
 type UpdatePostBody = z.infer<typeof updatePostBodySchema>;
