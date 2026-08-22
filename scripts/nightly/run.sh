@@ -384,9 +384,12 @@ preflight() {
 
   check_billing_route
 
+  # Probe on the cheap model: this checks auth, permissions and the billing
+  # route, none of which differ by model, so there is no reason to spend the
+  # expensive one on a one-word answer before the run has started.
   local probe
   probe="$(timeout 180 run_claude -p 'Reply with exactly: READY. Do not use any tools.' \
-    --model "$MODEL" \
+    --model "$MODEL_CHEAP" \
     --permission-mode bypassPermissions \
     --output-format json \
     --max-budget-usd 1 2>>"$LOGS/claude-stderr.log")" || die \
