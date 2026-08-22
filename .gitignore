@@ -66,3 +66,18 @@ scripts/visual/scenarios/*.scenario.mjs
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.
 docs/qa/sessions/
+
+# The nightly loop's runtime state. STATE.json / QUEUE.json / MEMORY.md are the
+# loop's memory across processes, and the logs are one JSON blob per iteration —
+# all of it is a record of ONE night's run, not of the repo. The durable output
+# is committed instead: docs/qa/** and docs/nightly-loop.md.
+.nightly/
+
+# @playwright/test output. `.playwright/cli.config.json` stays versioned (it is
+# the visual-check capture contract); nothing generated does.
+.playwright/e2e-*.json
+.playwright/e2e-results/
+.playwright/e2e-html/
+
+# deep-review generates hundreds of artifact files per round.
+.deep-review/
