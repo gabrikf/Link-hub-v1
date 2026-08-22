@@ -52,6 +52,33 @@ this file.
 
 ---
 
+## The loop does not start from zero
+
+`.nightly/QUEUE.json` is **seeded** before the first iteration with everything
+the five journey specs found while they were being written, each one reproduced
+and verified rather than taken on report. `BOOTSTRAP` and `HUNT` therefore start
+by extending real work instead of rediscovering it.
+
+Seeded at hand-off: **2 blockers, 5 majors, 9 candidates, 1 rejection.** The two
+blockers both live on the public profile — the artifact the whole product exists
+to produce:
+
+- `BUG-20260822-public-posts-contract` — the api omits `metadata` from its
+  public projection while the web client parses that response with `postSchema`,
+  where `metadata` is required. Every profile with a published post shows
+  *"Could not load posts. Please try again."* Verified by parsing a real
+  captured payload from the running api through the shared schema.
+- `BUG-20260822-links-url-scheme` — profile links validate with a bare
+  `z.string().url()`, which accepts `javascript:`, `data:` and `vbscript:`. The
+  repo's own `httpUrlSchema` rejects all of them and its doc comment says every
+  URL reaching an `href` must use it. Only React 19's href guard prevents
+  exploitation today, and it does not cover `data:`.
+
+The `rejected[]` entry is as important as the confirmed ones: a cold
+`/dashboard/search` visit loses its first submit to a Vite dep-optimisation
+reload. That is a dev-server artifact, it does not exist in a built bundle, and
+recording it as rejected stops each new iteration from re-filing it.
+
 ## The phases
 
 | Phase | One iteration does | Legal next |

@@ -25,6 +25,11 @@ record here, so record what you actually observed, not what you expected.
    npx playwright test --project=desktop --reporter=list
    npx playwright test --project=mobile --reporter=list
    ```
+   `.nightly/QUEUE.json` carries a **`seed_baseline`** key recorded at hand-off:
+   the 42-test totals, which 7 failures are already-confirmed bugs, which 2 are
+   known-flaky, and which 1 is deliberately skipped. Read it FIRST and compare
+   your run against it. A failure listed there is not news; anything else is.
+
    Record, per spec file, which tests pass and which fail. **Do not fix
    anything.** A failing e2e test written before tonight is a *candidate*, not a
    verdict — TRIAGE decides. Add each distinct failure to `QUEUE.candidates`.
