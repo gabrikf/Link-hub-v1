@@ -56,15 +56,27 @@ export default defineConfig({
       grep: /@responsive/,
     },
   ],
+  /**
+   * The fallback servers must come up on the SAME ports the tests target.
+   * Hardcoding `npm run dev:api` starts it on its default 3333, and if another
+   * project owns 3333 the run dies with EADDRINUSE while the real api sits
+   * healthy on the configured port. Derive the ports from the URLs instead.
+   *
+   * `WEB_APP_URL` is required because the api's dev CORS allowlist names 5173
+   * and 4173 literally, so a web on any other port is blocked without it.
+   * The vite `--port` flag is needed because vite.config.ts hardcodes 5173, and
+   * it must be forwarded through the workspace script with `--`, not through
+   * the root `dev:web` alias, which would swallow it as an npm flag.
+   */
   webServer: [
     {
-      command: "npm run dev:api",
+      command: `PORT=${new URL(API).port} WEB_APP_URL=${WEB} npm run dev --workspace=api`,
       url: `${API}/docs`,
       reuseExistingServer: true,
       timeout: 120_000,
     },
     {
-      command: "npm run dev:web",
+      command: `VITE_API_URL=${API} npm run dev --workspace=web -- --port ${new URL(WEB).port} --strictPort`,
       url: WEB,
       reuseExistingServer: true,
       timeout: 120_000,

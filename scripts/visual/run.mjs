@@ -48,6 +48,22 @@ const ROOT = resolve(import.meta.dirname, "../..");
 const CONFIG_PATH = resolve(ROOT, ".playwright/cli.config.json");
 const STATE_PATH = resolve(ROOT, ".playwright/auth.json");
 const APP_URL = process.env.VISUAL_APP_URL || "http://localhost:5173";
+const API_URL = process.env.VISUAL_API_URL || "http://localhost:3333";
+
+/**
+ * The allowlist in cli.config.json names localhost:5173 and localhost:3333
+ * literally. That is fine until the app runs anywhere else — another project on
+ * this machine owning 5173/3333 is common — at which point `interceptOrigins`
+ * aborts EVERY request, including the app's own, and the scenario reports a
+ * blank page rather than a port mismatch. The app under test can never be the
+ * thing the allowlist blocks, so its origins are always injected.
+ */
+function withAppOrigins(network = {}) {
+  if (!network.allowedOrigins?.length) return network;
+  const hosts = [APP_URL, API_URL].map((url) => new URL(url).host);
+  const allowedOrigins = [...new Set([...network.allowedOrigins, ...hosts])];
+  return { ...network, allowedOrigins };
+}
 
 /** Where the app lands when the session is dead. `/` is the auth page here. */
 const LOGIN_PATH = /^\/$|login|signin|auth/i;
@@ -80,7 +96,8 @@ function originOrHostGlob(originOrHost) {
  * never leaves the browser. That keeps a capture from depending on Sentry or a
  * CDN being up.
  */
-async function interceptOrigins(context, network = {}) {
+async function interceptOrigins(context, rawNetwork = {}) {
+  const network = withAppOrigins(rawNetwork);
   if (network.allowedOrigins?.length) {
     await context.route("**", (route) => route.abort("blockedbyclient"));
     for (const origin of network.allowedOrigins) {

@@ -77,8 +77,12 @@ LIMIT_WAIT_FALLBACK_SECONDS=1800
 LAST_LIMIT_STDOUT=""
 LAST_LIMIT_STDERR=""
 
-API_URL="http://localhost:3333"
-WEB_URL="http://localhost:5173"
+# Ports are overridable because 3333/5173 are popular defaults and another
+# project on this machine may already own them. See verify_is_linkhub().
+API_PORT=3333
+WEB_PORT=5173
+API_URL="http://localhost:$API_PORT"
+WEB_URL="http://localhost:$WEB_PORT"
 
 log() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 die() { log "FATAL: $*"; exit 1; }
@@ -97,6 +101,39 @@ wait_for_url() {
   return 1
 }
 
+# A LISTENING PORT IS NOT THE RIGHT APP.
+#
+# 3333 and 5173 are common defaults, and another project on this machine can own
+# them. `port_open` only proves something answers — it was perfectly happy with
+# a different repo's api sitting on 3333, which would have meant a whole night
+# of QA against the wrong application, and "fixes" to LinkHub derived from
+# another app's behaviour. So probe an endpoint only LinkHub serves.
+verify_is_linkhub() {
+  local body
+  body="$(curl -s --max-time 6 "$API_URL/docs" 2>/dev/null)" || return 1
+  # /docs is Swagger UI; the reliable discriminator is a LinkHub route existing.
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 \
+    "$API_URL/profile/__nightly_probe__/posts" 2>/dev/null)"
+  # A LinkHub api answers 200 (empty) or 404-with-a-user-not-found body for an
+  # unknown username, but NEVER "Route ... not found", which is Fastify saying
+  # the route is not registered at all.
+  local msg
+  msg="$(curl -s --max-time 6 "$API_URL/profile/__nightly_probe__/posts" 2>/dev/null | head -c 200)"
+  case "$msg" in
+    *"Route GET:/profile"*"not found"*) return 1 ;;
+  esac
+  [ -n "$code" ] || return 1
+  return 0
+}
+
+whoami_on_port() {
+  local port="$1" pid
+  pid="$(ss -ltnp 2>/dev/null | grep ":$port " | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)"
+  [ -n "$pid" ] || { echo "unknown"; return; }
+  readlink "/proc/$pid/cwd" 2>/dev/null || echo "pid $pid"
+}
+
 ensure_stack() {
   log "checking docker stack…"
   if ! docker ps --format '{{.Names}}' | grep -q linkhub-postgres-dev; then
@@ -109,14 +146,22 @@ ensure_stack() {
   log "building @repo/schemas…"
   npm run build:schemas >>"$LOGS/stack.log" 2>&1 || log "WARN: build:schemas failed — see logs/stack.log"
 
-  if ! port_open 3333; then
-    log "starting api…"
-    nohup npm run dev:api >>"$LOGS/api.log" 2>&1 &
+  # The ports are configurable, so the servers must actually honour them:
+  #   PORT          the api reads it (app-config.ts httpConfig)
+  #   WEB_APP_URL   the api's dev CORS allowlist is hardcoded to 5173/4173, so a
+  #                 web on any other port is blocked without this
+  #   VITE_API_URL  how the web finds the api (lib/auth-api.ts)
+  #   --port        vite.config.ts hardcodes 5173; the CLI flag overrides it
+  if ! port_open "$API_PORT"; then
+    log "starting api on :$API_PORT…"
+    PORT="$API_PORT" WEB_APP_URL="$WEB_URL" \
+      nohup npm run dev:api >>"$LOGS/api.log" 2>&1 &
     echo $! > "$NIGHTLY/api.pid"
   fi
-  if ! port_open 5173; then
-    log "starting web…"
-    nohup npm run dev:web >>"$LOGS/web.log" 2>&1 &
+  if ! port_open "$WEB_PORT"; then
+    log "starting web on :$WEB_PORT…"
+    VITE_API_URL="$API_URL" \
+      nohup npm run dev:web -- --port "$WEB_PORT" --strictPort >>"$LOGS/web.log" 2>&1 &
     echo $! > "$NIGHTLY/web.pid"
   fi
   wait_for_url "$API_URL/docs" "api"
@@ -544,6 +589,21 @@ preflight() {
   # cause blocks every stop, and a blocked agent starts "fixing" unrelated code
   # to get past it. Refusing to start is far cheaper than discovering that at
   # 3am across eight hours of edits.
+  # Do this BEFORE the gate: a night spent QA-ing the wrong app is the most
+  # expensive failure available here, and it is invisible in the results.
+  log "  verifying :$API_PORT and :$WEB_PORT actually serve LinkHub…"
+  if port_open "$API_PORT" && ! verify_is_linkhub; then
+    log "FATAL: something is listening on :$API_PORT but it is NOT the LinkHub api."
+    log "  owner of :$API_PORT -> $(whoami_on_port "$API_PORT")"
+    log "  owner of :$WEB_PORT -> $(whoami_on_port "$WEB_PORT")"
+    log "  Running now would QA the WRONG APPLICATION all night and produce"
+    log "  \"fixes\" to LinkHub derived from another app's behaviour."
+    log "  Either stop that project, or give LinkHub its own ports:"
+    log "      bash scripts/nightly/run.sh start --api-port 3344 --web-port 5273 --hours $HOURS"
+    exit 1
+  fi
+  log "  ports: serving LinkHub"
+
   log "  checking the gate is green before starting…"
   if node "$ROOT/scripts/guardrails/pre-push.mjs" >"$LOGS/preflight-gate.log" 2>&1; then
     log "  gate: PASS"
@@ -607,8 +667,10 @@ cmd_start() {
     # The dev servers die surprisingly often across an 8-hour run (a tsx watch
     # restart that fails to bind, an OOM). An iteration that walks a dead app
     # reports the whole product as broken, which is worse than not running.
-    port_open 3333 || { log "api died — restarting"; ensure_stack; }
-    port_open 5173 || { log "web died — restarting"; ensure_stack; }
+    port_open "$API_PORT" || { log "api died — restarting"; ensure_stack; }
+    port_open "$WEB_PORT" || { log "web died — restarting"; ensure_stack; }
+    # A restart could land on a port another project has since taken.
+    verify_is_linkhub || { log "FATAL: :$API_PORT is no longer serving LinkHub — stopping rather than QA-ing the wrong app."; break; }
 
     local phase iteration rc
     phase="$($STATE_CLI get phase)"
@@ -658,12 +720,23 @@ while [ $# -gt 0 ]; do
     --fresh) FRESH=1; shift ;;
     --allow-api-billing) ALLOW_API_BILLING=1; shift ;;
     --permission-mode) PERMISSION_ARGS=(--permission-mode "$2"); shift 2 ;;
+    --api-port) API_PORT="$2"; shift 2 ;;
+    --web-port) WEB_PORT="$2"; shift 2 ;;
     --bypass-permissions) PERMISSION_ARGS=(--dangerously-skip-permissions); shift ;;
     --no-resume-after-limit) RESUME_AFTER_LIMIT=0; shift ;;
     --max-limit-wait-hours) MAX_LIMIT_WAIT_HOURS="$2"; shift 2 ;;
     *) die "unknown option: $1" ;;
   esac
 done
+
+API_URL="http://localhost:$API_PORT"
+WEB_URL="http://localhost:$WEB_PORT"
+# Every child — playwright, the visual runner, and each iteration agent — must
+# agree on where the app is, or one of them silently tests something else.
+export E2E_API_URL="$API_URL"
+export E2E_WEB_URL="$WEB_URL"
+export VISUAL_API_URL="$API_URL"
+export VISUAL_APP_URL="$WEB_URL"
 
 case "$COMMAND" in
   start) cmd_start ;;

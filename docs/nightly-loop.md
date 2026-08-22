@@ -259,6 +259,44 @@ work.
 Anthropic auth strictly `ANTHROPIC_API_KEY`/`apiKeyHelper` and never reads OAuth,
 which would move the whole run onto per-token USD billing.
 
+### A listening port is not the right app
+
+`3333` and `5173` are common defaults, and another project on this machine can
+own them. The health check originally asked only "is something listening?" —
+which a different repo's api on 3333 answers perfectly well. That would have
+meant a full night of QA against the wrong application, and "fixes" to LinkHub
+derived from another app's behaviour, with nothing in the results to show it.
+
+Preflight now probes a route only LinkHub serves and refuses to start otherwise,
+naming the directory that owns each port. The same check runs between
+iterations, in case a restart lands on a port something else has since taken.
+
+To run alongside another project, give LinkHub its own ports:
+
+```bash
+bash scripts/nightly/run.sh start --api-port 3344 --web-port 5273 --hours 8
+```
+
+That is wired end to end, because each piece finds the app differently:
+
+| Piece | How it is told |
+|---|---|
+| api | `PORT` |
+| api dev CORS | `WEB_APP_URL` — its allowlist names 5173/4173 literally |
+| web → api | `VITE_API_URL` |
+| vite | `--port`, forwarded through the workspace script (the root `dev:web` alias swallows it as an npm flag) |
+| Playwright | `E2E_API_URL` / `E2E_WEB_URL`, including its `webServer` fallbacks |
+| visual runner | `VISUAL_API_URL` / `VISUAL_APP_URL` |
+
+The visual runner needed one fix for this: `cli.config.json` names
+`localhost:5173` and `localhost:3333` in its origin allowlist, and
+`interceptOrigins` aborts everything not on that list — so on any other port it
+blocked the app's own requests and reported a blank page instead of a port
+mismatch. The app's origins are now always injected into the allowlist.
+
+Verified on 3344/5273: 12 e2e tests passing including sign-in, and the visual
+runner capturing screenshots with zero blocked requests.
+
 ### The Stop hook
 
 This repo runs the gate on Claude Code's `Stop` hook, so it fires when an
