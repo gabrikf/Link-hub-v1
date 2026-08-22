@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { reportHandled } from "../../../lib/report-error";
 
 /**
  * Small clipboard helper: exposes `copy(text)` and a transient `copied` flag
@@ -20,8 +21,10 @@ export function useClipboard(resetMs = 2000) {
     async (text: string) => {
       try {
         await navigator.clipboard.writeText(text);
-      } catch {
+      } catch (error) {
         // Fallback for browsers/contexts without the async clipboard API.
+        // Never attach `text` — this helper copies plaintext PATs and secrets.
+        reportHandled(error, { action: "clipboard.write" });
         const textarea = document.createElement("textarea");
         textarea.value = text;
         textarea.style.position = "fixed";
@@ -30,8 +33,9 @@ export function useClipboard(resetMs = 2000) {
         textarea.select();
         try {
           document.execCommand("copy");
-        } catch {
+        } catch (error) {
           // Ignore — nothing else we can do.
+          reportHandled(error, { action: "clipboard.write-fallback" });
         }
         document.body.removeChild(textarea);
       }

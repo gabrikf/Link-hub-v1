@@ -18,6 +18,7 @@ import { GenerateActivityDigestUseCase } from "../../core/use-case/activity/gene
 import { SweepDueActivityDigestsUseCase } from "../../core/use-case/activity/sweep-due-activity-digests-use-case/sweep-due-activity-digests.use-case.js";
 import { BullMqActivityDigestQueue } from "../providers/bullmq-activity-digest-queue.js";
 import { resolve, setupContainer, TOKENS } from "./container.js";
+import { container } from "tsyringe";
 
 /**
  * Wiring tests: assertions about how the REAL container assembles use cases.
@@ -209,5 +210,32 @@ describe("container wiring — candidate interactions", () => {
       );
       expect(depsOf(useCase).findResumeOwnerId).toBeTypeOf("function");
     }
+  });
+});
+
+describe("every declared token is registered", () => {
+  /**
+   * A token can be declared in `TOKENS`, imported, and consumed by a controller
+   * while nobody ever calls `container.register` for it. Nothing catches that:
+   * `resolve()` is typed `<T>(token: symbol) => T`, so there is no type error,
+   * `noUnusedLocals` is off so the dangling import is silent, and the failure
+   * only appears as a 500 the first time that route is hit in production.
+   *
+   * That is not hypothetical either — `ImageOptimizerProvider` shipped exactly
+   * this way and every avatar upload returned 500.
+   *
+   * Registration, not resolution, is the assertion: several providers throw by
+   * design when their environment is absent (`FileStorageProvider` without the
+   * S3 variables, `LinkedInOAuthProvider` without its redirect URI), and those
+   * throws are correct behaviour that a resolve-everything test would flag.
+   */
+  it("has a registration for every symbol in TOKENS", () => {
+    setupContainer();
+
+    const unregistered = Object.entries(TOKENS)
+      .filter(([, token]) => !container.isRegistered(token))
+      .map(([name]) => name);
+
+    expect(unregistered).toEqual([]);
   });
 });

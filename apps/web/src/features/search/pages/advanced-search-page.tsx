@@ -12,6 +12,7 @@ import {
   type RecruiterSearchResponse,
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
+import { reportError, reportHandled } from "../../../lib/report-error";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { SearchChatComposer } from "../components/search-chat-composer";
 import { SearchMandatoryFilters } from "../components/search-mandatory-filters";
@@ -154,6 +155,11 @@ export function AdvancedSearchPage() {
     try {
       await searchMutation.mutateAsync(payload);
     } catch (error) {
+      reportError(error, {
+        action: "search.run",
+        // The query text itself is a recruiter's hiring intent — never sent.
+        extra: { hasAttachment: Boolean(attachmentFile) },
+      });
       setFeedbackMessage(
         error instanceof Error ? error.message : "Search failed. Try again.",
       );
@@ -211,8 +217,13 @@ export function AdvancedSearchPage() {
           workExperiences: candidate.workExperiences,
         },
         querySnapshot: lastSearchInput ?? undefined,
-      }).catch(() => {
-        // Tracking must never block, or degrade, the recruiter's workflow.
+      }).catch((error: unknown) => {
+        // Tracking must never block, or degrade, the recruiter's workflow —
+        // breadcrumb only, deliberately not an event.
+        reportHandled(error, {
+          action: "search.track-interaction",
+          extra: { interactionType },
+        });
       });
     },
     [lastSearchInput, rankedResults.length, searchSessionId],
@@ -242,6 +253,10 @@ export function AdvancedSearchPage() {
         await navigator.clipboard.writeText(contact.email);
         setFeedbackMessage(`Email copied: ${contact.email}`);
       } catch (error) {
+        reportError(error, {
+          action: "search.reveal-contact",
+          extra: { rankPosition: index + 1 },
+        });
         setFeedbackMessage(
           error instanceof Error
             ? error.message

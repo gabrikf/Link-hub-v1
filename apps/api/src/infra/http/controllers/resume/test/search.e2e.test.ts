@@ -314,7 +314,14 @@ describe(
 
     afterAll(async () => {
       await server.close();
-      tf.dispose(tfModel);
+      // `LayersModel` is not a `TensorContainer`, so `tf.dispose(model)` does
+      // not type-check and would not free the model's weights anyway — the
+      // model owns its own disposal.
+      //
+      // Optional-chained because `beforeAll` may have thrown before the model
+      // loaded; without it, teardown throws a second, meaningless error that
+      // buries the real setup failure.
+      tfModel?.dispose();
     });
 
     // -------------------------------------------------------------------------

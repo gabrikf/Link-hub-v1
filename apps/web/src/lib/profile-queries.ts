@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { fetchMyResume } from "./auth-api";
+import { reportError, reportHandled } from "./report-error";
 
 /**
  * Shared `["resume"]` query. The resume endpoint 404s when the user has no
@@ -19,9 +20,12 @@ export function useMyResumeQuery(enabled: boolean) {
         return await fetchMyResume();
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 404) {
+          // "No resume yet" is the documented meaning of this 404, not a fault.
+          reportHandled(error, { action: "resume.fetch-mine" });
           return null;
         }
 
+        reportError(error, { action: "resume.fetch-mine" });
         throw error;
       }
     },

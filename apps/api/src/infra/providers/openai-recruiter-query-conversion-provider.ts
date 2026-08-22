@@ -4,6 +4,38 @@ import {
   IRecruiterQueryConversionProvider,
   RecruiterQueryConversionOutput,
 } from "../../core/providers/query-conversion/recruiter-query-conversion-provider.js";
+import {
+  recordOpenAiRequest,
+  recordOpenAiUsage,
+} from "../observability/metrics.js";
+
+/**
+ * Telemetry must never be able to break the thing it is measuring: a failing
+ * exporter turning every recruiter search into a 500 would be a far worse
+ * outage than a gap in a spend dashboard.
+ */
+function recordCall(params: {
+  model: string;
+  outcome: "success" | "error";
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+}): void {
+  try {
+    recordOpenAiUsage({
+      model: params.model,
+      operation: "query_conversion",
+      promptTokens: params.promptTokens,
+      completionTokens: params.completionTokens,
+    });
+    recordOpenAiRequest({
+      model: params.model,
+      operation: "query_conversion",
+      outcome: params.outcome,
+    });
+  } catch {
+    // Intentionally swallowed — see above.
+  }
+}
 
 const QUERY_CONVERSION_SYSTEM_PROMPT = `You are a query optimizer for semantic candidate search in a vector database.
 
@@ -118,30 +150,59 @@ export class OpenAiRecruiterQueryConversionProvider
   async buildSemanticQuery(
     input: BuildRecruiterSemanticQueryInput,
   ): Promise<RecruiterQueryConversionOutput> {
-    const completion = await this.client.chat.completions.create({
-      model: process.env.QUERY_CONVERSION_MODEL ?? "gpt-4o-mini",
-      temperature: 0.1,
-      messages: [
-        {
-          role: "system",
-          content: QUERY_CONVERSION_SYSTEM_PROMPT,
+    // Read once and reuse so the metric is labelled with the model that was
+    // actually asked for.
+    const model = process.env.QUERY_CONVERSION_MODEL ?? "gpt-4o-mini";
+
+    let completion;
+    try {
+      completion = await this.client.chat.completions.create({
+        model,
+        temperature: 0.1,
+        messages: [
+          {
+            role: "system",
+            content: QUERY_CONVERSION_SYSTEM_PROMPT,
+          },
+          {
+            role: "user",
+            content: buildUserPrompt(input),
+          },
+        ],
+        response_format: {
+          type: "json_object",
         },
-        {
-          role: "user",
-          content: buildUserPrompt(input),
-        },
-      ],
-      response_format: {
-        type: "json_object",
-      },
-    });
+      });
+    } catch (error) {
+      recordCall({ model, outcome: "error" });
+      // Re-thrown unchanged: the caller's non-LLM fallback and Sentry both need
+      // the SDK's own error (status code, request id), not a wrapper.
+      throw error;
+    }
 
     const content = completion.choices[0]?.message?.content ?? "";
     const semanticQuery = parseSemanticQuery(content);
 
     if (!semanticQuery) {
+      // Tokens are still recorded: OpenAI billed us for this call even though
+      // the answer was unusable, and an unusable answer we paid for is exactly
+      // what a spend dashboard should surface. The request itself counts as an
+      // error because the caller has to fall back.
+      recordCall({
+        model,
+        outcome: "error",
+        promptTokens: completion.usage?.prompt_tokens,
+        completionTokens: completion.usage?.completion_tokens,
+      });
       throw new Error("LLM returned an invalid semantic query response");
     }
+
+    recordCall({
+      model,
+      outcome: "success",
+      promptTokens: completion.usage?.prompt_tokens,
+      completionTokens: completion.usage?.completion_tokens,
+    });
     // NOTE: the generated query used to be `console.log`ged in full on every
     // request. It is derived from whatever the recruiter typed or uploaded —
     // job descriptions, internal role details — so it belongs in neither

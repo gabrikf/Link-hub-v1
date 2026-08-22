@@ -11,6 +11,7 @@ import { GetMeProfileUseCase } from "../../../../core/use-case/profiles/get-me-p
 import { UpdateProfileUseCase } from "../../../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
 import { authGuard } from "../../middleware/auth-guard.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
+import { profilesPublishedTotal } from "../../../observability/metrics.js";
 
 export class ProfileController {
   static handle(server: FastifyInstance) {
@@ -128,6 +129,15 @@ export class ProfileController {
           location: request.body.location,
           persona: request.body.persona,
         });
+
+        /**
+         * "Profile published" in the funnel sense. There is no separate publish
+         * route — a LinkHub profile is public as soon as it has a username, and
+         * `PUT /profile` is the only way to set or change one. So this counts
+         * profile publishes AND subsequent edits; read it as "profile write
+         * activity", not as distinct users who have ever published.
+         */
+        profilesPublishedTotal.add(1);
 
         reply.status(200).send(result);
       },

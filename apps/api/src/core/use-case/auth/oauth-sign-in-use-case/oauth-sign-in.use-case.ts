@@ -45,10 +45,20 @@ export class OAuthSignInUseCase {
       ? await this.usersRepository.findById(existingOAuthAccount.userId)
       : null;
 
+    /**
+     * Whether this call created the account, as opposed to signing an existing
+     * one back in. Exposed on the result purely so the controller can tell a
+     * signup from a login when counting the product funnel — without it, every
+     * returning Google user would be counted as a new registration and the
+     * signup metric would just be a login metric with a different name.
+     */
+    let isNewUser = false;
+
     if (!user) {
       user = await this.usersRepository.findByEmail(data.email);
 
       if (!user) {
+        isNewUser = true;
         const generatedPassword = crypto.randomUUID();
         const passwordHash = await this.hashProvider.hash(generatedPassword);
         const baseLogin = this.createLoginFromEmail(data.email);
@@ -116,6 +126,7 @@ export class OAuthSignInUseCase {
       user: user.toPublic(),
       accessToken,
       refreshToken: refreshTokenValue,
+      isNewUser,
     };
   }
 }

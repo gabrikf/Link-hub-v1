@@ -1,0 +1,8 @@
+# The real gate. See scripts/guardrails/pre-push.mjs for what it runs and why.
+#
+# Budget is under 90 seconds because it is affected-scoped; if it starts taking
+# longer than that, fix the scoping rather than deleting the hook.
+#
+# `--no-verify` exists and this file cannot stop you from using it. If you reach
+# for it, the honest move is to say so in the PR description.
+node scripts/guardrails/pre-push.mjs

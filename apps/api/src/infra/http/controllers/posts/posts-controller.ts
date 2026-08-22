@@ -14,6 +14,7 @@ import {
 import { resolve, TOKENS } from "../../../di/container.js";
 import { apiAccessGuard } from "../../middleware/api-access-guard.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
+import { postsCreatedTotal } from "../../../observability/metrics.js";
 import { CreatePostUseCase } from "../../../../core/use-case/posts/create-post-use-case/create-post.use-case.js";
 import { ListMyPostsUseCase } from "../../../../core/use-case/posts/list-my-posts-use-case/list-my-posts.use-case.js";
 import { ListPublicPostsUseCase } from "../../../../core/use-case/posts/list-public-posts-use-case/list-public-posts.use-case.js";
@@ -162,6 +163,16 @@ export class PostsController {
           userId: request.user!.id,
           authType: request.user!.authType,
           ...request.body,
+        });
+
+        /**
+         * `source` splits automatic posts from hand-written ones, which is the
+         * whole reason this counter exists. A personal access token is how an
+         * agent (the MCP server, a Claude Code hook) authenticates, so authType
+         * is exactly the right signal. Two label values, no identifiers.
+         */
+        postsCreatedTotal.add(1, {
+          source: request.user!.authType === "pat" ? "agent" : "human",
         });
 
         reply.status(201).send(result);

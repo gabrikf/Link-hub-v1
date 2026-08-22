@@ -11,6 +11,13 @@ node_modules
 .env.development.local
 .env.test.local
 .env.production.local
+# The production stack reads `.env.production` (see docker-compose.prod.yml).
+# The list above matches `.env.production.local` but NOT `.env.production`, so
+# without this line the file holding every production secret is a `git add -A`
+# away from being committed. `.env.example` is the only env file that is
+# tracked on purpose.
+.env.production
+!.env.example
 
 # Testing
 coverage
@@ -40,3 +47,22 @@ yarn-error.log*
 # direnv - local only, never commit (may contain secrets)
 .envrc
 .direnv/
+
+# Visual-check output. Screenshots are evidence for the task you are on, not
+# artifacts of the repo — they go stale the moment the UI changes and reviewing
+# a binary diff proves nothing.
+.visual/
+
+# The Playwright storage state produced by `npm run visual:login`. It holds a
+# live JWT for a real account. `.playwright/cli.config.json` IS versioned (it is
+# the capture contract); the session never is.
+.playwright/auth.json
+
+# Ad-hoc visual scenarios are scratch for one task. A scenario worth keeping
+# gets un-ignored by name, right here, next to the reference one.
+scripts/visual/scenarios/*.scenario.mjs
+!scripts/visual/scenarios/public-profile.scenario.mjs
+
+# Spec working directories are committed (docs/specs/**) — QA session output is
+# not, until it is written up.
+docs/qa/sessions/

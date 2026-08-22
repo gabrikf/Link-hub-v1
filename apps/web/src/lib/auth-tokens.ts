@@ -1,3 +1,5 @@
+import { reportHandled } from "./report-error";
+
 export type AuthTokens = {
   accessToken: string;
   refreshToken: string;
@@ -34,7 +36,10 @@ export function getAuthTokens(): AuthTokens | null {
       accessToken: parsed.accessToken,
       refreshToken: parsed.refreshToken,
     };
-  } catch {
+  } catch (error) {
+    // Corrupt or truncated storage entry. Treating it as "signed out" is the
+    // designed behaviour, not a fault.
+    reportHandled(error, { action: "storage.read-tokens" });
     return null;
   }
 }

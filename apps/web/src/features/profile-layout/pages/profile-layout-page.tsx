@@ -53,6 +53,7 @@ import {
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyResumeQuery } from "../../../lib/profile-queries";
+import { reportError } from "../../../lib/report-error";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
@@ -383,7 +384,10 @@ export function ProfileLayoutPage() {
       }));
       return { previous };
     },
-    onError: (_error, _vars, context) => rollback(context?.previous),
+    onError: (error, _vars, context) => {
+      reportError(error, { action: "profile-layout.rename-tab" });
+      return rollback(context?.previous);
+    },
     onSettled: invalidateLayout,
   });
 
@@ -413,7 +417,10 @@ export function ProfileLayoutPage() {
       });
       return { previous };
     },
-    onError: (_error, _vars, context) => rollback(context?.previous),
+    onError: (error, _vars, context) => {
+      reportError(error, { action: "profile-layout.delete-tab" });
+      return rollback(context?.previous);
+    },
     onSuccess: () => setActiveTabId(null),
     onSettled: invalidateLayout,
   });
@@ -430,7 +437,10 @@ export function ProfileLayoutPage() {
       }));
       return { previous };
     },
-    onError: (_error, _vars, context) => rollback(context?.previous),
+    onError: (error, _vars, context) => {
+      reportError(error, { action: "profile-layout.reorder-tabs" });
+      return rollback(context?.previous);
+    },
     onSettled: invalidateLayout,
   });
 
@@ -458,7 +468,10 @@ export function ProfileLayoutPage() {
       }));
       return { previous };
     },
-    onError: (_error, _vars, context) => rollback(context?.previous),
+    onError: (error, _vars, context) => {
+      reportError(error, { action: "profile-layout.update-block" });
+      return rollback(context?.previous);
+    },
     onSettled: invalidateLayout,
   });
 
@@ -471,7 +484,10 @@ export function ProfileLayoutPage() {
       }));
       return { previous };
     },
-    onError: (_error, _vars, context) => rollback(context?.previous),
+    onError: (error, _vars, context) => {
+      reportError(error, { action: "profile-layout.delete-block" });
+      return rollback(context?.previous);
+    },
     onSettled: invalidateLayout,
   });
 
@@ -523,11 +539,15 @@ export function ProfileLayoutPage() {
           setPositionSaveState("saved");
           invalidatePublicProfileCache();
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           // Was `.catch(() => invalidateLayout())` and nothing else: the block
           // silently snapped back to its old position with no explanation, and
           // did so again on every subsequent attempt. Surface it and keep the
           // payload so the user can retry the exact write that failed.
+          reportError(error, {
+            action: "profile-layout.save-positions",
+            extra: { viewport, zoneKey, blockCount: items.length },
+          });
           retrySaveRef.current = run;
           setPositionSaveState("error");
           invalidateLayout();

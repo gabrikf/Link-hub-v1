@@ -1,0 +1,17 @@
+{
+  // Build config exists only to keep test code out of `dist/`. The production
+  // image installs with `--omit=dev`, so a compiled `*.test.js` in there would
+  // import vitest at require time and blow up if anything ever loaded it.
+  //
+  // Type CHECKING still runs against the plain `tsconfig.json`, which includes
+  // the tests — `npm run check-types` must cover them or the e2e harness rots
+  // untyped. Same split `apps/extractor` already uses.
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    "src/test-setup.ts",
+    "src/infra/http/test-support/**"
+  ]
+}

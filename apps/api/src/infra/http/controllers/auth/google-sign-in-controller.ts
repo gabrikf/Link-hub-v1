@@ -8,6 +8,7 @@ import {
 import { resolve, TOKENS } from "../../../di/container.js";
 import { GoogleSignInUseCase } from "../../../../core/use-case/auth/google-sign-in-use-case/google-sign-in.use-case.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
+import { signupsTotal } from "../../../observability/metrics.js";
 
 export class GoogleSignInController {
   static async handle(server: FastifyInstance) {
@@ -38,6 +39,12 @@ export class GoogleSignInController {
         );
 
         const result = await googleSignInUseCase.execute(request.body);
+
+        // Only when the account was actually created — a returning user signing
+        // in through Google is a login, not a signup.
+        if (result.isNewUser) {
+          signupsTotal.add(1, { method: "google" });
+        }
 
         reply.status(200).send({
           user: result.user,

@@ -1,6 +1,7 @@
 import { uploadImageResponseSchema } from "@repo/schemas";
 import axios from "axios";
 import { fetchWithTokens } from "./auth-api";
+import { reportError } from "./report-error";
 
 /**
  * Upload a single image file to the API's object-storage backend and return the
@@ -22,6 +23,12 @@ export async function uploadImage(file: File): Promise<string> {
 
     return uploadImageResponseSchema.parse(response.data).url;
   } catch (error) {
+    reportError(error, {
+      action: "upload.image",
+      // File name is the user's own and can be personal — size and type are
+      // what actually explain a rejected upload.
+      extra: { fileSize: file.size, fileType: file.type },
+    });
     throw new Error(readUploadErrorMessage(error));
   }
 }

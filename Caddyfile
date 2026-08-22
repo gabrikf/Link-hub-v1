@@ -1,0 +1,87 @@
+# Caddy — TLS termination and reverse proxy for the LinkHub API.
+#
+# Mounted read-only at /etc/caddy/Caddyfile by docker-compose.prod.yml.
+# {$DOMAIN} and {$ACME_EMAIL} are read from the container's environment, which
+# comes from .env.production. Caddy substitutes them when it loads this file, so
+# changing the domain is an env edit plus `docker compose restart caddy`.
+#
+# THE API IS THE ONLY THING BEHIND THIS PROXY. apps/web is a static Vite bundle
+# served by Cloudflare Pages, so there is no static-file route here and there
+# never should be — adding one puts the front end's uptime on the same 4GB box
+# as the database.
+
+{
+	# Contact address for the Let's Encrypt account. Certificate-expiry warnings
+	# go here; leaving it unset means the only notice of a broken renewal is the
+	# site going down.
+	email {$ACME_EMAIL}
+
+	# Certificates are obtained and renewed automatically over HTTP-01/TLS-ALPN.
+	# This is why ports 80 AND 443 are both published: the HTTP-01 challenge and
+	# the HTTP->HTTPS redirect both need :80.
+	#
+	# Uncomment to test the whole flow against the staging CA, which has
+	# generous rate limits, before pointing real DNS at the box:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$DOMAIN} {
+	# zstd first: Caddy picks the first algorithm the client also advertises, and
+	# a modern browser sending `zstd` gets a materially smaller JSON payload than
+	# it would from gzip. gzip is the fallback for everything else.
+	encode zstd gzip
+
+	header {
+		# 1 year, subdomains included. `preload` is intentionally NOT set: it is
+		# effectively irreversible and should be an explicit decision, not a
+		# default inherited from a config file.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+		# This host answers with JSON, never with a document a browser should
+		# sniff, frame or navigate away from with a full URL in the referer.
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Cross-Origin-Resource-Policy "same-site"
+
+		# The API needs no browser hardware access. Denying it here costs
+		# nothing and shrinks the blast radius of any future HTML response.
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()"
+
+		# Do not advertise the proxy or the framework.
+		-Server
+		-X-Powered-By
+	}
+
+	# JSON to stdout so `docker compose logs caddy` is machine-parseable and can
+	# be shipped to Loki with no reformatting step. Caddy defaults to the
+	# human-readable console encoder on stdout, so this must be explicit.
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+
+	reverse_proxy api:3333 {
+		# Caddy already sets X-Forwarded-For / -Proto / -Host. X-Real-IP is added
+		# because @fastify/rate-limit's default key extractor reads the socket
+		# address, which behind this proxy is the Caddy container for every
+		# request — without a real client IP the global 100 req/min limit would
+		# be shared by the entire internet and the first busy user would 429
+		# everyone else.
+		header_up X-Real-IP {remote_host}
+
+		# Long enough for an OpenAI-backed resume parse or recruiter search to
+		# finish; short enough that a wedged upstream is not held open forever.
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 60s
+		}
+
+		# Take a backend out of rotation on repeated failures rather than
+		# proxying to a container that is restarting mid-deploy.
+		health_uri /health
+		health_interval 10s
+		health_timeout 3s
+	}
+}

@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { resolve, TOKENS } from "../../../di/container.js";
 import { ILinkedInOAuthProvider } from "../../../../core/providers/oauth/linkedin-oauth-provider.js";
 import { OAuthSignInUseCase } from "../../../../core/use-case/auth/oauth-sign-in-use-case/oauth-sign-in.use-case.js";
+import { signupsTotal } from "../../../observability/metrics.js";
 
 const LINKEDIN_STATE_COOKIE = "linkhub.linkedin.oauth.state";
 const OAUTH_STATE_TTL_SECONDS = 60 * 10;
@@ -127,6 +128,12 @@ export class LinkedInSignInController {
             avatarUrl: linkedInUser.avatarUrl,
             emailVerified: linkedInUser.emailVerified,
           });
+
+          // Only when the account was actually created — a returning user is a
+          // login, not a signup.
+          if (result.isNewUser) {
+            signupsTotal.add(1, { method: "linkedin" });
+          }
 
           const redirectUrl = buildFrontEndRedirectUrl(
             {

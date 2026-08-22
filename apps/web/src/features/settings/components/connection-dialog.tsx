@@ -12,6 +12,7 @@ import {
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { useState, type ReactNode } from "react";
 import { FiAlertTriangle, FiShield } from "react-icons/fi";
+import { reportError } from "../../../lib/report-error";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
@@ -219,7 +220,13 @@ function ConnectionForm({
         cadence,
         includeAgentSummary,
       });
-    } catch {
+    } catch (error) {
+      reportError(error, {
+        action: isEditing
+          ? "settings.update-connection"
+          : "settings.create-connection",
+        extra: { provider, kind },
+      });
       setError(
         isEditing
           ? "Could not save that change. Your previous settings are still in force."

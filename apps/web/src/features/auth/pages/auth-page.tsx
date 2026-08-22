@@ -13,6 +13,7 @@ import {
   registerRequest,
 } from "../../../lib/auth-api";
 import { setAuthTokens } from "../../../lib/auth-tokens";
+import { reportError } from "../../../lib/report-error";
 import { BrandLogo } from "../../../shared-components/brand-logo";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
@@ -76,7 +77,11 @@ export function AuthPage() {
         refreshToken,
       });
       setUserInfo(decodedUser);
-    } catch {
+    } catch (error) {
+      // The provider callback is ours to encode — a payload we cannot decode
+      // means the OAuth round-trip is broken, and the user is silently left on
+      // the sign-in page.
+      reportError(error, { action: "auth.oauth-callback" });
       return;
     }
 
@@ -141,7 +146,8 @@ export function AuthPage() {
         accessToken: tokenResponse.access_token,
       });
     },
-    onError: () => {
+    onError: (errorResponse) => {
+      reportError(errorResponse, { action: "auth.google-popup" });
       googleSignInMutation.reset();
     },
   });

@@ -14,6 +14,7 @@ import type {
   CatalogItem,
   UpsertResumeInput,
 } from "../../../lib/auth-api";
+import { reportError } from "../../../lib/report-error";
 
 type SelectOption = {
   value: string;
@@ -335,6 +336,7 @@ export function ResumeEditDialog({
     try {
       await persistEverything();
     } catch (error) {
+      reportError(error, { action: "resume.save" });
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -349,6 +351,7 @@ export function ResumeEditDialog({
       setIsCloseConfirmOpen(false);
       onOpenChange(false);
     } catch (error) {
+      reportError(error, { action: "resume.save-and-close" });
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -403,6 +406,7 @@ export function ResumeEditDialog({
       setSuccessMessage("Custom skill created and selected.");
       setErrorMessage(null);
     } catch (error) {
+      reportError(error, { action: "resume.create-skill-option" });
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to create skill.",
       );
@@ -432,6 +436,7 @@ export function ResumeEditDialog({
       setSuccessMessage("Custom title created and selected.");
       setErrorMessage(null);
     } catch (error) {
+      reportError(error, { action: "resume.create-title-option" });
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to create title.",
       );

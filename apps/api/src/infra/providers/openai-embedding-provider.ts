@@ -1,5 +1,35 @@
 import OpenAI from "openai";
 import { IEmbeddingProvider } from "../../core/providers/embedding/embedding-provider.js";
+import {
+  recordOpenAiRequest,
+  recordOpenAiUsage,
+} from "../observability/metrics.js";
+
+/**
+ * Telemetry must never be able to break the thing it is measuring: a broken
+ * exporter turning every embedding into a 500 would be a far worse outage than
+ * a gap in a spend dashboard. Everything metric-related goes through here.
+ */
+function recordCall(params: {
+  model: string;
+  outcome: "success" | "error";
+  promptTokens?: number | null;
+}): void {
+  try {
+    recordOpenAiUsage({
+      model: params.model,
+      operation: "embedding",
+      promptTokens: params.promptTokens,
+    });
+    recordOpenAiRequest({
+      model: params.model,
+      operation: "embedding",
+      outcome: params.outcome,
+    });
+  } catch {
+    // Intentionally swallowed — see above.
+  }
+}
 
 export class OpenAiEmbeddingProvider implements IEmbeddingProvider {
   private readonly client: OpenAI;
@@ -20,10 +50,22 @@ export class OpenAiEmbeddingProvider implements IEmbeddingProvider {
   }
 
   async createEmbedding(text: string): Promise<number[]> {
-    const response = await this.client.embeddings.create({
-      model: process.env.EMBEDDING_MODEL ?? "text-embedding-3-small",
-      input: text,
-    });
+    // Read once and reuse, so the metric is labelled with the model that was
+    // actually asked for rather than one a later env mutation would report.
+    const model = process.env.EMBEDDING_MODEL ?? "text-embedding-3-small";
+
+    let response;
+    try {
+      response = await this.client.embeddings.create({
+        model,
+        input: text,
+      });
+    } catch (error) {
+      recordCall({ model, outcome: "error" });
+      // Re-thrown unchanged: the queue's retry and Sentry both need the SDK's
+      // own error (status code, request id), not a wrapper.
+      throw error;
+    }
 
     const embedding = response.data[0]?.embedding;
 
@@ -34,8 +76,23 @@ export class OpenAiEmbeddingProvider implements IEmbeddingProvider {
     // the queue's retry sees the real error and the resume keeps its previous,
     // valid vector.
     if (!embedding || embedding.length === 0) {
+      // Tokens are still recorded: OpenAI billed us for this call even though
+      // the answer was unusable, and that is precisely the spend worth seeing.
+      // The request counts as an error, because from the caller's point of view
+      // it failed.
+      recordCall({
+        model,
+        outcome: "error",
+        promptTokens: response.usage?.prompt_tokens,
+      });
       throw new Error("Embedding provider returned no embedding");
     }
+
+    recordCall({
+      model,
+      outcome: "success",
+      promptTokens: response.usage?.prompt_tokens,
+    });
 
     return embedding;
   }

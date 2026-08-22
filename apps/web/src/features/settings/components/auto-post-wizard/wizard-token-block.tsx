@@ -1,6 +1,7 @@
 import type { ApiTokenScope, CreateApiTokenOutput } from "@repo/schemas";
 import { useState } from "react";
 import { FiAlertTriangle, FiChevronDown, FiKey } from "react-icons/fi";
+import { reportError } from "../../../../lib/report-error";
 import { useCreateToken } from "../../../../lib/token-queries";
 import { Button } from "../../../../shared-components/button";
 import { Input } from "../../../../shared-components/input";
@@ -44,7 +45,12 @@ export function WizardTokenBlock({
       // and the page's manual-setup snippets pick it up from here on close.
       stashToken(result);
       onCreated(result);
-    } catch {
+    } catch (error) {
+      // Token name/value never travel with the report.
+      reportError(error, {
+        action: "settings.wizard-create-token",
+        extra: { scopes },
+      });
       setError("Could not create the token. Please try again.");
     }
   };

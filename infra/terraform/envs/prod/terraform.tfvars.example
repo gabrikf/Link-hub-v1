@@ -1,0 +1,88 @@
+# Copie para terraform.tfvars e preencha. terraform.tfvars é gitignored.
+#
+#     cp terraform.tfvars.example terraform.tfvars
+#
+# NENHUM SEGREDO VAI AQUI. Os tokens da Hetzner e da Cloudflare são passados por variável
+# de ambiente:
+#
+#     export HCLOUD_TOKEN="..."
+#     export CLOUDFLARE_API_TOKEN="..."
+
+# ---------------------------------------------------------------------------------------
+# Obrigatórias
+# ---------------------------------------------------------------------------------------
+
+# Domínio raiz, já cadastrado como zona na Cloudflare.
+domain = "example.com"
+
+# Painel Cloudflare > qualquer domínio > barra lateral direita > Account ID.
+cloudflare_account_id = "0000000000000000000000000000000a"
+
+# Conteúdo do SEU ARQUIVO .pub — a linha inteira. Nunca a chave privada.
+# Gere com: ssh-keygen -t ed25519 -C "linkhub-deploy" -f ~/.ssh/linkhub_deploy
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPLACEHOLDERPLACEHOLDERPLACEHOLDER linkhub-deploy"
+
+# Client IDs de OAuth (públicos — vão no bundle do front).
+# As origens/redirects correspondentes precisam ser cadastrados À MÃO nos painéis do
+# Google e do LinkedIn. Ver README, seção "O que é manual".
+vite_google_client_id      = "000000000000-placeholderplaceholderplaceholder.apps.googleusercontent.com"
+vite_linkedin_client_id    = "00placeholder00"
+vite_linkedin_redirect_uri = "https://app.example.com/auth/linkedin/callback"
+
+# ---------------------------------------------------------------------------------------
+# Opcionais — os defaults já servem. Descomente só o que quiser mudar.
+# ---------------------------------------------------------------------------------------
+
+# project_name  = "linkhub"
+# app_subdomain = "app"
+# api_subdomain = "api"
+
+# --- Servidor -----------------------------------------------------------------------
+# 'ash' = Ashburn (EUA). ATENÇÃO ao trade-off de região:
+#   - em 'ash' o mais barato com 2 vCPU / 4 GB é o cpx21 (3 vCPU AMD, 4 GB, 80 GB)
+#   - a família CX Gen3 (cx23: 2 vCPU, 4 GB, mais barato) SÓ existe em nbg1/fsn1/hel1
+# Se latência para usuários dos EUA não for crítica, trocar para 'nbg1' reduz o custo.
+# hcloud_location = "ash"
+
+# Deixe comentado para o Terraform escolher o menor tipo disponível na location que
+# atenda min_vcpu/min_memory_gb. Preencha só para forçar (ex.: subir de porte).
+# server_type = "cpx31"
+
+# min_vcpu      = 2
+# min_memory_gb = 4
+
+# Snapshots diários da Hetzner (+20% do preço do servidor).
+# enable_backups = false
+
+# --- Acesso -------------------------------------------------------------------------
+# Restrinja o SSH assim que tiver um IP fixo. Inclua também os ranges do runner do
+# GitHub Actions se o deploy usar SSH.
+# ssh_allowed_ips = ["203.0.113.10/32"]
+
+# true (default) = 80/443 só aceitam os ranges oficiais da Cloudflare. Desligue apenas
+# para depurar, e lembre que com false o IP da origem pode ser usado para pular o rate
+# limit de borda.
+# restrict_http_to_cloudflare = true
+
+# --- R2 -----------------------------------------------------------------------------
+# uploads_bucket_name = "linkhub-uploads"
+# tfstate_bucket_name = "linkhub-tfstate"   # precisa bater com o backend em versions.tf
+# r2_location_hint    = "enam"
+
+# --- Pages --------------------------------------------------------------------------
+# pages_project_name      = "linkhub-web"
+# pages_production_branch = "main"
+
+# Deixe comentado para conectar o repositório pelo PAINEL da Cloudflare (recomendado
+# no primeiro apply). Ver a nota em cloudflare_pages.tf sobre o histórico do bloco
+# `source` no provider v5.
+# pages_git_source = {
+#   owner = "gabrikf"
+#   repo  = "linkhub-v.1"
+# }
+
+# --- Rate limit de borda ------------------------------------------------------------
+# No plano free, period e mitigation_timeout ficam travados em 10 e só existe uma regra.
+# rate_limit_requests_per_period = 5
+# rate_limit_period_seconds      = 10
+# rate_limit_action              = "block"   # use "log" para observar antes de bloquear

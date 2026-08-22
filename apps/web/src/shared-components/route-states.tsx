@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { FiAlertTriangle, FiCompass, FiRefreshCw } from "react-icons/fi";
+import { reportError } from "../lib/report-error";
 import { BrandLogo } from "./brand-logo";
 import { Button } from "./button";
 import { FOCUS_RING_PAGE, SURFACE } from "./surface";
@@ -27,6 +29,15 @@ export function RouteErrorState({ error }: { error?: Error }) {
   // Message only in dev — a stack trace or an internal path means nothing to a
   // user and can leak API shape.
   const detail = import.meta.env.DEV ? error?.message : undefined;
+
+  // This is the router's `defaultErrorComponent`, so it is the last place a
+  // render throw is observable. Keyed on the error itself so a re-render (theme
+  // toggle, resize) does not re-send the same failure.
+  useEffect(() => {
+    if (error) {
+      reportError(error, { action: "route.error" });
+    }
+  }, [error]);
 
   return (
     <RouteShell>

@@ -3,6 +3,7 @@ import type {
   RecruiterSearchInput,
   RecruiterSearchResult,
 } from "@repo/schemas";
+import { reportError, reportHandled } from "../../../lib/report-error";
 import { getRerankerWorker } from "../../../lib/reranker-worker-singleton";
 import type { RankedCandidate } from "../types/advanced-search";
 
@@ -57,6 +58,12 @@ export function useAiRerank() {
 
       setIsModelLoading(true);
 
+      // The worker has no Sentry client of its own, so this is where its
+      // failures get reported. The code it sends is lost once the rejection is
+      // reduced to a message, so it is captured here purely so the catch below
+      // can tell an expected degradation from a genuine fault.
+      let workerErrorCode: string | undefined;
+
       try {
         const worker = getRerankerWorker();
 
@@ -82,6 +89,7 @@ export function useAiRerank() {
                   return;
                 }
 
+                workerErrorCode = message.payload.code;
                 reject(new Error(message.payload.message));
               } finally {
                 cleanup();
@@ -115,6 +123,25 @@ export function useAiRerank() {
 
         return { candidates: rankedCandidates, degraded: false, reason: null };
       } catch (error) {
+        // A model artifact that no longer matches the preprocessing config is a
+        // known, deliberate degradation — the worker says so with a code. Every
+        // other failure means recruiters are silently getting unranked results,
+        // which is worth an event.
+        if (workerErrorCode === "PREPROCESSING_INCOMPATIBLE") {
+          reportHandled(error, {
+            action: "search.rerank",
+            extra: { code: workerErrorCode },
+          });
+        } else {
+          reportError(error, {
+            action: "search.rerank",
+            extra: {
+              code: workerErrorCode ?? null,
+              candidateCount: input.candidates.length,
+            },
+          });
+        }
+
         // Fall back to the API's similarity ordering, which the response is
         // already sorted by. `aiScore: null` is the honest value: there is no
         // match percentage, and showing the raw cosine as if it were one would
@@ -149,8 +176,9 @@ export function useAiRerank() {
   const warmUp = useCallback(() => {
     try {
       getRerankerWorker();
-    } catch {
+    } catch (error) {
       // Warm-up is best-effort; `rerank` surfaces a real failure later.
+      reportHandled(error, { action: "search.rerank-warm-up" });
     }
   }, []);
 

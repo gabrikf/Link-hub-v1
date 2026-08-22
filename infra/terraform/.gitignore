@@ -1,0 +1,27 @@
+# Nunca commitar state: ele contém segredos em texto claro
+# (valor do token R2, chave privada do Origin Certificate, env vars do Pages).
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.tfstate.lock.info
+
+# Valores reais. Só o *.example entra no git.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Config do backend: contém a credencial S3 do R2 usada pelo próprio Terraform.
+backend.hcl
+!backend.hcl.example
+
+# Material criptográfico que possa ser escrito em disco por engano.
+*.pem
+*.key
+*.crt
+
+# Saída de plan salva em arquivo (contém valores sensíveis).
+*.tfplan
+
+# O lock de providers DEVE ser commitado — ele é o que trava as versões.
+!.terraform.lock.hcl

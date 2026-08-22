@@ -1,5 +1,15 @@
 # 🚀 Development Scripts Guide
 
+> **Scope:** this is a reference for the **npm scripts** and nothing else. It was
+> once described as an architecture guide, which it is not. For architecture and
+> orientation read `README.md`; for the rules an agent (or a new contributor)
+> must follow read `AGENTS.md`, plus `apps/api/AGENTS.md` and
+> `apps/web/AGENTS.md`; for anything visual read `DESIGN.md`.
+>
+> Ports here are **api 3333** and **web 5173**. An earlier version of this file
+> said the web app ran on port 3000. It never did — `apps/web/vite.config.ts`
+> has always set 5173, and `.claude/launch.json` agrees.
+
 This guide explains all available npm scripts in the LinkHub monorepo.
 
 ## 📦 Understanding the Monorepo
@@ -33,7 +43,7 @@ npm run dev
 # Start ONLY the backend API (port 3333)
 npm run dev:api
 
-# Start ONLY the frontend web (port 3000)
+# Start ONLY the frontend web (port 5173)
 npm run dev:web
 
 # Watch & rebuild schemas package (when actively changing schemas)
@@ -111,9 +121,49 @@ npm run test:api
 # Watch mode (re-run on file changes)
 npm run test:watch
 
-# Generate coverage report
+# Coverage, with the per-package ratchet floors. See docs/coverage.md.
 npm run test:coverage
+
+# Only the suites that touch one file
+npx vitest related apps/web/src/lib/theme.ts --run
 ```
+
+**Some api tests need real infrastructure and will hang for 60-90s without it.**
+Start it first: `bash db-manage.sh start`. Three more need a funded
+`OPENAI_API_KEY` and are excluded from CI by name. `apps/api/AGENTS.md` lists
+all six files.
+
+---
+
+## 🛡️ The guardrails gate
+
+```bash
+npm run guardrails         # node scripts/guardrails/pre-push.mjs
+```
+
+One command: builds `@repo/schemas`, type-checks and tests only what your change
+affects, lints only the files you touched, and prints `guardrails PASS`. It runs
+automatically on `git push` (husky) and skips — loudly, by name — any test it
+cannot run.
+
+```bash
+npm run lint:changed       # just the eslint step
+npm run i18n:parity        # locale parity (a no-op until i18n exists)
+```
+
+---
+
+## 👁️ Visual checks
+
+```bash
+npm run visual:run -- scripts/visual/scenarios/public-profile.scenario.mjs
+npm run visual:run -- <scenario> --headed    # watch it happen
+npm run visual:login                          # seed a session for an authed scenario
+```
+
+One browser launch walks every state of a screen — loading, empty, error,
+filled, both themes — and fails on console errors, uncaught exceptions and
+unexpected 4xx/5xx. Needs `npm run dev` up and a seeded database.
 
 ---
 

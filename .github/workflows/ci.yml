@@ -1,0 +1,274 @@
+name: CI
+
+# Pull-request gate. Everything here runs against the code as it would be merged.
+#
+# Package manager is npm workspaces + Turborepo (`packageManager: npm@11.1.0`,
+# a single `package-lock.json` at the root). Every job uses `npm ci` — never
+# `npm install` — so the lockfile is authoritative and a drifted lockfile fails
+# the build instead of being silently rewritten.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A force-push to a PR branch should cancel the previous run rather than pay for
+# CI on a commit nobody will merge.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # LINT — RECORDED BASELINE, NOT A GATE (yet)
+  # ---------------------------------------------------------------------------
+  #
+  # `continue-on-error: true` is deliberate and it is NOT a way of pretending
+  # the repo is clean.
+  #
+  # As of the commit that introduced this workflow, `npm run lint` reports
+  # 30 pre-existing eslint errors in `apps/web`, essentially all of them
+  # `react-hooks/set-state-in-effect` (new in eslint-plugin-react-hooks v7) and
+  # `react-refresh/only-export-components`, plus one `no-control-regex` and one
+  # unused `_params` argument. Clearing them means refactoring components that
+  # work today, which is a separate piece of work with its own review.
+  #
+  # The three options were: (a) delete the lint check, (b) weaken the eslint
+  # config until it passes, (c) run it, publish the number, and forbid it from
+  # growing. This is (c). The eslint config is untouched. The count is printed
+  # in the job log AND in the PR job summary on every single run, and the
+  # ratchet step below fails the job the moment the count exceeds the baseline —
+  # the job just does not block the merge queue while the debt is being paid.
+  #
+  # WHEN THE COUNT REACHES 0: drop `continue-on-error` and the ratchet, and let
+  # `npm run lint` fail the job outright.
+  lint:
+    name: Lint (recorded baseline — non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    env:
+      # The number of eslint errors that existed when this workflow was written.
+      # This may only ever go DOWN. Lower it as violations are fixed.
+      LINT_ERROR_BASELINE: "30"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run eslint
+        id: eslint
+        run: |
+          set -o pipefail
+          # `|| true` so the count below is always computed; the ratchet step is
+          # what decides pass/fail.
+          npm run lint 2>&1 | tee lint-output.txt || true
+
+      - name: Count violations and enforce the ratchet
+        run: |
+          # eslint's stylish formatter ends each workspace with a summary line
+          # like "✖ 30 problems (30 errors, 0 warnings)". Turborepo prefixes
+          # every line with "web:lint: ", so match anywhere on the line and sum
+          # across workspaces.
+          ERRORS=$(grep -oE '[0-9]+ errors?' lint-output.txt \
+            | grep -oE '^[0-9]+' \
+            | awk '{ total += $1 } END { print total + 0 }')
+
+          BASELINE="${LINT_ERROR_BASELINE}"
+
+          echo "================================================================"
+          echo " ESLINT BASELINE REPORT"
+          echo "----------------------------------------------------------------"
+          echo " current errors : ${ERRORS}"
+          echo " baseline       : ${BASELINE}"
+          echo "================================================================"
+
+          {
+            echo "### ESLint baseline"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Current errors | \`${ERRORS}\` |"
+            echo "| Recorded baseline | \`${BASELINE}\` |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$ERRORS" -gt "$BASELINE" ]; then
+            echo "::error::This PR adds $((ERRORS - BASELINE)) new eslint error(s) on top of the ${BASELINE} pre-existing ones. Fix the new violations."
+            echo "This PR **adds $((ERRORS - BASELINE)) new eslint error(s)** on top of the recorded baseline. Fix the new violations." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          if [ "$ERRORS" -lt "$BASELINE" ]; then
+            echo "::notice::Lint debt went down by $((BASELINE - ERRORS)). Lower LINT_ERROR_BASELINE in .github/workflows/ci.yml to ${ERRORS} to lock the improvement in."
+            echo "Lint debt went **down by $((BASELINE - ERRORS))**. Lower \`LINT_ERROR_BASELINE\` in \`.github/workflows/ci.yml\` to \`${ERRORS}\` to lock this in." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "::warning::${ERRORS} pre-existing eslint errors remain (unchanged). These are technical debt and must be burned down; see the comment at the top of .github/workflows/ci.yml."
+          echo "${ERRORS} pre-existing eslint errors remain. This is recorded technical debt that must be burned down." >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # TYPE CHECK — a real gate
+  # ---------------------------------------------------------------------------
+  #
+  # `turbo run check-types` now covers apps/api and apps/web as well as the
+  # packages; both app-level `check-types` scripts were added alongside this
+  # workflow, so this job is the first time those two are type-checked in CI.
+  check-types:
+    name: Type check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check all workspaces
+        run: npm run check-types
+
+  # ---------------------------------------------------------------------------
+  # TEST — a real gate, against real Postgres + Redis
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      # pgvector, not plain postgres: migration 0006 runs `CREATE EXTENSION
+      # vector` and the resume-embedding tables use the `vector` column type.
+      # Pinned to pg15 to match docker-compose.dev.yml and production.
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_DB: linkhub_test
+          POSTGRES_USER: linkhub_user
+          POSTGRES_PASSWORD: linkhub_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U linkhub_user -d linkhub_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 10s
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://linkhub_user:linkhub_password@localhost:5432/linkhub_test
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      # No OPENAI_API_KEY. See the "Declare the excluded tests" step below.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # apps/api imports `@repo/schemas` from its built `dist/`. Turborepo's
+      # `test` task declares `dependsOn: ["^build"]` for exactly this reason;
+      # the api suite is invoked directly below (to pass vitest flags), so the
+      # dependency has to be satisfied explicitly.
+      - name: Build shared packages
+        run: npm run build:schemas
+
+      - name: Apply database migrations
+        run: npm run db:migrate --workspace=api
+
+      # ---------------------------------------------------------------------
+      # HONESTY STEP. A narrowed test run that looks green is worse than one
+      # that says what it did not run, so the exclusions are printed in full,
+      # by name, with the reason, on every single CI run.
+      # ---------------------------------------------------------------------
+      - name: Declare the excluded tests
+        run: |
+          echo "================================================================"
+          echo " TEST SCOPE NOTICE — the following files are NOT run in CI"
+          echo "----------------------------------------------------------------"
+          echo " apps/api/src/infra/http/controllers/resume/test/search.e2e.test.ts"
+          echo " apps/api/src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts"
+          echo " apps/api/src/infra/database/drizzle/search-indexes.e2e.test.ts"
+          echo ""
+          echo " WHY: these three call the live OpenAI API to produce real"
+          echo " embeddings, so they need a funded OPENAI_API_KEY. A real key is"
+          echo " deliberately NOT available to pull-request CI — PRs from forks"
+          echo " would expose it, and every run would spend money."
+          echo ""
+          echo " CONSEQUENCE: semantic-search relevance and the pgvector index"
+          echo " behaviour are NOT covered by this run. Run them locally with a"
+          echo " key before shipping changes to resume search or the embedding"
+          echo " pipeline:"
+          echo "   npm run test --workspace=api -- src/infra/http/controllers/resume/test"
+          echo ""
+          echo " Every other test, including the hermetic e2e suites built on"
+          echo " build-test-app.ts, DOES run below."
+          echo "================================================================"
+          {
+            echo "### Tests skipped in CI"
+            echo ""
+            echo "These three files need a live \`OPENAI_API_KEY\` and are **not** covered by this run:"
+            echo ""
+            echo "- \`apps/api/src/infra/http/controllers/resume/test/search.e2e.test.ts\`"
+            echo "- \`apps/api/src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts\`"
+            echo "- \`apps/api/src/infra/database/drizzle/search-indexes.e2e.test.ts\`"
+            echo ""
+            echo "Semantic-search relevance and pgvector index behaviour are therefore unverified by CI."
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # NOTE ON `--exclude`: vitest's CLI `--exclude` REPLACES `test.exclude`
+      # rather than adding to it, so the two defaults we care about
+      # (`**/node_modules/**`, `**/dist/**`) have to be repeated here. Dropping
+      # them would make vitest collect test files out of node_modules.
+      - name: Test — api (OpenAI-dependent e2e excluded)
+        working-directory: apps/api
+        run: |
+          npx vitest run \
+            --exclude '**/node_modules/**' \
+            --exclude '**/dist/**' \
+            --exclude 'src/infra/http/controllers/resume/test/search.e2e.test.ts' \
+            --exclude 'src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts' \
+            --exclude 'src/infra/database/drizzle/search-indexes.e2e.test.ts'
+
+      - name: Test — every other workspace
+        run: npx turbo run test '--filter=!api'

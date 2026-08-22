@@ -1,0 +1,174 @@
+#cloud-config
+# ---------------------------------------------------------------------------------------
+# Bootstrap do host. Renderizado por templatefile() a partir de hetzner.tf.
+#
+# O QUE ESTE ARQUIVO FAZ:
+#   - cria o usuário `${deploy_user}` (sem root), com a chave SSH injetada
+#   - desliga login por senha e login como root
+#   - instala Docker CE + plugin compose (repositório oficial)
+#   - instala e liga fail2ban e unattended-upgrades
+#   - liga o ufw permitindo só 22/80/443
+#
+# O QUE ESTE ARQUIVO NÃO FAZ (de propósito):
+#   - não clona repositório, não sobe compose, não baixa imagem, não escreve .env
+#   O deploy da aplicação é do GitHub Actions.
+#
+# CUIDADO: qualquer alteração aqui muda o user_data do servidor, e mudar o user_data
+# RECRIA o servidor (destrói e cria de novo). Trate este arquivo como imutável depois do
+# primeiro apply; se precisar mudar algo no host, faça pelo pipeline de deploy.
+#
+# Sintaxe: cifrão-chave é interpolação do Terraform. Para escrever uma variável de SHELL
+# (que o Terraform não deve tocar), dobre o cifrão: $$ vira $ no arquivo final.
+# ---------------------------------------------------------------------------------------
+
+# Login direto como root fica desabilitado; sobra o usuário de deploy.
+disable_root: true
+
+# Sem autenticação por senha em hipótese nenhuma.
+ssh_pwauth: false
+
+package_update: true
+package_upgrade: true
+
+# O grupo `docker` precisa existir ANTES de o usuário ser criado com ele — o cloud-init
+# processa `groups` antes de `users`. Sem isto, a associação ao grupo é silenciosamente
+# ignorada e o usuário deploy não consegue falar com o daemon do Docker.
+groups:
+  - docker
+
+users:
+  - name: ${deploy_user}
+    groups: [sudo, docker]
+    shell: /bin/bash
+    lock_passwd: true
+    # NOPASSWD porque o deploy é não-interativo (GitHub Actions via SSH) e não há senha
+    # para digitar — a conta é lock_passwd.
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - ufw
+  - fail2ban
+  - unattended-upgrades
+  - apt-listchanges
+
+write_files:
+  # ---- Endurecimento do SSH -----------------------------------------------------------
+  # Drop-in em sshd_config.d em vez de editar sshd_config: sobrevive a upgrade do pacote.
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      PubkeyAuthentication yes
+      PermitEmptyPasswords no
+      X11Forwarding no
+      MaxAuthTries 3
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+
+  # ---- fail2ban -----------------------------------------------------------------------
+  # jail.local (e não jail.conf) para não ser sobrescrito em atualização do pacote.
+  - path: /etc/fail2ban/jail.local
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [DEFAULT]
+      bantime  = 1h
+      findtime = 10m
+      maxretry = 5
+      backend  = systemd
+
+      [sshd]
+      enabled = true
+      port    = ssh
+
+  # ---- Atualizações de segurança automáticas ------------------------------------------
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: "0644"
+    owner: root:root
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+
+  - path: /etc/apt/apt.conf.d/52unattended-upgrades-local
+    permissions: "0644"
+    owner: root:root
+    content: |
+      // Só o repositório de segurança. Atualização de feature em produção é decisão
+      // humana, não de cron.
+      Unattended-Upgrade::Allowed-Origins {
+          "$${distro_id}:$${distro_codename}-security";
+          "$${distro_id}ESMApps:$${distro_codename}-apps-security";
+          "$${distro_id}ESM:$${distro_codename}-infra-security";
+      };
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+      // Reinício automático desligado: quem decide quando a API cai é o operador.
+      Unattended-Upgrade::Automatic-Reboot "false";
+
+  # ---- Instalação do Docker -----------------------------------------------------------
+  # Repositório apt oficial em vez de `curl get.docker.com | sh`: versão reproduzível,
+  # assinatura verificada e atualização pelo mesmo apt de todo o resto.
+  - path: /usr/local/sbin/install-docker.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+        -o /etc/apt/keyrings/docker.asc
+      chmod a+r /etc/apt/keyrings/docker.asc
+
+      arch="$(dpkg --print-architecture)"
+      codename="$(. /etc/os-release && echo "$${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
+
+      cat >/etc/apt/sources.list.d/docker.list <<EOF
+      deb [arch=$${arch} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $${codename} stable
+      EOF
+
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        docker-ce \
+        docker-ce-cli \
+        containerd.io \
+        docker-buildx-plugin \
+        docker-compose-plugin
+
+      systemctl enable --now docker
+
+runcmd:
+  - [/usr/local/sbin/install-docker.sh]
+  # Redundante com o `groups` do usuário, mas o pacote docker-ce recria o grupo na
+  # instalação; reassociar aqui garante a associação em qualquer ordem.
+  - [usermod, -aG, docker, "${deploy_user}"]
+
+  # ---- Firewall do host ---------------------------------------------------------------
+  # Redundante com o firewall da Hetzner, de propósito: se alguém mexer no firewall pelo
+  # painel, o host continua fechado.
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, allow, "22/tcp"]
+  - [ufw, allow, "80/tcp"]
+  - [ufw, allow, "443/tcp"]
+  - [ufw, --force, enable]
+
+  - [systemctl, enable, --now, fail2ban]
+  - [systemctl, enable, --now, unattended-upgrades]
+
+  # Aplica o drop-in de SSH por último, para não derrubar a própria sessão do cloud-init.
+  - [systemctl, restart, ssh]
+
+  - [touch, /var/lib/cloud/linkhub-bootstrap-done]
+
+final_message: "Bootstrap concluído em $UPTIME s. Host pronto para o deploy do GitHub Actions."

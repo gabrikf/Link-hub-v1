@@ -1,0 +1,86 @@
+# Build context for the apps/api production image.
+#
+# Two jobs: keep the context small (it is uploaded to the daemon on every build)
+# and keep host artefacts out of the image. Everything the api build needs is
+# listed as an explicit COPY in the Dockerfile, so anything excluded here that
+# turns out to be required fails loudly at build time rather than silently.
+#
+# NOTE ON THE `dir/*` + `!dir/file` PATTERN BELOW: the exclusion is written
+# against the directory's *children* (`apps/web/*`), never the directory itself
+# (`apps/web`). Docker evaluates re-inclusions reliably that way; excluding the
+# directory node itself and then trying to re-include a file inside it is the
+# formulation that behaves differently across builder implementations.
+
+# --- Never, under any circumstances ---
+**/node_modules
+**/dist
+**/build
+**/.turbo
+**/coverage
+**/.next
+**/out
+
+# Secrets and local environment.
+#
+# The `**/` prefix is load-bearing. Bare `.env` / `.env.*` match ONLY the
+# context root, so `apps/api/.env` — which is exactly where this repo tells
+# developers to put OPENAI_API_KEY, JWT_SECRET and the R2 credentials
+# (apps/api/.env.example) — sailed straight into the build stage via
+# `COPY apps/api apps/api`. Verified by building the `build` target and listing
+# the file inside it.
+#
+# It never reached the runtime image, but the deploy workflow uses
+# `cache-to: type=gha,mode=max`, which exports every intermediate layer to the
+# GitHub Actions cache. So the blast radius was real.
+**/.env
+**/.env.*
+**/.envrc
+**/.direnv
+!**/.env.example
+
+# VCS and tooling metadata
+.git
+.gitignore
+.github
+.vscode
+.idea
+**/.DS_Store
+**/*.log
+npm-debug.log*
+
+# Docker/deploy artefacts — none of these belong inside the image, and touching
+# them must not bust the build cache.
+Dockerfile
+.dockerignore
+docker-compose*.yml
+Caddyfile
+postgres.conf
+scripts
+
+# Documentation and repo prose
+**/*.md
+docs
+CONTEXT.md
+
+# --- Workspaces that are not part of this image ---
+# Their package.json files are kept: `npm ci` validates the lockfile against the
+# full workspace graph and refuses to install if one is missing, even though the
+# install itself is filtered to api + @repo/schemas.
+apps/web/*
+!apps/web/package.json
+apps/mcp/*
+!apps/mcp/package.json
+apps/extractor/*
+!apps/extractor/package.json
+apps/training/*
+!apps/training/package.json
+packages/ui/*
+!packages/ui/package.json
+packages/eslint-config/*
+!packages/eslint-config/package.json
+
+# --- api sources that are not needed to build or run ---
+apps/api/**/*.test.ts
+apps/api/vitest.config.ts
+apps/api/src/test-setup.ts
+apps/api/src/infra/http/test-support

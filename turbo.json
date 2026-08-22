@@ -11,11 +11,24 @@
       "dependsOn": ["^lint"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      // `^build` as well as `^check-types`: `api` and `web` resolve
+      // `@repo/schemas` through its published `dist/index.d.ts`, so on a fresh
+      // clone (CI) type-checking them fails outright unless the package has
+      // been built first. `test` already depends on `^build` for the same
+      // reason.
+      "dependsOn": ["^build", "^check-types"]
     },
     "test": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"]
+    },
+    // Same `^build` reason as `test`. Kept as a separate task rather than a
+    // flag on `test` so the fast path (no instrumentation, no report writing)
+    // stays the default and the coverage ratchet is something you opt into.
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["coverage/**"]
     },
     "dev": {
       "cache": false,

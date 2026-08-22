@@ -7,6 +7,7 @@ import {
   FiZoomOut,
 } from "react-icons/fi";
 import { getCroppedImg } from "../lib/crop-image";
+import { reportError } from "../lib/report-error";
 import { Button } from "./button";
 import { Dialog } from "./dialog";
 import { FeedbackMessage } from "./feedback-message";
@@ -118,6 +119,10 @@ function CropperDialog({
       );
       await onCropped(cropped);
     } catch (cropError) {
+      reportError(cropError, {
+        action: "avatar.crop",
+        extra: { fileSize: file.size, fileType: file.type, rotation },
+      });
       setError(
         cropError instanceof Error
           ? cropError.message

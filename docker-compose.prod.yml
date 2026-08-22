@@ -1,0 +1,304 @@
+# Production stack for a SINGLE 4GB VPS.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# The explicit project name below is load-bearing, not cosmetic. Compose derives
+# the project from the containing DIRECTORY, and `docker-compose.dev.yml` lives
+# in this same directory and also declares a volume called `postgres_data`.
+# Without `name:`, both files resolve to the project `linkhub-v1` and therefore
+# to the SAME physical volume `linkhub-v1_postgres_data` — so this stack boots on
+# the development data directory, silently ignores POSTGRES_USER/PASSWORD
+# (Postgres only reads them when initialising an empty data dir) and fails
+# authentication. Caught by running this stack on a machine that had the dev one.
+#
+name: linkhub-prod
+#
+# Configuration comes from `.env.production` next to this file (gitignored — see
+# apps/api/.env.example for the full variable list). The only value compose
+# itself interpolates is the image tag, which scripts/deploy.sh exports.
+#
+# One `env_file` is shared by every service, which means the postgres and caddy
+# containers also see OPENAI_API_KEY, JWT_SECRET and the R2 credentials. On a
+# single-tenant VPS where all six containers are the same trust boundary that is
+# an acceptable trade for having exactly one file to manage. If that stops being
+# true, split it into .env.production (app) and .env.postgres (POSTGRES_*) and
+# give each service the file it needs.
+#
+# ---------------------------------------------------------------------------
+# RUNNING IT WITHOUT CADDY (local verification of the image on your laptop)
+# ---------------------------------------------------------------------------
+#   IMAGE_TAG=local docker build -t linkhub-api:local .
+#   IMAGE_TAG=local docker compose -f docker-compose.prod.yml \
+#       up -d postgres redis api worker-embedding worker-digest
+#   curl -s http://127.0.0.1:3333/health
+#
+# Naming the services explicitly starts everything except caddy, so nothing
+# tries to bind :80/:443 or request a certificate for a domain that does not
+# point at your machine. The api publishes on 127.0.0.1:3333 (loopback only, see
+# below) so this works with no override file.
+#
+# ---------------------------------------------------------------------------
+# MEMORY BUDGET — 4GB total, and every byte is spoken for
+# ---------------------------------------------------------------------------
+#   postgres          1024M   redis              384M
+#   api                768M   worker-embedding   512M
+#   worker-digest      384M   caddy              128M
+#   ------------------------------------------------
+#   containers        3200M   left for the kernel, sshd and page cache ~800M
+#
+# The limits are hard (`mem_limit`), so a leak in one service gets that
+# container OOM-killed and restarted by Docker instead of taking the box down
+# with it. NODE_OPTIONS caps each heap *below* its container limit so V8 runs a
+# real GC before the cgroup killer ever fires — a heap-limit crash produces a
+# stack trace, an OOM kill produces silence.
+
+services:
+  # -------------------------------------------------------------------------
+  # postgres — pgvector, because resume embeddings live in an ivfflat index
+  # -------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: linkhub-postgres
+    restart: unless-stopped
+    # NO `ports:`. The database is reachable only over the compose network. This
+    # is the single most important line in the file: a published 5432 on a VPS
+    # is found by scanners within hours.
+    env_file: .env.production
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Tuned for ~1GB, not for a dedicated database server. shared_buffers is the
+    # conventional 25% of the container's limit; effective_cache_size is a hint
+    # about the OS page cache, which on this box is shared with five other
+    # containers, hence 768MB rather than the usual 75% of RAM.
+    # max_connections is deliberately small: DATABASE_POOL_MAX defaults to 20
+    # and three containers open a pool each, so 60 is the real ceiling plus
+    # headroom for the migration job and a psql session.
+    command: >
+      postgres
+      -c max_connections=80
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=64MB
+      -c work_mem=8MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c log_min_duration_statement=1000
+      -c log_destination=stderr
+      -c logging_collector=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 1024m
+    shm_size: 256mb
+    logging: &default_logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - linkhub-network
+
+  # -------------------------------------------------------------------------
+  # redis — BullMQ queues, rate-limit counters, AI quota counters
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: linkhub-redis
+    restart: unless-stopped
+    # No published port, same reasoning as postgres.
+    #
+    # --maxmemory-policy noeviction IS NOT A DEFAULT WORTH OVERRIDING:
+    # everything in here is data, not cache. An `allkeys-lru` policy would let
+    # Redis silently drop BullMQ job hashes — a resume queued for embedding
+    # would simply never be processed, with no error anywhere — and would reset
+    # AI quota counters, handing a user unlimited OpenAI spend. With
+    # `noeviction`, a full Redis makes writes fail loudly instead, which is a
+    # page at 3am rather than a silent data-loss bug found weeks later.
+    #
+    # AOF with everysec: the queue must survive a container restart. The RDB
+    # snapshots are switched off (`--save ""`) because AOF already covers
+    # durability and double-persisting on a memory-tight box just costs fork
+    # latency.
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save ""
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    mem_limit: 384m
+    logging: *default_logging
+    networks:
+      - linkhub-network
+
+  # -------------------------------------------------------------------------
+  # api — the HTTP service
+  # -------------------------------------------------------------------------
+  api:
+    # IMAGE_TAG is the one value deploy.sh passes in through the shell rather
+    # than through env_file: env_file variables go *into* containers, they are
+    # not available for compose-level interpolation. Pinning the tag per deploy
+    # is what makes `up -d` with the previous tag a working rollback.
+    image: ${IMAGE_NAME:-linkhub-api}:${IMAGE_TAG:-latest}
+    container_name: linkhub-api
+    restart: unless-stopped
+    init: true
+    env_file: .env.production
+    environment:
+      # Decides which process reports the once-per-cluster gauges (DAU, queue
+      # depth). Exactly one container may claim `api`, or the numbers triple.
+      SERVICE_ROLE: api
+      NODE_OPTIONS: --max-old-space-size=512
+    # Loopback only. Not public — Caddy reaches the api over the compose network
+    # at api:3333, and 127.0.0.1 cannot be reached from outside the host even if
+    # the firewall is misconfigured. It exists so deploy.sh can poll /health and
+    # so the stack can be verified without Caddy (see the header).
+    ports:
+      - "127.0.0.1:3333:3333"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # HEALTHCHECK is inherited from the image.
+    mem_limit: 768m
+    logging: *default_logging
+    networks:
+      - linkhub-network
+
+  # -------------------------------------------------------------------------
+  # worker-embedding — resume embedding jobs
+  # -------------------------------------------------------------------------
+  # Same image as api. Only `command` and SERVICE_ROLE differ.
+  worker-embedding:
+    image: ${IMAGE_NAME:-linkhub-api}:${IMAGE_TAG:-latest}
+    container_name: linkhub-worker-embedding
+    restart: unless-stopped
+    init: true
+    command:
+      [
+        "node",
+        "--import",
+        "./dist/infra/observability/register.js",
+        "dist/infra/queue/run-resume-embedding-worker.js",
+      ]
+    env_file: .env.production
+    environment:
+      SERVICE_ROLE: worker-embedding
+      # The largest heap of the three workers: embedding batches hold parsed
+      # resume text plus float vectors in memory at the same time.
+      NODE_OPTIONS: --max-old-space-size=384
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # The image HEALTHCHECK probes http://127.0.0.1:3333/health. This process is
+    # a BullMQ consumer and listens on nothing, so the inherited probe would
+    # report `unhealthy` forever — which then makes `docker compose ps` lie and
+    # any future `condition: service_healthy` on this service deadlock.
+    healthcheck:
+      disable: true
+    mem_limit: 512m
+    logging: *default_logging
+    networks:
+      - linkhub-network
+
+  # -------------------------------------------------------------------------
+  # worker-digest — activity digest jobs
+  # -------------------------------------------------------------------------
+  worker-digest:
+    image: ${IMAGE_NAME:-linkhub-api}:${IMAGE_TAG:-latest}
+    container_name: linkhub-worker-digest
+    restart: unless-stopped
+    init: true
+    command:
+      [
+        "node",
+        "--import",
+        "./dist/infra/observability/register.js",
+        "dist/infra/queue/run-activity-digest-worker.js",
+      ]
+    env_file: .env.production
+    environment:
+      SERVICE_ROLE: worker-digest
+      NODE_OPTIONS: --max-old-space-size=256
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    mem_limit: 384m
+    logging: *default_logging
+    networks:
+      - linkhub-network
+
+  # -------------------------------------------------------------------------
+  # caddy — TLS termination and reverse proxy
+  # -------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    container_name: linkhub-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # caddy_data holds the ACME account key and the issued certificates.
+      # LOSING THIS VOLUME MEANS RE-ISSUING CERTIFICATES ON EVERY RESTART, which
+      # runs into Let's Encrypt's rate limit (5 duplicate certs per week) and
+      # leaves the site on an expired cert until the window rolls over.
+      - caddy_data:/data
+      - caddy_config:/config
+    env_file: .env.production # DOMAIN and ACME_EMAIL, read as {$DOMAIN} in the Caddyfile
+    # `service_started`, NOT `service_healthy`. Gating the reverse proxy on the
+    # API being healthy sounds stricter but inverts the failure mode: a bad API
+    # image then means Caddy never starts at all, so the site has no TLS
+    # terminator and no listener on 443 — a connection error and, if it lasts,
+    # a lapsed certificate. Started-only means a sick API degrades to 502s from
+    # a live proxy, which is both a smaller outage and a debuggable one.
+    #
+    # It also unblocked the deploy rollback: `compose up` no longer exits
+    # non-zero here just because the new API is unhealthy, which is precisely
+    # when scripts/deploy.sh needs to keep running.
+    depends_on:
+      api:
+        condition: service_started
+    mem_limit: 128m
+    logging: *default_logging
+    networks:
+      - linkhub-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  linkhub-network:
+    driver: bridge

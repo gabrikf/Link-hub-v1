@@ -1,4 +1,6 @@
 import { FastifyInstance } from "fastify";
+import { sql } from "drizzle-orm";
+import { getRedis } from "../../redis/redis-client.js";
 import { authRoutes } from "./auth.js";
 import { linksRoutes } from "./links.js";
 import { postsRoutes } from "./posts.js";
@@ -15,8 +17,49 @@ import { webhooksRoutes } from "./webhooks.js";
 import { uploadsRoutes } from "./uploads.js";
 
 export async function routes(fastify: FastifyInstance) {
+  /**
+   * Liveness. Answers from the process alone and cannot fail while the event
+   * loop is turning. The Docker HEALTHCHECK and the deploy's rollback check
+   * both read this exact body, so it must never learn to depend on Postgres —
+   * a database blip would otherwise roll back a perfectly good release.
+   */
   fastify.get("/health", async (request, reply) => {
     reply.send({ status: "ok" });
+  });
+
+  /**
+   * Readiness. The counterpart that *is* allowed to fail: it answers "can this
+   * process actually serve traffic", which is the question a load balancer and
+   * a post-deploy smoke check want. Kept separate from /health precisely
+   * because the answers differ.
+   */
+  fastify.get("/health/ready", async (request, reply) => {
+    const checks: { database: string; redis: string } = {
+      database: "ok",
+      redis: "ok",
+    };
+
+    try {
+      await fastify.db.execute(sql`select 1`);
+    } catch {
+      checks.database = "error";
+    }
+
+    try {
+      await getRedis().ping();
+    } catch {
+      // Distinguished from the database's "error" because Redis backs
+      // degrade-open features (rate limit store, quotas, DAU) — knowing it is
+      // the one that is down changes what you go and look at.
+      checks.redis = "unavailable";
+    }
+
+    const ready = checks.database === "ok" && checks.redis === "ok";
+
+    reply.status(ready ? 200 : 503).send({
+      status: ready ? "ready" : "not_ready",
+      checks,
+    });
   });
 
   fastify.register(authRoutes, { prefix: "/auth" });

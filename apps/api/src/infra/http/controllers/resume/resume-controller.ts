@@ -23,7 +23,9 @@ import {
 } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
 import { authGuard } from "../../middleware/auth-guard.js";
+import { aiQuotaGuard } from "../../middleware/ai-quota-guard.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
+import { searchesTotal } from "../../../observability/metrics.js";
 import { extractSearchAttachmentText } from "../../utils/extract-search-attachment-text.js";
 import { GetMyResumeUseCase } from "../../../../core/use-case/resumes/get-my-resume-use-case/get-my-resume.use-case.js";
 import { UpsertMyResumeUseCase } from "../../../../core/use-case/resumes/upsert-my-resume-use-case/upsert-my-resume.use-case.js";
@@ -598,7 +600,9 @@ export class ResumeController {
     app.post(
       "/resumes/search",
       {
-        preHandler: authGuard,
+        // Quota-guarded: every search converts the recruiter's prompt with a
+        // model call and then embeds it.
+        preHandler: [authGuard, aiQuotaGuard("recruiter_search")],
         schema: {
           tags: ["Resume"],
           summary: "Recruiter search by semantic query and resume filters",
@@ -681,6 +685,11 @@ export class ResumeController {
           whereQuery: parsedInput.whereQuery,
           filters: parsedInput.filters,
         });
+
+        // Counted after the search resolves, so a 400 on a malformed query does
+        // not inflate the number. No query text, recruiter id or result count
+        // goes near a label — this is a bare count.
+        searchesTotal.add(1);
 
         reply.status(200).send(result);
       },

@@ -11,6 +11,7 @@ export interface MakePostOverrides {
   body?: string;
   status?: PostStatus;
   publishedAt?: Date | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -29,7 +30,7 @@ export function makePost(overrides: MakePostOverrides): PostEntity {
     tags: null,
     status: overrides.status ?? "published",
     externalUrl: null,
-    metadata: null,
+    metadata: overrides.metadata ?? null,
     publishedAt: overrides.publishedAt ?? null,
   });
 }

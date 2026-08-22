@@ -8,6 +8,7 @@ import {
   FiUploadCloud,
   FiX,
 } from "react-icons/fi";
+import { reportError } from "../lib/report-error";
 import { uploadImage } from "../lib/upload-api";
 import { AvatarCropper } from "./avatar-cropper";
 import { Button } from "./button";
@@ -125,6 +126,10 @@ export function FileUpload({
       onChange(url);
       setStatus("idle");
     } catch (uploadError) {
+      reportError(uploadError, {
+        action: "upload.image-field",
+        extra: { fileSize: file.size, fileType: file.type },
+      });
       setStatus("error");
       setError(
         uploadError instanceof Error

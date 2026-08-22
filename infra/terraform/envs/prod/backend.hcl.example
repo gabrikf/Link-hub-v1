@@ -1,0 +1,20 @@
+# Copie para backend.hcl e preencha. backend.hcl é gitignored — ele contém a credencial
+# S3 do R2 que o próprio Terraform usa para ler e gravar o state.
+#
+#     cp backend.hcl.example backend.hcl
+#     terraform init -backend-config=backend.hcl
+#
+# De onde vêm estes valores: do token R2 criado À MÃO no bootstrap (README, seção 1).
+# Este é o único par de credenciais do projeto que não é gerenciado por Terraform — e não
+# tem como ser, porque ele precisa existir antes do primeiro init.
+
+# Substitua pelo seu Account ID da Cloudflare.
+endpoints = {
+  s3 = "https://0000000000000000000000000000000a.r2.cloudflarestorage.com"
+}
+
+# Do token R2 do bootstrap:
+#   access_key = Access Key ID mostrado pelo painel
+#   secret_key = Secret Access Key mostrado pelo painel (só aparece UMA vez)
+access_key = "PLACEHOLDER_R2_ACCESS_KEY_ID"
+secret_key = "PLACEHOLDER_R2_SECRET_ACCESS_KEY"

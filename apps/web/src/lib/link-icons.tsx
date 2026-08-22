@@ -250,9 +250,17 @@ const safeParseHostname = (url: string): string | null => {
   try {
     return new URL(trimmedUrl).hostname.toLowerCase();
   } catch {
+    /**
+     * Reports NOTHING, by design. This is called during render on every
+     * keystroke of a link field, and a throw here is the expected answer for a
+     * bare domain ("github.com") — the retry below is the actual control flow,
+     * not error recovery. Breadcrumbing it flooded the 100-entry buffer and
+     * evicted the context around genuine failures.
+     */
     try {
       return new URL(`https://${trimmedUrl}`).hostname.toLowerCase();
     } catch {
+      // Still unparseable — icon detection simply yields nothing.
       return null;
     }
   }

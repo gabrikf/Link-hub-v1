@@ -16,6 +16,7 @@ import {
 // parallel agent. They reuse the shared authed axios wrapper from auth-api so
 // base URL + bearer/refresh header handling stay in exactly one place.
 import { fetchWithTokens } from "./auth-api";
+import { reportError } from "./report-error";
 
 /* ------------------------------------------------------------------ *
  * Query keys
@@ -247,8 +248,10 @@ export function useApprovePost() {
       );
       return { previous };
     },
-    onError: (_error, _postId, context) =>
-      rollbackMyPosts(queryClient, context?.previous),
+    onError: (error, postId, context) => {
+      reportError(error, { action: "posts.approve", extra: { postId } });
+      return rollbackMyPosts(queryClient, context?.previous);
+    },
     onSettled: invalidate,
   });
 }
@@ -264,8 +267,10 @@ export function useDeletePost() {
       );
       return { previous };
     },
-    onError: (_error, _postId, context) =>
-      rollbackMyPosts(queryClient, context?.previous),
+    onError: (error, postId, context) => {
+      reportError(error, { action: "posts.delete", extra: { postId } });
+      return rollbackMyPosts(queryClient, context?.previous);
+    },
     onSettled: invalidate,
   });
 }

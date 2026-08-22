@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiCheck, FiShare2 } from "react-icons/fi";
+import { reportError, reportHandled } from "../../../lib/report-error";
 
 type ProfileShareButtonProps = {
   url: string;
@@ -52,17 +53,20 @@ export function ProfileShareButton({
         // The user dismissing the native sheet rejects with AbortError — that's
         // not a failure, so do NOT fall back to clipboard / show "Copied".
         if (error instanceof DOMException && error.name === "AbortError") {
+          reportHandled(error, { action: "profile.share" });
           return;
         }
         // Any other rejection is a genuine failure — fall through to clipboard.
+        reportError(error, { action: "profile.share" });
       }
     }
 
     try {
       await navigator.clipboard.writeText(url);
       flashCopied();
-    } catch {
+    } catch (error) {
       // Clipboard unavailable (e.g. insecure context) — no-op.
+      reportHandled(error, { action: "profile.share-copy" });
     }
   }, [flashCopied, name, url]);
 

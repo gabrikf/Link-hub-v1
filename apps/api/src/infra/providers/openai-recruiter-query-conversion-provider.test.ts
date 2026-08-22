@@ -1,11 +1,20 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  recordOpenAiRequest,
+  recordOpenAiUsage,
+} from "../observability/metrics.js";
 import { OpenAiRecruiterQueryConversionProvider } from "./openai-recruiter-query-conversion-provider.js";
 
-function fakeCompletion(content: string) {
+vi.mock("../observability/metrics.js", () => ({
+  recordOpenAiUsage: vi.fn(),
+  recordOpenAiRequest: vi.fn(),
+}));
+
+function fakeCompletion(content: string, usage?: unknown) {
   return {
     chat: {
       completions: {
-        create: async () => ({ choices: [{ message: { content } }] }),
+        create: async () => ({ choices: [{ message: { content } }], usage }),
       },
     },
   };
@@ -20,6 +29,11 @@ function withFakeClient(
 }
 
 describe("OpenAiRecruiterQueryConversionProvider", () => {
+  beforeEach(() => {
+    vi.mocked(recordOpenAiUsage).mockReset();
+    vi.mocked(recordOpenAiRequest).mockReset();
+  });
+
   it("bounds timeout and retries so a hung call cannot hold a request for 30 minutes", () => {
     const provider = new OpenAiRecruiterQueryConversionProvider("test-key");
     const client = (
@@ -64,5 +78,73 @@ describe("OpenAiRecruiterQueryConversionProvider", () => {
     await expect(
       provider.buildSemanticQuery({ chatPrompt: "react engineer" }),
     ).rejects.toThrow(/invalid semantic query/i);
+  });
+
+  it("records both directions of token spend", async () => {
+    const provider = withFakeClient(
+      new OpenAiRecruiterQueryConversionProvider("test-key"),
+      fakeCompletion(JSON.stringify({ semanticQuery: "Role: SRE" }), {
+        prompt_tokens: 900,
+        completion_tokens: 120,
+      }),
+    );
+
+    await provider.buildSemanticQuery({ chatPrompt: "sre" });
+
+    // Input and output tokens are priced differently, so a single "tokens"
+    // number cannot be turned back into money.
+    expect(recordOpenAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: "query_conversion",
+        promptTokens: 900,
+        completionTokens: 120,
+      }),
+    );
+    expect(recordOpenAiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "success" }),
+    );
+  });
+
+  it("counts a paid-for but unusable answer as an error, with its tokens", async () => {
+    const provider = withFakeClient(
+      new OpenAiRecruiterQueryConversionProvider("test-key"),
+      fakeCompletion("not json", { prompt_tokens: 700, completion_tokens: 5 }),
+    );
+
+    await expect(
+      provider.buildSemanticQuery({ chatPrompt: "sre" }),
+    ).rejects.toThrow(/invalid semantic query/i);
+
+    // We were billed for it even though the caller has to fall back — spend
+    // with nothing to show for it is exactly what the dashboard is for.
+    expect(recordOpenAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ promptTokens: 700 }),
+    );
+    expect(recordOpenAiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "error" }),
+    );
+  });
+
+  it("re-throws the SDK's own error unchanged", async () => {
+    const sdkError = new Error("500 upstream");
+    const provider = withFakeClient(
+      new OpenAiRecruiterQueryConversionProvider("test-key"),
+      {
+        chat: {
+          completions: {
+            create: async () => {
+              throw sdkError;
+            },
+          },
+        },
+      },
+    );
+
+    await expect(
+      provider.buildSemanticQuery({ chatPrompt: "sre" }),
+    ).rejects.toBe(sdkError);
+    expect(recordOpenAiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "error" }),
+    );
   });
 });

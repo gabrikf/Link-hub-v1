@@ -2,6 +2,7 @@ import type { Post } from "@repo/schemas";
 import { useState } from "react";
 import { FiCheck, FiLink, FiX } from "react-icons/fi";
 import { useUpdatePost } from "../../../lib/post-queries";
+import { reportError } from "../../../lib/report-error";
 import { Button } from "../../../shared-components/button";
 import { FOCUS_RING_FIELD } from "../../../shared-components/surface";
 import { isSafeHttpUrl } from "../lib/markdown";
@@ -35,7 +36,11 @@ export function AttachLinkControl({ post }: { post: Post }) {
       });
       setEditing(false);
       setUrl("");
-    } catch {
+    } catch (error) {
+      reportError(error, {
+        action: "posts.attach-link",
+        extra: { postId: post.id },
+      });
       setError("Could not attach the link. Please try again.");
     }
   };

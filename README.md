@@ -1,135 +1,349 @@
-# Turborepo starter
+# LinkHub
 
-This Turborepo starter is maintained by the Turborepo core team.
+A developer profile platform with a recruiter-facing semantic candidate search,
+plus a local-first toolchain that lets a coding agent publish what you actually
+shipped — without leaking your employer's code, repository names, or identity.
 
-## Using this example
+Three things happen here:
 
-Run the following command:
+- **Developers** build a public profile at `/profile/<username>` out of
+  drag-and-drop tabs and blocks, backed by a structured resume (skills, titles,
+  work history) that can be imported from a PDF by an LLM.
+- **Recruiters** paste a job description — text or a PDF — at `POST
+  /resumes/search` and get candidates ranked by vector similarity over resume
+  embeddings, then re-ranked in the browser by a small TensorFlow.js model.
+- **Coding agents** publish posts about real work through an
+  [MCP server](apps/mcp/README.md) and an
+  [activity extractor](apps/extractor/README.md), filtered through a
+  server-enforced disclosure policy. From the MCP README:
 
-```sh
-npx create-turbo@latest
+  > Publish what you shipped to your LinkHub profile, from the terminal where
+  > you shipped it — without pasting writing rules into your agent, and without
+  > leaking your employer's name.
+
+For the deep development reference — architecture layers, DI conventions, how to
+add a use case — see **[DEVELOPMENT-GUIDE.md](DEVELOPMENT-GUIDE.md)**. This file
+covers what the project is, how to run it, and how it is deployed and observed.
+
+---
+
+## Repository layout
+
+npm workspaces + Turborepo. **This repo uses npm** (`packageManager:
+npm@11.1.0`, a single root `package-lock.json`) — not pnpm, not yarn.
+
+### Apps
+
+| Path | What it is |
+| --- | --- |
+| `apps/api` | Fastify 5 backend plus two BullMQ workers (resume embedding, activity digest). Clean-architecture layout — `core/entity`, `core/use-case`, `core/repositories`, `core/providers`, `infra/*` — with tsyringe for DI, Drizzle ORM over Postgres + pgvector, Zod schemas via `fastify-type-provider-zod`, and Swagger UI at `/docs`. |
+| `apps/web` | React 19 + Vite SPA: auth, dashboard, public profile, recruiter search, the drag-and-drop layout editor, posts and the post review queue. TanStack Router + React Query, Tailwind 4, Zustand, Radix UI, dnd-kit, and `@tensorflow/tfjs` running in a web worker. |
+| `apps/mcp` | A stdio MCP server exposing LinkHub post/profile tools to Claude Desktop, Claude Code, Cursor and VS Code. A thin authenticated HTTP client over the API — it stores no state and calls no AI of its own. |
+| `apps/extractor` | A local CLI and Claude Code hook that turns git history and agent sessions into hashed, aggregated activity metadata you review before anything is uploaded. No runtime dependencies beyond the shared schemas. |
+| `apps/training` | Offline trainer for the "AI Match %" model. Writes versioned TensorFlow.js artefacts into `apps/web/public/ai-models/` and bumps `latest.json`. |
+
+### Packages
+
+| Path | What it is |
+| --- | --- |
+| `packages/schemas` (`@repo/schemas`) | The shared contract. Zod schemas and types consumed by api, web, mcp, extractor and training. **Ships built** (`main: dist/index.js`), so it must be built before anything type-checks or tests. |
+| `packages/typescript-config` | Shared `tsconfig` bases. |
+| `packages/eslint-config` | Shared flat ESLint configs. |
+| `packages/ui` | Turborepo-starter leftover. Nothing in `apps/` imports it. |
+
+---
+
+## Local development
+
+### Prerequisites
+
+- **Node 22** (the root `engines` field says `>=18`, but CI, the Docker image
+  and the observability loader hook all assume 22)
+- **npm 11.1.0**
+- **Docker** — for Postgres (with pgvector) and Redis
+- Optional: [direnv](https://direnv.net/), which the checked-in `.envrc` uses to
+  load `.env` and put `node_modules/.bin` on `PATH`
+
+### Quickstart
+
+```bash
+npm install
+npm run build                 # @repo/schemas must exist as dist/ before anything else works
+
+bash db-manage.sh start       # postgres (pgvector/pgvector:pg15) + redis, waits for healthy
+npm run db:migrate            # drizzle-kit migrate
+npm run db:seed:all           # skill/title catalogue + realistic candidate data
+
+npm run dev                   # api + web + both workers, in parallel
 ```
 
-## What's inside?
+- API → <http://localhost:3333>, docs at <http://localhost:3333/docs>
+- Web → <http://localhost:5173>
+- `npm run db:studio` → Drizzle Studio
 
-This Turborepo includes the following packages/apps:
+Run pieces individually with `npm run dev:api`, `dev:web`, `dev:mcp`,
+`dev:extractor`.
 
-### Apps and Packages
+### Database helpers
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
+`db-manage.sh` wraps the dev compose file:
 
 ```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+start | stop | admin | logs | connect | status | reset | seed | seed-real | seed-all | reseed-real
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+`reset` destroys the Docker volume (with a confirmation prompt), it does not
+merely truncate. `bash db-manage.sh admin` starts pgAdmin on
+<http://localhost:5050> behind the compose `tools` profile.
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+### Environment
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+There is no root `.env.example` yet — the only committed example is
+`apps/web/.env.example`. The API is designed so that **nothing is required to
+boot in development**: `apps/api/src/infra/config/app-config.ts` gives every knob
+a development default, and only `assertProductionConfig()` — gated on
+`NODE_ENV=production` — hard-requires anything (`DATABASE_URL`, `JWT_SECRET`,
+`WEB_APP_URL`).
 
-### Develop
+Two variables are worth knowing about because they are feature switches rather
+than settings:
 
-To develop all apps and packages, run the following command:
+- **`OPENAI_API_KEY`** — absent, the DI container substitutes deterministic
+  embedding, query-conversion and resume-parsing providers. The AI features keep
+  working locally, they just stop being intelligent.
+- **`OTEL_EXPORTER_OTLP_ENDPOINT`** — absent, no telemetry SDK is registered at
+  all. See [Observability](#observability).
 
-```
-cd my-turborepo
+The full list lives in the config reader above plus
+[`infra/grafana/README.md`](infra/grafana/README.md) for the telemetry half.
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
+### Tests
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+```bash
+npm run test                  # every workspace
+npm run test:api              # apps/api only
+npm run test:coverage
 ```
 
-### Remote Caching
+Most of the suite is hermetic — even most `*.e2e.test.ts` files, which build a
+DB-free Fastify app from `apps/api/src/infra/http/test-support/build-test-app.ts`
+and drive it with `app.inject()`. Three files are the exception and need a real
+pgvector database **and** a funded `OPENAI_API_KEY`:
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+- `apps/api/src/infra/http/controllers/resume/test/search.e2e.test.ts`
+- `apps/api/src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts`
+- `apps/api/src/infra/database/drizzle/search-indexes.e2e.test.ts`
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+CI excludes exactly those three and prints their names and the reason in the job
+log, so a green run never quietly means less than it appears to. Run them locally
+before shipping changes to resume search or the embedding pipeline.
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+---
+
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request: **lint**, **check-types**
+and **test** (the last against `pgvector/pgvector:pg15` and `redis:7-alpine`
+service containers, with migrations applied first).
+
+One honest caveat: the **lint job is currently non-blocking**. `apps/web` carries
+30 pre-existing ESLint errors — mostly `react-hooks/set-state-in-effect` from
+eslint-plugin-react-hooks v7 — and clearing them means refactoring working
+components. Rather than delete the check or weaken the config, the job records
+that number as a baseline, prints it on every PR, and fails if a change pushes it
+higher. Lower `LINT_ERROR_BASELINE` in the workflow as violations are fixed;
+when it reaches zero, delete `continue-on-error` and let lint block again.
+
+---
+
+## Production architecture
+
+One 4 GB VPS runs everything except the frontend and object storage.
 
 ```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+                Cloudflare Pages ──── apps/web (static bundle, VITE_* baked in at build)
+                        │
+      users ────────────┤
+                        │  https
+                        ▼
+                    Caddy :443  (TLS via Let's Encrypt, HTTP/3)
+                        │  compose network
+                        ▼
+    ┌──────────── api :3333 (SERVICE_ROLE=api) ────────────┐
+    │            worker-embedding   worker-digest          │   same image,
+    │                   │                 │                │   different command
+    └───────────────────┴────────┬────────┴────────────────┘
+                                 │
+                  postgres (pgvector)   redis (AOF, noeviction)
+                                 │
+              Cloudflare R2 (S3 API) ── avatars, covers, post images
+              Grafana Cloud (OTLP)   ── metrics, traces, logs
+              Sentry                 ── errors
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+Every container has a hard `mem_limit` and a `NODE_OPTIONS` heap cap set *below*
+it, so a leak produces a V8 heap-limit stack trace rather than a silent cgroup
+OOM kill. Postgres and Redis publish **no ports** — they are reachable only over
+the compose network. The API publishes on `127.0.0.1:3333` so the deploy script
+can poll `/health` without exposing it.
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+Redis runs `--maxmemory-policy noeviction` deliberately: everything in it is
+data, not cache. An LRU policy would let it silently drop BullMQ job hashes (a
+resume queued for embedding that is never processed, with no error anywhere) and
+reset AI quota counters, handing a user unlimited OpenAI spend.
+
+Health endpoints: `/health` is liveness only and must never touch Postgres;
+`/health/ready` checks Postgres and Redis and reports each separately, with Redis
+reported as `unavailable` rather than `error` because the features behind it
+degrade open.
+
+---
+
+## Deployment
+
+`.github/workflows/deploy.yml` runs on push to `main`, with a `concurrency` group
+so two pushes can never deploy at once. Two independent jobs:
+
+**API** builds the Docker image, pushes it to `ghcr.io` (authenticated with the
+run's built-in `GITHUB_TOKEN` — no extra registry credential to store or
+rotate), then SSHes to the VPS and runs `scripts/deploy.sh`. All of the risky
+logic lives in that script, and its ordering is the safety property:
 
 ```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+git pull → docker build → MIGRATE → compose up -d → poll /health (120s)
+                                                       └─ fail → re-pin previous image tag, restart
 ```
 
-## Useful Links
+Migrating **before** the restart is what stops new code from ever meeting an old
+schema. The rollback is **image-only** — there are no down-migrations in this
+repo and the database keeps the new schema — which is why **every migration must
+be backward-compatible with the release before it**: add columns nullable or
+with a default, never rename in a single release, never drop a column the
+previous image still selects.
 
-Learn more about the power of Turborepo:
+**Web** runs `npm ci`, then `npm run build:web` with the `VITE_*` values injected
+from GitHub Secrets and Variables, then publishes `apps/web/dist` to Cloudflare
+Pages with `wrangler`. Vite substitutes `import.meta.env.VITE_*` at **build**
+time, so those values are baked into the JavaScript every browser downloads —
+they are public by definition, and nothing secret may ever be a `VITE_` variable.
+Changing one requires a rebuild, not a Cloudflare setting change.
+`apps/web/public/_redirects` provides the SPA fallback so a hard refresh on
+`/dashboard` or `/profile/<username>` reaches the router instead of a 404.
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+`.github/workflows/retrain-model.yml` retrains the match model weekly, uploads
+the artefacts to S3/CloudFront and commits the new `latest.json`.
+
+---
+
+## Observability
+
+Metrics, traces and logs are produced by the OpenTelemetry SDK **inside** the
+Node process and pushed over OTLP/HTTP directly to Grafana Cloud. There is no
+Collector and no Alloy agent, deliberately: on a 4 GB box shared with Postgres,
+Redis and three Node processes, a Collector container would spend a few hundred
+megabytes forwarding bytes the process can post itself.
+
+Telemetry is **opt-in by the presence of `OTEL_EXPORTER_OTLP_ENDPOINT` alone**.
+No endpoint means no SDK, no exporter, no cost — and, critically, no error. Every
+instrument becomes a no-op function call. Sentry is a separate switch
+(`SENTRY_DSN`) and is the error sink only; tracing is left to OTel, which is why
+`SENTRY_TRACES_SAMPLE_RATE` defaults to `0`.
+
+Dashboards live in [`infra/grafana/`](infra/grafana/README.md) as importable
+JSON — API health (RED + queues), business funnel, and AI cost.
+
+### Cardinality rule
+
+> **Never use `userId`, username, email, profile slug, repository name or any
+> other high-cardinality identifier as a metric label.** The Grafana Cloud free
+> tier caps active series at 10,000. Identifiers belong in a log line or a span
+> attribute, never in a metric label.
+
+This is not a style preference. A single user's traffic is enough to exhaust the
+whole budget through one careless label. Every instrument in the system is
+therefore declared in one file —
+[`apps/api/src/infra/observability/metrics.ts`](apps/api/src/infra/observability/metrics.ts)
+— so the cardinality of the entire application can be read off a single screen,
+and `sanitizeAttributes()` there strips a denylist of forbidden keys as a last
+line of defence for anything dynamic.
+
+The current series budget, from the comment at the bottom of that file:
+
+```
+RED     ~67 route templates x ~3 status codes x 10 series  ~= 2,000
+OpenAI  2 models x 3 operations x 2 directions             ~=    12
+Queues  2 queues x (2 histograms x 9 + counters + depth)   ~=    50
+Funnel  ~8 counters with <=3 label values each             ~=    20
+Runtime node process metrics                               ~=   100
+```
+
+Total well under 3,000, leaving headroom for growth. Histogram bucket boundaries
+are explicit and deliberately few (eight for HTTP latency, seven for job
+duration) because every extra bucket is one more series per label combination,
+multiplied across every route.
+
+### Why route labels look the way they do
+
+Two normalisations happen in
+[`apps/api/src/infra/http/plugins/http-observability.ts`](apps/api/src/infra/http/plugins/http-observability.ts)
+before a route ever becomes a label:
+
+- **The `/api/v1` prefix is stripped.** Every route module is registered twice —
+  bare and under `/api/v1` — so a single handler produces two route templates.
+  Collapsing the prefix halves the RED series count and, more usefully, means a
+  dashboard shows one line per endpoint instead of two that have to be summed by
+  eye.
+- **Unmatched requests become `__unmatched__`.** A 404 has no route template.
+  Using the raw URL there would mint one time series per path a scanner probes —
+  a single afternoon of `/wp-admin/...` traffic would exhaust the 10,000-series
+  budget on its own.
+
+The label source is `request.routeOptions.url`, the Fastify **route template**,
+never the request URL, so `/profile/alice` and `/profile/bob` are one series.
+
+### Two gauges report from exactly one process
+
+`linkhub_daily_active_users` and `queue_depth` read shared Redis state, so
+exactly one process may report them or the same number arrives three times under
+three different instance IDs. `SERVICE_ROLE` decides which; `docker-compose.prod.yml`
+assigns `api`, `worker-embedding` and `worker-digest`, and only `api` registers
+the callbacks.
+
+Daily active users is backed by a Redis HyperLogLog (`PFADD` on write, `PFCOUNT`
+on collect, keyed by UTC date with a 48h TTL): ~12 KB and exactly **one** time
+series regardless of how many people sign up. The cardinality rule forbids the
+per-user alternative, and this is what replaces it.
+
+Logs are pino JSON in production only, with a `mixin()` that stamps `trace_id`
+and `span_id` from the active span so a Loki log line pivots straight to its
+Tempo trace.
+
+---
+
+## Scripts reference
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | api + web + both workers, in parallel |
+| `npm run build` | build every workspace (`@repo/schemas` first) |
+| `npm run lint` | ESLint across the workspaces that have a lint script |
+| `npm run check-types` | `tsc --noEmit` across every workspace |
+| `npm run test` | every test suite |
+| `npm run db:migrate` / `db:generate` | apply / author Drizzle migrations |
+| `npm run db:seed:all` / `db:seed:fresh` | seed data / destroy and re-seed |
+| `npm run db:studio` | Drizzle Studio |
+| `npm run train:model:incremental` | retrain the match model from new interactions |
+
+---
+
+## Further reading
+
+- **[DEVELOPMENT-GUIDE.md](DEVELOPMENT-GUIDE.md)** — architecture layers, DI, how
+  to add a use case, testing conventions
+- **[apps/mcp/README.md](apps/mcp/README.md)** — MCP server setup for Claude
+  Desktop / Claude Code / Cursor / VS Code, the tool surface, and the disclosure
+  policy model
+- **[apps/extractor/README.md](apps/extractor/README.md)** — the local activity
+  extractor and its privacy guarantees
+- **[infra/grafana/README.md](infra/grafana/README.md)** — importing the
+  dashboards and wiring up telemetry

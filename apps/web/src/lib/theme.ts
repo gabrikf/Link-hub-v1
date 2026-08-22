@@ -1,3 +1,5 @@
+import { reportHandled } from "./report-error";
+
 export type Theme = "light" | "dark";
 
 const THEME_STORAGE_KEY = "linkhub-theme";
@@ -23,7 +25,9 @@ export const getStoredTheme = (): Theme | null => {
   try {
     const rawValue = window.localStorage.getItem(THEME_STORAGE_KEY);
     return isTheme(rawValue) ? rawValue : null;
-  } catch {
+  } catch (error) {
+    // Private-mode / blocked storage. The system theme is a fine answer.
+    reportHandled(error, { action: "theme.read-stored" });
     return null;
   }
 };
@@ -48,8 +52,9 @@ export const persistTheme = (theme: Theme) => {
 
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  } catch {
-    // No-op when storage is unavailable.
+  } catch (error) {
+    // No-op when storage is unavailable (private mode, quota).
+    reportHandled(error, { action: "theme.persist" });
   }
 };
 

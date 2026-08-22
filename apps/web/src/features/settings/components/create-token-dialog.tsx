@@ -2,6 +2,7 @@ import type { ApiTokenScope, CreateApiTokenOutput } from "@repo/schemas";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { useEffect, useState } from "react";
 import { FiAlertTriangle, FiCheck, FiCopy } from "react-icons/fi";
+import { reportError } from "../../../lib/report-error";
 import { useCreateToken } from "../../../lib/token-queries";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
@@ -108,7 +109,12 @@ export function CreateTokenDialog({
       });
       setCreated(result);
       onCreated(result);
-    } catch {
+    } catch (error) {
+      // Token name and the plaintext value never travel with the report.
+      reportError(error, {
+        action: "settings.create-token",
+        extra: { scopes, hasExpiry: Boolean(expiresAt) },
+      });
       setError("Could not create the token. Please try again.");
     }
   };

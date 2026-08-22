@@ -40,6 +40,15 @@ function isValidHttpUrl(raw: string): boolean {
     const parsed = new URL(trimmed);
     return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
+    /**
+     * Deliberately reports NOTHING, not even a breadcrumb.
+     *
+     * This runs during render on every keystroke, and `new URL()` throwing is
+     * the normal answer for half-typed input — it is the predicate, not a
+     * failure. Recording it filled Sentry's 100-entry breadcrumb buffer with
+     * "user is still typing" and evicted the context that makes a real event
+     * diagnosable.
+     */
     return false;
   }
 }

@@ -1,0 +1,40 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": true
+    },
+    "contextOptions": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "storageState": ".playwright/auth.json"
+    }
+  },
+  "outputDir": ".visual",
+  "testIdAttribute": "data-testid",
+  "network": {
+    "allowedOrigins": [
+      "localhost:5173",
+      "localhost:3333",
+      "fonts.googleapis.com",
+      "fonts.gstatic.com",
+      "*.amazonaws.com",
+      "*.r2.dev",
+      "*.cloudfront.net"
+    ],
+    "blockedOrigins": [
+      "*.sentry.io",
+      "*.ingest.sentry.io",
+      "accounts.google.com",
+      "*.googletagmanager.com",
+      "*.google-analytics.com"
+    ]
+  },
+  "timeouts": {
+    "action": 3000,
+    "navigation": 15000,
+    "expect": 8000
+  }
+}

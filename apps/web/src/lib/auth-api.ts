@@ -98,6 +98,7 @@ import axios, {
 } from "axios";
 import { z } from "zod";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
+import { reportError, reportHandled } from "./report-error";
 import {
   createSessionRefresher,
   createUnauthorizedHandler,
@@ -185,12 +186,87 @@ const sessionRefresher = createSessionRefresher({
 /** Test seam — clears the refresher's "unsupported" latch. */
 export const resetSessionRefresher = sessionRefresher.reset;
 
+const handleUnauthorized = createUnauthorizedHandler({
+  refresh: sessionRefresher.refresh,
+  replay: (config) => apiClient.request(config),
+});
+
+/**
+ * Request path only — no origin, no query string.
+ *
+ * Dynamic segments are deliberately left intact (`/links/9f2…`): the id is the
+ * difference between "one user hit a bad row" and "the endpoint is down", and
+ * it is not a secret. The query string is dropped because search filters and
+ * usernames ride in it.
+ */
+const requestPath = (url: string | undefined): string | undefined => {
+  if (!url) {
+    return undefined;
+  }
+
+  const [path] = url.split("?");
+  return path;
+};
+
+/**
+ * One place where transport failures are recorded, instead of once per call
+ * site. Only 5xx and "no response at all" land here — a 4xx is an expected
+ * outcome the calling feature already turns into a message for the user, and
+ * routing those to Sentry would drown the genuine faults.
+ *
+ * A BREADCRUMB, NOT AN EVENT, and that distinction is the whole point. Most
+ * failures reaching here are re-reported at the call site with a specific
+ * `action` ("settings.create-token", "posts.create") — which is the version
+ * worth having. Sentry's default `dedupeIntegration` compares type, value and
+ * stack but NOT tags, so two reports of the same AxiosError collapse into one
+ * and the FIRST wins: raising an event here would keep the generic
+ * "api.request" and silently discard every specific one. Every 5xx in the app
+ * would arrive anonymised.
+ *
+ * As a breadcrumb the network detail still rides along on whatever event the
+ * call site raises, and nothing is lost when a call site has no handler of its
+ * own — the failure still surfaces, just through its caller.
+ *
+ * Nothing from the request body or the auth headers is attached.
+ */
+const reportTransportFailure = (error: unknown): void => {
+  if (!axios.isAxiosError(error)) {
+    return;
+  }
+
+  const status = error.response?.status;
+
+  if (status !== undefined && status < 500) {
+    return;
+  }
+
+  // A cancelled request is not a fault: the user navigated away, closed the
+  // tab, or a query was superseded. These have no response, so they would
+  // otherwise be indistinguishable from a real network failure.
+  if (error.code === "ERR_CANCELED") {
+    return;
+  }
+
+  reportHandled(error, {
+    action: "api.request",
+    extra: {
+      status: status ?? null,
+      method: error.config?.method?.toUpperCase() ?? null,
+      path: requestPath(error.config?.url) ?? null,
+      // Distinguishes "server answered 5xx" from "the request never landed".
+      networkError: !error.response,
+    },
+  });
+};
+
 apiClient.interceptors.response.use(
   (response) => response,
-  createUnauthorizedHandler({
-    refresh: sessionRefresher.refresh,
-    replay: (config) => apiClient.request(config),
-  }),
+  async (error: unknown) => {
+    reportTransportFailure(error);
+    // Returned, not awaited-then-returned, so the resolve/reject behaviour of
+    // the handler reaches axios exactly as it did before.
+    return handleUnauthorized(error);
+  },
 );
 
 const readErrorMessage = (error: unknown): string => {
@@ -221,6 +297,7 @@ export async function loginRequest(
     const response = await apiClient.post("/auth/login", body);
     return loginSchemaOutput.parse(response.data);
   } catch (error) {
+    reportError(error, { action: "auth.login" });
     throw new Error(readErrorMessage(error));
   }
 }
@@ -234,6 +311,7 @@ export async function registerRequest(
     const response = await apiClient.post("/auth/register", body);
     return createUserSchemaOutput.parse(response.data);
   } catch (error) {
+    reportError(error, { action: "auth.register" });
     throw new Error(readErrorMessage(error));
   }
 }
@@ -247,6 +325,7 @@ export async function googleSignInRequest(
     const response = await apiClient.post("/auth/google", body);
     return googleSignInSchemaOutput.parse(response.data);
   } catch (error) {
+    reportError(error, { action: "auth.google-sign-in" });
     throw new Error(readErrorMessage(error));
   }
 }

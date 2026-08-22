@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { container } from "tsyringe";
+import { container, instanceCachingFactory } from "tsyringe";
 import { IUsersRepository } from "../../core/repositories/user/user-repository.js";
 import { ILinksRepository } from "../../core/repositories/link/link-repository.js";
 import { IPostRepository } from "../../core/repositories/post/post-repository.js";
@@ -32,6 +32,9 @@ import { IResumeEmbeddingQueue } from "../../core/providers/queue/resume-embeddi
 import { IActivityDigestQueue } from "../../core/providers/queue/activity-digest-queue.js";
 import { IResumeParsingProvider } from "../../core/providers/resume-parsing/resume-parsing-provider.js";
 import { IFileStorageProvider } from "../../core/providers/storage/file-storage-provider.js";
+import { IImageOptimizerProvider } from "../../core/providers/image-optimizer/image-optimizer-provider.js";
+import { IAiQuotaProvider } from "../../core/providers/ai-quota/ai-quota-provider.js";
+import { InMemoryAiQuotaProvider } from "../../core/providers/ai-quota/in-memory-ai-quota-provider.js";
 import { IUnitOfWork } from "../../core/providers/unit-of-work/unit-of-work.js";
 import { DrizzleUserRepository } from "../database/drizzle/repositories/user.repository.js";
 import { DrizzleLinksRepository } from "../database/drizzle/repositories/link.repository.js";
@@ -73,6 +76,9 @@ import {
   S3FileStorageProvider,
   readS3StorageConfigFromEnv,
 } from "../providers/s3-file-storage-provider.js";
+import { createImageOptimizerProvider } from "../providers/sharp-image-optimizer-provider.js";
+import { RedisAiQuotaProvider } from "../providers/redis-ai-quota-provider.js";
+import { isRedisConfigured } from "../redis/redis-client.js";
 import { InternalServerError } from "../../core/errors/index.js";
 import { CreateUserUseCase } from "../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 import { LoginUseCase } from "../../core/use-case/auth/login-use-case/login.use-case.js";
@@ -180,6 +186,8 @@ export const TOKENS = {
   ),
   ResumeParsingProvider: Symbol.for("ResumeParsingProvider"),
   FileStorageProvider: Symbol.for("FileStorageProvider"),
+  ImageOptimizerProvider: Symbol.for("ImageOptimizerProvider"),
+  AiQuotaProvider: Symbol.for("AiQuotaProvider"),
   UnitOfWork: Symbol.for("UnitOfWork"),
   ResumeEmbeddingQueue: Symbol.for("ResumeEmbeddingQueue"),
   ActivityDigestQueue: Symbol.for("ActivityDigestQueue"),
@@ -399,13 +407,35 @@ export function setupContainer() {
     useClass: CryptoWebhookSecretProvider,
   });
 
+  /**
+   * CACHED, and that is the whole point.
+   *
+   * This used to be a plain `register({ useFactory })`, which in tsyringe is
+   * TRANSIENT: every `container.resolve(TOKENS.EmbeddingProvider)` — i.e. every
+   * request and every job — built a brand new `CachedEmbeddingProvider` around
+   * a brand new empty `Map`. The cache could never hit across two calls, so the
+   * app paid OpenAI for an embedding of the same text every single time while
+   * looking, from the code, like it had a cache.
+   *
+   * `instanceCachingFactory` keeps the env-driven branching (deterministic
+   * provider when there is no API key) while handing out one shared instance.
+   *
+   * The TTL default is 24h rather than the previous 15 minutes: an embedding is
+   * a pure function of (model, text), so a stale entry is not a thing that can
+   * exist — the only reason to expire at all is to bound memory, which
+   * `maxItems` already does.
+   */
   container.register<IEmbeddingProvider>(TOKENS.EmbeddingProvider, {
-    useFactory: () => {
+    useFactory: instanceCachingFactory(() => {
       const apiKey = process.env.OPENAI_API_KEY;
       const ttlSeconds = Number(
-        process.env.EMBEDDING_CACHE_TTL_SECONDS ?? "900",
+        process.env.EMBEDDING_CACHE_TTL_SECONDS ?? "86400",
       );
-      const maxItems = Number(process.env.EMBEDDING_CACHE_MAX_ITEMS ?? "2000");
+      // 5000 entries: text-embedding-3-small returns 1536 floats, ~12.3 KB per
+      // entry as a JS number[], so this bounds the cache at roughly 65 MB. On a
+      // 4GB box shared with Postgres, Redis and two workers, 10k entries
+      // (~130 MB) is not worth the extra hit rate.
+      const maxItems = Number(process.env.EMBEDDING_CACHE_MAX_ITEMS ?? "5000");
 
       if (!apiKey) {
         return new CachedEmbeddingProvider(
@@ -420,12 +450,16 @@ export function setupContainer() {
         ttlSeconds,
         maxItems,
       );
-    },
+    }),
   });
 
-  container.register<IResumeEmbeddingQueue>(TOKENS.ResumeEmbeddingQueue, {
-    useClass: BullMqResumeEmbeddingQueue,
-  });
+  // Singleton for the same reason `ActivityDigestQueue` below is: this owns a
+  // Redis connection, and being transient meant one new socket per enqueue.
+  // Under load that walks straight into Redis `maxclients`.
+  container.registerSingleton<IResumeEmbeddingQueue>(
+    TOKENS.ResumeEmbeddingQueue,
+    BullMqResumeEmbeddingQueue,
+  );
 
   // Registered as a singleton: it owns a Redis connection and the sweep's job
   // scheduler, and a fresh queue (plus a fresh socket) per resolution would leak
@@ -435,10 +469,13 @@ export function setupContainer() {
     BullMqActivityDigestQueue,
   );
 
+  // Cached: each of these wraps an `OpenAI` client, which carries its own HTTP
+  // agent and keep-alive pool. Rebuilding one per request threw that pool away
+  // on every call and forced a fresh TLS handshake to api.openai.com.
   container.register<IRecruiterQueryConversionProvider>(
     TOKENS.RecruiterQueryConversionProvider,
     {
-      useFactory: () => {
+      useFactory: instanceCachingFactory(() => {
         const apiKey = process.env.OPENAI_API_KEY;
 
         if (!apiKey) {
@@ -446,12 +483,12 @@ export function setupContainer() {
         }
 
         return new OpenAiRecruiterQueryConversionProvider(apiKey);
-      },
+      }),
     },
   );
 
   container.register<IResumeParsingProvider>(TOKENS.ResumeParsingProvider, {
-    useFactory: () => {
+    useFactory: instanceCachingFactory(() => {
       const apiKey = process.env.OPENAI_API_KEY;
 
       if (!apiKey) {
@@ -459,11 +496,15 @@ export function setupContainer() {
       }
 
       return new OpenAiResumeParsingProvider(apiKey);
-    },
+    }),
   });
 
+  // Cached: an `S3Client` holds a connection pool and was previously rebuilt on
+  // every upload. Note the throw below still happens per resolution — nothing is
+  // cached on the failure path — so the lazy "not configured" behaviour is
+  // unchanged.
   container.register<IFileStorageProvider>(TOKENS.FileStorageProvider, {
-    useFactory: () => {
+    useFactory: instanceCachingFactory(() => {
       const config = readS3StorageConfigFromEnv();
 
       // Fail lazily (at request time) with a clear message instead of crashing
@@ -473,7 +514,34 @@ export function setupContainer() {
       }
 
       return new S3FileStorageProvider(config);
-    },
+    }),
+  });
+
+  /**
+   * Cached: both implementations are stateful — for the in-memory one the Map
+   * *is* the counter, so a transient registration would hand every request a
+   * fresh, empty quota and the limit would never bind. Neither constructor
+   * opens a socket (`RedisAiQuotaProvider` calls `getRedis()` lazily per
+   * command), so this costs nothing at boot.
+   */
+  /**
+   * Cached: `createImageOptimizerProvider()` probes whether sharp's native
+   * binding actually loads and falls back to the passthrough implementation if
+   * it does not, so the probe should happen once rather than per upload.
+   */
+  container.register<IImageOptimizerProvider>(TOKENS.ImageOptimizerProvider, {
+    useFactory: instanceCachingFactory(() => createImageOptimizerProvider()),
+  });
+
+  container.register<IAiQuotaProvider>(TOKENS.AiQuotaProvider, {
+    useFactory: instanceCachingFactory(() =>
+      isRedisConfigured()
+        ? new RedisAiQuotaProvider()
+        : // No REDIS_URL: count per process. With N replicas that permits
+          // N x limit, a weaker cap than the real thing but still a cap. The
+          // guard is disabled outside production anyway.
+          new InMemoryAiQuotaProvider(),
+    ),
   });
 
   container.register<IGoogleOAuthProvider>(TOKENS.GoogleOAuthProvider, {

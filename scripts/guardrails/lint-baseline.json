@@ -1,0 +1,99 @@
+{
+  "_comment": "Recorded eslint debt, keyed by file and rule. This may only ever go DOWN. Regenerate with `node scripts/guardrails/lint-changed.mjs --update-baseline` AFTER fixing findings, never to silence one you just introduced. Counts, not line numbers, so ordinary edits do not produce phantom findings.",
+  "_generated": "2026-08-21",
+  "_totalErrors": 46,
+  "findings": {
+    "apps/api/src/core/entity/user/user-entity.ts": {
+      "@typescript-eslint/no-empty-object-type": 1
+    },
+    "apps/api/src/core/use-case/auth/login-use-case/login.use-case.ts": {
+      "@typescript-eslint/no-unused-vars": 1
+    },
+    "apps/api/src/core/use-case/posts/update-post-use-case/update-post.use-case.ts": {
+      "@typescript-eslint/no-unused-vars": 1
+    },
+    "apps/api/src/infra/database/drizzle/seed-realistic.ts": {
+      "@typescript-eslint/no-unused-vars": 1
+    },
+    "apps/api/src/infra/http/controllers/auth/create-user-controller.ts": {
+      "@typescript-eslint/no-unused-vars": 1
+    },
+    "apps/api/src/infra/http/middleware/global-error-handler.ts": {
+      "@typescript-eslint/no-unused-vars": 7
+    },
+    "apps/api/src/infra/http/pluguins/database.ts": {
+      "@typescript-eslint/no-unused-vars": 1
+    },
+    "apps/api/src/infra/providers/argon2-hash-provider.ts": {
+      "@typescript-eslint/no-unused-vars": 1
+    },
+    "apps/api/src/infra/providers/redis-ai-quota-provider.test.ts": {
+      "@typescript-eslint/no-this-alias": 1
+    },
+    "apps/api/src/types/fastify.d.ts": {
+      "@typescript-eslint/no-unused-vars": 1
+    },
+    "apps/web/src/features/posts/components/post-composer-dialog.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/posts/lib/markdown.tsx": {
+      "no-control-regex": 1,
+      "react-refresh/only-export-components": 3
+    },
+    "apps/web/src/features/profile-layout/components/button-block-dialog.tsx": {
+      "react-hooks/set-state-in-effect": 1,
+      "react-hooks/static-components": 1
+    },
+    "apps/web/src/features/profile-layout/components/editor-grid.tsx": {
+      "react-refresh/only-export-components": 1
+    },
+    "apps/web/src/features/profile-layout/components/image-block-dialog.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/profile-layout/components/posts-block-dialog.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/profile-layout/components/text-block-dialog.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/profile-layout/components/video-block-dialog.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/profile/components/profile-blocks.tsx": {
+      "react-hooks/static-components": 1
+    },
+    "apps/web/src/features/profile/pages/public-profile-page.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/settings/components/auto-post-wizard/auto-post-wizard.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/settings/components/auto-post-wizard/connect-step.tsx": {
+      "react-refresh/only-export-components": 2
+    },
+    "apps/web/src/features/settings/components/auto-post-wizard/schedule-step.tsx": {
+      "react-refresh/only-export-components": 1
+    },
+    "apps/web/src/features/settings/components/auto-post-wizard/verify-step.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/settings/components/auto-post-wizard/wizard-shared.tsx": {
+      "react-refresh/only-export-components": 3
+    },
+    "apps/web/src/features/settings/components/connections-panel.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/settings/components/disclosure-panel.tsx": {
+      "react-hooks/set-state-in-effect": 1
+    },
+    "apps/web/src/features/settings/components/new-connection-setup.tsx": {
+      "react-refresh/only-export-components": 3
+    },
+    "apps/web/src/shared-components/image-input.tsx": {
+      "react-hooks/set-state-in-effect": 2
+    },
+    "apps/web/src/shared-components/top-bar-nav.test.tsx": {
+      "@typescript-eslint/no-unused-vars": 1
+    }
+  }
+}

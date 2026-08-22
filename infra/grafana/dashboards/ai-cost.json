@@ -1,0 +1,601 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "OpenAI consumption and estimated spend. Token counts come from openai_tokens_total (labelled model / operation / direction); prices are NOT in the metric and are supplied by the dashboard variables at the top — edit them there when OpenAI changes its price list, never in this JSON.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "id": 200,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "### Prices are inputs, not facts\n\nEvery dollar figure on this dashboard is `tokens x price`, where **price comes from the dashboard variables above**, expressed as **USD per 1,000,000 tokens**. Defaults are the list prices for `gpt-4o-mini` (input `$0.15` / output `$0.60`) and `text-embedding-3-small` (`$0.02`). Change them in the variable boxes when OpenAI's pricing changes — no JSON edit, no redeploy.\n\nTwo things this cannot know:\n\n- **Only the two configured models are priced.** If `RESUME_PARSING_MODEL`, `QUERY_CONVERSION_MODEL` or `EMBEDDING_MODEL` is pointed at anything else, its tokens appear in the rate panels but contribute **$0.00** to spend. The *Tokens by model* table below exists to make that visible — any model in it that is not in the price variables is silently unpriced.\n- **Cached-prompt discounts, batch pricing and free tiers are not modelled.** Treat these numbers as an upper-bound estimate for alerting and capacity thinking, and the OpenAI billing console as the source of truth for what was actually charged.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.0.0",
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 4 },
+      "id": 100,
+      "panels": [],
+      "title": "Estimated spend",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Estimated OpenAI spend over the selected time range. Each term is wrapped in `or vector(0)` so a model with no traffic contributes zero instead of making the whole sum disappear.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 25 }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 5 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "(\n    ((sum(increase(openai_tokens_total{job=~\"$job\", model=~\"gpt-4o-mini.*\", direction=\"input\"}[$__range])) or vector(0)) * $price_gpt4o_mini_in)\n  + ((sum(increase(openai_tokens_total{job=~\"$job\", model=~\"gpt-4o-mini.*\", direction=\"output\"}[$__range])) or vector(0)) * $price_gpt4o_mini_out)\n  + ((sum(increase(openai_tokens_total{job=~\"$job\", model=~\"text-embedding-3-small.*\"}[$__range])) or vector(0)) * $price_embed_small)\n) / 1000000",
+          "instant": true,
+          "legendFormat": "spend",
+          "refId": "A"
+        }
+      ],
+      "title": "Estimated spend in window",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Current burn rate extrapolated to 30 days, using the same prices. This is the number to compare against a monthly budget — it reacts within minutes of a traffic change, unlike a month-to-date total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 5 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "(\n    ((sum(rate(openai_tokens_total{job=~\"$job\", model=~\"gpt-4o-mini.*\", direction=\"input\"}[$__rate_interval])) or vector(0)) * $price_gpt4o_mini_in)\n  + ((sum(rate(openai_tokens_total{job=~\"$job\", model=~\"gpt-4o-mini.*\", direction=\"output\"}[$__rate_interval])) or vector(0)) * $price_gpt4o_mini_out)\n  + ((sum(rate(openai_tokens_total{job=~\"$job\", model=~\"text-embedding-3-small.*\"}[$__rate_interval])) or vector(0)) * $price_embed_small)\n) / 1000000 * 2592000",
+          "legendFormat": "projected",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Projected spend / 30 days at current rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Where the money goes, split by the `operation` label: resume_parse (AI resume import), query_conversion (recruiter job description to structured query) and embedding (vector generation). resume_parse and query_conversion use a chat model and therefore have both input and output tokens; embedding is input-only.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } },
+          "decimals": 3,
+          "mappings": [],
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 5 },
+      "id": 3,
+      "options": {
+        "displayLabels": ["name", "value"],
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": []
+        },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "(\n    ((sum by (operation) (increase(openai_tokens_total{job=~\"$job\", model=~\"gpt-4o-mini.*\", direction=\"input\"}[$__range]))) * $price_gpt4o_mini_in)\n  or\n    ((sum by (operation) (increase(openai_tokens_total{job=~\"$job\", model=~\"text-embedding-3-small.*\"}[$__range]))) * $price_embed_small)\n) / 1000000",
+          "instant": true,
+          "legendFormat": "{{operation}} (input)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "(sum by (operation) (increase(openai_tokens_total{job=~\"$job\", model=~\"gpt-4o-mini.*\", direction=\"output\"}[$__range])) * $price_gpt4o_mini_out) / 1000000",
+          "instant": true,
+          "legendFormat": "{{operation}} (output)",
+          "refId": "B"
+        }
+      ],
+      "title": "Spend by operation (window)",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+      "id": 101,
+      "panels": [],
+      "title": "Token consumption",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Token throughput broken out by every label openai_tokens_total carries: model, operation and direction (input|output). This is the raw signal the spend panels are derived from — if a dollar figure looks wrong, check here first for a model you did not expect.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "tokens/min",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 12 },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Mean",
+          "sortDesc": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "sum by (model, operation, direction) (rate(openai_tokens_total{job=~\"$job\"}[$__rate_interval])) * 60",
+          "legendFormat": "{{model}} / {{operation}} / {{direction}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Token rate by model, operation and direction",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Total tokens per model and direction over the window. CHECK THIS TABLE whenever a model environment variable changes: any model listed here that is not covered by the price variables at the top of the dashboard is contributing real cost while showing $0.00 in the spend panels.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "text", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Tokens" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "mode": "gradient", "type": "gauge" }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 12 },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": true },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Tokens" }]
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "sum by (model, direction) (increase(openai_tokens_total{job=~\"$job\"}[$__range]))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Tokens by model (window)",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "indexByName": {},
+            "renameByName": {
+              "Value": "Tokens",
+              "direction": "Direction",
+              "model": "Model"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "id": 102,
+      "panels": [],
+      "title": "Reliability and quotas",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Failed OpenAI calls as a share of all calls, per model and operation. openai_requests_total carries outcome=success|error. A sustained error rate on `embedding` means resumes are being queued but never becoming searchable; check the queue panels on the API health dashboard for the matching job failures.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "100 * (\n  sum by (model, operation) (rate(openai_requests_total{job=~\"$job\", outcome=\"error\"}[$__rate_interval]))\n  /\n  clamp_min(sum by (model, operation) (rate(openai_requests_total{job=~\"$job\"}[$__rate_interval])), 0.0000001)\n)",
+          "legendFormat": "{{model}} / {{operation}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "OpenAI error rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Requests turned away with a 429 by the per-user daily AI quota, by `operation` (resume_parse, recruiter_search). Defaults are 5 resume parses and 30 recruiter searches per user per day, and the quota is only enforced when AI_QUOTA_ENABLED is on (which defaults to NODE_ENV=production).\n\nRead this against the spend panels: rejections rising is the cost ceiling doing its job, but a persistently high number means real users are being blocked and the limit — or the pricing model — needs revisiting.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "orange", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "sum by (operation) (increase(ai_quota_rejections_total{job=~\"$job\"}[$__interval]))",
+          "legendFormat": "{{operation}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "AI quota rejections (429)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "OpenAI call volume by operation, so an error-rate spike can be read as 'a few calls, all failing' or 'a lot of calls, some failing'.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "calls/min",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "sum by (operation, outcome) (rate(openai_requests_total{job=~\"$job\"}[$__rate_interval])) * 60",
+          "legendFormat": "{{operation}} / {{outcome}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "OpenAI call rate by operation and outcome",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": ["linkhub", "ai", "cost", "openai"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "description": "The Prometheus data source backing this stack. Pick your Grafana Cloud Prometheus instance on import.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(openai_requests_total, job)",
+        "description": "Scrape job / OTel service. Leave on All unless several LinkHub deployments share one Prometheus tenant.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Job",
+        "multi": true,
+        "name": "job",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(openai_requests_total, job)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "text": "0.15", "value": "0.15" },
+        "description": "USD per 1,000,000 INPUT (prompt) tokens for gpt-4o-mini. Used by resume_parse and query_conversion.",
+        "hide": 0,
+        "label": "gpt-4o-mini input $/1M",
+        "name": "price_gpt4o_mini_in",
+        "options": [{ "selected": true, "text": "0.15", "value": "0.15" }],
+        "query": "0.15",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": { "text": "0.60", "value": "0.60" },
+        "description": "USD per 1,000,000 OUTPUT (completion) tokens for gpt-4o-mini. Output is typically 4x the price of input, which is why direction is a metric label at all.",
+        "hide": 0,
+        "label": "gpt-4o-mini output $/1M",
+        "name": "price_gpt4o_mini_out",
+        "options": [{ "selected": true, "text": "0.60", "value": "0.60" }],
+        "query": "0.60",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": { "text": "0.02", "value": "0.02" },
+        "description": "USD per 1,000,000 tokens for text-embedding-3-small. Embeddings are input-only, so one price covers both directions.",
+        "hide": 0,
+        "label": "text-embedding-3-small $/1M",
+        "name": "price_embed_small",
+        "options": [{ "selected": true, "text": "0.02", "value": "0.02" }],
+        "query": "0.02",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "LinkHub — AI cost",
+  "uid": "linkhub-ai-cost",
+  "version": 1,
+  "weekStart": ""
+}

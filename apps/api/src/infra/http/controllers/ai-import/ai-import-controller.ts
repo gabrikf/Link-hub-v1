@@ -10,7 +10,9 @@ import {
 import { resolve, TOKENS } from "../../../di/container.js";
 import { BadRequestError } from "../../../../core/errors/index.js";
 import { authGuard } from "../../middleware/auth-guard.js";
+import { aiQuotaGuard } from "../../middleware/ai-quota-guard.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
+import { resumesSubmittedTotal } from "../../../observability/metrics.js";
 import { extractSearchAttachmentText } from "../../utils/extract-search-attachment-text.js";
 import { ParseResumeUseCase } from "../../../../core/use-case/ai-import/parse-resume-use-case/parse-resume.use-case.js";
 import { ApplyAiResumeImportUseCase } from "../../../../core/use-case/ai-import/apply-ai-resume-import-use-case/apply-ai-resume-import.use-case.js";
@@ -30,7 +32,10 @@ export class AiImportController {
     app.post(
       "/me/resume/ai-import/parse",
       {
-        preHandler: authGuard,
+        // Quota-guarded: this is the route that sends a whole resume to OpenAI.
+        // The sibling `/apply` route below writes already-parsed data and costs
+        // nothing, so it stays unmetered.
+        preHandler: [authGuard, aiQuotaGuard("resume_parse")],
         schema: {
           tags: ["AI Import"],
           summary: "Extract a structured profile from a resume file or text",
@@ -65,6 +70,10 @@ export class AiImportController {
           userId: request.user!.id,
           resumeText,
         });
+
+        // After the parse succeeds: a resume rejected for being too short never
+        // reached the model and is not a submission.
+        resumesSubmittedTotal.add(1);
 
         reply.status(200).send({ parsed: parsedResumeDataSchema.parse(parsed) });
       },

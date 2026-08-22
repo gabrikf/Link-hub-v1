@@ -10,6 +10,7 @@ import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import { FiCheckCircle, FiCircle, FiPlus } from "react-icons/fi";
 import { useMyPosts } from "../../../../lib/post-queries";
+import { reportError } from "../../../../lib/report-error";
 import { Button } from "../../../../shared-components/button";
 import { Dialog } from "../../../../shared-components/dialog";
 import { FeedbackMessage } from "../../../../shared-components/feedback-message";
@@ -381,7 +382,11 @@ export function AutoPostWizard({
           const renamed = { ...created, displayName: trimmedName };
           setCreated(renamed);
           stashConnection(renamed);
-        } catch {
+        } catch (error) {
+          reportError(error, {
+            action: "settings.wizard-update-connection",
+            extra: { kind },
+          });
           setCreateError("Could not update that source. Please try again.");
           return;
         }
@@ -427,6 +432,11 @@ export function AutoPostWizard({
       stashConnection(stashed);
       setStep("connect");
     } catch (error) {
+      reportError(error, {
+        action: "settings.wizard-create-connection",
+        extra: { provider: effectiveProvider ?? null, kind },
+      });
+
       if (
         axios.isAxiosError(error) &&
         error.response?.status === 409 &&
@@ -465,7 +475,11 @@ export function AutoPostWizard({
       });
       setScheduleSaved(true);
       setStep("done");
-    } catch {
+    } catch (error) {
+      reportError(error, {
+        action: "settings.wizard-save-schedule",
+        extra: { cadence, autoPostEnabled },
+      });
       setSaveError(
         "Could not save the schedule. Your source stays connected — try again.",
       );

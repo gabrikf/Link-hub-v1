@@ -1,6 +1,7 @@
 import type { GitConnection } from "@repo/schemas";
 import { useMemo } from "react";
 import { FiAlertTriangle } from "react-icons/fi";
+import { reportHandled } from "../../../lib/report-error";
 import { Button } from "../../../shared-components/button";
 import {
   buildWebhookUrl,
@@ -48,7 +49,10 @@ export function readStashedConnection(): StashedConnection | null {
   try {
     const raw = window.sessionStorage.getItem(STASHED_CONNECTION_KEY);
     return raw ? (JSON.parse(raw) as StashedConnection) : null;
-  } catch {
+  } catch (error) {
+    // Private mode / blocked storage / corrupt entry. Never include the value —
+    // it carries a plaintext webhook secret.
+    reportHandled(error, { action: "storage.read-stashed-connection" });
     return null;
   }
 }
@@ -59,16 +63,18 @@ export function stashConnection(value: StashedConnection): void {
       STASHED_CONNECTION_KEY,
       JSON.stringify(value),
     );
-  } catch {
+  } catch (error) {
     // Private mode / quota. The in-memory copy still drives this session.
+    reportHandled(error, { action: "storage.stash-connection" });
   }
 }
 
 export function clearStashedConnection(): void {
   try {
     window.sessionStorage.removeItem(STASHED_CONNECTION_KEY);
-  } catch {
+  } catch (error) {
     // Nothing to do — the in-memory state is cleared either way.
+    reportHandled(error, { action: "storage.clear-stashed-connection" });
   }
 }
 

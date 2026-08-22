@@ -25,19 +25,18 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT }}
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          cache: npm
 
+      # This repo is npm workspaces + Turborepo with a single root
+      # package-lock.json (`packageManager: npm@11.1.0`). `npm ci` is the
+      # lockfile-respecting install, equivalent to the frozen-lockfile flag of
+      # other package managers.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Check unused interaction count
         id: check_threshold
@@ -70,7 +69,7 @@ jobs:
         if: ${{ steps.check_threshold.outputs.skip != 'true' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: pnpm --filter training train:incremental
+        run: npm run train:incremental --workspace=training
 
       - name: Upload model files to S3
         if: ${{ steps.check_threshold.outputs.skip != 'true' }}

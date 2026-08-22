@@ -11,6 +11,8 @@ import {
   BadRequestError,
   InternalServerError,
 } from "../../../core/errors/index.js";
+import { captureApiException } from "../../observability/sentry.js";
+import { structuredLoggingEnabled } from "../../config/app-config.js";
 
 /**
  * Error response interface
@@ -34,14 +36,28 @@ export async function errorHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  // Log error for debugging (in production, use a proper logger)
-  console.error("Error caught by global handler:", {
+  const errorDetails = {
     name: error.name,
     message: error.message,
     stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     path: request.url,
     method: request.method,
-  });
+  };
+
+  // Goes through the request logger so the line carries the request id and, in
+  // production, the active trace/span ids. The request body is deliberately
+  // never included: it holds signup passwords, resume text and recruiter
+  // queries.
+  //
+  // Development runs with `logger: false` (to keep the local terminal exactly as
+  // it was before structured logging landed), and Fastify's no-op logger would
+  // swallow this line entirely. Falling back to console.error preserves the
+  // behaviour developers rely on today — errors still print while you work.
+  if (structuredLoggingEnabled()) {
+    request.log.error(errorDetails, "Error caught by global handler");
+  } else {
+    console.error("Error caught by global handler:", errorDetails);
+  }
 
   // Default error response
   let statusCode = 500;
@@ -168,6 +184,29 @@ export async function errorHandler(
           errorMessage = error.message;
         }
     }
+  }
+
+  /**
+   * Report to Sentry only what a human would actually want to be woken for.
+   *
+   * A rejected Zod payload or a `NotFoundError` is the API doing its job; if
+   * those were sent, the real 500s would be buried under them within a day.
+   * Anything that ends up 5xx and is not one of those recognised application
+   * errors is, by definition, a bug we did not anticipate.
+   */
+  const isExpectedClientError =
+    error instanceof ZodError ||
+    (error instanceof BaseError && statusCode < 500) ||
+    ("validation" in error && Boolean(error.validation));
+
+  if (statusCode >= 500 && !isExpectedClientError) {
+    captureApiException(error, {
+      route: request.routeOptions?.url,
+      method: request.method,
+      statusCode,
+      requestId: request.id,
+      userId: request.user?.id,
+    });
   }
 
   // Build error response

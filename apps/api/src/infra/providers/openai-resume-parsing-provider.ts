@@ -5,6 +5,38 @@ import {
   ParsedWorkExperience,
   ResumeParsingInput,
 } from "../../core/providers/resume-parsing/resume-parsing-provider.js";
+import {
+  recordOpenAiRequest,
+  recordOpenAiUsage,
+} from "../observability/metrics.js";
+
+/**
+ * Telemetry must never be able to break the thing it is measuring: a failing
+ * exporter turning every resume import into a 500 would be a far worse outage
+ * than a gap in a spend dashboard.
+ */
+function recordCall(params: {
+  model: string;
+  outcome: "success" | "error";
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+}): void {
+  try {
+    recordOpenAiUsage({
+      model: params.model,
+      operation: "resume_parse",
+      promptTokens: params.promptTokens,
+      completionTokens: params.completionTokens,
+    });
+    recordOpenAiRequest({
+      model: params.model,
+      operation: "resume_parse",
+      outcome: params.outcome,
+    });
+  } catch {
+    // Intentionally swallowed — see above.
+  }
+}
 
 const SENIORITY_VALUES = [
   "intern",
@@ -206,7 +238,25 @@ export class OpenAiResumeParsingProvider implements IResumeParsingProvider {
   private readonly client: OpenAI;
 
   constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({
+      apiKey,
+      /**
+       * This was the only OpenAI client in the codebase left on the SDK
+       * defaults — 10 minutes per attempt, 3 attempts. It runs inline in the
+       * HTTP request that uploads a CV, so a hung call could hold that request
+       * (and its connection and pool slot) open for half an hour, long after
+       * the browser gave up. Its two siblings already bound this.
+       *
+       * A dedicated variable rather than the shared `OPENAI_TIMEOUT_MS`: a
+       * resume is a whole document going through a chat completion, so it
+       * legitimately takes tens of seconds, where a query conversion answers in
+       * one or two. Reusing the 15s sibling default would turn slow-but-fine
+       * imports into failures; 60s is generous for the p99 and still two orders
+       * of magnitude below the SDK default.
+       */
+      timeout: Number(process.env.OPENAI_PARSE_TIMEOUT_MS ?? "60000"),
+      maxRetries: Number(process.env.OPENAI_MAX_RETRIES ?? "2"),
+    });
   }
 
   async parseResume(input: ResumeParsingInput): Promise<ParsedResume> {
@@ -223,22 +273,47 @@ export class OpenAiResumeParsingProvider implements IResumeParsingProvider {
       .filter(Boolean)
       .join("\n\n");
 
-    const completion = await this.client.chat.completions.create({
-      model: process.env.RESUME_PARSING_MODEL ?? "gpt-4o-mini",
-      temperature: 0.1,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-    });
+    // Read once and reuse so the metric is labelled with the model that was
+    // actually asked for.
+    const model = process.env.RESUME_PARSING_MODEL ?? "gpt-4o-mini";
+
+    let completion;
+    try {
+      completion = await this.client.chat.completions.create({
+        model,
+        temperature: 0.1,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+      });
+    } catch (error) {
+      recordCall({ model, outcome: "error" });
+      // Re-thrown unchanged so the controller's error mapping and Sentry see
+      // the SDK's own error (status code, request id) rather than a wrapper.
+      throw error;
+    }
 
     const content = completion.choices[0]?.message?.content ?? "";
+    const promptTokens = completion.usage?.prompt_tokens;
+    const completionTokens = completion.usage?.completion_tokens;
 
+    let parsed: ParsedResume;
     try {
-      return normalizeParsedResume(JSON.parse(content));
+      parsed = normalizeParsedResume(JSON.parse(content));
     } catch {
+      // Tokens are still recorded: a resume is the most expensive prompt we
+      // send, and one that came back unparseable is spend with nothing to show
+      // for it — exactly what the dashboard is for.
+      recordCall({ model, outcome: "error", promptTokens, completionTokens });
       throw new Error("LLM returned an invalid resume parsing response");
     }
+
+    // Outside the try above on purpose: nothing metric-related may end up in a
+    // catch that would rewrite a successful parse into a parsing failure.
+    recordCall({ model, outcome: "success", promptTokens, completionTokens });
+
+    return parsed;
   }
 }

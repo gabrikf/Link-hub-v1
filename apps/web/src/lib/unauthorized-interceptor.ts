@@ -10,6 +10,7 @@ import {
   setAuthTokens,
   type AuthTokens,
 } from "./auth-tokens";
+import { reportHandled } from "./report-error";
 import { handleSessionExpired } from "./session";
 
 /**
@@ -91,6 +92,13 @@ export function createSessionRefresher(options: {
       if (status === 404 || status === 501) {
         isSupported = false;
       }
+
+      // Expected until `POST /auth/refresh` ships (see the module header): a
+      // failed refresh means "sign out", which the caller already does.
+      reportHandled(error, {
+        action: "auth.refresh-session",
+        extra: { status: status ?? null, latchedUnsupported: !isSupported },
+      });
 
       return null;
     }

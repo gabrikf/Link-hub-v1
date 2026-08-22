@@ -9,6 +9,7 @@ import {
 import { resolve, TOKENS } from "../../../di/container.js";
 import { CreateUserUseCase } from "../../../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
+import { signupsTotal } from "../../../observability/metrics.js";
 
 export class CreateUserController {
   static async handle(server: FastifyInstance) {
@@ -37,9 +38,13 @@ export class CreateUserController {
         const createUserUseCase = resolve<CreateUserUseCase>(
           TOKENS.CreateUserUseCase,
         );
-        console.log(request.body);
         // Execute the use case - errors are automatically caught by global error handler
         const result = await createUserUseCase.execute(request.body);
+
+        // Counted only after the use case succeeds, so a duplicate-email 409
+        // never shows up as a signup. `method` has three possible values across
+        // the three auth controllers — no user identifier goes near this label.
+        signupsTotal.add(1, { method: "password" });
 
         // Send success response with user data, access token, and refresh token
         reply.status(201).send({

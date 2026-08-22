@@ -8,6 +8,7 @@ import {
 } from "@repo/schemas";
 import { useEffect, useState } from "react";
 import { FiEye, FiEyeOff, FiPlus, FiTrash2 } from "react-icons/fi";
+import { reportError } from "../../../lib/report-error";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { FileUpload } from "../../../shared-components/file-upload";
@@ -114,6 +115,10 @@ export function PostComposerDialog({
     try {
       await onSubmit(parsed.data);
     } catch (cause) {
+      reportError(cause, {
+        action: isEditing ? "posts.update" : "posts.create",
+        extra: { status },
+      });
       setError(
         cause instanceof Error && cause.message
           ? cause.message

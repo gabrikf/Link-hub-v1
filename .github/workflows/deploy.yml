@@ -1,0 +1,236 @@
+name: Deploy
+
+# Production deploy, triggered by a merge to main. There is exactly one
+# environment — production. No staging exists, so nothing here branches on it.
+#
+# The two jobs are INDEPENDENT on purpose. The API lives on a single VPS behind
+# Caddy and the web app is a static bundle on Cloudflare Pages; a failure to
+# publish the frontend should not leave the backend half-deployed, and vice
+# versa. They are separate deployables with separate failure modes.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, full stop. Two concurrent runs would race on
+# `docker compose up` and on the migration step inside scripts/deploy.sh, and
+# the loser could restart the stack onto an older image.
+#
+# `cancel-in-progress: false`: a deploy that has already started must be allowed
+# to finish (or fail and roll back) rather than being killed halfway through a
+# container restart. A newer push simply queues behind it.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Required to push to ghcr.io with the built-in GITHUB_TOKEN.
+  packages: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # API — build image, push to GHCR, deploy on the VPS
+  # ---------------------------------------------------------------------------
+  api:
+    name: Deploy API to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # WHY GHCR AND NOT DOCKER HUB / ECR:
+      # ghcr.io authenticates with `secrets.GITHUB_TOKEN`, which GitHub mints
+      # for this run automatically. That is one fewer long-lived credential to
+      # create, store and rotate — no registry username, no registry password,
+      # no cloud IAM user. The token is scoped to this repository and expires
+      # when the job ends. The package inherits the repo's visibility, so a
+      # private repo yields a private image, and the VPS pulls it with a
+      # read:packages PAT (GHCR_PULL_TOKEN) that has no write access anywhere.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Lowercase the owner/repo: GHCR rejects uppercase characters in an image
+      # path, and GitHub org and repo names may legitimately contain them.
+      - name: Compute image name
+        id: image
+        run: |
+          REPO_LOWER="$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
+          echo "name=ghcr.io/${REPO_LOWER}/api" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      # This IS the artifact that gets deployed. The deploy step below passes
+      # this tag to `scripts/deploy.sh`, which takes the registry path instead
+      # of rebuilding on the VPS. Building here also means a broken Dockerfile
+      # fails on the runner before any SSH session touches production, and the
+      # registry copy is what deploy.sh's rollback falls back to when the
+      # previous image is no longer on disk.
+      #
+      # (Historical note, kept because the script still supports it: run
+      # `./scripts/deploy.sh` with NO argument on the box and it reverts to
+      # `git pull` + local `docker build`, which is the manual recovery path
+      # when the registry is unreachable.)
+      #
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # Two tags: the immutable commit SHA is what a recovery pull would
+          # pin to; `latest` is a convenience pointer only and must never be
+          # what a container is started from.
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}
+            ${{ steps.image.outputs.name }}:latest
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The workflow does NOT reimplement deploy logic. `scripts/deploy.sh` owns
+      # the whole sequence and its ordering is the safety property:
+      # pull -> build -> MIGRATE (before anything restarts) -> compose up ->
+      # poll /health for up to 120s -> re-pin the previous image tag and restart
+      # if the health check never goes green. It exits non-zero on failure.
+      #
+      # The script takes an OPTIONAL image tag. Passing it selects the CI path:
+      # deploy.sh skips its own `git pull` and `docker pull`s the image this run
+      # already built and pushed, instead of rebuilding on the server. That
+      # matters — a turbo + tsc build inside a 4GB box that is simultaneously
+      # running Postgres, Redis and two workers is the most memory-hungry thing
+      # that would ever happen on it, and it would happen on every deploy.
+      #
+      # It also removes an ambiguity: without a tag the VPS deploys whatever is
+      # at the tip of main when the script runs, which is not necessarily the
+      # commit this workflow validated.
+      #
+      # The checkout below is still needed: deploy.sh reads
+      # docker-compose.prod.yml, the Caddyfile and .env.production from the repo
+      # on disk, and those must match the image being deployed.
+      #
+      # This step's only job is to let a non-zero exit escape loudly.
+      - name: Deploy on the VPS
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ vars.VPS_SSH_PORT || 22 }}
+          # Without this the action swallows a non-zero exit from the remote
+          # command and reports a green deploy for a stack that never came up.
+          script_stop: true
+          # deploy.sh alone allows 90s for postgres, an image build, and a 120s
+          # health poll. 25m leaves headroom without hanging a runner forever.
+          command_timeout: 25m
+          # `envs:` is how appleboy/ssh-action gets values across; interpolating
+          # them straight into the script would put the token in the remote
+          # shell's history and in `ps` output.
+          envs: IMAGE_NAME,IMAGE_TAG,GHCR_USER,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            cd "${{ vars.VPS_APP_DIR || '/srv/linkhub' }}"
+
+            # The compose file, Caddyfile and scripts must match the image being
+            # deployed. --ff-only so a dirty or diverged server refuses rather
+            # than silently deploying something else.
+            git fetch --prune origin
+            git checkout --force "$IMAGE_TAG" 2>/dev/null || git pull --ff-only
+
+            # Needed to pull from ghcr.io, which is private for a private repo.
+            # --password-stdin keeps the token out of ps and shell history.
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            export IMAGE_NAME
+            ./scripts/deploy.sh "$IMAGE_TAG"
+
+      - name: Report deployed revision
+        if: success()
+        run: |
+          {
+            echo "### API deployed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}\` |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # WEB — build the Vite bundle, publish to Cloudflare Pages
+  # ---------------------------------------------------------------------------
+  web:
+    name: Deploy web to Cloudflare Pages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # CRITICAL: Vite substitutes `import.meta.env.VITE_*` at BUILD time. These
+      # values are baked into the JavaScript that ships to every browser — they
+      # are public by definition and none of them may be an actual secret.
+      # They live in GitHub Secrets/Variables only so the values can be changed
+      # without a commit, not because they are confidential.
+      #
+      # Anything genuinely secret (API keys, tokens) belongs on the API, behind
+      # an endpoint. It must never appear as a VITE_ variable.
+      #
+      # Setting one of these AFTER the build has no effect whatsoever; a wrong
+      # value here means rebuilding, not reconfiguring Cloudflare.
+      - name: Build web bundle
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_MODEL_CDN_BASE_URL: ${{ vars.VITE_MODEL_CDN_BASE_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SENTRY_ENVIRONMENT: production
+          VITE_SENTRY_RELEASE: ${{ github.sha }}
+        run: npm run build:web
+
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy apps/web/dist
+            --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+            --branch=main
+            --commit-dirty=true
+
+      - name: Report deployed revision
+        if: success()
+        run: |
+          {
+            echo "### Web deployed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Pages project | \`${{ vars.CLOUDFLARE_PAGES_PROJECT }}\` |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -29,6 +29,7 @@ import {
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyResumeQuery } from "../../../lib/profile-queries";
+import { reportError } from "../../../lib/report-error";
 import { detectLinkIcon, LINK_ICON_OPTIONS } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
@@ -415,8 +416,13 @@ export function DashboardPage() {
         icon,
         isPublic: data.isPublic,
       });
-    } catch {
-      // Surfaced by `linkMutationError` below.
+    } catch (error) {
+      // Surfaced by `linkMutationError` below — reported here because the
+      // message the user sees does not tell us the save failed.
+      reportError(error, {
+        action: "dashboard.save-link",
+        extra: { isEdit: Boolean(data.editingLinkId) },
+      });
     }
   };
 
@@ -463,7 +469,11 @@ export function DashboardPage() {
         linkIds: reordered.map((link) => link.id),
       },
       {
-        onError: () => {
+        onError: (error) => {
+          reportError(error, {
+            action: "dashboard.reorder-links",
+            extra: { linkCount: reordered.length },
+          });
           queryClient.setQueryData(["links"], links);
         },
       },
@@ -503,8 +513,9 @@ export function DashboardPage() {
       // modal open, where `errorMessage` now explains why.
       setIsProfileFormDirty(false);
       setIsProfileDialogOpen(false);
-    } catch {
+    } catch (error) {
       // Surfaced inside the modal via `updateProfileMutation.isError`.
+      reportError(error, { action: "dashboard.save-profile" });
     }
   };
 

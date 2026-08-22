@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  recordOpenAiRequest,
+  recordOpenAiUsage,
+} from "../observability/metrics.js";
 import { OpenAiEmbeddingProvider } from "./openai-embedding-provider.js";
+
+vi.mock("../observability/metrics.js", () => ({
+  recordOpenAiUsage: vi.fn(),
+  recordOpenAiRequest: vi.fn(),
+}));
 
 interface FakeClient {
   embeddings: {
@@ -24,6 +33,11 @@ function withFakeClient(
 }
 
 describe("OpenAiEmbeddingProvider", () => {
+  beforeEach(() => {
+    vi.mocked(recordOpenAiUsage).mockReset();
+    vi.mocked(recordOpenAiRequest).mockReset();
+  });
+
   it("throws when the API answers without an embedding", async () => {
     const provider = withFakeClient(new OpenAiEmbeddingProvider("test-key"), []);
 
@@ -54,6 +68,47 @@ describe("OpenAiEmbeddingProvider", () => {
     await expect(provider.createEmbedding("react")).resolves.toEqual([
       0.1, 0.2,
     ]);
+  });
+
+  it("records the tokens the call was billed for", async () => {
+    const provider = new OpenAiEmbeddingProvider("test-key");
+    (provider as unknown as { client: unknown }).client = {
+      embeddings: {
+        create: async () => ({
+          data: [{ embedding: [0.1] }],
+          usage: { prompt_tokens: 42 },
+        }),
+      },
+    };
+
+    await provider.createEmbedding("react");
+
+    // Tokens x per-model price is the only way to see spend before the invoice.
+    expect(recordOpenAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: "embedding", promptTokens: 42 }),
+    );
+    expect(recordOpenAiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: "embedding", outcome: "success" }),
+    );
+  });
+
+  it("records a failure and re-throws the SDK's own error", async () => {
+    const provider = new OpenAiEmbeddingProvider("test-key");
+    const sdkError = new Error("429 rate limit");
+    (provider as unknown as { client: unknown }).client = {
+      embeddings: {
+        create: async () => {
+          throw sdkError;
+        },
+      },
+    };
+
+    // The identity check matters: the queue's retry and Sentry both key off the
+    // SDK error's status and request id, which a wrapper would discard.
+    await expect(provider.createEmbedding("react")).rejects.toBe(sdkError);
+    expect(recordOpenAiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "error" }),
+    );
   });
 
   it("bounds how long one call can hold a worker slot", () => {

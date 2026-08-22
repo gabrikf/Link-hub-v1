@@ -9,6 +9,7 @@ import {
   fetchPublicResume,
   fetchPublicWorkExperiences,
 } from "../../../lib/auth-api";
+import { reportError, reportHandled } from "../../../lib/report-error";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import {
   pickViewport,
@@ -50,8 +51,10 @@ export function PublicProfilePage() {
         // A genuine 404 means "no such profile" — treat it as an empty success
         // so it renders as "not found" rather than a transient error.
         if (axios.isAxiosError(error) && error.response?.status === 404) {
+          reportHandled(error, { action: "profile.fetch-public" });
           return null;
         }
+        reportError(error, { action: "profile.fetch-public" });
         throw error;
       }
     },
@@ -91,9 +94,12 @@ export function PublicProfilePage() {
         return await fetchPublicResume(username);
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 404) {
+          // This profile simply has no public resume.
+          reportHandled(error, { action: "profile.fetch-public-resume" });
           return null;
         }
 
+        reportError(error, { action: "profile.fetch-public-resume" });
         throw error;
       }
     },

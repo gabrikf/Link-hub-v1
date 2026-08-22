@@ -21,6 +21,7 @@ import {
 // read by other work in flight. They reuse the shared authed axios wrapper, so
 // base URL + bearer/refresh handling stay in exactly one place.
 import { fetchWithTokens } from "../../../lib/auth-api";
+import { reportError } from "../../../lib/report-error";
 
 /* ------------------------------------------------------------------ *
  * Query keys
@@ -250,8 +251,13 @@ export function useUpdateConnection() {
       );
       return { previous };
     },
-    onError: (_error, _variables, context) =>
-      rollbackMyConnections(queryClient, context?.previous),
+    onError: (error, { connectionId }, context) => {
+      reportError(error, {
+        action: "settings.update-connection",
+        extra: { connectionId },
+      });
+      return rollbackMyConnections(queryClient, context?.previous);
+    },
     onSettled: invalidate,
   });
 }
@@ -267,8 +273,13 @@ export function useDeleteConnection() {
       );
       return { previous };
     },
-    onError: (_error, _connectionId, context) =>
-      rollbackMyConnections(queryClient, context?.previous),
+    onError: (error, connectionId, context) => {
+      reportError(error, {
+        action: "settings.delete-connection",
+        extra: { connectionId },
+      });
+      return rollbackMyConnections(queryClient, context?.previous);
+    },
     onSettled: invalidate,
   });
 }

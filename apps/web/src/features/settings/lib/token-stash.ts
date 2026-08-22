@@ -1,4 +1,5 @@
 import type { CreateApiTokenOutput } from "@repo/schemas";
+import { reportHandled } from "../../../lib/report-error";
 
 /**
  * Session-scoped recovery for the one-time plaintext PAT, shared by every
@@ -14,7 +15,10 @@ export function readStashedToken(): CreateApiTokenOutput | null {
   try {
     const raw = window.sessionStorage.getItem(STASHED_TOKEN_KEY);
     return raw ? (JSON.parse(raw) as CreateApiTokenOutput) : null;
-  } catch {
+  } catch (error) {
+    // Private mode / blocked storage / corrupt entry — "no stashed token" is
+    // the correct answer either way. Never include the value itself.
+    reportHandled(error, { action: "storage.read-stashed-token" });
     return null;
   }
 }
@@ -22,7 +26,8 @@ export function readStashedToken(): CreateApiTokenOutput | null {
 export function stashToken(token: CreateApiTokenOutput): void {
   try {
     window.sessionStorage.setItem(STASHED_TOKEN_KEY, JSON.stringify(token));
-  } catch {
+  } catch (error) {
     // Private mode / quota. The in-memory copy still drives this session.
+    reportHandled(error, { action: "storage.stash-token" });
   }
 }
