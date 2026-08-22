@@ -50,6 +50,12 @@ FRESH=0
 # a Claude subscription, and an ANTHROPIC_API_KEY sitting in the environment
 # would silently bill real money for an 8-hour unattended run.
 ALLOW_API_BILLING=0
+# How the loop grants itself permission to edit and commit unattended.
+# `--dangerously-skip-permissions` is the documented headless form.
+# `--permission-mode bypassPermissions` appears equivalent but hung print mode
+# here for 180s with EMPTY stderr and no output — see the preflight diagnostics.
+# Override with --permission-mode <mode> if your build prefers it.
+PERMISSION_ARGS=(--dangerously-skip-permissions)
 # Claude plans refill on a rolling ~5-hour window. Hitting that limit is not a
 # failure of the code or the loop — it is a clock. So the loop WAITS for the
 # reset and resumes the same phase, instead of burning its three-strikes guard
@@ -310,7 +316,7 @@ run_iteration() {
 
   timeout "$ITERATION_TIMEOUT_SECONDS" "${CLAUDE_ENV[@]}" claude -p "$prompt" \
     --model "$phase_model" \
-    --permission-mode bypassPermissions \
+    "${PERMISSION_ARGS[@]}" \
     --output-format json \
     --max-budget-usd "$PER_ITERATION_USD" \
     --effort high \
@@ -418,18 +424,39 @@ preflight() {
   # Probe on the cheap model: this checks auth, permissions and the billing
   # route, none of which differ by model, so there is no reason to spend the
   # expensive one on a one-word answer before the run has started.
-  local probe
+  # Diagnose properly rather than guessing "are you logged in?" for every
+  # failure mode. Auth was already confirmed by check_billing_route above, so a
+  # failure here is almost never credentials.
+  local probe probe_code probe_err="$LOGS/preflight.stderr"
   probe="$(timeout 180 "${CLAUDE_ENV[@]}" claude -p 'Reply with exactly: READY. Do not use any tools.' \
     --model "$MODEL_CHEAP" \
-    --permission-mode bypassPermissions \
+    "${PERMISSION_ARGS[@]}" \
     --output-format json \
     --max-budget-usd 1 --strict-mcp-config \
-    2>>"$LOGS/claude-stderr.log" </dev/null)" || die \
-    "the \`claude\` CLI could not complete a trivial prompt. Are you logged in? See $LOGS/claude-stderr.log"
+    2>"$probe_err" </dev/null)"
+  probe_code=$?
+
+  if [ "$probe_code" -eq 124 ]; then
+    log "FATAL: the probe TIMED OUT after 180s."
+    log "  This is NOT an auth problem — the subscription was confirmed above."
+    log "  The process produced no result and never exited. The usual cause is a"
+    log "  permission flag awaiting a one-time acceptance that print mode cannot give."
+    log "  Run this ONCE interactively, accept the warning, then start the loop again:"
+    log "      claude ${PERMISSION_ARGS[*]} -p 'hi' --model sonnet --strict-mcp-config"
+    log "  stderr tail:"; tail -5 "$probe_err" 2>/dev/null | sed 's/^/    /'
+    exit 1
+  fi
+
+  if [ "$probe_code" -ne 0 ]; then
+    log "FATAL: the probe exited $probe_code."
+    log "  stderr tail:"; tail -5 "$probe_err" 2>/dev/null | sed 's/^/    /'
+    log "  stdout: $(printf '%.300s' "$probe")"
+    exit 1
+  fi
 
   echo "$probe" | grep -q READY || die \
-    "the \`claude\` CLI answered but not as expected — check $LOGS/claude-stderr.log. Raw: $(printf '%.200s' "$probe")"
-  log "  claude CLI: responding, permissions accepted"
+    "the CLI answered but not as expected. Raw: $(printf '%.300s' "$probe")"
+  log "  claude CLI: responding, ${PERMISSION_ARGS[*]} accepted"
 
   # `state.mjs init` is idempotent so an interrupted run can be resumed by just
   # starting again. The trap is a STALE state: its deadline was stamped when it
@@ -556,6 +583,7 @@ while [ $# -gt 0 ]; do
     --iteration-timeout) ITERATION_TIMEOUT_SECONDS="$2"; shift 2 ;;
     --fresh) FRESH=1; shift ;;
     --allow-api-billing) ALLOW_API_BILLING=1; shift ;;
+    --permission-mode) PERMISSION_ARGS=(--permission-mode "$2"); shift 2 ;;
     --no-resume-after-limit) RESUME_AFTER_LIMIT=0; shift ;;
     --max-limit-wait-hours) MAX_LIMIT_WAIT_HOURS="$2"; shift 2 ;;
     *) die "unknown option: $1" ;;
