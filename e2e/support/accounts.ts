@@ -29,6 +29,18 @@ export const STORAGE_STATE: Record<Role, string> = {
 /** Must match AUTH_TOKENS_STORAGE_KEY in apps/web/src/lib/auth-tokens.ts. */
 export const TOKENS_KEY = "linkhub.auth.tokens";
 
+/**
+ * Must match USER_INFO_STORAGE_KEY in apps/web/src/lib/user-info-store.ts.
+ *
+ * SEEDING TOKENS ALONE IS NOT A SESSION. Every dashboard route gates on
+ * `Boolean(getAuthTokens() && userInfo)` where `userInfo` comes from this
+ * persisted zustand store, which only the sign-in page writes. A token-only
+ * state therefore redirects to `/` — and a test that asserts `toHaveURL(/dashboard/)`
+ * passes anyway, because it matches on the first poll before the redirect
+ * effect runs. That is a suite that reports green while reaching nothing.
+ */
+export const USER_INFO_KEY = "linkhub.auth.user-info";
+
 export const WEB_URL = process.env.E2E_WEB_URL || "http://localhost:5173";
 export const API_URL = process.env.E2E_API_URL || "http://localhost:3333";
 

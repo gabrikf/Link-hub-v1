@@ -1,7 +1,8 @@
 import { API_URL } from "./accounts";
 
 export type Tokens = { accessToken: string; refreshToken: string };
-export type LoginResult = Tokens & { user?: { login?: string; id?: string } };
+export type LoginUser = { id?: string; login?: string; name?: string; email?: string };
+export type LoginResult = Tokens & { user?: LoginUser };
 
 /**
  * Logging in over HTTP rather than through the form is deliberate for *setup*.

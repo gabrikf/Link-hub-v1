@@ -1,7 +1,7 @@
 import { test as setup } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { ACCOUNTS, STORAGE_STATE, TOKENS_KEY, WEB_URL, type Role } from "./accounts";
+import { ACCOUNTS, STORAGE_STATE, TOKENS_KEY, USER_INFO_KEY, WEB_URL, type Role } from "./accounts";
 import { apiLogin } from "./api";
 
 /**
@@ -12,6 +12,12 @@ import { apiLogin } from "./api";
 async function seedRole(role: Role) {
   const account = ACCOUNTS[role];
   const tokens = await apiLogin(account.email, account.password);
+  if (!tokens.user) {
+    throw new Error(
+      `login for ${account.email} returned no user object — a token-only session ` +
+        "cannot reach any dashboard route. Did the auth contract change?",
+    );
+  }
   const state = {
     cookies: [],
     origins: [
@@ -24,6 +30,11 @@ async function seedRole(role: Role) {
               accessToken: tokens.accessToken,
               refreshToken: tokens.refreshToken,
             }),
+          },
+          {
+            // The zustand `persist` envelope, exactly as the store writes it.
+            name: USER_INFO_KEY,
+            value: JSON.stringify({ state: { userInfo: tokens.user }, version: 0 }),
           },
         ],
       },

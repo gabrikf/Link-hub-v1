@@ -76,13 +76,24 @@ export async function loginAs(
   account: { email: string; password: string },
 ): Promise<void> {
   const { apiLogin } = await import("./api");
-  const { TOKENS_KEY } = await import("./accounts");
+  const { TOKENS_KEY, USER_INFO_KEY } = await import("./accounts");
   const tokens = await apiLogin(account.email, account.password);
+  if (!tokens.user) {
+    throw new Error(
+      `login for ${account.email} returned no user object — a token-only session ` +
+        "cannot reach any dashboard route. Did the auth contract change?",
+    );
+  }
   await page.addInitScript(
-    ([key, value]) => window.localStorage.setItem(key, value),
+    (entries: [string, string][]) => {
+      for (const [key, value] of entries) window.localStorage.setItem(key, value);
+    },
     [
-      TOKENS_KEY,
-      JSON.stringify({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }),
-    ] as [string, string],
+      [
+        TOKENS_KEY,
+        JSON.stringify({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }),
+      ],
+      [USER_INFO_KEY, JSON.stringify({ state: { userInfo: tokens.user }, version: 0 })],
+    ] as [string, string][],
   );
 }
