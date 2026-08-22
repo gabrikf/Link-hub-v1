@@ -310,8 +310,11 @@ git diff --stat develop..nightly/qa-hardening
 ### What it needs
 
 - `claude` CLI on PATH **signed in to a Claude subscription**, and permission to
-  run unattended (`--permission-mode bypassPermissions`) — it edits files and
-  commits without asking. Preflight confirms the billing route before spending.
+  run unattended (`--dangerously-skip-permissions`) — it edits files and commits
+  without asking. Preflight confirms the billing route before spending.
+  `--permission-mode bypassPermissions` looks equivalent but hung print mode on
+  this machine for 180s with empty stderr and no output; use
+  `--permission-mode <mode>` to override only if your build prefers it.
 - The docker stack up (it starts it if not), and a seeded database.
 - Playwright's chromium (`npx playwright install chromium`).
 - A funded `OPENAI_API_KEY` for the embedding-backed search and resume-import
