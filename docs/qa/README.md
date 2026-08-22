@@ -73,15 +73,20 @@ Gitignored by default (see the gitignore block appended to the repo root). Scree
 
 ## Registered bugs
 
-Registered from `.nightly/QUEUE.json` on 2026-08-22 (run `2026-08-22T18:58:46.702Z`, iteration 4 — TRIAGE). Ids are stable forever; status lives in each file.
+Registered from `.nightly/QUEUE.json` on 2026-08-22 (run `2026-08-22T18:58:46.702Z`, iterations 4 and 7 — TRIAGE). Ids are stable forever; status lives in each file.
 
 | Bug | Severity | Area | One line |
 |---|---|---|---|
 | [BUG-20260822-disclosure-external-url](bugs/BUG-20260822-disclosure-external-url.md) | Critical / P0 | posts | `externalUrl` is never disclosure-scanned, so an agent publishes the employer's name in a public clickable link at `summary` |
 | [BUG-20260822-disclosure-cross-role](bugs/BUG-20260822-disclosure-cross-role.md) | Critical / P0 | posts | Marking one job `full` un-blocks **every** other employer's name for agent-authored posts |
+| [BUG-20260822-public-posts-contract](bugs/BUG-20260822-public-posts-contract.md) | Critical / P0 | profile | Every public profile that has a published post shows "Could not load posts" to its visitors — the api is fine, the client's schema rejects the payload |
+| [BUG-20260822-links-url-scheme](bugs/BUG-20260822-links-url-scheme.md) | High / P1 | profile | A profile link can be saved as `javascript:` or `data:` and is served to strangers unchecked — latent stored XSS |
+| [BUG-20260822-disclosure-url-slug-variant](bugs/BUG-20260822-disclosure-url-slug-variant.md) | High / P1 | posts | An employer whose name has a space still leaks through a URL, because the denylist only knows `Acme Corp` and the URL says `acme-corp` |
 | [BUG-20260822-links-keyboard-reorder](bugs/BUG-20260822-links-keyboard-reorder.md) | High / P1 | dashboard | Profile links cannot be reordered by keyboard — the drag lifts and announces itself, then arrows do nothing |
 | [BUG-20260822-open-to-work-switch-name](bugs/BUG-20260822-open-to-work-switch-name.md) | Low / P3 | dashboard | The "Open to work" switch has no accessible name |
 
 ## Adopted from
 
-Nothing yet — this is a fresh bootstrap, not a migration. The four bugs above are the first entries the loop registered here. `.nightly/QUEUE.json`'s remaining `confirmed[]` entries (7 bugs carried in from a prior hand-off — `public-posts-contract`, `links-url-scheme`, `agent-self-publish`, `auth-unhandled-rejection`, `layout-vertical-keyboard`, `layout-error-fabricated`, `dashboard-error-state`) are still indexed here by reference only (see "Relationship to `.nightly/`" above); they were not re-reproduced by the triage that registered the four above, so copying them in would present hand-off knowledge as this cycle's verified work.
+Nothing yet — this is a fresh bootstrap, not a migration. The bugs above are the first entries the loop registered here.
+
+`.nightly/QUEUE.json`'s remaining `confirmed[]` entries are still indexed here by reference only (see "Relationship to `.nightly/`" above): `agent-self-publish`, `auth-unhandled-rejection`, `layout-vertical-keyboard`, `layout-error-fabricated`, `dashboard-error-state`. All five are carried in from a prior hand-off and have **not** been re-reproduced by any triage in this run, so copying them in would present hand-off knowledge as this cycle's verified work. Two of the original seven hand-off bugs — `public-posts-contract` and `links-url-scheme` — moved into the table above once iteration 7 reproduced them from scratch against the running api and the built schemas.
