@@ -129,6 +129,22 @@ verify_is_linkhub() {
   return 0
 }
 
+# A SERVER THAT IS STILL BOOTING IS NOT THE WRONG APP.
+#
+# `verify_is_linkhub` is a single HTTP probe, and a Fastify process one second
+# old answers before its routes are registered. Run bare in the health check, it
+# killed an 8-hour run one second after ensure_stack restarted the api — the
+# app was fine, the probe was just early. Anything that can end the night needs
+# to be sure, so this retries before it is believed.
+verify_is_linkhub_settled() {
+  local attempts="${1:-12}" gap="${2:-3}" i
+  for i in $(seq 1 "$attempts"); do
+    if verify_is_linkhub; then return 0; fi
+    sleep "$gap"
+  done
+  return 1
+}
+
 whoami_on_port() {
   local port="$1" pid
   pid="$(ss -ltnp 2>/dev/null | grep ":$port " | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)"
@@ -168,6 +184,9 @@ ensure_stack() {
   fi
   wait_for_url "$API_URL/docs" "api"
   wait_for_url "$WEB_URL" "web"
+  # "Port answers" is weaker than "routes registered". Wait for the real thing,
+  # otherwise the caller's identity check races a half-started server.
+  verify_is_linkhub_settled 12 3 || log "WARN: :$API_PORT is up but not answering as LinkHub yet"
 }
 
 # ──────────────────────────── plan usage limits ────────────────────────────
@@ -689,7 +708,12 @@ cmd_start() {
     port_open "$API_PORT" || { log "api died — restarting"; ensure_stack; }
     port_open "$WEB_PORT" || { log "web died — restarting"; ensure_stack; }
     # A restart could land on a port another project has since taken.
-    verify_is_linkhub || { log "FATAL: :$API_PORT is no longer serving LinkHub — stopping rather than QA-ing the wrong app."; break; }
+    if ! verify_is_linkhub_settled 12 3; then
+      log "FATAL: :$API_PORT is not serving LinkHub after 36s of retries."
+      log "  owner of :$API_PORT -> $(whoami_on_port "$API_PORT")"
+      log "  Stopping rather than QA-ing the wrong app."
+      break
+    fi
 
     local phase iteration rc
     phase="$($STATE_CLI get phase)"
