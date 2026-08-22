@@ -466,6 +466,23 @@ preflight() {
 
   if [ "$probe_code" -ne 0 ]; then
     log "FATAL: the probe exited $probe_code."
+    # A probe whose entire prompt is "reply READY, use no tools" should take ONE
+    # turn. Many turns means something forced the agent to keep working, and in
+    # this repo that is almost always the Stop hook: pre-push.mjs exits 2 on a
+    # red gate, which blocks the stop and feeds the failure back to the model,
+    # which then burns turns trying to fix a tree it never touched.
+    local turns; turns="$(node -e '
+      try { process.stdout.write(String(JSON.parse(require("node:fs").readFileSync(0,"utf8")).num_turns ?? 0)); }
+      catch { process.stdout.write("0"); }' <<<"$probe" 2>/dev/null || echo 0)"
+    if [ "${turns:-0}" -gt 3 ]; then
+      log "  The probe used $turns turns for a one-line answer. The Stop hook is"
+      log "  almost certainly blocking on a red gate. Check it directly:"
+      log "      node scripts/guardrails/pre-push.mjs --stop-hook ; echo \"exit=\$?\""
+      log "  exit 2 means the gate is red. Fix the CAUSE, then reset the counter:"
+      log "      rm -f .git/guardrails-attempts"
+      log "  Note the gate diffs against origin/main, so commits inherited from"
+      log "  develop count as your changes and can make it red before you start."
+    fi
     log "  stderr tail:"; tail -5 "$probe_err" 2>/dev/null | sed 's/^/    /'
     log "  stdout: $(printf '%.300s' "$probe")"
     exit 1
