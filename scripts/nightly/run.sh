@@ -439,14 +439,29 @@ preflight() {
   # and skill before the first token. A 180s cap killed the probe THREE TIMES
   # about ten seconds before it would have succeeded, and the empty stderr made
   # it look like a hang or an auth failure. It is neither: it is start-up cost.
+  # RUN THE PROBE OUTSIDE THE PROJECT, WITH NO TOOLS.
+  #
+  # Inside the project it inherits .claude/settings.json's Stop hook. When that
+  # gate is red the hook blocks the stop and feeds the failure back to the
+  # model — and a model under that pressure does not politely give up. Observed
+  # here: a probe whose entire prompt was "reply READY, use no tools" instead
+  # rewrote a database test to insert 500 rows, added a tx.rollback() inside a
+  # .catch(), and referenced imports that no longer existed. 25 turns, $1.05,
+  # and a broken type-check in a file it had no business touching.
+  #
+  # A different cwd means no project settings, so no hook, so no blocked stop.
+  # No permission args means no tools, so even a confused probe cannot edit
+  # anything. The probe's job is to prove the CLI, auth and billing route work —
+  # none of which need the project or a single tool.
   local probe probe_code probe_err="$LOGS/preflight.stderr"
-  probe="$(timeout 600 "${CLAUDE_ENV[@]}" claude -p 'Reply with exactly: READY. Do not use any tools.' \
+  local probe_dir; probe_dir="$(mktemp -d)"
+  probe="$(cd "$probe_dir" && timeout 600 "${CLAUDE_ENV[@]}" claude -p 'Reply with exactly: READY. Do not use any tools.' \
     --model "$MODEL_CHEAP" \
-    "${PERMISSION_ARGS[@]}" \
     --output-format json \
     --max-budget-usd 1 --strict-mcp-config \
     2>"$probe_err" </dev/null)"
   probe_code=$?
+  rmdir "$probe_dir" 2>/dev/null || true
 
   if [ "$probe_code" -eq 124 ]; then
     log "FATAL: the probe TIMED OUT after 600s."
@@ -520,6 +535,28 @@ preflight() {
         "or keep the old run's records first:  mv .nightly .nightly-$(date +%Y%m%d-%H%M)")"
     fi
     log "  resuming an in-flight run: phase=$prior_phase deadline=$prior_deadline"
+  fi
+
+  # THE GATE MUST BE GREEN BEFORE THE NIGHT STARTS.
+  #
+  # Every iteration ends by trying to stop, which fires the Stop hook, which
+  # runs this gate. A gate that is already red for reasons the loop did not
+  # cause blocks every stop, and a blocked agent starts "fixing" unrelated code
+  # to get past it. Refusing to start is far cheaper than discovering that at
+  # 3am across eight hours of edits.
+  log "  checking the gate is green before starting…"
+  if node "$ROOT/scripts/guardrails/pre-push.mjs" >"$LOGS/preflight-gate.log" 2>&1; then
+    log "  gate: PASS"
+    rm -f "$ROOT/.git/guardrails-attempts"
+  else
+    log "FATAL: the gate is RED before the loop has done anything."
+    log "  Every iteration would end by tripping the Stop hook, and a blocked"
+    log "  agent edits unrelated code trying to get past it. Fix the cause first:"
+    log "      node scripts/guardrails/pre-push.mjs"
+    log "  Note it diffs against origin/main, so commits inherited from develop"
+    log "  count as your changes."
+    log "  gate output tail:"; tail -15 "$LOGS/preflight-gate.log" 2>/dev/null | sed 's/^/    /'
+    exit 1
   fi
 
   local branch; branch="$(git rev-parse --abbrev-ref HEAD)"
