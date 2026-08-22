@@ -1,6 +1,6 @@
 # BUG-20260822-disclosure-external-url: an agent can publish the employer's name in a public link while the disclosure policy says it may not
 
-- **Status:** open
+- **Status:** verified (fixed `b65d6d5`, review approved 2026-08-22 by the nightly REVIEW_FIX pass)
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Diego, the curating developer (harmed) — Atlas, the coding agent (actor)
@@ -65,13 +65,50 @@ rather than as a rendered logged-out profile. The render is asserted from code
 
 ## Fix
 
-<!-- filled when status moves to fixed -->
 - **Root cause:** *symptom* — an employer name is published in a public link at `summary`. *Cause* — `assertPostRespectsDisclosure` builds its haystack from `[title, body, ...tags]` only (`apps/api/src/core/use-case/agent-policy/enforce-post-disclosure.ts:81-85`), and `PostDisclosureContent` (same file, lines 14-18) does not model `externalUrl` / `coverImageUrl` / `images` at all. The word-boundary matcher would have matched `pagbank-internal` correctly (`-` is not a letter, digit or underscore), so this is a **missing field, not a weak matcher** — do not "fix" it by tightening the regex.
 - **Root Cause (taxonomy):** disclosure-policy
-- **Fix commit:** —
+- **Fix commit:** `b65d6d5` (red first in `c547eae`). `PostDisclosureContent` now models `externalUrl` / `coverImageUrl` / `images` and the haystack includes them; `create-post.use-case.ts` and `update-post.use-case.ts` pass them, the update path through `afterPatch` so a partial patch is checked against the full resulting post. The matcher was **not** touched. `metadata` is deliberately still excluded and the code now says why (`publicPostResponseSchema` omits it; the digest path, its only writer, scans it in `assertTemplateIsClean`).
 - **Regression test:** a unit test beside `apps/api/src/core/use-case/agent-policy/enforce-post-disclosure.test.ts` — account level `summary`, company `PagBank`, clean title/body/tags, `externalUrl` containing `pagbank-internal` → expect `BadRequestError`. It must be seen failing first (today the function returns silently). Then an HTTP test through `build-test-app.ts` + `server.inject` on `POST /me/posts` over a PAT asserting 400.
-- **Gate:** —
+- **Gate:** `guardrails PASS` — `build @repo/schemas`, `check-types (affected)`, `lint (changed files, ratcheted)`, `test — api` (docker up, actually run), `test — other workspaces (affected)`. `i18n locale parity` skipped by design: LinkHub has no locale files.
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+Reviewed independently on 2026-08-22 (nightly run `2026-08-22T18:58:46.702Z`,
+iteration 6). **Verdict: approved.**
+
+**Red-then-green, proved rather than quoted.** At `c547eae` the unit file is
+5 failed / 2 passed, every failure `expected function to throw an error, but it
+didn't` — the defect itself, not an import or fixture error — and the e2e file
+is 3 failed / 23 passed with `expected 201 to be 400`. On the fix commit both
+files are green, 33/33. The tests that already passed at red are the clean-URL
+controls, and they stayed green: the fix did not buy its pass by widening the
+matcher.
+
+**Re-walked from a real entry point,** against a server built from the fix and
+the real dev Postgres, over a freshly minted PAT for `seed-node-backend-040`
+(`agent_disclosure_level = summary`):
+
+| Attempt | Result |
+|---|---|
+| employer in `externalUrl` | **400** — names `"PagBank"` |
+| employer in `coverImageUrl` | **400** — names `"Globo"` |
+| employer in `images[]` | **400** — names `"iFood"` |
+| a role whose own level is `full`, post **not** attributed to it | **400** — names `"VTEX"` (correct: the override applies only to the role the post names) |
+| clean `externalUrl` | **201**, published |
+| PAT `PATCH` adding an employer `externalUrl` to a **manual** post | **400** — the second hole, in the update path |
+
+`SELECT id, status, external_url, cover_image_url, images FROM posts WHERE
+user_id = '8974dfbf-…'` after the run returned only the two clean control rows;
+both were deleted and the review PAT revoked, so the seed account is back to
+0 posts and 2 seeded tokens.
+
+**Not verified:** nothing here was observed in a browser. The public render is
+still asserted from code (`profile-blocks.tsx:704`), and both themes were not
+checked — the change is server-side only and has no UI surface, so there was
+nothing visual to check. The known limitation below is untested by design.
+
+**Known limitation carried forward (`CAND-0116`, not a regression):** the
+denylist is matched literally, so a **multi-word** employer (`"Acme Corp"`)
+still does not match its URL slug (`acme-corp`). Every single-token name is
+caught. Fixing it means generating slug variants per term, which carries a
+false-positive risk and needs its own triage.
