@@ -67,6 +67,12 @@ scripts/visual/scenarios/*.scenario.mjs
 # not, until it is written up.
 docs/qa/sessions/
 
+# QA living docs (docs/qa/, bootstrapped 2026-08-22 per .claude/skills/qa-report) —
+# generated views & bulky evidence. Source of truth is docs/qa/scenarios/, bugs/,
+# journeys/, charters/, reports/, personas.md, README.md, templates/ — all committed.
+docs/qa/state.csv
+docs/qa/evidence/
+
 # The nightly loop's runtime state. STATE.json / QUEUE.json / MEMORY.md are the
 # loop's memory across processes, and the logs are one JSON blob per iteration —
 # all of it is a record of ONE night's run, not of the repo. The durable output
