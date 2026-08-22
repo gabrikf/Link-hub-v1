@@ -249,6 +249,19 @@ describe("findDisclosureViolations", () => {
       ).toEqual(["Wildlife Studios"]);
     });
 
+    it("still matches a name whose own punctuation is not a slug separator", () => {
+      // "CI&T" is a real seeded employer. Tolerating slug separators must not
+      // cost the spelling the user actually typed.
+      expect(
+        findDisclosureViolations("Worked as Elixir Developer at CI&T.", [
+          "CI&T",
+        ]),
+      ).toEqual(["CI&T"]);
+      expect(
+        findDisclosureViolations("https://github.com/ci-t/ledger", ["CI&T"]),
+      ).toEqual(["CI&T"]);
+    });
+
     it("does not match a URL that merely contains one of the words", () => {
       expect(
         findDisclosureViolations(

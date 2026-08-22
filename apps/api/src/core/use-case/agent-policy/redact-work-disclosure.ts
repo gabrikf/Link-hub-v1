@@ -89,6 +89,74 @@ function escapeRegExp(value: string): string {
 }
 
 /**
+ * What may sit between two words of an employer name.
+ *
+ * A URL cannot carry a space, so an agent linking its work writes the employer
+ * as a slug: `acme-corp`, `acme_corp`, `acme.corp`, `Acme%20Corp` — or glues
+ * the words together as `acmecorp`. Those are the same disclosure as the prose
+ * spelling, in an `<a href>` an anonymous reader can click.
+ *
+ * One `*` on a character class, plus `%20` as a flat alternative. Deliberately
+ * NOT a quantified group: the text being matched is a URL the agent fully
+ * controls, and a nested quantifier there is a backtracking hazard.
+ */
+const SEPARATOR_SPELLINGS = ["[\\s\\-_.+]*", "%20"];
+
+/**
+ * What may stand in for one gap between two words of an employer name.
+ *
+ * The gap the user actually typed comes first and is always allowed, so a name
+ * whose own punctuation is not a slug separator ("CI&T") keeps matching exactly
+ * as it did. The slug spellings are added beside it, never instead of it.
+ */
+function buildGapPattern(gap: string): string {
+  const alternatives = [...SEPARATOR_SPELLINGS];
+
+  if (!/^[\s\-_.+]*$/.test(gap)) alternatives.unshift(escapeRegExp(gap));
+
+  return `(?:${alternatives.join("|")})`;
+}
+
+/**
+ * The regex body for one term: its words, in order, each gap allowed to be
+ * written the way the user typed it or the way a URL would spell it.
+ *
+ * Splitting on everything that is not a letter or digit is what makes
+ * "Vale S.A." match `vale-s-a`: the name's own punctuation is flattened by a
+ * slug exactly like the space is.
+ *
+ * A single-word term comes out byte-identical to the escaped literal, so
+ * nothing changes for the "Nubank" case. A term with fewer than two words —
+ * including one with no letters or digits at all — falls back to the literal
+ * rather than producing an empty body, which would match everywhere.
+ */
+function buildTermBody(term: string): string {
+  // Splitting on a capturing group keeps the gaps: ["CI", "&", "T"].
+  const parts = term.split(/([^\p{L}\p{N}]+)/u);
+  const words: string[] = [];
+  const gaps: string[] = [];
+
+  parts.forEach((part, index) => {
+    if (!part) return;
+    if (index % 2 === 0) words.push(part);
+    // Punctuation before the first word is not a gap between two words; the
+    // boundary lookbehind already covers it.
+    else if (words.length > 0) gaps.push(part);
+  });
+
+  if (words.length < 2) return escapeRegExp(term);
+
+  // The split already guarantees the words are letters and digits; escaping
+  // them anyway keeps the pattern correct if that character class ever changes.
+  let body = escapeRegExp(words[0]);
+  for (let index = 1; index < words.length; index++) {
+    body += buildGapPattern(gaps[index - 1]) + escapeRegExp(words[index]);
+  }
+
+  return body;
+}
+
+/**
  * Word-boundary matching that also works for accented and non-ASCII names.
  *
  * `\b` is ASCII-only in JavaScript, so `\bNubank\b` fails to behave for
@@ -96,11 +164,14 @@ function escapeRegExp(value: string): string {
  * not a letter/digit/underscore, using unicode property escapes. Lookbehind and
  * lookahead keep the match zero-width, so overlapping terms each get their own
  * chance to match.
+ *
+ * The boundaries are what keep the separator tolerance honest: "Acme Corp" hits
+ * `acme-corp-internal` and `acmecorp.com`, but not `corporate-ledger` (the
+ * first word is missing) or `acmecorporate` (the match would end mid-word).
  */
 function buildTermPattern(term: string): RegExp {
-  const escaped = escapeRegExp(term);
   return new RegExp(
-    `(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`,
+    `(?<![\\p{L}\\p{N}_])${buildTermBody(term)}(?![\\p{L}\\p{N}_])`,
     "giu",
   );
 }
