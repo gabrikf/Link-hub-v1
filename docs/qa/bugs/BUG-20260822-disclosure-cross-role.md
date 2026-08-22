@@ -54,6 +54,8 @@ denylist entirely, so every other employer becomes publishable.
 - `.nightly/evidence/disclosure-readpath/work-context-baseline.json` — the read side of the same defect: `GET /me/work-context` returns `disclosureLevel: "summary"` at the top while handing VTEX back in cleartext and redacting the other three to `[employer]`.
 - Independent read path: the `posts` row was read back from postgres by the returned id, not inferred from the 201.
 
+- **Re-reproduced independently at iteration 10 (TRIAGE), 2026-08-22, no server and no database involved.** A throwaway vitest file beside the module (written, run, deleted — nothing committed) drove the real functions: `resolveEffectiveLevel("summary", "full")` → `"full"`, and `buildBlockedTerms({ level: "full", companyNames: ["PagBank","Globo","VTEX"], userBlockedTerms: ["Projeto Fenix"] })` → `["Projeto Fenix"]` — every employer name gone. Then `assertPostRespectsDisclosure` with the body `"Shipped a reconciliation ledger at PagBank this quarter."` **threw when unattributed (control, still green) and returned silently when attributed to the `full` VTEX role.** 2 failed / 1 passed: the control failing to fail is what makes the other two meaningful.
+
 **Two of the four disclosure-leak evidence items are text, not screenshots.** The
 policy level came from the database rather than the settings screen, and the
 public projection is the anonymous JSON payload rather than a rendered logged-out
