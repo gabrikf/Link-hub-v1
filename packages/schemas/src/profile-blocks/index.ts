@@ -58,14 +58,21 @@ export const CUSTOM_BLOCK_KINDS = customBlockKindSchema.options;
  * `data:`, `vbscript:` schemes — which become stored-XSS when rendered into an
  * `<a href>` on the PUBLIC profile. Every user-supplied URL that reaches an href
  * or media src must use this.
+ *
+ * `httpUrlSchema` is the default. Pass `invalidUrlMessage` when the field is
+ * bound to a form whose "this is not a URL" wording is already user-visible —
+ * the scheme rejection keeps its own message either way.
  */
-export const httpUrlSchema = z
-  .string()
-  .trim()
-  .url()
-  .refine((u) => /^https?:\/\//i.test(u), {
-    message: "Only http(s) URLs are allowed",
-  });
+export const httpUrlSchemaWith = (invalidUrlMessage?: string) =>
+  z
+    .string()
+    .trim()
+    .url(invalidUrlMessage)
+    .refine((u) => /^https?:\/\//i.test(u), {
+      message: "Only http(s) URLs are allowed",
+    });
+
+export const httpUrlSchema = httpUrlSchemaWith();
 
 export const textBlockConfigSchema = z.object({
   title: z.string().max(120).optional(),
