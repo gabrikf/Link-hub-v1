@@ -416,3 +416,234 @@ assertions — a screen that renders correctly while throwing is not a pass.
 This is distinct from `scripts/visual/run.mjs`, which is a *camera* for the
 `visual-check` skill: it walks a screen's four states and captures them for a
 human to look at. The Playwright suite is the *gate*.
+
+---
+
+## Run 2026-08-22 — results and gains
+
+**The night did not finish its work, and not for any of the reasons the guards
+exist to handle.** It was not the deadline, not the budget, and not repeated
+failure. The loop ran one iteration, discovered that ports 3333 and 5173 were
+serving an entirely different application, and correctly routed itself to
+`REPORT` with ~7.7 of its 8 hours unspent. **Zero journeys were walked, zero bugs
+were found, zero fixes were made.** Everything in the queue this morning was
+already there at hand-off, before iteration 1 started.
+
+Full QA write-up: `docs/qa/reports/2026-08-22-nightly.md`.
+
+### What actually happened
+
+Ports 3333 and 5173 were bound by `weg/retro-doc` (package name `boilerplate`,
+page title "Retro Doc — WEG"), started at 13:09 from
+`/home/gabriel/Documents/www/weg/retro-doc`. Re-verified while writing this
+section, hours later — still true:
+
+```
+$ curl -s http://localhost:5173/ | grep -o '<title>[^<]*</title>'
+<title>Retro Doc — WEG</title>
+$ curl http://localhost:3333/profile/__nightly_probe__/posts
+{"message":"Route GET:/profile/__nightly_probe__/posts not found", ... }
+```
+
+`npx playwright test --project=desktop` never reached a real spec: both
+`[setup]` projects 404 against the wrong app. 0 of 42 tests carried signal.
+
+**Resolved mid-`REPORT`, by a human, not by the loop.** Commit `60547b7`
+("refuse to QA the wrong app, and support alternate ports") landed the
+`verify_is_linkhub()` identity preflight and the `--api-port` / `--web-port`
+plumbing, and LinkHub was brought up alongside retro-doc:
+
+```
+$ curl -s http://localhost:5273/ | grep -o '<title>[^<]*</title>'
+<title>LinkHub</title>
+$ curl http://localhost:3344/profile/__nightly_probe__/posts
+{"error":"RESOURCENOTFOUND","message":"User with identifier '__nightly_probe__' not found", ...}
+```
+
+LinkHub's own error envelope, not Fastify's route-not-found — so **api 3344 /
+web 5273 is a verified LinkHub**, and the next run has a real target. Nothing
+about that retroactively tests this build.
+
+### Which guards fired
+
+| Guard | Fired? | Evidence |
+|---|---|---|
+| Per-iteration cost cap ($8) | **No** | Iteration 1 spent 2.6643 plan-units, well under. |
+| Per-iteration wall clock (3600s) | **No** | Iteration 1 ran 9m14s (17:17:53Z → 17:27:07Z). |
+| Total budget → `REPORT` | **No** | `budget.total_usd` is 0 (unlimited plan); never triggered. |
+| Deadline → `REPORT` | **No** | Deadline 01:17:51Z; `REPORT` was entered at 17:27 with 471 min left. The route to `REPORT` was iteration 1's own legal `BOOTSTRAP → REPORT` decision, not the guard. |
+| Plan-limit wait (6h cap) | **No** | `limit_waits: 0`, `limit_wait_seconds: 0`. |
+| Three-strikes fix escalation | **No** | `fix_attempts: 0` — no `FIX` iteration ever ran. |
+| Three-strikes loop failure | **No** | `consecutive_failures: 0`. |
+| Illegal-phase-transition refusal | **No** | One transition proposed, `BOOTSTRAP → REPORT`, which is legal. |
+| **Dead dev server (restart on health check)** | **Fired, and was wrong** | The orchestrator health-checked :3333 and :5173, got answers, and concluded the dev servers were up. They were another project's. This is the guard that failed. |
+
+**Not a single bounded guard fired.** That is not a clean bill of health — the
+run never got far enough to stress any of them. The one guard that did engage is
+the one with no bound at all, and it engaged incorrectly.
+
+### Did the phase machine behave?
+
+Yes, and it is the only part of the night that can be called a success.
+`.nightly/STATE.json → history[]` holds exactly one entry: iteration 1,
+`BOOTSTRAP → REPORT`, `outcome: "ok"`, 9m14s, 2.6643 plan-units. No iteration
+failed, timed out, or proposed an illegal transition. Cost of misbehaviour: **0**.
+
+The judgement call inside iteration 1 was the right one. `HUNT` is a live-browser
+lane; with no app to hunt against, every `HUNT` round would have produced
+confident, entirely fabricated findings. Choosing `REPORT` traded ~7.7 hours of
+unspent deadline for zero false bugs.
+
+### What it found
+
+**Nothing.** No new bug was found this run.
+
+| Bug id | Severity | Area | User impact | Red SHA | Green SHA | Review |
+|---|---|---|---|---|---|---|
+| — | — | — | — | — | — | — |
+
+For honesty about the morning's queue: the 7 `confirmed` bugs and 10 candidates
+in `.nightly/QUEUE.json` were recorded at hand-off, **before** iteration 1. This
+run neither found nor re-verified any of them. Their two-commit SHAs do not exist
+because no fix was attempted.
+
+### What it rejected, and why
+
+Nothing was rejected this run either. `REJ-0101` (a first-ever visit to
+`/dashboard/search` discarding the submit — a Vite dep-optimisation reload, not a
+product bug) predates iteration 1.
+
+Iteration 1 did, however, exercise the same bar in the only way available to it:
+it **declined to file the port conflict as a queue candidate.** The reasoning is
+worth keeping — there is no code change in this repo that fixes "another repo's
+dev server owns my ports", so a candidate would have been a bug report nobody
+could ever close. It went in the report as a decision for a human instead. It
+also declined to file the `auth.setup.ts` 404s, which look exactly like an auth
+regression and are not one.
+
+### What it escalated
+
+One decision, and it blocked everything else: **ports 3333 / 5173 are owned by
+`weg/retro-doc`.** It was largely answered while this section was being written —
+`60547b7` landed the preflight and the port flags, and LinkHub is verified up on
+3344 / 5273. What is left:
+
+1. **Re-run on 3344 / 5273 now.** The servers are up and identity-verified;
+   nothing else has to move.
+2. **Stop retro-doc and re-run on the defaults.** Restores the documented setup so
+   no one has to remember two flags — at the cost of someone else's running work.
+
+**Recommendation: 1.** Take the free re-run rather than spending it renegotiating
+ports. Separately: **read `60547b7`.** It landed unreviewed, mid-run, and it
+changes how the loop locates the app, how Playwright starts the api, and how the
+visual runner's origin allowlist is built. This round did not review it.
+
+### The gains, measured
+
+| Metric | Value |
+|---|---|
+| Iterations run | 2 (1 = `BOOTSTRAP`, 2 = this `REPORT`) |
+| Wall clock, iteration 1 | 9m14s |
+| Wall clock, whole run | ~10 min of an 8h window; 471 min left when `REPORT` began |
+| Cost, iteration 1 | 2.6643 plan-units (notional estimate, not money) |
+| Cost, iteration 2 | not available — the state file is written before this iteration closes |
+| Bugs found per lane | 0 across all six lanes; **no lane ever ran** |
+| Review rejection rate | n/a — no fix reached `REVIEW_FIX` |
+| Tests added | 0 |
+| Unit baseline vs final | identical — no source file was touched |
+
+The one durable artifact is the offline baseline, which needs no dev server and
+did not exist in this form before:
+
+| Suite | Files | Tests | Failed |
+|---|---|---|---|
+| `apps/api` | 104 | 869 | 0 |
+| `apps/web` | 47 | 436 | 0 |
+| `@repo/schemas` | 6 | 105 | 0 |
+| `apps/training` | 9 | 87 | 0 |
+| extractor | 6 | 100 | 0 |
+
+Plus `guardrails PASS` at `3c2b571` and the `docs/qa/` tree, bootstrapped from
+the `qa-report` skill's layout (README, personas, four templates, six empty
+section directories). Steps 2–7 of that skill — journey flowcharts, scenario
+derivation, session charters, bug-registry population — were deliberately left
+undone; they are standalone work, not scaffolding.
+
+The e2e baseline stays as recorded at hand-off (42 total / 32 passed / 9 failed /
+1 skipped, of which 7 failures map to the known confirmed bugs and 2 are the
+`CAND-0110` flakes). **This run could not re-measure it.**
+
+### What it did NOT verify
+
+- **Every browser surface.** Zero routes rendered, in either theme. The four-state
+  rule is unverified for this build.
+- **All five journeys.** Signup/resume, agent posts, recruiter search, link
+  sharing, profile appearance — none walked.
+- **The entire disclosure lane.** Zero edge cases attempted. Not "clean" — unrun.
+- **The seven confirmed bugs.** Not re-reproduced; their status is as of hand-off.
+- **The ten candidates.** No triage happened, so none has a severity or a verdict.
+- **The `OPENAI_API_KEY` legs** — embedding search and resume import — never
+  reached. The AI resume-parse spec remains gated behind `E2E_ALLOW_AI_SPEND`.
+- **`CAND-0110`, the two flaky journey tests.** Still undiagnosed, and it matters:
+  `REGRESSION` compares against a baseline, and two tests that fail sometimes make
+  a clean night look like a regression and a real regression look like noise.
+- **The two uncommitted files** (`scripts/nightly/run.sh`, `scripts/visual/run.mjs`).
+  Someone else's in-progress edit. This run neither authored, reviewed, nor
+  committed them.
+
+### How to run it again, and what to change
+
+```bash
+# recommended — retro-doc keeps 3333/5173, LinkHub is already up here:
+nohup bash scripts/nightly/run.sh start --hours 8 --fresh \
+  --api-port 3344 --web-port 5273 > .nightly/logs/run.log 2>&1 &
+
+# or, after stopping retro-doc, on the documented defaults:
+nohup bash scripts/nightly/run.sh start --hours 8 --fresh > .nightly/logs/run.log 2>&1 &
+```
+
+What this run says should change about the loop itself:
+
+1. **Identity, not liveness, in the preflight.** The single highest-value change,
+   and the one this run bought: probe a route only LinkHub serves and exit FATAL
+   before the gate runs. Anything else is a guard that passes when it should
+   scream. **Landed in `60547b7` during this run** — unreviewed by the loop, and
+   worth a human read before the next night depends on it.
+2. **Fail loud, fail early, fail cheap.** Eight hours of budget were protected by
+   an agent's judgement rather than by the harness. That worked once. It should
+   not have to.
+3. **Record the offline baseline before anything that needs a server.** It is the
+   only thing a blocked night can still deliver, and this run proved it costs
+   ~9 minutes.
+4. **Diagnose `CAND-0110` before trusting any `REGRESSION` verdict.** A noisy
+   baseline makes the whole comparison worthless.
+5. **Consider making `BOOTSTRAP → REPORT` log a distinct outcome** (e.g.
+   `aborted_no_target`) rather than plain `ok`. Reading `history[]` this morning,
+   nothing distinguishes "the night finished" from "the night could not start".
+
+### Deploy verdict
+
+**DO NOT SHIP.**
+
+Two blockers are open and unfixed:
+
+- `BUG-20260822-public-posts-contract` — every public profile with a published
+  post shows "Could not load posts. Please try again." Contract drift: the public
+  projection omits `metadata`, the web parses with a schema where `metadata` is
+  nullable but required. This breaks the single artifact the product exists to
+  produce, and it is silent — an empty profile looks fine, so it only appears the
+  moment a user actually publishes.
+- `BUG-20260822-links-url-scheme` — profile links accept `javascript:`, `data:`
+  and `vbscript:` URLs. Not exploitable through React 19's current renderer, but
+  the only defence is the framework's, React does not block `data:`, and this is
+  the page strangers visit.
+
+Plus four majors: agent self-publish bypassing the human consent gate, unhandled
+rejections shipping user emails to Sentry on every failed login, vertical
+keyboard reordering being a permanent no-op, and two error states that render
+fabricated or empty-looking data instead of an error.
+
+The gate is green and the offline suites pass — but **not one user journey was
+walked tonight**, so "the journeys walk clean" cannot be claimed at all. Clearing
+this verdict needs a real BOOTSTRAP → HUNT → TRIAGE → FIX round actually run —
+which, with LinkHub now verified on 3344 / 5273, is finally possible.
