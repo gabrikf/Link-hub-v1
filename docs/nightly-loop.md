@@ -160,9 +160,16 @@ the plan limit *refuses* the request; with it **enabled**, the overage is charge
 in real dollars. Pass `--allow-api-billing` only if you genuinely want per-token
 billing.
 
-`--budget-usd` and `--max-budget-usd` still work, but on a subscription the
-figure they cap is Claude Code's **notional** cost estimate, not money leaving
-your account. Treat them as a throttle, not a bill.
+**`total_cost_usd` is not a bill.** Claude Code always reports what the work
+*would* cost at API list prices, whatever your billing mode. On a subscription
+with extra usage disabled, nothing is charged — the plan window simply refuses
+further requests when exhausted. So that number is a **measure of plan allowance
+consumed**, and the logs call it `plan-units` for exactly that reason.
+
+It still matters: an iteration reported at 1.05 burned roughly thirteen times
+more of your 5-hour window than one reported at 0.079. `--budget-usd` and
+`--max-budget-usd` cap that notional figure, which makes them a useful throttle
+on allowance — just not a spending limit.
 
 ### Plan usage limits: wait, then resume
 

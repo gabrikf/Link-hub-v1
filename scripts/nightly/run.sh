@@ -319,7 +319,7 @@ run_iteration() {
   prompt="$(build_preamble)$(cat "$prompt_file")"
 
   local phase_model; phase_model="$(model_for_phase "$phase")"
-  log "iteration $iteration — phase $phase (model=$phase_model, cap=$PER_ITERATION_USD notional)"
+  log "iteration $iteration — phase $phase (model=$phase_model, cap=${PER_ITERATION_USD} plan-units)"
 
   timeout "$ITERATION_TIMEOUT_SECONDS" "${CLAUDE_ENV[@]}" claude -p "$prompt" \
     --model "$phase_model" \
@@ -356,7 +356,7 @@ run_iteration() {
     return 75
   fi
 
-  log "iteration $iteration finished (exit=$code cost=\$$cost)"
+  log "iteration $iteration finished (exit=$code, used ${cost} plan-units)"
   $STATE_CLI end-iteration --cost "$cost" --outcome "$outcome"
 }
 
@@ -593,7 +593,10 @@ cmd_start() {
     --per-iteration-usd "$PER_ITERATION_USD" --max-limit-wait-hours "$MAX_LIMIT_WAIT_HOURS"
   ensure_stack
 
-  log "=== nightly loop starting: ${HOURS}h, budget \$${BUDGET_USD:-unlimited}, model $MODEL ==="
+  log "=== nightly loop starting: ${HOURS}h, model $MODEL, budget ${BUDGET_USD:-unlimited} plan-units ==="
+  log "    'plan-units' are Claude Code's notional USD estimate. You are on a"
+  log "    subscription with extra usage disabled, so this is a measure of PLAN"
+  log "    ALLOWANCE consumed, not money charged."
 
   while true; do
     local verdict

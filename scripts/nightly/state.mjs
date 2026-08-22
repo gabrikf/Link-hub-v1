@@ -430,7 +430,7 @@ function summary() {
       `run        ${state.run_id}`,
       `phase      ${state.phase}   iteration ${state.iteration}`,
       `deadline   ${state.deadline_at} (${remaining} min left)`,
-      `budget     $${state.budget.spent_usd} / $${state.budget.total_usd || "unlimited"}`,
+      `usage      ${state.budget.spent_usd} / ${state.budget.total_usd || "unlimited"} plan-units (notional estimate, NOT money — see docs/nightly-loop.md)`,
       `guards     failures=${state.guards.consecutive_failures} fix_attempts=${state.guards.fix_attempts} hunt_rounds=${state.guards.hunt_rounds}`,
       `limits     waits=${state.guards.limit_waits ?? 0} waited=${Math.round((state.guards.limit_wait_seconds ?? 0) / 60)}min of ${Math.round((state.guards.max_limit_wait_seconds ?? 21600) / 60)}min cap`,
       `queue      candidates=${queue.candidates.length} confirmed=${queue.confirmed.length} fixed=${queue.fixed.length} escalated=${queue.escalated.length} rejected=${queue.rejected.length}`,
