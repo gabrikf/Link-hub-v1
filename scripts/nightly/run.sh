@@ -202,6 +202,21 @@ handle_usage_limit() {
 }
 
 # ───────────────────────────── the iteration ───────────────────────────────
+#
+# TWO FLAGS THAT ARE NOT OPTIONAL HERE:
+#
+#   --strict-mcp-config  The repo's .mcp.json declares a `postgres` server run
+#     via `uvx`. In print mode `claude` answers in ~2s but its stdio MCP child
+#     keeps the parent process ALIVE INDEFINITELY — the API call succeeds,
+#     `is_error` is false, and the process still never exits. Unbounded, that
+#     turns every iteration into a full --iteration-timeout stall recorded as a
+#     failure, and three of those end the night. Loading no MCP servers is the
+#     price of a loop that terminates. Iterations query the database through
+#     `docker exec linkhub-postgres-dev psql` instead, which is what the
+#     preamble tells them to do.
+#
+#   </dev/null  Without it `claude` waits ~3s for stdin that a detached nohup
+#     run never sends, and logs a warning on every single iteration.
 
 # Everything an iteration needs to rebuild its context from scratch, prepended
 # to the phase prompt. Deliberately small: the phase prompt tells it what to do,
@@ -226,6 +241,13 @@ NON-NEGOTIABLE RULES FOR EVERY ITERATION
   - You are on branch nightly/qa-hardening. Never checkout, merge, rebase, or
     push. Never touch main or develop. Commit only what this iteration changed.
   - Dev servers are ALREADY RUNNING (api :3333, web :5173). Do not restart them.
+  - NO MCP SERVERS ARE LOADED for you (--strict-mcp-config), because the repo's
+    postgres MCP server keeps a print-mode process alive forever and would stall
+    every iteration. AGENTS.md tells you to verify database writes through the
+    postgres MCP; do it with psql instead, which is equivalent for reading:
+      docker exec linkhub-postgres-dev psql -U linkhub_user -d linkhub_dev -c "SELECT ..."
+    The rule behind that instruction still stands: "the endpoint returned 201"
+    is not evidence. Query the row back by a correlation id you control.
   - The bar for a bug is REAL USER IMPACT. If a real user would not be hurt, it
     is not a bug — do not file it, do not fix it. Cosmetic nitpicks, style
     preferences, and refactors that risk new bugs are explicitly out of scope.
@@ -292,7 +314,8 @@ run_iteration() {
     --output-format json \
     --max-budget-usd "$PER_ITERATION_USD" \
     --effort high \
-    >"$out" 2>"$errfile"
+    --strict-mcp-config \
+    >"$out" 2>"$errfile" </dev/null
   local code=$?
   cat "$errfile" >> "$LOGS/claude-stderr.log" 2>/dev/null || true
 
@@ -400,7 +423,8 @@ preflight() {
     --model "$MODEL_CHEAP" \
     --permission-mode bypassPermissions \
     --output-format json \
-    --max-budget-usd 1 2>>"$LOGS/claude-stderr.log")" || die \
+    --max-budget-usd 1 --strict-mcp-config \
+    2>>"$LOGS/claude-stderr.log" </dev/null)" || die \
     "the \`claude\` CLI could not complete a trivial prompt. Are you logged in? See $LOGS/claude-stderr.log"
 
   echo "$probe" | grep -q READY || die \

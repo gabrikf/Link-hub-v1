@@ -205,6 +205,29 @@ runs out of allowance before it runs out of bugs.
 
 Override with `--model`, `--model-cheap`, or `--model-all <one model everywhere>`.
 
+### Why the loop loads no MCP servers
+
+`.mcp.json` declares a `postgres` server run through `uvx`. In print mode
+`claude` answers in about two seconds — `is_error: false`, a valid result — and
+then **never exits**, because the stdio MCP child keeps the parent alive. Left
+alone that turns every iteration into a full `--iteration-timeout` stall
+recorded as a failure, and three of those end the night.
+
+Measured: without `--strict-mcp-config` the process ran until killed at 120s
+(`duration_api_ms: 1747`). With it, `exit=0` in 55s.
+
+So every invocation passes `--strict-mcp-config` and no MCP servers load.
+`AGENTS.md` points at the postgres MCP for verifying database writes; iterations
+use psql directly instead, which is equivalent for reading:
+
+```bash
+docker exec linkhub-postgres-dev psql -U linkhub_user -d linkhub_dev -c "SELECT ..."
+```
+
+The invocations also redirect `</dev/null`, since a detached `nohup` run
+otherwise makes `claude` wait ~3s for stdin that never arrives and log a warning
+every iteration.
+
 ### The Stop hook
 
 This repo runs the gate on Claude Code's `Stop` hook, so it fires when an
