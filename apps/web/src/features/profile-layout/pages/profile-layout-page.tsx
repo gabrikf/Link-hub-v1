@@ -34,6 +34,7 @@ import {
   FiLoader,
   FiMonitor,
   FiPlus,
+  FiRefreshCw,
   FiSmartphone,
   FiTrash2,
 } from "react-icons/fi";
@@ -189,6 +190,60 @@ function SaveIndicator({
         "Changes save automatically"
       )}
     </span>
+  );
+}
+
+/**
+ * Shown when `GET /me/layout` fails.
+ *
+ * The editor cannot be opened without the user's real layout. The old code fell
+ * through to `buildDefaultLayout(viewport)` — the same fallback used for legacy
+ * profiles that genuinely have no layout — so a 5xx rendered a stock
+ * arrangement of tabs and blocks the user never created, under the line
+ * "Changes save automatically". Nothing was actually lost (those blocks carry
+ * synthetic ids like `default-pc-links`, and the api refuses any position
+ * payload naming an id the user does not own), but a developer with a
+ * customised profile could not tell a transient failure from a reset, and every
+ * repair attempted from that screen was silently refused. Say what happened,
+ * say the layout is untouched, and offer the retry instead.
+ */
+function LayoutLoadFailed({
+  onRetry,
+  isRetrying,
+}: {
+  onRetry: () => void;
+  isRetrying: boolean;
+}) {
+  return (
+    <main className="mx-auto flex w-full max-w-lg flex-col items-center px-4 py-16">
+      <div className={`${SURFACE} anim-fade-up w-full p-8 text-center`}>
+        <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-200">
+          <FiAlertCircle className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <h1
+          role="alert"
+          className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
+        >
+          Couldn&apos;t load your layout
+        </h1>
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+          Your tabs and blocks are still there — we just couldn&apos;t read them
+          right now. Nothing on your profile has changed.
+        </p>
+        <div className="mt-6 flex justify-center">
+          <Button
+            type="button"
+            fullWidth={false}
+            isLoading={isRetrying}
+            loadingLabel="Try again"
+            onClick={onRetry}
+          >
+            <FiRefreshCw className="h-4 w-4" aria-hidden="true" />
+            Try again
+          </Button>
+        </div>
+      </div>
+    </main>
   );
 }
 
@@ -766,6 +821,18 @@ export function ProfileLayoutPage() {
     location: meQuery.data?.location ?? null,
     persona: meQuery.data?.persona ?? null,
   };
+
+  // Below every hook, so the editor's state machine is untouched by this exit.
+  if (layoutQuery.isError) {
+    return (
+      <LayoutLoadFailed
+        isRetrying={layoutQuery.isFetching}
+        onRetry={() => {
+          layoutQuery.refetch();
+        }}
+      />
+    );
+  }
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-4 lg:p-8">
