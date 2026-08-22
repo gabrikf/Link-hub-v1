@@ -536,3 +536,161 @@ describe("Public feed E2E — GET /profile/:username/posts (no auth)", () => {
     expect(response.statusCode).toBe(404);
   });
 });
+
+/**
+ * BUG-20260822-agent-self-publish.
+ *
+ * The review queue tells the user "nothing here is public until you approve
+ * it", and the approve route's own description calls itself the only way a
+ * machine-authored post becomes public. Both promises are about WHO releases
+ * the post, so they have to be enforced against the credential, not the tool:
+ * an agent holding the user's PAT must not be able to release its own post,
+ * either by PATCHing the status or by calling the approve route itself.
+ */
+describe("Posts E2E (PAT) — releasing a post from review", () => {
+  let ctx: TestAppHandles;
+
+  beforeEach(async () => {
+    ctx = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    await ctx.app.close();
+  });
+
+  /** Mints a real PAT through the real create-token route. */
+  async function mintPat(jwt: string) {
+    const response = await ctx.app.inject({
+      method: "POST",
+      url: "/me/tokens",
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${jwt}` },
+      body: JSON.stringify({
+        name: "agent",
+        scopes: ["posts:read", "posts:write", "profile:read"],
+      }),
+    });
+    return response.json().token as string;
+  }
+
+  async function agentSession(login = "agent-author") {
+    const user = await ctx.seedUser({ login });
+    const token = await ctx.signJwt(user.id);
+    const pat = await mintPat(token);
+    return { user, token, pat };
+  }
+
+  /** Creates a post the agent itself put up for review, over the PAT. */
+  async function createPendingReviewPost(pat: string) {
+    const response = await ctx.app.inject({
+      method: "POST",
+      url: "/me/posts",
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+      body: JSON.stringify({
+        source: "mcp",
+        body: "Shipped the checkout rewrite.",
+        status: "pending_review",
+      }),
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json().status).toBe("pending_review");
+    return response.json().id as string;
+  }
+
+  it("returns 403 when a PAT PATCHes its own pending_review post to published", async () => {
+    const { pat } = await agentSession();
+    const postId = await createPendingReviewPost(pat);
+
+    const response = await ctx.app.inject({
+      method: "PATCH",
+      url: `/me/posts/${postId}`,
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+      body: JSON.stringify({ status: "published" }),
+    });
+
+    expect(response.statusCode).toBe(403);
+    const stored = await ctx.postsRepository.findById(postId);
+    expect(stored!.status).toBe("pending_review");
+    expect(stored!.publishedAt).toBeNull();
+  });
+
+  it("returns 403 when a PAT calls the approve route on its own post", async () => {
+    const { pat } = await agentSession();
+    const postId = await createPendingReviewPost(pat);
+
+    const response = await ctx.app.inject({
+      method: "POST",
+      url: `/me/posts/${postId}/approve`,
+      headers: { authorization: `Bearer ${pat}` },
+    });
+
+    expect(response.statusCode).toBe(403);
+    const stored = await ctx.postsRepository.findById(postId);
+    expect(stored!.status).toBe("pending_review");
+  });
+
+  it("keeps the post out of the anonymous public feed after both attempts", async () => {
+    const { user, pat } = await agentSession("feed-check");
+    const postId = await createPendingReviewPost(pat);
+
+    await ctx.app.inject({
+      method: "PATCH",
+      url: `/me/posts/${postId}`,
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+      body: JSON.stringify({ status: "published" }),
+    });
+    await ctx.app.inject({
+      method: "POST",
+      url: `/me/posts/${postId}/approve`,
+      headers: { authorization: `Bearer ${pat}` },
+    });
+
+    const feed = await ctx.app.inject({
+      method: "GET",
+      url: `/profile/${user.login}/posts`,
+    });
+
+    expect(feed.statusCode).toBe(200);
+    expect(feed.json()).toHaveLength(0);
+  });
+
+  it("still lets the human approve the same post in a real session (200)", async () => {
+    const { token, pat } = await agentSession();
+    const postId = await createPendingReviewPost(pat);
+
+    const response = await ctx.app.inject({
+      method: "POST",
+      url: `/me/posts/${postId}/approve`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().status).toBe("published");
+    expect(response.json().body).toBe("Shipped the checkout rewrite.");
+  });
+
+  it("still lets a PAT publish its own draft (200) — a draft awaits nobody", async () => {
+    const { pat } = await agentSession();
+
+    const created = await ctx.app.inject({
+      method: "POST",
+      url: "/me/posts",
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+      body: JSON.stringify({
+        source: "mcp",
+        body: "A draft the agent parked.",
+        status: "draft",
+      }),
+    });
+    expect(created.statusCode).toBe(201);
+
+    const response = await ctx.app.inject({
+      method: "PATCH",
+      url: `/me/posts/${created.json().id}`,
+      headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+      body: JSON.stringify({ status: "published" }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().status).toBe("published");
+  });
+});

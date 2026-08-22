@@ -480,6 +480,67 @@ describe("UpdatePostUseCase — status transitions", () => {
       expect(result.status).toBe(status);
     },
   );
+
+  // BUG-20260822-agent-self-publish: the review queue promises the user that
+  // nothing is public until they approve it. A PAT is software, so it may not
+  // release its own post from that queue.
+  describe("only a real session may release a post from review", () => {
+    it("throws ForbiddenError on pending_review -> published from a PAT", async () => {
+      const post = await seed("pending_review");
+
+      await expect(
+        sut.execute({
+          userId: "owner",
+          postId: post.id,
+          status: "published",
+          authType: "pat",
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+
+      const stored = await postsRepository.findById(post.id);
+      expect(stored!.status).toBe("pending_review");
+      expect(stored!.publishedAt).toBeNull();
+    });
+
+    it("still allows pending_review -> published from the owner's session", async () => {
+      const post = await seed("pending_review");
+
+      const result = await sut.execute({
+        userId: "owner",
+        postId: post.id,
+        status: "published",
+        authType: "jwt",
+      });
+
+      expect(result.status).toBe("published");
+    });
+
+    it("still allows draft -> published from a PAT — a draft awaits nobody", async () => {
+      const post = await seed("draft");
+
+      const result = await sut.execute({
+        userId: "owner",
+        postId: post.id,
+        status: "published",
+        authType: "pat",
+      });
+
+      expect(result.status).toBe("published");
+    });
+
+    it("still treats a PAT re-sending pending_review as a no-op", async () => {
+      const post = await seed("pending_review");
+
+      const result = await sut.execute({
+        userId: "owner",
+        postId: post.id,
+        status: "pending_review",
+        authType: "pat",
+      });
+
+      expect(result.status).toBe("pending_review");
+    });
+  });
 });
 
 describe("UpdatePostUseCase — disclosure policy + search freshness", () => {
