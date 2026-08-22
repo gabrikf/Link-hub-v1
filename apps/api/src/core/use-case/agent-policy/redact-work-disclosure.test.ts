@@ -181,6 +181,100 @@ describe("findDisclosureViolations", () => {
     ).toEqual(["Acme Corp", "Acme"]);
   });
 
+  /**
+   * A URL cannot contain a space, so an agent that wants to link its work
+   * writes the employer as a slug: `acme-corp`, `acme_corp`, `Acme%20Corp` or
+   * just `acmecorp`. Every one of those reaches the same anonymous reader as
+   * the prose does — `externalUrl` is the post's `<a href>`.
+   *
+   * The paired negatives are the real risk of matching these: a term that
+   * matches too widely turns a legitimate post into a 400.
+   */
+  describe("a multi-word employer written as a URL slug", () => {
+    it("matches the hyphenated slug inside a link", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/acme-corp-internal/ledger/pull/42",
+          ["Acme Corp"],
+        ),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("matches the percent-encoded space", () => {
+      expect(
+        findDisclosureViolations("https://example.com/Acme%20Corp/report", [
+          "Acme Corp",
+        ]),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("matches the underscored slug", () => {
+      expect(
+        findDisclosureViolations("https://git.example.com/acme_corp/ledger", [
+          "Acme Corp",
+        ]),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("matches a domain that drops the separator entirely", () => {
+      expect(
+        findDisclosureViolations("https://acmecorp.com/blog/ledger", [
+          "Acme Corp",
+        ]),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("matches a three-word employer slug", () => {
+      expect(
+        findDisclosureViolations(
+          "https://git.example.com/banco-do-brasil/repo",
+          ["Banco do Brasil"],
+        ),
+      ).toEqual(["Banco do Brasil"]);
+    });
+
+    it("matches a name whose own punctuation is flattened into the slug", () => {
+      expect(
+        findDisclosureViolations("https://vale-s-a.example.com/x", [
+          "Vale S.A.",
+        ]),
+      ).toEqual(["Vale S.A."]);
+    });
+
+    it("still reports the canonical settings spelling, not the slug", () => {
+      expect(
+        findDisclosureViolations("https://github.com/wildlife-studios/engine", [
+          "Wildlife Studios",
+        ]),
+      ).toEqual(["Wildlife Studios"]);
+    });
+
+    it("does not match a URL that merely contains one of the words", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/corporate-ledger/pull/42",
+          ["Acme Corp"],
+        ),
+      ).toEqual([]);
+    });
+
+    it("does not match the words separated by other words", () => {
+      expect(
+        findDisclosureViolations("mercado for livre software", [
+          "Mercado Livre",
+        ]),
+      ).toEqual([]);
+    });
+
+    it("does not match a slug glued to a longer word", () => {
+      expect(
+        findDisclosureViolations("https://example.com/acmecorporate/ledger", [
+          "Acme Corp",
+        ]),
+      ).toEqual([]);
+    });
+  });
+
   it("skips terms shorter than 2 characters even if handed one directly", () => {
     expect(findDisclosureViolations("a b c", ["a", "b"])).toEqual([]);
   });
@@ -225,6 +319,16 @@ describe("redactText", () => {
     expect(redactText("Acme Corp shipped", ["Acme Corp", "Acme"])).toBe(
       `${DISCLOSURE_PLACEHOLDER} shipped`,
     );
+  });
+
+  it("redacts the employer written as a URL slug on the read side", () => {
+    // GET /me/work-context hands the agent back prose it may reuse; leaving the
+    // slug in there is handing it the leak ready-made.
+    expect(
+      redactText("Notes: https://github.com/acme-corp-internal/ledger", [
+        "Acme Corp",
+      ]),
+    ).toBe(`Notes: https://github.com/${DISCLOSURE_PLACEHOLDER}-internal/ledger`);
   });
 
   it("returns an empty string for empty, null or undefined input", () => {

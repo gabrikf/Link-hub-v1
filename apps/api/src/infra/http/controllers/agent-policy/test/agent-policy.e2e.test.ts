@@ -494,6 +494,50 @@ describe("Agent policy E2E", () => {
       expect(response.json().message).toContain("Nubank");
     });
 
+    it("rejects an agent post whose externalUrl spells the employer as a slug", async () => {
+      const { user, token } = await authedUser();
+      await seedRole(user, "Acme Corp");
+      const pat = await mintPat(token);
+
+      // A URL cannot carry the space, so the agent writes `acme-corp`. It is
+      // the same disclosure, in an <a href> an anonymous reader can click.
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+        body: JSON.stringify({
+          source: "mcp",
+          body: "Cut p99 from 900ms to 120ms on the ledger.",
+          externalUrl: "https://github.com/acme-corp-internal/ledger/pull/42",
+        }),
+      });
+
+      expect(response.statusCode).toBe(400);
+      const message = response.json().message as string;
+      expect(message).toContain("Acme Corp");
+      expect(message).toContain("summary");
+    });
+
+    it("still accepts an agent post whose externalUrl only looks like the employer", async () => {
+      const { user, token } = await authedUser();
+      await seedRole(user, "Acme Corp");
+      const pat = await mintPat(token);
+
+      // The positive control: widening the match must not 400 a legitimate post.
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+        body: JSON.stringify({
+          source: "mcp",
+          body: "Cut p99 from 900ms to 120ms on the ledger.",
+          externalUrl: "https://github.com/corporate-ledger/pull/42",
+        }),
+      });
+
+      expect(response.statusCode).toBe(201);
+    });
+
     it("rejects an agent post that names the employer only in an image URL", async () => {
       const { user, token } = await authedUser();
       await seedRole(user, "Nubank");
