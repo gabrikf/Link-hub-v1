@@ -1,6 +1,6 @@
 # BUG-20260822-disclosure-url-slug-variant: an employer with a space in its name still leaks, because a URL spells it `acme-corp` and the denylist only knows `Acme Corp`
 
-- **Status:** open
+- **Status:** verified (red `f280f0f`, fixed `aeac1ef`, review approved 2026-08-22 by the nightly REVIEW_FIX pass, iteration 18)
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Diego, the curating developer (whose disclosure policy is being bypassed) and Atlas, the coding agent (which trips it without meaning to); Priya and Sam are who end up reading it
@@ -99,10 +99,90 @@ produce.
   - *Variants as extra denylist entries* (the direction recorded at iteration 7) means `findDisclosureViolations` will return `"acme-corp"` as the violated term. That **regresses the error message**, which the function's own doc comment promises is the canonical settings spelling, so the agent is told which rule it tripped. Doing it this way needs a variant → canonical mapping.
   - *Variants inside the pattern for a multi-word term* keeps the denylist and every returned hit in canonical spelling for free, and both `findDisclosureViolations` and `redactText` inherit it. This is what the probe prototyped.
 - **Do not** wrap the separator group in a second quantifier. One `*` over a character class stays linear; `(?:[\s\-_.+]*)+` is a backtracking hazard on a URL the agent fully controls.
-- **Fix commit:** —
+- **Fix commit:** `aeac1ef` (red `f280f0f`). The second shape was chosen: the variants live *inside the pattern* for a multi-word term, so the denylist and every returned hit stay in the canonical settings spelling. `buildTermBody` splits the term on `[^\p{L}\p{N}]+` **keeping the gaps**, and rebuilds it as `word (?:<the gap the user typed>|[\s\-_.+]*|%20) word …` inside the untouched boundary lookarounds. A term with fewer than two words falls back to the escaped literal, so single-word terms compile byte-identical.
 - **Regression test:** pure business rule → unit tests beside `apps/api/src/core/use-case/agent-policy/redact-work-disclosure.test.ts`. Red case: a `summary` account with `"Acme Corp"`, assert `findDisclosureViolations("https://github.com/acme-corp-internal/x", terms)` is non-empty — fails today. Paired negative cases in the same commit, so the fix cannot buy its pass with false positives: a legitimate URL that merely contains one token (`https://github.com/acme/other`) and ordinary prose must still pass. Then an HTTP test via `build-test-app.ts` + `server.inject`: `POST /me/posts` with the slugified URL as `externalUrl` expects `400`.
-- **Gate:** —
+- **Gate:** `guardrails PASS` recorded at `aeac1ef` (schemas built, affected type-check, changed-file lint, api 103 test files, other workspaces, i18n parity skipped — no locale dir yet).
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+**Independent REVIEW_FIX pass, 2026-08-22 (iteration 18). Verdict: approved.**
+Nothing below was copied from the fix commit's message; every number was
+re-measured on this tree.
+
+- **Red proved at the red commit.** Checked out `f280f0f` and ran only this
+  bug's two test files: **9 failed / 60 passed**. Every failure *is* the
+  symptom — seven `expected [] to deeply equal [ 'Acme Corp' | 'Banco do
+  Brasil' | 'Vale S.A.' | 'Wildlife Studios' ]`, one `redactText` leaving
+  `github.com/acme-corp-internal` intact, and one `expected 201 to be 400` on
+  `POST /me/posts`. No import error, no missing fixture, nothing that would fail
+  for an unrelated reason. Green at `aeac1ef`: `npx vitest run
+  src/core/use-case/agent-policy/ src/infra/http/controllers/agent-policy/` →
+  **7 files, 111 tests, all passing**.
+- **The reproduction itself was re-walked.** `.nightly/evidence/…/i16-probe.mts`
+  at branch tip: both controls still block, and **all six attack spellings now
+  block** (`acme-corp-internal`, `Acme%20Corp`, `acmecorp.com`, `acme_corp`,
+  `vale-s-a.example.com`, `banco-do-brasil`), while the two paired negatives
+  (`An acme of engineering`, `corporate-ledger`) still pass.
+- **No test was edited to buy the pass.** Both commits are additive only —
+  `f280f0f` is 104+/0− and 44+/0−, `aeac1ef` is 13+/0− in the test file. The
+  `CI&T` case added in the fix commit guards the fix's own first draft, not the
+  bug, and the commit body says so.
+- **The real-data risk probe was re-run, not trusted.** `i17-realdata-risk.mts`
+  diffs the old matcher against the new one over the seeded corpus: **301 users
+  with a non-empty denylist, 1209 real role descriptions and post fields, 1
+  behaviour change** — and it is a true positive (`PETS JARAGUA` leaking as
+  `www.petsjaragua.com.br`). **Zero terms stopped matching.** The probe's own
+  construction was read and is honest: it rebuilds the pre-fix regex inline and
+  compares hit sets per text.
+- **No false negatives, checked by hand in the directions the probe could not
+  reach.** A term whose punctuation sits at its *edges* loses that punctuation
+  from the pattern (`.NET Foundation` → `NET…Foundation`, `Vale S.A.` → the
+  trailing dot is dropped), but the boundary lookarounds are non-consuming and
+  don't require it, so every one of those still matches its canonical spelling —
+  verified for `.NET Foundation`, `Vale S.A.`, `Foo (Bar)`, an all-punctuation
+  term (`&&`, falls back to the literal), `Nubank`, and the accented
+  `Grupo Boticário`.
+- **Not a backtracking hazard**, as triage warned it must not be. `findDisclosureViolations`
+  over 200k–250k-char adversarial inputs (`Acme` + 200k separators, alternating
+  `-_. +` runs, a three-word term with two 100k runs, 50k start positions) all
+  return in **≤ 1.0 ms**. The separator group is one `*` over a character class
+  plus a flat `%20` alternative, with literals between every gap — no nested
+  quantifier.
+- **Blast radius walked.** The four non-test callers of these primitives
+  (`enforce-post-disclosure`, `get-work-context.use-case`,
+  `resolve-connection-disclosure`, `generate-activity-digest` /
+  `render-activity-digest`) all inherit the same widening, and all inherit it in
+  the *strict* direction — more redaction on the read side, more rejection on the
+  write side. `packages/schemas` is untouched: no boundary shape changed and
+  nothing was widened to let a bad payload through. No `any`, no type assertion,
+  no `eslint-disable`, no `.skip`, no swallowed error in the added lines. No
+  scope creep — 2 files, one function, no renames, no reformatting. Nothing
+  visual changed, so there is no four-state or dark-mode surface.
+- **Known residual, accepted with eyes open — the one thing this fix did *not*
+  do.** Triage asked for a guard on the collapsed-no-separator variant for short
+  names (`"On It"` → `onit`), and the fix does not have one: the gap is
+  `[\s\-_.+]*`, so an *empty* gap is always allowed. That is load-bearing —
+  `acmecorp.com` is one of the bug's own attack spellings and cannot be caught
+  without it — but it means a term whose glued form is short over-matches. Demonstrated:
+  with `CI&T` on the denylist, `"The cit parser is fast."` and
+  `https://example.com/cit/docs` are now rejected; a hypothetical `C&A` would
+  reject `"San Francisco, CA"`. Measured rather than argued: `CI&T` is the only
+  seeded denylist term whose glued form is under five characters (108 role rows;
+  the other punctuated name is 32 chars), no seeded user has typed a custom
+  blocked term at all, and across all 1209 real texts it produced **zero** false
+  positives. The failure mode is also the safe one — a 400 that names the term,
+  which the agent can rewrite around, versus a silent leak in an `<a href>` on a
+  public profile. **Follow-up, not a blocker:** if a denylist term whose glued
+  form is ≤ 4 characters ever draws a real complaint, gate the empty-gap
+  alternative on a minimum glued length instead of removing the tolerance.
+
+**Not verified.** No live walk through a running LinkHub api: port 3333 is
+serving an unrelated project this run (`/health` → `{"status":"ok"}` but
+`/me/posts` → 404 with no LinkHub route table) and restarting dev servers is
+forbidden inside the loop — the `server.inject` e2e case is the substitute and
+exercises the real route with a real PAT through the real app. The disclosure
+evidence gap recorded at triage is therefore **still open**: no settings
+screenshot and no rendered logged-out public profile showing the slug absent.
+The full `npm run guardrails` was not re-run by this review beyond the two
+targeted vitest runs plus the Stop hook on this same tree. No rows were written
+to `linkhub_dev` — reads only.
