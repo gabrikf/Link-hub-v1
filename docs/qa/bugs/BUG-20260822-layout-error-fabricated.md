@@ -77,7 +77,7 @@ data.
 <!-- filled when status moves to fixed -->
 - **Root cause:** *symptom* — a fabricated layout presented as the user's own. *Cause* — `layoutQuery.isError` is never read in `apps/web/src/features/profile-layout/pages/profile-layout-page.tsx`; on failure `full` is `undefined` and the code falls through to `buildDefaultLayout(viewport)`.
 - **Root Cause (taxonomy):** missing-state — error is folded into the empty/default path
-- **Fix commit:** —
+- **Fix commit:** `905fcee` — REJECTED at review (see "Review of attempt 1" below).
 - **Regression test:** component test with `@testing-library/react` at
   `apps/web/src/features/profile-layout/pages/profile-layout-page.test.tsx`. The
   harness is proved to work — copy it from
@@ -96,3 +96,59 @@ data.
 ## Verification
 
 <!-- filled when status moves to verified -->
+
+## Review of attempt 1 (`905fcee`) — REJECTED, 2026-08-22 (loop iteration 24)
+
+**Red-then-green: proved.** At `9d4d7a9` the two error-path cases fail for the
+right reason — the page text is `Editing the desktop layout — desktop …` with no
+error copy, and there is no `/try again/i` button — while the filled-state
+positive control passes. At `905fcee` all three pass.
+
+**Why it was rejected.** The early return is guarded on `layoutQuery.isError`
+alone, with no check that the layout data is absent:
+
+```ts
+if (layoutQuery.isError) { return <LayoutLoadFailed … /> }
+```
+
+`invalidateLayout()` invalidates `["layout"]` after every successful mutation
+(five call sites: 426, 506, 608, 656). TanStack Query keeps `data` and still
+reports `status: "error"` when a *background refetch* fails, so a transient api
+failure after a successful save now replaces a fully working editor with the
+error screen — the user's real layout is in the cache, nothing is fabricated,
+and their save went through. That is a new regression the bug never had.
+
+Proved mechanically with
+`.nightly/evidence/BUG-20260822-layout-error-fabricated/review-refetch-probe.test.tsx.txt`
+(load the layout, then reject `fetchLayout` and invalidate `["layout"]`):
+
+| commit | error screen | editor | block groups |
+|---|---|---|---|
+| `9d4d7a9` (before the fix) | no | yes | 5 |
+| `905fcee` (after the fix) | yes | no | 0 |
+
+**What attempt 2 must change.** Guard on the absence of data too —
+`if (layoutQuery.isError && !full)` — since the fabrication is only possible when
+`full` is `undefined`; and add a case to the existing test file asserting the
+editor survives a failed refetch after a successful load. No banner or toast for
+the stale-refetch case: out of scope for this bug.
+
+**Reviewed clean otherwise:** root cause correct (`isLoading` consulted without
+`isError`; `buildDefaultLayout` reused as a failure fallback), the exit sits
+below every hook (no hook call after line 826), no scope creep (67 insertions,
+one file), no test edited, no schema widened, no `eslint-disable` / assertion /
+`.skip`, `SURFACE` imported rather than hand-written, `Button fullWidth={false}`
+with `isLoading`, and every colour utility carries a `dark:` counterpart. The
+only caller of the page is `src/router.tsx`.
+
+**Not verified by this review:** nothing was walked in a real browser — port 3333
+serves an unrelated api, so Playwright and the visual runner were not run and the
+error state's `dark:` variants were read from class strings, not looked at. No
+psql: this bug lives entirely in the web client's handling of a failed response.
+`e2e/journeys/05-profile-appearance.spec.ts:874-877` still asserts the fabricated
+`Profile header block` group is present on a 500 — still open, still for a human.
+
+**Minor, non-blocking:** `LayoutLoadFailed` hand-duplicates the `RouteShell`
+markup from `shared-components/route-states.tsx` (acceptable — `RouteErrorState`
+is the router's `defaultErrorComponent` and reloads rather than refetches), and
+`role="alert"` on the `<h1>` costs it its heading role.
