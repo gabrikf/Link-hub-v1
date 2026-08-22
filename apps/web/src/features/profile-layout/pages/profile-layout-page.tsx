@@ -220,16 +220,16 @@ function LayoutLoadFailed({
         <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-200">
           <FiAlertCircle className="h-6 w-6" aria-hidden="true" />
         </span>
-        <h1
-          role="alert"
-          className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
-        >
-          Couldn&apos;t load your layout
-        </h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-          Your tabs and blocks are still there — we just couldn&apos;t read them
-          right now. Nothing on your profile has changed.
-        </p>
+        {/* role="alert" on the wrapper, so the heading keeps its heading role. */}
+        <div role="alert">
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Couldn&apos;t load your layout
+          </h1>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+            Your tabs and blocks are still there — we just couldn&apos;t read
+            them right now. Nothing on your profile has changed.
+          </p>
+        </div>
         <div className="mt-6 flex justify-center">
           <Button
             type="button"
@@ -823,7 +823,12 @@ export function ProfileLayoutPage() {
   };
 
   // Below every hook, so the editor's state machine is untouched by this exit.
-  if (layoutQuery.isError) {
+  // The condition is about the layout being ABSENT, not about a request having
+  // failed: invalidateLayout() refetches after every successful save, and a
+  // failed refetch leaves `full` in the cache, so `isError` alone would replace
+  // a working editor over a hiccup. Only a missing layout gets fabricated, and
+  // only that is worth an error screen.
+  if (layoutQuery.isError && !full) {
     return (
       <LayoutLoadFailed
         isRetrying={layoutQuery.isFetching}
