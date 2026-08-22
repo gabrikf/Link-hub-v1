@@ -1,6 +1,6 @@
 # BUG-20260822-agent-self-publish: an agent holding a PAT can publish its own post straight out of the review queue
 
-- **Status:** open
+- **Status:** open — reproduced at branch tip, claimed for fix
 - **Impact (user-side):** Consent bypass — machine-authored content about the user's real work goes public without them
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Diego, the curating developer (harmed) · Atlas, the coding agent (the actor)
@@ -28,28 +28,59 @@ without ever asking who the caller is.
 - **Charter:** none yet · **Tour:** the-agent tour (MCP over stdio, no browser)
 - **Environment:** api :3333 · `apps/mcp` over stdio JSON-RPC · any seeded developer (`bash db-manage.sh seed-all`)
 
-1. Mint a PAT through `/dashboard/settings` → Advanced settings → Create token.
-2. Through the MCP server, `create_post` so the post lands in `pending_review`.
-3. Through the MCP server, `update_post { id, status: "published" }`.
-4. The post is public. The human never approved it.
+1. Mint a PAT with scope `posts:write` — `/dashboard/settings` → Advanced
+   settings → Create token (`POST /me/tokens`).
+2. `POST /me/posts` over that PAT with `{ source: "mcp", status:
+   "pending_review" }` (the MCP `create_post` tool). → `201`, status
+   `pending_review`. The post now sits in `/dashboard/posts/review`, under
+   "Nothing here is public until you approve it".
+3. **Path A** — `PATCH /me/posts/:id` over the *same* PAT with `{ status:
+   "published" }` (the MCP `update_post` tool). → `200`, stored status
+   `published`, `publishedAt` stamped.
+4. **Path B** — `POST /me/posts/:id/approve` over the *same* PAT. → `200`,
+   stored status `published`. The agent calls the human's own consent endpoint.
+5. `GET /profile/:login/posts` anonymously → `200` with the post in the feed.
 
 **Expected:** a `pending_review` post can only be released by the human, through
-the review queue. A PAT caller attempting the transition is refused.
-**Actual:** MCP returns `Post updated ✅ … status: published` and the post is
-publicly visible.
+the review queue. A PAT caller attempting the transition is refused, by either
+route.
+**Actual:** both routes return `200` and the post is publicly visible.
+
+### Path B was not in the original report
+
+The approve endpoint is guarded only by `apiAccessGuard("posts:write")`, which a
+PAT satisfies, and `posts-controller.ts:249` never forwards
+`request.user.authType` — `IApprovePostInput` has no such field. So the endpoint
+whose own OpenAPI description says it is "the only way a machine-authored post
+becomes public" is itself callable by the machine. A fix that only hardens
+`PATCH` is bypassed in one request.
+
+### Scope note — do not widen this to the create path
+
+`POST /me/posts` over a PAT already defaults to `status: "published"`
+(`packages/schemas/src/posts/index.ts:58`, `create-post.use-case.ts:60`), and
+every `apps/mcp` tool description says so. An agent that never opts into
+`pending_review` is unaffected by this bug *and* by its fix. Forcing PAT-created
+posts to `pending_review` is a product-behaviour change that would break agents
+posting directly — a morning decision, not a nightly fix. Likewise leave
+`draft → published` over a PAT alone: a draft was never presented to the human as
+awaiting a decision. **The gate that must hold is narrow: once a post IS
+`pending_review`, only a human session releases it.**
 
 ## Evidence
 
-- `e2e/journeys/02-agent-posts.spec.ts:635` — the assertion that recorded it, written by the journey-02 agent driving the real MCP server.
-- **Not re-reproduced in run `2026-08-22T18:58:46.702Z`.** It is carried in from the hand-off on the strength of that e2e assertion plus the code reading below. FIX must reproduce it first, before changing anything.
+- `e2e/journeys/02-agent-posts.spec.ts:635` — the assertion that first recorded it, written by the journey-02 agent driving the real MCP server.
+- **Re-reproduced at branch tip `d9f66c7` on 2026-08-22 (iteration 19, TRIAGE)**, hermetically through `buildTestApp()` + `server.inject` — no database, no live server, the real guards / zod / error handler. Path A `200` → stored `published`; Path B `200` → stored `published`; anonymous public feed `200` with the post body; human-JWT approve `200` (the control that must keep passing).
+- Probe and raw output: `.nightly/evidence/i19-agent-self-publish-probe.mts`, `.nightly/evidence/i19-agent-self-publish-output.txt`.
 
 ## Fix
 
 <!-- filled when status moves to fixed -->
-- **Root cause:** *symptom* — an agent publishes its own post. *Cause* — `apps/api/src/core/use-case/posts/shared/post-status-rules.ts`, `ALLOWED_STATUS_TRANSITIONS` permits `pending_review → published` with no `authType` check, so a PAT-authenticated caller clears the same gate a session user does.
+- **Root cause:** *symptom* — an agent publishes its own post. *Cause* — `apps/api/src/core/use-case/posts/shared/post-status-rules.ts:80`, `assertPostStatusTransition()` takes no `authType`, so `pending_review → published` passes identically for both caller kinds. Two callers reach it and **both need fixing**: `update-post.use-case.ts:101` (has `input.authType` and ignores it here) and `approve-post.use-case.ts:47` (`IApprovePostInput` has no `authType` field, and `posts-controller.ts:249` never passes one).
 - **Root Cause (taxonomy):** missing-authorization
 - **Fix commit:** —
-- **Regression test:** unit test next to the use case in `apps/api/src/core/**` — a PAT-authenticated `pending_review → published` transition must be refused, a session-authenticated one must still be allowed. Then an HTTP-level test through `build-test-app.ts` + `server.inject`. The e2e assertion already covers the user-visible half.
+- **Regression test:** pure rule next to the use case in `apps/api/src/core/**` — a `pat` caller's `pending_review → published` must be refused, a `jwt` caller's must still be allowed. Then HTTP through `build-test-app.ts` + `server.inject` in `apps/api/src/infra/http/controllers/posts/test/`: `PATCH` over a PAT → refused, `POST /approve` over a PAT → refused, plus **two positive controls that must stay green** — human JWT approve → `200`, and a PAT `draft → published` → `200` (unchanged by design, see the scope note). The e2e assertion at `e2e/journeys/02-agent-posts.spec.ts:635` covers the user-visible half.
+- **Status code:** `ForbiddenError` (403), not `BadRequestError` — the move is legal for this post, the *caller* is the thing that is not allowed to make it. That is the distinction `assertPostStatusTransition`'s own doc comment already draws, so it argues for a separate caller check rather than widening the existing 400.
 - **Gate:** —
 
 ## Verification
