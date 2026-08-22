@@ -286,7 +286,7 @@ run_iteration() {
   local phase_model; phase_model="$(model_for_phase "$phase")"
   log "iteration $iteration — phase $phase (model=$phase_model, cap=$PER_ITERATION_USD notional)"
 
-  timeout "$ITERATION_TIMEOUT_SECONDS" run_claude -p "$prompt" \
+  timeout "$ITERATION_TIMEOUT_SECONDS" "${CLAUDE_ENV[@]}" claude -p "$prompt" \
     --model "$phase_model" \
     --permission-mode bypassPermissions \
     --output-format json \
@@ -326,14 +326,22 @@ run_iteration() {
 
 # ────────────────────────────── billing route ──────────────────────────────
 
-# Every `claude` call goes through here so the API-billing variables are
-# stripped from the child environment in exactly one place. `env -u` removes
-# them for the child only; your shell is untouched.
-run_claude() {
+# The API-billing variables are stripped from the child environment in exactly
+# one place. `env -u` removes them for the child only; your shell is untouched.
+#
+# This is an argv PREFIX, not a shell function, and that is load-bearing:
+# `timeout` is a coreutils binary and can only exec a real command, so a shell
+# function between them fails with "failed to run command". `env` is a real
+# binary, so `timeout N env -u FOO claude ...` works. The array is never empty —
+# even when billing is permitted it degrades to a bare `env` — because under
+# `set -u` an empty array expansion is itself an error on older bash.
+CLAUDE_ENV=(env)
+
+build_claude_env() {
   if [ "$ALLOW_API_BILLING" -eq 1 ]; then
-    claude "$@"
+    CLAUDE_ENV=(env)
   else
-    env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u AWS_BEARER_TOKEN_BEDROCK claude "$@"
+    CLAUDE_ENV=(env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u AWS_BEARER_TOKEN_BEDROCK)
   fi
 }
 
@@ -388,7 +396,7 @@ preflight() {
   # route, none of which differ by model, so there is no reason to spend the
   # expensive one on a one-word answer before the run has started.
   local probe
-  probe="$(timeout 180 run_claude -p 'Reply with exactly: READY. Do not use any tools.' \
+  probe="$(timeout 180 "${CLAUDE_ENV[@]}" claude -p 'Reply with exactly: READY. Do not use any tools.' \
     --model "$MODEL_CHEAP" \
     --permission-mode bypassPermissions \
     --output-format json \
@@ -450,6 +458,7 @@ cmd_start() {
   trap 'log "shutting down"; rm -f "$PIDFILE"; exit 0' INT TERM
 
   command -v claude >/dev/null || die "the \`claude\` CLI is not on PATH"
+  build_claude_env
   if [ "$FRESH" -eq 1 ] && [ -d "$NIGHTLY" ]; then
     local archive="$ROOT/.nightly-$(date +%Y%m%d-%H%M%S)"
     mv "$NIGHTLY" "$archive"
