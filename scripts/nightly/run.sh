@@ -46,6 +46,8 @@ MODEL_FORCED=""
 ITERATION_TIMEOUT_SECONDS=3600
 # Wipe .nightly/ and start a genuinely new night rather than resuming.
 FRESH=0
+# --fresh keeps QUEUE.json and MEMORY.md; --fresh-all discards them too.
+FRESH_ALL=0
 # Opt in to per-token USD billing. Off by default: this loop is meant to run on
 # a Claude subscription, and an ANTHROPIC_API_KEY sitting in the environment
 # would silently bill real money for an 8-hour unattended run.
@@ -637,15 +639,32 @@ cmd_start() {
     die "a nightly run is already going (pid $(cat "$PIDFILE")). Stop it first."
   fi
   echo $$ > "$PIDFILE"
+  # EXIT as well as INT/TERM: every `die` in preflight exits without unwinding
+  # INT/TERM, which left a stale pidfile and made the NEXT start refuse with
+  # "a nightly run is already going". Cleaning up on EXIT covers both paths.
+  trap 'rm -f "$PIDFILE"' EXIT
   trap 'log "shutting down"; rm -f "$PIDFILE"; exit 0' INT TERM
 
   command -v claude >/dev/null || die "the \`claude\` CLI is not on PATH"
   build_claude_env
   if [ "$FRESH" -eq 1 ] && [ -d "$NIGHTLY" ]; then
     local archive="$ROOT/.nightly-$(date +%Y%m%d-%H%M%S)"
-    mv "$NIGHTLY" "$archive"
-    mkdir -p "$LOGS"
+    cp -a "$NIGHTLY" "$archive"
+    # A NEW NIGHT IS NOT A NEW BACKLOG. QUEUE.json holds every bug found and
+    # triaged so far — 7 of them arrived verified before the first run — and
+    # MEMORY.md holds what previous iterations learned. Wiping those to reset a
+    # deadline would make each run rediscover the same bugs and re-litigate the
+    # same rejections. Only the machine state and the logs are per-run.
+    rm -f "$NIGHTLY/STATE.json" "$NIGHTLY/run.pid"
+    rm -rf "$LOGS"; mkdir -p "$LOGS"
     log "archived the previous run to $(basename "$archive")"
+    log "carried forward: QUEUE.json and MEMORY.md (use --fresh-all to discard them too)"
+  fi
+  if [ "$FRESH_ALL" -eq 1 ] && [ -d "$NIGHTLY" ]; then
+    local archive_all="$ROOT/.nightly-$(date +%Y%m%d-%H%M%S)"
+    mv "$NIGHTLY" "$archive_all"
+    mkdir -p "$LOGS"
+    log "archived EVERYTHING to $(basename "$archive_all") — starting with an empty queue"
   fi
   preflight
 
@@ -718,6 +737,7 @@ while [ $# -gt 0 ]; do
     --model-all) MODEL_FORCED="$2"; shift 2 ;;
     --iteration-timeout) ITERATION_TIMEOUT_SECONDS="$2"; shift 2 ;;
     --fresh) FRESH=1; shift ;;
+    --fresh-all) FRESH_ALL=1; shift ;;
     --allow-api-billing) ALLOW_API_BILLING=1; shift ;;
     --permission-mode) PERMISSION_ARGS=(--permission-mode "$2"); shift 2 ;;
     --api-port) API_PORT="$2"; shift 2 ;;
