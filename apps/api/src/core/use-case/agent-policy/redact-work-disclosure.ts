@@ -27,29 +27,43 @@ export const DISCLOSURE_PLACEHOLDER = "[employer]";
  */
 const MIN_TERM_LENGTH = 2;
 
-export interface BuildBlockedTermsInput {
+/** One employer name paired with the level in force for ITS OWN role. */
+export interface DisclosureCompany {
+  name: string;
   level: AgentDisclosureLevel;
-  /** Every employer name on the user's work history. */
-  companyNames: readonly string[];
+}
+
+export interface BuildBlockedTermsInput {
+  /** Every employer on the user's work history, each with its own level. */
+  companies: readonly DisclosureCompany[];
   /** Extra terms the user typed into settings (client codenames, project names). */
   userBlockedTerms: readonly string[];
 }
 
 /**
- * The effective denylist for a level.
+ * The effective denylist.
  *
- * At `summary` the employer names themselves are blocked — that IS the level.
- * At `detailed` and `full` the employer may be named, so only the user's own
- * terms survive; `full` is "no LinkHub-side restriction", which still means the
- * user's explicit denylist is honoured, because they asked for it.
+ * An employer is blocked when ITS OWN role is at `summary` — that IS the level.
+ * At `detailed` and `full` that employer may be named, so it drops off the
+ * list; `full` is "no LinkHub-side restriction", which still means the user's
+ * explicit denylist is honoured, because they asked for it.
+ *
+ * The level is per employer and never a single scalar for the whole list.
+ * Raising ONE role to `full` — an open-source stint, a client that already
+ * announced the work — says "you may name THIS employer". It must not un-block
+ * the employer the user deliberately left at `summary`, whichever role the text
+ * being checked happens to be attributed to.
  */
 export function buildBlockedTerms({
-  level,
-  companyNames,
+  companies,
   userBlockedTerms,
 }: BuildBlockedTermsInput): string[] {
-  const terms =
-    level === "summary" ? [...companyNames, ...userBlockedTerms] : [...userBlockedTerms];
+  const terms = [
+    ...companies
+      .filter((company) => company.level === "summary")
+      .map((company) => company.name),
+    ...userBlockedTerms,
+  ];
 
   const seen = new Set<string>();
   const result: string[] = [];
@@ -152,4 +166,26 @@ export function resolveEffectiveLevel(
   roleOverride?: AgentDisclosureLevel | null,
 ): AgentDisclosureLevel {
   return roleOverride ?? accountLevel ?? DEFAULT_AGENT_DISCLOSURE_LEVEL;
+}
+
+/** A role, as far as the denylist is concerned. */
+export interface DisclosureRole {
+  companyName: string;
+  disclosureLevel?: AgentDisclosureLevel | null;
+}
+
+/**
+ * Pairs every employer on the history with the level in force for its own role,
+ * ready for `buildBlockedTerms`. Kept here so the write path (posts), the read
+ * path (work context) and the digest path can never disagree about which
+ * employer a given level actually speaks for.
+ */
+export function resolveDisclosureCompanies(
+  accountLevel: AgentDisclosureLevel | null | undefined,
+  roles: readonly DisclosureRole[],
+): DisclosureCompany[] {
+  return roles.map((role) => ({
+    name: role.companyName,
+    level: resolveEffectiveLevel(accountLevel, role.disclosureLevel),
+  }));
 }

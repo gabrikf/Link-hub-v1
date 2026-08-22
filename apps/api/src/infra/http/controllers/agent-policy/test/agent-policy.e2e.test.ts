@@ -447,6 +447,29 @@ describe("Agent policy E2E", () => {
       expect(response.json().workExperienceId).toBe(role.id);
     });
 
+    it("rejects a post attributed to a full role that names a summary employer", async () => {
+      // The whole point of a per-role level: raising ONE role says "you may
+      // name THIS employer", never "you may name all of them".
+      const { user, token } = await authedUser();
+      const open = await seedRole(user, "Open Source Co", "full");
+      await seedRole(user, "Acme Corp", null, { displayOrder: 1 });
+      const pat = await mintPat(token);
+
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/me/posts",
+        headers: { ...JSON_HEADERS, authorization: `Bearer ${pat}` },
+        body: JSON.stringify({
+          source: "mcp",
+          body: "Cut a release at Acme Corp this week.",
+          workExperienceId: open.id,
+        }),
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().message as string).toContain("Acme Corp");
+    });
+
     it("rejects an agent post that names the employer only in externalUrl", async () => {
       const { user, token } = await authedUser();
       await seedRole(user, "Nubank");

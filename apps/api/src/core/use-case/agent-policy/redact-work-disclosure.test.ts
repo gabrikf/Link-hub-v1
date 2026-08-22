@@ -4,14 +4,22 @@ import {
   buildBlockedTerms,
   findDisclosureViolations,
   redactText,
+  resolveDisclosureCompanies,
   resolveEffectiveLevel,
 } from "./redact-work-disclosure.js";
+
+/** Every employer on one level — the shape the old scalar-level API implied. */
+function companiesAt(
+  level: "summary" | "detailed" | "full",
+  names: string[],
+): { name: string; level: "summary" | "detailed" | "full" }[] {
+  return names.map((name) => ({ name, level }));
+}
 
 describe("buildBlockedTerms", () => {
   it("blocks every employer name plus the user's terms at summary level", () => {
     const terms = buildBlockedTerms({
-      level: "summary",
-      companyNames: ["Acme Corp", "Nubank"],
+      companies: companiesAt("summary", ["Acme Corp", "Nubank"]),
       userBlockedTerms: ["Project Falcon"],
     });
 
@@ -20,8 +28,7 @@ describe("buildBlockedTerms", () => {
 
   it("drops employer names at detailed level — naming the employer IS the level", () => {
     const terms = buildBlockedTerms({
-      level: "detailed",
-      companyNames: ["Acme Corp", "Nubank"],
+      companies: companiesAt("detailed", ["Acme Corp", "Nubank"]),
       userBlockedTerms: ["Project Falcon"],
     });
 
@@ -31,25 +38,34 @@ describe("buildBlockedTerms", () => {
   it("blocks nothing but the user's own terms at full level", () => {
     expect(
       buildBlockedTerms({
-        level: "full",
-        companyNames: ["Acme Corp"],
+        companies: companiesAt("full", ["Acme Corp"]),
         userBlockedTerms: ["Project Falcon"],
       }),
     ).toEqual(["Project Falcon"]);
 
     expect(
       buildBlockedTerms({
-        level: "full",
-        companyNames: ["Acme Corp"],
+        companies: companiesAt("full", ["Acme Corp"]),
         userBlockedTerms: [],
       }),
     ).toEqual([]);
   });
 
+  it("keeps a summary employer blocked while a full one beside it is not", () => {
+    const terms = buildBlockedTerms({
+      companies: [
+        { name: "VTEX", level: "full" },
+        { name: "PagBank", level: "summary" },
+      ],
+      userBlockedTerms: [],
+    });
+
+    expect(terms).toEqual(["PagBank"]);
+  });
+
   it("ignores empty, whitespace-only and single-character terms", () => {
     const terms = buildBlockedTerms({
-      level: "summary",
-      companyNames: ["", "   ", "X"],
+      companies: companiesAt("summary", ["", "   ", "X"]),
       userBlockedTerms: ["A", "ok"],
     });
 
@@ -58,8 +74,7 @@ describe("buildBlockedTerms", () => {
 
   it("de-duplicates case-insensitively, keeping the first spelling", () => {
     const terms = buildBlockedTerms({
-      level: "summary",
-      companyNames: ["Acme", "ACME", "acme"],
+      companies: companiesAt("summary", ["Acme", "ACME", "acme"]),
       userBlockedTerms: ["AcMe"],
     });
 
@@ -69,11 +84,30 @@ describe("buildBlockedTerms", () => {
   it("trims surrounding whitespace so ' Acme ' and 'Acme' are one rule", () => {
     expect(
       buildBlockedTerms({
-        level: "summary",
-        companyNames: [" Acme "],
+        companies: companiesAt("summary", [" Acme "]),
         userBlockedTerms: ["Acme"],
       }),
     ).toEqual(["Acme"]);
+  });
+});
+
+describe("resolveDisclosureCompanies", () => {
+  it("gives each employer the level of its OWN role, not one shared level", () => {
+    expect(
+      resolveDisclosureCompanies("summary", [
+        { companyName: "VTEX", disclosureLevel: "full" },
+        { companyName: "PagBank", disclosureLevel: null },
+      ]),
+    ).toEqual([
+      { name: "VTEX", level: "full" },
+      { name: "PagBank", level: "summary" },
+    ]);
+  });
+
+  it("falls back to the strictest level when nothing is set at all", () => {
+    expect(
+      resolveDisclosureCompanies(null, [{ companyName: "Acme Corp" }]),
+    ).toEqual([{ name: "Acme Corp", level: "summary" }]);
   });
 });
 

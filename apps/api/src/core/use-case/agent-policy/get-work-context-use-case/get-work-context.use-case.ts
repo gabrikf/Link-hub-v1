@@ -4,8 +4,10 @@ import type { WorkExperienceEntity } from "../../../entity/work-experience/work-
 import type { IUsersRepository } from "../../../repositories/user/user-repository.js";
 import type { IWorkExperienceRepository } from "../../../repositories/work-experience/work-experience-repository.js";
 import {
+  type DisclosureCompany,
   buildBlockedTerms,
   redactText,
+  resolveDisclosureCompanies,
   resolveEffectiveLevel,
 } from "../redact-work-disclosure.js";
 
@@ -186,12 +188,15 @@ export class GetWorkContextUseCase {
     const workExperiences =
       await this.workExperienceRepository.findByUserId(userId);
 
-    const companyNames = workExperiences.map((role) => role.companyName);
+    const companies = resolveDisclosureCompanies(
+      user.agentDisclosureLevel,
+      workExperiences,
+    );
 
     return {
       disclosureLevel: user.agentDisclosureLevel,
       roles: workExperiences.map((role) =>
-        this.toRole(role, user.agentDisclosureLevel, user.agentBlockedTerms, companyNames),
+        this.toRole(role, user.agentDisclosureLevel, user.agentBlockedTerms, companies),
       ),
     };
   }
@@ -200,15 +205,15 @@ export class GetWorkContextUseCase {
     role: WorkExperienceEntity,
     accountLevel: AgentDisclosureLevel,
     userBlockedTerms: string[],
-    companyNames: string[],
+    companies: DisclosureCompany[],
   ): WorkContextRole {
     const level = resolveEffectiveLevel(accountLevel, role.disclosureLevel);
 
-    // Every employer name is on the denylist at summary level, not just this
-    // role's: a post about job A that name-drops job B leaks just as much.
+    // Every employer whose OWN role is at summary is on the denylist, not just
+    // this role's: text about job A that name-drops job B leaks just as much,
+    // and job A being raised to `full` says nothing about job B.
     const blockedTerms = buildBlockedTerms({
-      level,
-      companyNames,
+      companies,
       userBlockedTerms,
     });
 

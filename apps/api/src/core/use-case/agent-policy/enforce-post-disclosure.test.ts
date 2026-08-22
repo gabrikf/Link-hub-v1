@@ -197,6 +197,28 @@ describe("assertPostRespectsDisclosure — a permissive role must not un-block t
     ).toThrow(/PagBank/);
   });
 
+  /**
+   * The mirror of the rule, and a deliberate loosening: the denylist now asks
+   * "is THIS employer's role at summary?", so a role the user raised to `full`
+   * may be named even when the post is not attributed to it. That matches what
+   * `GET /me/work-context` already hands the agent — it returns a `full` role's
+   * companyName in cleartext regardless of attribution — and matches what the
+   * user said by raising that role.
+   */
+  it("allows naming a full-level employer in a post attributed to no role", () => {
+    const user = userAt("summary");
+    const open = roleAt(user.id, "VTEX", "full");
+    const underNda = roleAt(user.id, "PagBank");
+
+    expect(() =>
+      assertPostRespectsDisclosure({
+        user,
+        workExperiences: [open, underNda],
+        body: "Shipped a reconciliation ledger at VTEX this quarter.",
+      }),
+    ).not.toThrow();
+  });
+
   it("still allows naming the attributed employer itself", () => {
     const user = userAt("summary");
     const open = roleAt(user.id, "VTEX", "full");

@@ -59,17 +59,35 @@ export async function resolveConnectionDisclosure(
     role?.disclosureLevel ?? connection.disclosureLevelOverride,
   );
 
+  // Two rules, and the denylist obeys whichever is stricter.
+  //
+  // The resolved level speaks for the ATTRIBUTED role only — that is the role
+  // the connection's override was set for. Every OTHER employer keeps the level
+  // of its own role, so a connection at `full` cannot name the employer the
+  // user deliberately left at `summary`. And a digest that is itself at
+  // `summary` still blocks EVERY name on the history, not just its own
+  // employer's: naming a different employer leaks just as much.
+  const companies = workExperiences.map((item) => {
+    if (item.id === workExperienceId) {
+      return { name: item.companyName, level };
+    }
+
+    return {
+      name: item.companyName,
+      level:
+        level === "summary"
+          ? level
+          : resolveEffectiveLevel(user.agentDisclosureLevel, item.disclosureLevel),
+    };
+  });
+
   return {
     user,
     workExperiences,
     workExperienceId,
     level,
-    // EVERY company name on the history is blocked at `summary`, not just this
-    // connection's own employer. A digest that named a different employer
-    // would leak just as much.
     blockedTerms: buildBlockedTerms({
-      level,
-      companyNames: workExperiences.map((item) => item.companyName),
+      companies,
       userBlockedTerms: user.agentBlockedTerms,
     }),
   };

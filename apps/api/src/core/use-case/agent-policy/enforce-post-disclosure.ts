@@ -7,6 +7,7 @@ import type { IWorkExperienceRepository } from "../../repositories/work-experien
 import {
   buildBlockedTerms,
   findDisclosureViolations,
+  resolveDisclosureCompanies,
   resolveEffectiveLevel,
 } from "./redact-work-disclosure.js";
 
@@ -56,10 +57,13 @@ function buildViolationMessage(
   const quoted = violations.map((term) => `"${term}"`).join(", ");
 
   return (
-    `Post mentions ${quoted}, which your disclosure level (${level}) does not allow. ` +
+    `Post mentions ${quoted}, which your disclosure settings do not allow. ` +
+    `Each employer follows the level of its own role (this post's level is "${level}") ` +
+    `and your own blocked terms always apply, so raising one role never un-blocks another. ` +
     `Describe the capability without naming the employer or client — what you built, ` +
-    `the stack, the practices and the outcome are all still allowed — or raise your ` +
-    `disclosure level in LinkHub settings under "What your agent may share".`
+    `the stack, the practices and the outcome are all still allowed — or raise the ` +
+    `disclosure level of the role in question in LinkHub settings under ` +
+    `"What your agent may share".`
   );
 }
 
@@ -86,9 +90,13 @@ export function assertPostRespectsDisclosure(
     role?.disclosureLevel,
   );
 
+  // Per employer, never a single level for the whole list: attributing the post
+  // to a `full` role must not un-block the employer still sitting at `summary`.
   const blockedTerms = buildBlockedTerms({
-    level,
-    companyNames: input.workExperiences.map((item) => item.companyName),
+    companies: resolveDisclosureCompanies(
+      input.user.agentDisclosureLevel,
+      input.workExperiences,
+    ),
     userBlockedTerms: input.user.agentBlockedTerms,
   });
 
