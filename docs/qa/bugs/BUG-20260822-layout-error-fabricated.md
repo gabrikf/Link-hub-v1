@@ -152,3 +152,47 @@ psql: this bug lives entirely in the web client's handling of a failed response.
 markup from `shared-components/route-states.tsx` (acceptable — `RouteErrorState`
 is the router's `defaultErrorComponent` and reloads rather than refetches), and
 `role="alert"` on the `<h1>` costs it its heading role.
+
+## Attempt 2 (`cf0ae21` → `9ec1639`) — 2026-08-22 (loop iteration 25)
+
+Addresses the iteration-24 rejection and nothing else. Everything reviewed clean
+in `905fcee` is kept as-is.
+
+**Red (`cf0ae21`).** The reviewer's probe promoted into
+`apps/web/src/features/profile-layout/pages/profile-layout-page.test.tsx` as a
+fourth case: load the layout, then reject `fetchLayout` and invalidate
+`["layout"]` — exactly what `invalidateLayout()` does after a successful save —
+and assert the editor survives. `renderPage()` now also returns the
+`QueryClient` so the test can invalidate; no existing assertion changed.
+
+```
+× keeps the editor when a background refetch fails but the layout is already loaded
+  → expected 'Couldn\'t load your layout…' not to match /couldn.?t load|could not load|failed to load/i
+Test Files  1 failed (1)      Tests  1 failed | 3 passed (4)
+```
+
+The failure is the regression itself — the error screen replacing a loaded
+editor — not a harness fault; the other three cases stay green throughout.
+
+**Fix (`9ec1639`).** The early return becomes:
+
+```ts
+if (layoutQuery.isError && !full) { return <LayoutLoadFailed … /> }
+```
+
+The condition is now a claim about the layout being **absent**, not about a
+request having failed. `buildDefaultLayout` is only reached when `full` is
+`undefined`, so that is precisely the case worth an error screen; with data in
+the cache nothing is fabricated and the editor must keep working, stale or not.
+
+Also moves `role="alert"` off the `<h1>` onto a wrapping `<div>` so the heading
+keeps its heading role (the non-blocking note from the review).
+
+`Tests 4 passed (4)`; `guardrails PASS` (46.6s, i18n-parity skipped as always).
+
+**Not verified:** still nothing walked in a browser — port 3333 serves an
+unrelated api, so Playwright and the visual runner were not run and the error
+state has never been *seen* in either theme. No psql; this bug is entirely
+client-side. The stale-refetch path is asserted at the render layer only, not
+against a live api. `e2e/journeys/05-profile-appearance.spec.ts:874-877` still
+asserts the old fabricated-default behaviour — still open, still for a human.
