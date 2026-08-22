@@ -10,8 +10,8 @@ highest-value lane not yet covered. Run **one** lane per iteration:
 
 | Lane | What it is |
 |---|---|
-| `deep-review` | Invoke the project skill `/deep-review --base develop`. It reviews the branch diff against this repo's own rubric and the six LinkHub priorities. |
-| `qa-execution` | Invoke the project skill `/qa-execution`. A persona walks a journey in the browser, in both themes, and reports what a real user experiences. |
+| `deep-review` | Follow `.claude/skills/deep-review/SKILL.md` against `--base develop`. It reviews the branch diff against this repo's own rubric and the six LinkHub priorities. |
+| `qa-execution` | Follow `.claude/skills/qa-execution/SKILL.md`. A persona walks a journey in the browser, in both themes, and reports what a real user experiences. |
 | `journey-probe` | Drive the five journey specs' surfaces harder than the specs do: edge inputs, back/forward, double-submit, refresh mid-flow, slow network (`page.route` with a delay), session expiry. |
 | `perf-cost` | Measure. Request counts per user action, duplicate queries, N+1 through Drizzle, unbounded OpenAI calls, payload sizes, React re-render counts. Numbers or it did not happen. |
 | `responsive-dark` | Every screen at 390px and 1440px, in light and dark. Horizontal scroll, unreadable text from a missing `dark:` variant, overlapping controls, tap targets. |
@@ -27,6 +27,27 @@ uncovered so the report can say so honestly.
 **Use subagents.** Fan out 3–5 of them within your lane (one per area or per
 screen) and merge their findings. Give each one the "real user impact" bar
 below, and tell each to return evidence, not opinions.
+
+### How to run a skill lane
+
+`qa-report`, `qa-execution` and `deep-review` are all marked
+`disable-model-invocation: true`, which means **you cannot invoke them with the
+Skill tool** — the attempt will simply not be available to you. That is not a
+bug and it is not a reason to skip the lane.
+
+Instead, **read the skill's `SKILL.md` in full and execute its procedure
+yourself**, following its `references/` files as it instructs:
+
+```bash
+cat .claude/skills/deep-review/SKILL.md
+cat .claude/skills/qa-execution/SKILL.md
+cat .claude/skills/qa-report/SKILL.md
+```
+
+`deep-review` ships bundled Python scripts under
+`.claude/skills/deep-review/scripts/` (stdlib only, `python3` is 3.12) — run
+them exactly as its Procedure says, with `--out .deep-review/nightly/`. Its
+runtime here is `native`; never pass `--subagent`, `compozy` is not installed.
 
 ### The bar — read this twice
 

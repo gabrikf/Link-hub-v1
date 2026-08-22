@@ -38,10 +38,16 @@ record here, so record what you actually observed, not what you expected.
    ```
    Record pass/fail counts per workspace in MEMORY.md.
 
-4. **Bootstrap the living QA docs tree** if `docs/qa/` does not exist. Invoke
-   the project skill `/qa-report` and let it own the tree's structure —
-   personas, journeys, session charters, the bug registry. Do not invent your
-   own layout. If the tree already exists, read its README and leave it alone.
+4. **Bootstrap the living QA docs tree** if `docs/qa/` does not exist.
+   `qa-report` is marked `disable-model-invocation: true`, so you **cannot**
+   invoke it with the Skill tool. Read it and execute its procedure yourself:
+   ```bash
+   cat .claude/skills/qa-report/SKILL.md
+   ```
+   Let it own the tree's structure — personas, journeys, session charters, the
+   bug registry — following its `references/qa-docs-layout.md`. Do not invent
+   your own layout. If the tree already exists, read its README and leave it
+   alone.
 
 5. **Record the baseline** in MEMORY.md under a new `## Iteration N — BOOTSTRAP`
    heading: gate result, e2e pass/fail per file, unit-test counts per

@@ -29,8 +29,10 @@ Always return to `nightly/qa-hardening` before you finish, whatever you decide.
 
 ### 2. Review the fix itself
 
-Run `/deep-review --base <red_commit>` over the fix commit, and additionally
-judge it by hand against:
+Follow `.claude/skills/deep-review/SKILL.md` with `--base <red_commit>` over the
+fix commit (you cannot invoke it with the Skill tool — it is
+`disable-model-invocation: true`; read the SKILL.md and run its procedure).
+Additionally judge the fix by hand against:
 
 - **Root cause, not symptom.** Would the bug come back through a slightly
   different path? Is the real defect still there with its signal muted? Look for

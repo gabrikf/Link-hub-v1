@@ -107,6 +107,30 @@ live in `scripts/nightly/state.mjs` rather than being re-implemented in shell.
 | Consecutive failed iterations | 3 | Routes to `REPORT` — the loop itself is broken, not the code. |
 | Illegal phase transition | — | Refused; the iteration counts as failed. An agent does not get to reroute the night. |
 | Dead dev server | — | The orchestrator health-checks :3333 and :5173 each iteration and restarts them. |
+| Stale state from a previous run | — | `preflight` refuses to resume a finished or past-deadline `.nightly/` and tells you to pass `--fresh`. |
+
+### The Stop hook
+
+This repo runs the gate on Claude Code's `Stop` hook, so it fires when an
+iteration tries to finish. That is exactly right for `FIX`, which must leave the
+tree green — but `BOOTSTRAP`, `HUNT` and `TRIAGE` deliberately leave failing
+tests on disk as *evidence*, and the hook would push them into fixing things
+outside their phase.
+
+The preamble therefore tells non-FIX iterations to record the failure as a
+candidate and stop again rather than fix it. The gate's own three-attempt loop
+guard lets the third stop through with a warning. Burning those attempts is the
+intended cost of keeping the phases honest, and it is why `--iteration-timeout`
+has headroom.
+
+### Skills that cannot be model-invoked
+
+`qa-report`, `qa-execution` and `deep-review` are all
+`disable-model-invocation: true` — a headless agent **cannot** reach them
+through the Skill tool. The phase prompts therefore tell iterations to read
+`.claude/skills/<name>/SKILL.md` and execute its procedure directly, including
+`deep-review`'s bundled stdlib-Python scripts. Without that instruction those
+lanes would silently degrade into an agent improvising its own review.
 
 ---
 

@@ -121,6 +121,19 @@ NON-NEGOTIABLE RULES FOR EVERY ITERATION
   - There is NO i18n in this repo. Never invent t() calls or report a missing
     translation.
 
+THE STOP HOOK
+  This repo runs \`scripts/guardrails/pre-push.mjs\` on the Claude Code Stop hook,
+  so the gate fires when you try to finish. That is correct for FIX, which must
+  leave the tree green. For every other phase it can be WRONG: BOOTSTRAP, HUNT
+  and TRIAGE deliberately leave failing tests on disk as evidence.
+
+  If the hook blocks you over a failure your iteration did NOT cause:
+    - do NOT fix it to get past the hook,
+    - record it as a candidate in QUEUE.json if it is not already there,
+    - write it to MEMORY.md, and stop again.
+  The gate lets the third consecutive stop through with a warning. Burning those
+  three attempts is the intended cost of keeping the phases honest.
+
 BEFORE YOU STOP, you MUST:
   a. Append what you LEARNED to .nightly/MEMORY.md (append; never rewrite it).
   b. Update .nightly/QUEUE.json with any queue changes.
