@@ -129,12 +129,81 @@ live in `scripts/nightly/state.mjs` rather than being re-implemented in shell.
 | Per-iteration cost | `--max-budget-usd` (default $8) | The CLI stops that iteration. |
 | Per-iteration wall clock | 3600s | `timeout` kills it; the iteration is closed as failed. |
 | Total budget | `--budget-usd` | Routes to `REPORT` — never a hard stop with no write-up. |
-| Deadline | `--hours` | Routes to `REPORT`. A night that ends with findings and no report wasted the night. |
+| Deadline | `--hours` | Routes to `REPORT`. A night that ends with findings and no report wasted the night. Extended by any time spent waiting on a plan limit. |
+| Plan usage limit | `--max-limit-wait-hours` (6) | Waits for the reset and resumes the same phase. Not counted as a failure. |
+| API-key billing | — | Refused by default: the API-billing env vars are stripped from every child process. `--allow-api-billing` opts in. |
 | Rejected fixes on one bug | 3 | Auto-escalates the bug, releases the claim, returns to `TRIAGE`. |
 | Consecutive failed iterations | 3 | Routes to `REPORT` — the loop itself is broken, not the code. |
 | Illegal phase transition | — | Refused; the iteration counts as failed. An agent does not get to reroute the night. |
 | Dead dev server | — | The orchestrator health-checks :3333 and :5173 each iteration and restarts them. |
 | Stale state from a previous run | — | `preflight` refuses to resume a finished or past-deadline `.nightly/` and tells you to pass `--fresh`. |
+
+### Billing: plan tokens, never dollars
+
+This loop is built to run on a **Claude subscription**. `claude` bills one of two
+ways — OAuth against a plan, or per-token USD via `ANTHROPIC_API_KEY` / Bedrock /
+Vertex — and an 8-hour unattended fan-out is the worst possible time to discover
+a stray API key in your environment.
+
+So every `claude` call goes through one wrapper, `run_claude`, which strips
+`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `AWS_BEARER_TOKEN_BEDROCK` from
+the child environment (`env -u` — your shell is untouched). Preflight prints the
+route it detected before spending anything:
+
+```
+  billing: OAuth as you@example.com (billingType=stripe_subscription)
+  billing: extra usage disabled — plan limits refuse rather than bill
+```
+
+That second line is the load-bearing one. With extra usage **disabled**, hitting
+the plan limit *refuses* the request; with it **enabled**, the overage is charged
+in real dollars. Pass `--allow-api-billing` only if you genuinely want per-token
+billing.
+
+`--budget-usd` and `--max-budget-usd` still work, but on a subscription the
+figure they cap is Claude Code's **notional** cost estimate, not money leaving
+your account. Treat them as a throttle, not a bill.
+
+### Plan usage limits: wait, then resume
+
+Claude plans refill on a rolling window. Hitting that limit is a **clock, not a
+defect** — so the loop waits it out and resumes the same phase rather than
+treating it as a failed iteration:
+
+1. `run_iteration` returns `75` when the response looks like a usage limit
+   (`usage limit`, `rate limit`, `429`, `quota exceeded`) — distinguished from a
+   real crash, which still counts as a failure.
+2. It reads the reset moment from the error when one is present
+   (`usage limit reached|<epoch>`), and waits until 60s past it. With no
+   timestamp it falls back to 30 minutes and re-checks.
+3. It sleeps in **one-minute slices**, so `run.sh stop` still works during a
+   multi-hour wait and the log shows the loop is alive rather than hung.
+4. `note-limit-wait` records the pause, leaves `consecutive_failures` at zero,
+   and **extends the deadline by the time waited** — the deadline bounds *work*,
+   not wall-clock, so a reset window should not eat the hunting hours.
+
+Total waiting is capped by `--max-limit-wait-hours` (default 6). Past the cap the
+loop routes to `REPORT` so the night still produces a write-up. And if the limit
+is hit *during* `REPORT` with no wait budget left, the run **ends** rather than
+re-routing to `REPORT` forever against an empty plan — every finding is already
+in `QUEUE.json`, and preflight will resume a stranded `REPORT` automatically on
+the next start (rather than making you pass `--fresh`, which would archive the
+queue and lose it).
+
+Disable the behaviour with `--no-resume-after-limit`.
+
+### Per-phase models
+
+On a plan the binding constraint is your **usage allowance**, so spending the
+expensive model on "run these commands and write down the output" is how a night
+runs out of allowance before it runs out of bugs.
+
+| Phase | Model | Why |
+|---|---|---|
+| `BOOTSTRAP`, `REGRESSION` | `sonnet` | Mechanical: run suites, record results, compare to baseline. |
+| `HUNT`, `TRIAGE`, `FIX`, `REVIEW_FIX`, `REPORT` | `opus` | Judgment: finding real bugs, holding the impact bar, fixing causes, adversarial review. |
+
+Override with `--model`, `--model-cheap`, or `--model-all <one model everywhere>`.
 
 ### The Stop hook
 
@@ -184,13 +253,13 @@ re-litigate it.
 ## Running it
 
 ```bash
-npm run nightly -- --hours 8 --budget-usd 60
+npm run nightly -- --hours 8
 ```
 
 Detached, so it survives your terminal:
 
 ```bash
-nohup bash scripts/nightly/run.sh start --hours 8 --budget-usd 60 > .nightly/logs/run.log 2>&1 &
+nohup bash scripts/nightly/run.sh start --hours 8 > .nightly/logs/run.log 2>&1 &
 ```
 
 Watch it:
@@ -217,8 +286,9 @@ git diff --stat develop..nightly/qa-hardening
 
 ### What it needs
 
-- `claude` CLI on PATH, and permission to run unattended (`--permission-mode
-  bypassPermissions`) — it edits files and commits without asking.
+- `claude` CLI on PATH **signed in to a Claude subscription**, and permission to
+  run unattended (`--permission-mode bypassPermissions`) — it edits files and
+  commits without asking. Preflight confirms the billing route before spending.
 - The docker stack up (it starts it if not), and a seeded database.
 - Playwright's chromium (`npx playwright install chromium`).
 - A funded `OPENAI_API_KEY` for the embedding-backed search and resume-import

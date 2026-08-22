@@ -120,6 +120,10 @@ function init(args) {
       fix_attempts: 0,
       max_fix_attempts: MAX_FIX_ATTEMPTS,
       hunt_rounds: 0,
+      /* Claude plan usage limits — see noteLimitWait(). */
+      limit_waits: 0,
+      limit_wait_seconds: 0,
+      max_limit_wait_seconds: Number(flag(args, "--max-limit-wait-hours") ?? 6) * 3600,
     },
     /** The bug the FIX / REVIEW_FIX pair is currently working. */
     current_bug_id: null,
@@ -301,6 +305,60 @@ function endIteration(args) {
 }
 
 /**
+ * Records a pause for a Claude plan usage limit.
+ *
+ * A usage limit is NOT a failure: nothing is wrong with the code, the loop, or
+ * the iteration's reasoning — the allowance simply reset-timer'd out. Counting
+ * it against `consecutive_failures` would burn the three-strikes guard in three
+ * quick retries and end the night at 1am with hours of allowance still to come.
+ *
+ * It also extends the deadline by the time spent waiting, because the deadline
+ * exists to bound WORK, not wall-clock. A run asked for 8 hours of hunting
+ * should not lose 3 of them to a reset window. `max_limit_wait_seconds` caps the
+ * total extension so an exhausted account cannot keep a run alive indefinitely.
+ */
+function noteLimitWait(args) {
+  const state = readState();
+  if (!state) return 1;
+  const seconds = Math.max(0, Number(flag(args, "--seconds") ?? 0));
+
+  state.guards.limit_waits = (state.guards.limit_waits ?? 0) + 1;
+  const waitedSoFar = (state.guards.limit_wait_seconds ?? 0) + seconds;
+  state.guards.limit_wait_seconds = waitedSoFar;
+
+  const cap = state.guards.max_limit_wait_seconds ?? 6 * 3600;
+  let extendedBy = 0;
+  if (waitedSoFar <= cap) {
+    extendedBy = seconds;
+    state.deadline_at = new Date(Date.parse(state.deadline_at) + seconds * 1000).toISOString();
+  }
+
+  state.history.push({
+    iteration: state.iteration,
+    from: state.phase,
+    to: state.phase,
+    outcome: "paused",
+    note: `plan usage limit — waited ${seconds}s${extendedBy ? `, deadline extended by ${extendedBy}s` : ", deadline NOT extended (wait cap reached)"}`,
+    ended_at: new Date().toISOString(),
+  });
+  writeState(state);
+  console.log(
+    `paused for usage limit: waited ${seconds}s (total ${waitedSoFar}s of ${cap}s cap)${extendedBy ? `, deadline -> ${state.deadline_at}` : ""}`,
+  );
+  return 0;
+}
+
+/** True when the loop has already spent its whole allowance of waiting. */
+function limitWaitBudgetLeft() {
+  const state = readState();
+  if (!state) return 1;
+  const cap = state.guards.max_limit_wait_seconds ?? 6 * 3600;
+  const used = state.guards.limit_wait_seconds ?? 0;
+  console.log(String(Math.max(0, cap - used)));
+  return 0;
+}
+
+/**
  * The loop's only stop authority. Bash asks this before every iteration so the
  * guards live in one place instead of being re-implemented in shell.
  */
@@ -374,6 +432,7 @@ function summary() {
       `deadline   ${state.deadline_at} (${remaining} min left)`,
       `budget     $${state.budget.spent_usd} / $${state.budget.total_usd || "unlimited"}`,
       `guards     failures=${state.guards.consecutive_failures} fix_attempts=${state.guards.fix_attempts} hunt_rounds=${state.guards.hunt_rounds}`,
+      `limits     waits=${state.guards.limit_waits ?? 0} waited=${Math.round((state.guards.limit_wait_seconds ?? 0) / 60)}min of ${Math.round((state.guards.max_limit_wait_seconds ?? 21600) / 60)}min cap`,
       `queue      candidates=${queue.candidates.length} confirmed=${queue.confirmed.length} fixed=${queue.fixed.length} escalated=${queue.escalated.length} rejected=${queue.rejected.length}`,
       `current    ${state.current_bug_id ?? "-"}`,
     ].join("\n"),
@@ -381,7 +440,17 @@ function summary() {
   return 0;
 }
 
-const COMMANDS = { init, get, set, "begin-iteration": beginIteration, "end-iteration": endIteration, "should-continue": shouldContinue, summary };
+const COMMANDS = {
+  init,
+  get,
+  set,
+  "begin-iteration": beginIteration,
+  "end-iteration": endIteration,
+  "note-limit-wait": noteLimitWait,
+  "limit-wait-budget-left": limitWaitBudgetLeft,
+  "should-continue": shouldContinue,
+  summary,
+};
 
 const [command, ...args] = process.argv.slice(2);
 if (!COMMANDS[command]) {

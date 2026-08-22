@@ -34,11 +34,35 @@ HOURS=8
 BUDGET_USD=0
 PER_ITERATION_USD=8
 MODEL="opus"
+# Mechanical phases do not need the expensive model. On a Claude subscription
+# the binding constraint is the PLAN's usage limit, not dollars, so spending
+# Opus on "run these commands and write down the output" is how a night runs
+# out of allowance before it runs out of bugs. Override with --model-cheap, or
+# force one model everywhere with --model-all.
+MODEL_CHEAP="sonnet"
+MODEL_FORCED=""
 # A single unit of work should never need an hour. A run that does is stuck, and
 # a stuck iteration burns budget without producing state.
 ITERATION_TIMEOUT_SECONDS=3600
 # Wipe .nightly/ and start a genuinely new night rather than resuming.
 FRESH=0
+# Opt in to per-token USD billing. Off by default: this loop is meant to run on
+# a Claude subscription, and an ANTHROPIC_API_KEY sitting in the environment
+# would silently bill real money for an 8-hour unattended run.
+ALLOW_API_BILLING=0
+# Claude plans refill on a rolling ~5-hour window. Hitting that limit is not a
+# failure of the code or the loop — it is a clock. So the loop WAITS for the
+# reset and resumes the same phase, instead of burning its three-strikes guard
+# on three instant retries and ending the night early.
+RESUME_AFTER_LIMIT=1
+# Total time the loop may spend waiting across the whole run. Past this it stops
+# extending the deadline, so an exhausted account cannot keep a run alive forever.
+MAX_LIMIT_WAIT_HOURS=6
+# How long to wait when the limit message carries no reset timestamp.
+LIMIT_WAIT_FALLBACK_SECONDS=1800
+# Set by run_iteration when it returns 75, read by the main loop.
+LAST_LIMIT_STDOUT=""
+LAST_LIMIT_STDERR=""
 
 API_URL="http://localhost:3333"
 WEB_URL="http://localhost:5173"
@@ -84,6 +108,97 @@ ensure_stack() {
   fi
   wait_for_url "$API_URL/docs" "api"
   wait_for_url "$WEB_URL" "web"
+}
+
+# ──────────────────────────── plan usage limits ────────────────────────────
+
+# Claude Code reports an exhausted plan window as a usage-limit error, often
+# carrying the reset moment as a unix epoch after a pipe:
+#   "Claude AI usage limit reached|1755901234"
+# Echoes that epoch when present, nothing when not.
+limit_reset_epoch() {
+  grep -hoE 'usage limit reached\|[0-9]{10,}' "$@" 2>/dev/null | head -1 | cut -d'|' -f2
+}
+
+# Distinguishes "your allowance ran out" from "the iteration failed". Only the
+# former should pause the loop; treating a genuine crash as a limit would make
+# the loop sleep through a real problem.
+looks_like_usage_limit() {
+  grep -qiE 'usage limit|rate.?limit|too many requests|429|quota exceeded' "$@" 2>/dev/null
+}
+
+# Sleeps in one-minute slices so `run.sh stop` still takes effect during a
+# multi-hour wait, and so the log shows the loop is alive rather than hung.
+# Returns 1 if the run was stopped mid-wait.
+wait_for_reset() {
+  local seconds="$1" waited=0 chunk
+  while [ "$waited" -lt "$seconds" ]; do
+    if [ ! -f "$PIDFILE" ]; then
+      log "stop requested during the usage-limit wait — exiting"
+      return 1
+    fi
+    chunk=60
+    [ $((seconds - waited)) -lt 60 ] && chunk=$((seconds - waited))
+    sleep "$chunk"
+    waited=$((waited + chunk))
+    if [ $((waited % 900)) -eq 0 ]; then
+      log "  still waiting for the plan window: $((waited / 60))/$((seconds / 60)) min"
+    fi
+  done
+  return 0
+}
+
+# Decides how long to wait, waits, and records it. Returns 1 to end the run.
+handle_usage_limit() {
+  local stdout_file="$1" stderr_file="$2"
+
+  # REPORT needs allowance too. If we are ALREADY in REPORT and still limited,
+  # routing to REPORT again would spin forever against an empty plan — so end the
+  # run and leave the state files, which already hold every finding, on disk.
+  local current_phase; current_phase="$($STATE_CLI get phase)"
+
+  if [ "$RESUME_AFTER_LIMIT" -ne 1 ]; then
+    if [ "$current_phase" = "REPORT" ]; then
+      log "plan usage limit hit during REPORT with resume disabled — ending the run."
+      return 1
+    fi
+    log "plan usage limit hit and --no-resume-after-limit was passed — routing to REPORT"
+    $STATE_CLI set phase '"REPORT"'
+    return 0
+  fi
+
+  local budget_left; budget_left="$($STATE_CLI limit-wait-budget-left)"
+  if [ "${budget_left:-0}" -le 0 ]; then
+    if [ "$current_phase" = "REPORT" ]; then
+      log "plan usage limit hit during REPORT and the wait budget is spent — ending the run."
+      log "  Everything found is already in .nightly/QUEUE.json; re-run REPORT tomorrow with:"
+      log "    bash scripts/nightly/run.sh start --hours 1"
+      return 1
+    fi
+    log "plan usage limit hit, but the ${MAX_LIMIT_WAIT_HOURS}h wait budget is spent — routing to REPORT"
+    $STATE_CLI set phase '"REPORT"'
+    return 0
+  fi
+
+  local epoch seconds
+  epoch="$(limit_reset_epoch "$stdout_file" "$stderr_file")"
+  if [ -n "$epoch" ]; then
+    seconds=$(( epoch - $(date -u +%s) + 60 ))   # +60s so we do not race the reset
+    log "plan usage limit hit. Reset reported for $(date -u -d "@$epoch" +%H:%M:%S)Z."
+  else
+    seconds="$LIMIT_WAIT_FALLBACK_SECONDS"
+    log "plan usage limit hit, no reset timestamp in the response."
+  fi
+  [ "$seconds" -lt 60 ] && seconds=60
+  # Never sleep past the remaining wait budget in one go.
+  [ "$seconds" -gt "$budget_left" ] && seconds="$budget_left"
+
+  log "waiting $((seconds / 60)) min for the plan window, then resuming phase $($STATE_CLI get phase)."
+  log "  This is NOT counted as a failure and the deadline is extended by the wait."
+  wait_for_reset "$seconds" || return 1
+  $STATE_CLI note-limit-wait --seconds "$seconds"
+  log "resuming."
+  return 0
 }
 
 # ───────────────────────────── the iteration ───────────────────────────────
@@ -145,25 +260,41 @@ BEFORE YOU STOP, you MUST:
 PREAMBLE
 }
 
+# Reasoning phases get the strong model; bookkeeping phases get the cheap one.
+# BOOTSTRAP and REGRESSION run commands and record output. HUNT, TRIAGE, FIX,
+# REVIEW_FIX and REPORT are judgment.
+model_for_phase() {
+  if [ -n "$MODEL_FORCED" ]; then printf '%s' "$MODEL_FORCED"; return; fi
+  case "$1" in
+    BOOTSTRAP|REGRESSION) printf '%s' "$MODEL_CHEAP" ;;
+    *) printf '%s' "$MODEL" ;;
+  esac
+}
+
 run_iteration() {
   local phase="$1" iteration="$2"
   local prompt_file="$PROMPTS/${phase}.md"
   [ -f "$prompt_file" ] || { log "no prompt for phase $phase"; return 1; }
 
   local out="$LOGS/iter-$(printf '%04d' "$iteration")-${phase}.json"
+  # Per-iteration stderr, so limit detection looks at THIS attempt rather than
+  # at a shared log that still holds an earlier iteration's limit message.
+  local errfile="$LOGS/iter-$(printf '%04d' "$iteration")-${phase}.stderr"
   local prompt
   prompt="$(build_preamble)$(cat "$prompt_file")"
 
-  log "iteration $iteration — phase $phase (model=$MODEL, cap=\$$PER_ITERATION_USD)"
+  local phase_model; phase_model="$(model_for_phase "$phase")"
+  log "iteration $iteration — phase $phase (model=$phase_model, cap=$PER_ITERATION_USD notional)"
 
-  timeout "$ITERATION_TIMEOUT_SECONDS" claude -p "$prompt" \
-    --model "$MODEL" \
+  timeout "$ITERATION_TIMEOUT_SECONDS" run_claude -p "$prompt" \
+    --model "$phase_model" \
     --permission-mode bypassPermissions \
     --output-format json \
     --max-budget-usd "$PER_ITERATION_USD" \
     --effort high \
-    >"$out" 2>>"$LOGS/claude-stderr.log"
+    >"$out" 2>"$errfile"
   local code=$?
+  cat "$errfile" >> "$LOGS/claude-stderr.log" 2>/dev/null || true
 
   # `claude -p --output-format json` reports its own spend. Parse defensively:
   # a killed process leaves a truncated file and we still have to close the
@@ -179,9 +310,60 @@ run_iteration() {
 
   if [ "$code" -eq 0 ]; then outcome=ok; else outcome=fail; fi
   if [ "$code" -eq 124 ]; then log "iteration $iteration TIMED OUT after ${ITERATION_TIMEOUT_SECONDS}s"; fi
+  # A usage limit is a clock, not a defect. Signal the main loop to pause and
+  # retry this same phase WITHOUT closing the iteration as a failure — closing it
+  # would increment consecutive_failures and end the night three retries later.
+  if [ "$code" -ne 0 ] && looks_like_usage_limit "$out" "$errfile"; then
+    log "iteration $iteration stopped on a PLAN USAGE LIMIT, not a code failure."
+    LAST_LIMIT_STDOUT="$out"
+    LAST_LIMIT_STDERR="$errfile"
+    return 75
+  fi
 
   log "iteration $iteration finished (exit=$code cost=\$$cost)"
   $STATE_CLI end-iteration --cost "$cost" --outcome "$outcome"
+}
+
+# ────────────────────────────── billing route ──────────────────────────────
+
+# Every `claude` call goes through here so the API-billing variables are
+# stripped from the child environment in exactly one place. `env -u` removes
+# them for the child only; your shell is untouched.
+run_claude() {
+  if [ "$ALLOW_API_BILLING" -eq 1 ]; then
+    claude "$@"
+  else
+    env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u AWS_BEARER_TOKEN_BEDROCK claude "$@"
+  fi
+}
+
+# An 8-hour unattended run is exactly when you do NOT want to discover that a
+# stray API key was billing per token. Refuse rather than warn.
+check_billing_route() {
+  if [ "$ALLOW_API_BILLING" -eq 1 ]; then
+    log "  billing: --allow-api-billing passed; per-token USD billing is PERMITTED"
+    return 0
+  fi
+
+  local offenders=""
+  [ -n "${ANTHROPIC_API_KEY:-}" ] && offenders="$offenders ANTHROPIC_API_KEY"
+  [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ] && offenders="$offenders ANTHROPIC_AUTH_TOKEN"
+  [ -n "${AWS_BEARER_TOKEN_BEDROCK:-}" ] && offenders="$offenders AWS_BEARER_TOKEN_BEDROCK"
+  [ -n "${CLAUDE_CODE_USE_BEDROCK:-}" ] && offenders="$offenders CLAUDE_CODE_USE_BEDROCK"
+  [ -n "${CLAUDE_CODE_USE_VERTEX:-}" ] && offenders="$offenders CLAUDE_CODE_USE_VERTEX"
+
+  if [ -n "$offenders" ]; then
+    log "  billing: found$offenders in the environment — stripping them for the child process."
+    log "           If you actually WANT per-token USD billing, pass --allow-api-billing."
+  fi
+
+  # A non-default base URL can route requests through a gateway that bills
+  # separately, so say so rather than assuming.
+  if [ -n "${ANTHROPIC_BASE_URL:-}" ] && [ "${ANTHROPIC_BASE_URL%/}" != "https://api.anthropic.com" ]; then
+    log "  billing: WARNING ANTHROPIC_BASE_URL is ${ANTHROPIC_BASE_URL} — not the default endpoint."
+  fi
+
+  node "$ROOT/scripts/nightly/billing-check.mjs" || true
 }
 
 # ─────────────────────────────── preflight ─────────────────────────────────
@@ -200,8 +382,10 @@ preflight() {
   done
   log "  prompts: all 7 present"
 
+  check_billing_route
+
   local probe
-  probe="$(timeout 180 claude -p 'Reply with exactly: READY. Do not use any tools.' \
+  probe="$(timeout 180 run_claude -p 'Reply with exactly: READY. Do not use any tools.' \
     --model "$MODEL" \
     --permission-mode bypassPermissions \
     --output-format json \
@@ -220,6 +404,18 @@ preflight() {
     local prior_phase prior_deadline
     prior_phase="$($STATE_CLI get phase)"
     prior_deadline="$($STATE_CLI get deadline_at)"
+    # A run that ran out of clock or allowance while still owing its write-up is
+    # the one case worth resuming automatically: the findings are on disk and the
+    # report is the deliverable. `--fresh` would archive the queue and lose them.
+    if [ "$prior_phase" = "REPORT" ]; then
+      log "  resuming a run that still owes its REPORT — extending the deadline by ${HOURS}h"
+      $STATE_CLI set deadline_at "\"$(date -u -d "+${HOURS} hours" +%Y-%m-%dT%H:%M:%S.000Z)\""
+      $STATE_CLI set guards.consecutive_failures 0
+      local branch_r; branch_r="$(git rev-parse --abbrev-ref HEAD)"
+      [ "$branch_r" = "nightly/qa-hardening" ] || die "expected branch nightly/qa-hardening, found '$branch_r'"
+      return 0
+    fi
+
     if [ "$prior_phase" = "DONE" ] || [ "$(date -u +%s)" -gt "$(date -u -d "$prior_deadline" +%s)" ]; then
       die "$(printf '%s\n' \
         ".nightly/STATE.json is from a finished or expired run (phase=$prior_phase, deadline=$prior_deadline)." \
@@ -259,7 +455,8 @@ cmd_start() {
   fi
   preflight
 
-  $STATE_CLI init --hours "$HOURS" --budget-usd "$BUDGET_USD" --per-iteration-usd "$PER_ITERATION_USD"
+  $STATE_CLI init --hours "$HOURS" --budget-usd "$BUDGET_USD" \
+    --per-iteration-usd "$PER_ITERATION_USD" --max-limit-wait-hours "$MAX_LIMIT_WAIT_HOURS"
   ensure_stack
 
   log "=== nightly loop starting: ${HOURS}h, budget \$${BUDGET_USD:-unlimited}, model $MODEL ==="
@@ -276,10 +473,18 @@ cmd_start() {
     port_open 3333 || { log "api died — restarting"; ensure_stack; }
     port_open 5173 || { log "web died — restarting"; ensure_stack; }
 
-    local phase iteration
+    local phase iteration rc
     phase="$($STATE_CLI get phase)"
     iteration="$($STATE_CLI begin-iteration)"
     run_iteration "$phase" "$iteration"
+    rc=$?
+
+    # 75 means "the plan window is empty" — wait it out and retry the SAME phase.
+    # The iteration was never closed, so no failure was recorded against it.
+    if [ "$rc" -eq 75 ]; then
+      handle_usage_limit "$LAST_LIMIT_STDOUT" "$LAST_LIMIT_STDERR" || break
+      continue
+    fi
   done
 
   log "=== nightly loop finished ==="
@@ -310,8 +515,13 @@ while [ $# -gt 0 ]; do
     --budget-usd) BUDGET_USD="$2"; shift 2 ;;
     --per-iteration-usd) PER_ITERATION_USD="$2"; shift 2 ;;
     --model) MODEL="$2"; shift 2 ;;
+    --model-cheap) MODEL_CHEAP="$2"; shift 2 ;;
+    --model-all) MODEL_FORCED="$2"; shift 2 ;;
     --iteration-timeout) ITERATION_TIMEOUT_SECONDS="$2"; shift 2 ;;
     --fresh) FRESH=1; shift ;;
+    --allow-api-billing) ALLOW_API_BILLING=1; shift ;;
+    --no-resume-after-limit) RESUME_AFTER_LIMIT=0; shift ;;
+    --max-limit-wait-hours) MAX_LIMIT_WAIT_HOURS="$2"; shift 2 ;;
     *) die "unknown option: $1" ;;
   esac
 done
