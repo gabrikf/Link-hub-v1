@@ -46,6 +46,7 @@ is empty.
 
 - `apps/web/src/features/dashboard/components/dashboard-profile-form.tsx:272-292` — the markup, read at triage.
 - **Re-reproduced in a real browser** at run `2026-08-22T18:58:46.702Z`, iteration 36 (TRIAGE), through Playwright's role engine — which uses Chromium's own accessible-name computation rather than a source grep. Inside the open "Edit profile" dialog: `getByRole("switch")` → **1**, `getByRole("switch", { name: /open to work/i })` → **0**. The switch exists and has no name. Transcript and probe: `.nightly/evidence/BUG-20260822-open-to-work-switch-name/`.
+- **Re-reproduced again, independently**, at iteration 50 (TRIAGE) — the queue was not taken on trust. Same method, fresh probe `.nightly/evidence/BUG-20260822-open-to-work-switch-name/i50-probe-switch-name.mjs`: `getByRole("switch")` → **1**, `getByRole("switch", { name: /open to work/i })` → **0**, `aria-label` / `aria-labelledby` / `aria-describedby` all `null`, `aria-checked="true"`, zero console errors. The live `outerHTML` pulled out of the browser matches the source read at triage exactly. A repo-wide grep finds **one** `role="switch"` in `apps/web`, so the fix is scoped to this single element.
 - **Not verified with a real screen reader this round.** The finding is from the accessible-name computation inputs (no content, no label, no labelling attribute), which is deterministic; the announcement string quoted in the Summary is the expected output, not a recording.
 
 ## Fix
