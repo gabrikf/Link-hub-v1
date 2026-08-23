@@ -1,6 +1,6 @@
 # BUG-20260822-links-keyboard-reorder: a keyboard user cannot reorder their profile links — the drag lifts, announces itself, and then goes nowhere
 
-- **Status:** open
+- **Status:** fixed — `14a550e`, review APPROVED 2026-08-23 (run `2026-08-22T18:58:46.702Z`, iteration 35)
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Diego, the curating developer — specifically the Accessibility-Reliant axis folded into Sam (see `docs/qa/personas.md`, Notes)
@@ -80,11 +80,85 @@ Two things cost this investigation four wasted runs:
 - **Root cause:** *symptom* — arrow keys do not move a lifted item. *Cause* — `apps/web/src/features/dashboard/pages/dashboard-page.tsx:562` renders `<DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>` with **no `sensors` prop**, so dnd-kit falls back to a default `KeyboardSensor` with no coordinate getter. A vertical sortable list needs `useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))` — `sortableKeyboardCoordinates` comes from `@dnd-kit/sortable`. Without it, arrow keys translate by a fixed offset that never crosses the neighbour's collision threshold.
 - **Related but separate:** `BUG-20260822-layout-vertical-keyboard` is the profile-layout **block** editor, which uses **react-grid-layout**, a different library in a different file. Same harm, different cause. Do not merge them.
 - **Root Cause (taxonomy):** third-party
-- **Fix commit:** —
-- **Regression test:** a Playwright spec in `e2e/journeys/04-link-sharing.spec.ts` — focus the first grip, Space / ArrowDown / Space, assert the rendered link order changed **and** that a `PATCH /links/reorder` fired. Seen failing first. dnd-kit's `KeyboardSensor` reads real layout boxes, so jsdom + `@testing-library/react` is the wrong layer here; a component test would have to fake the geometry and would pass for the wrong reason.
-- **Gate:** —
-- Consult **context7** before writing the sensor code — this repo runs recent majors and dnd-kit's sensor API is easy to get wrong from memory.
+- **Fix commit:** `14a550e` (red: `43ea606`). `dashboard-page.tsx` now declares `useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))` and passes it to the one `<DndContext>`. `PointerSensor` is declared with **no options**, which is byte-for-byte the default the mouse path already used.
+- **Regression test:** `e2e/journeys/04-link-sharing.spec.ts:645` — "links can be reordered with the keyboard alone". Focus the grip, Space / ArrowDown / Space, then assert three separate things: the rendered order flipped, exactly one `PATCH /links/reorder` fired (which separates "the keyboard never started a reorder" from "the server refused it"), and the api read-back returns the new order rather than the optimistic cache. It waits on dnd-kit's own `role="status"` live region between keystrokes, not on a delay. Seen failing first.
+- **Gate:** `guardrails PASS` (iteration 34). Re-run independently at review: `build:schemas` OK, `check-types` 8/8, `lint-changed` clean over 29 files, journey 04 12/12.
+- ~~Consult **context7** before writing the sensor code~~ — no MCP is loaded in the nightly loop. The API was verified against the installed bundle instead (`node_modules/@dnd-kit/core/dist/core.cjs.development.js:2465`), which proves what *this* version does in a way a doc page cannot.
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+**Review APPROVED — 2026-08-23, loop iteration 35 (REVIEW_FIX).**
+Full transcript: `.nightly/evidence/BUG-20260822-links-keyboard-reorder/i35-review.txt`.
+
+**Red-then-green, proved mechanically.** HEAD was not moved (the loop forbids
+checking out a ref); instead the one product file the fix touches was restored to
+its `43ea606` content with the final test file left in place — a narrower and
+equivalent proof.
+
+| lane | dashboard-page.tsx at `43ea606` (red) | at tip `14a550e` |
+|---|---|---|
+| `playwright --project=desktop e2e/journeys/04-link-sharing.spec.ts -g "keyboard alone"` | **1 failed** — `ArrowDown never moved the lifted link over its neighbour — it is still its own droppable`, `Expected: "travelled" / Received: "stuck"` at `:710` | passes (31.2s) |
+| the whole of journey 04 | — | **12 passed**, including `:580`, the pre-existing **mouse** reorder test |
+
+The red failure is the bug's own symptom at the bug's own assertion, not an
+import error or a bad selector.
+
+**The harm is gone from the real entry point, re-walked independently of the
+committed test.** A hand-written probe seeded three links under a prefix I
+control and drove `/dashboard` with the keyboard only:
+
+```
+rendered before : i35rev-Alpha | i35rev-Bravo | i35rev-Charlie
+after Space     : Draggable item 0250…1bae was moved over droppable area 0250…1bae.
+after Arrow↓    : Draggable item 0250…1bae was moved over droppable area 4e59…f8b2.   <-- travelled
+rendered after ↓: i35rev-Bravo | i35rev-Alpha | i35rev-Charlie
+after Arrow↑    : … droppable area 4e59…f8b2.
+rendered after ↑: i35rev-Alpha | i35rev-Bravo | i35rev-Charlie
+PATCH /links/reorder: 2   ·   console errors: []
+```
+
+**ArrowUp works too** — the bug's *expected* names both arrows and the committed
+test only presses ArrowDown, so the up direction is proved here instead.
+
+**Persistence read back from Postgres, not inferred from a 2xx.** A second probe
+made exactly ONE keyboard move so the stored order differs from the seed:
+
+```
+SELECT title, "order" FROM links WHERE title LIKE 'i35rev%' ORDER BY "order";
+ i35rev-Bravo   | 0
+ i35rev-Alpha   | 1
+ i35rev-Charlie | 2
+```
+
+**Checked and clean.** No schema change and nothing widened; no type assertion,
+no `eslint-disable`, no `.skip`, no swallowed error, no monkey patch, and
+explicitly no timing hack (the test waits on dnd-kit's live region, which is
+observable state and the same string a screen-reader user hears). No edited test
+— the red commit is 100 added lines and 0 removed, and the fix commit touches no
+test. No scope creep. `grep "DndContext|useSensors"` over `apps/web/src` returns
+this file and nothing else, so the blast radius is one component; the new hook is
+at component top level and every `return` above it is inside a callback, so there
+is no conditional-hook hazard. No markup and no colour utility added, so
+`DESIGN.md` and the `dark:` rule do not bite, and the four-state rule is
+unaffected — the `<DndContext>` already sat inside the `!isLoading` branch.
+
+**Not verified, and none of it is a defect:** only the `desktop` project was run
+(the test has no `@responsive` tag and a keyboard drag on a touch viewport is not
+a real journey); no visual scenario and no dark capture, justified above; no
+actual screen reader — the live-region string is asserted, but whether NVDA or
+VoiceOver reads it usefully is unproven and always was.
+
+**Environment note for the next reviewer, not a product fault.** The api runs
+under `tsx watch` and its pid changed three times during this iteration: two red
+runs died with `connect ECONNREFUSED 127.0.0.1:3344`, and because their
+`finally { sweepE2eLinks }` never ran they left two `e2e-share` rows behind,
+making the *next* run fail at the pre-condition `toHaveCount(2)` with
+"Received: 4" instead of at the bug. That count is scoped to the shared
+`E2E_PREFIX` rather than to a test's own unique titles, which is the pre-existing
+convention of every test in this spec — so **one crashed run makes the whole file
+fail for the wrong reason until somebody sweeps by hand.** Worth fixing spec-wide
+one day; not this bug's problem.
+
+**Related but still open:** `BUG-20260822-layout-vertical-keyboard` is the
+profile-layout block editor, which uses **react-grid-layout**. This fix does not
+touch it. Do not assume it went away.
