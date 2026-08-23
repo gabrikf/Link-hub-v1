@@ -262,10 +262,16 @@ export function DashboardProfileForm({
         {/* Open to work */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <p
+              id="profile-open-to-work-label"
+              className="text-sm text-zinc-700 dark:text-zinc-300"
+            >
               Open to work
             </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            <p
+              id="profile-open-to-work-hint"
+              className="text-xs text-zinc-500 dark:text-zinc-400"
+            >
               Show a recruiter-friendly badge on your profile.
             </p>
           </div>
@@ -273,6 +279,8 @@ export function DashboardProfileForm({
             type="button"
             role="switch"
             aria-checked={watched.openToWork}
+            aria-labelledby="profile-open-to-work-label"
+            aria-describedby="profile-open-to-work-hint"
             onClick={() =>
               setValue("openToWork", !watched.openToWork, {
                 shouldDirty: true,
