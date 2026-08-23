@@ -31,7 +31,7 @@ navigate a settings form.
 - **Environment:** any browser + screen reader, or DOM inspection · web http://localhost:5273 · api http://localhost:3344 · any seeded developer (`bash db-manage.sh seed-all`)
 
 1. Sign in as a developer and open `/dashboard`.
-2. Find the "Open to work" toggle in the profile panel.
+2. Open the **"Edit profile" dialog** — the toggle lives inside that dialog, not on the profile panel itself. (The original entry said "the profile panel"; corrected at triage 36 after reaching it in a browser.)
 3. Inspect it: `<button type="button" role="switch" aria-checked={…}>` whose only child is a decorative `<span>` (the knob).
 4. There is no `aria-label`, no `aria-labelledby`, no `<label for>`. The visible text "Open to work" is a sibling `<p>` inside a different `<div>`.
 
@@ -45,6 +45,7 @@ is empty.
 ## Evidence
 
 - `apps/web/src/features/dashboard/components/dashboard-profile-form.tsx:272-292` — the markup, read at triage.
+- **Re-reproduced in a real browser** at run `2026-08-22T18:58:46.702Z`, iteration 36 (TRIAGE), through Playwright's role engine — which uses Chromium's own accessible-name computation rather than a source grep. Inside the open "Edit profile" dialog: `getByRole("switch")` → **1**, `getByRole("switch", { name: /open to work/i })` → **0**. The switch exists and has no name. Transcript and probe: `.nightly/evidence/BUG-20260822-open-to-work-switch-name/`.
 - **Not verified with a real screen reader this round.** The finding is from the accessible-name computation inputs (no content, no label, no labelling attribute), which is deterministic; the announcement string quoted in the Summary is the expected output, not a recording.
 
 ## Fix

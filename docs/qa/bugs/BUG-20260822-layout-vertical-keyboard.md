@@ -26,7 +26,7 @@ produced four writes that changed nothing.
 ## Reproduction
 
 - **Charter:** none yet · **Tour:** the-keyboard-only tour
-- **Environment:** web :5173 · api :3333 · any seeded developer with a layout (`bash db-manage.sh seed-all`)
+- **Environment:** web **:5273** · api **:3344** (5173/3333 are a different project on this machine) · any seeded developer with a layout (`bash db-manage.sh seed-all`)
 
 1. Open `/dashboard/layout` and focus the bottom block card.
 2. Press `ArrowUp` ten times.
@@ -40,7 +40,10 @@ keyboard substitute for drag.
 ## Evidence
 
 - `e2e/journeys/05-profile-appearance.spec.ts:767` — the assertion that recorded it.
-- **Not re-reproduced in run `2026-08-22T18:58:46.702Z`.** Carried in from the hand-off. FIX must reproduce it first.
+- **Re-reproduced at the unit layer** at run `2026-08-22T18:58:46.702Z`, iteration 36 (TRIAGE), with the delta the ArrowUp handler actually sends. Ten `dy: -1` presses against an `h: 6` neighbour: `gridY [6,6,6,6,6,6,6,6,6,6]` — `AssertionError: expected 6 to be less than 6`. Transcript: `.nightly/evidence/BUG-20260822-layout-vertical-keyboard/`. That probe file was deleted after the run on purpose — writing the real regression test is the fix's job, and it owns the red commit.
+- Not re-run in a browser this round; the unit result matches the original browser observation (`gridY` 16 → 16) exactly.
+- **The path in the original entry was wrong.** The file is `apps/web/src/features/profile-layout/grid-utils.ts:241-272`; there is no `lib/` directory in this feature. `grid-block-card.tsx:34` is literally `ArrowUp: [0, -1]`.
+- **Blast radius re-measured, and it is smaller than the hand-off claimed.** `grep -rn "moveBlockBy" apps/web/src` outside `grid-utils` returns exactly two lines — an import and `profile-layout-page.tsx:783`, the keyboard `onMove` handler. The mouse drag goes through react-grid-layout directly and never enters this function, so a fix confined to `moveBlockBy` cannot regress mouse dragging, and `verticalCompactor` does not need modifying. What keeps this second in the queue is that the correct behaviour must be *decided* (does `ArrowUp` swap with the neighbour above, or jump to that neighbour's `y`?), not that it is dangerous.
 
 ## Fix
 
