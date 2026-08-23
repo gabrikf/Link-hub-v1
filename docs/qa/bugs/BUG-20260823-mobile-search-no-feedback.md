@@ -1,6 +1,6 @@
 # BUG-20260823-mobile-search-no-feedback: on a phone, running a recruiter search changes nothing the recruiter can see
 
-- **Status:** verified
+- **Status:** fixed (approved at review, iteration 57)
 - **Impact (user-side):** Blocked-in-practice (the journey is completable, but nothing tells the user it succeeded)
 - **Severity:** High · **Priority:** P2
 - **Persona Affected:** Priya, the recruiter — on a phone
@@ -63,12 +63,11 @@ Results heading sits at `top=1069`, and the live region is empty.
 
 ## Fix
 
-<!-- filled when status moves to fixed -->
-- **Root cause:** *symptom* — after a successful search nothing inside a phone viewport changes. *Cause* — `apps/web/src/features/search/pages/advanced-search-page.tsx:122-135`, the `searchMutation.onSuccess` handler sets `rankedResults` / `lastSearchInput` / `searchSessionId` / `hasSearched` and never moves the viewport, moves focus, or announces a count. `SearchResults` renders far below the composer, the two semantic selects and the mandatory-filters block, which together exceed a phone viewport.
-- **Root Cause (taxonomy):** *to be set at fix time*
-- **Fix commit:** *pending*
-- **Regression test:** *pending* — see test plan below.
-- **Gate:** *pending*
+- **Root cause:** *symptom* — after a successful search nothing inside a phone viewport changes. *Cause, and it was two independent silences, not one:* (a) `apps/web/src/features/search/pages/advanced-search-page.tsx:122-135`, the `searchMutation.onSuccess` handler sets `rankedResults` / `lastSearchInput` / `searchSessionId` / `hasSearched` and never moves the viewport or focus, while `SearchResults` renders below the composer, the two semantic selects and the mandatory-filters block, which together exceed a phone viewport; (b) `apps/web/src/features/search/components/search-results.tsx` had a live region for the **loading** state only (`LoadingLabel`, which unmounts on success) and none for the outcome — so a screen-reader user on **every** viewport, desktop included, heard the search start and never heard it finish. Fixing (a) alone would have left (b) in place.
+- **Root Cause (taxonomy):** missing feedback on an asynchronous state transition — the state changed, nothing that a user perceives changed with it.
+- **Fix commit:** `2205295` (red at `68d3b83`). Two additive changes: a permanently-mounted `sr-only` `aria-live="polite"` region in `SearchResults` that is empty while a search is in flight and speaks only about an outcome ("50 candidates found." / "No candidates found."), and an effect in `AdvancedSearchPage` keyed on `searchSessionId` that focuses a named, `tabIndex={-1}` results region and scrolls it into view. `scroll-mt-20` clears the sticky top bar, which otherwise covers the very heading the recruiter is sent to.
+- **Regression test:** `apps/web/src/features/search/pages/advanced-search-page.test.tsx` — 3 tests: the count is announced, the empty outcome is announced, and focus lands on the results region. Each first waits for the result header so a missing announcement can never be confused with a search that never ran.
+- **Gate:** `guardrails PASS` at fix time; all 45 tests under `apps/web/src/features/search` pass at review.
 
 ### Test plan agreed at triage
 
@@ -91,8 +90,71 @@ instead of it.
 
 ## Verification
 
-<!-- filled at REVIEW_FIX -->
-Not yet fixed.
+**Reviewed and approved at iteration 57 (REVIEW_FIX), independently of the agent
+that wrote the fix.**
+
+- **Red proved, then green proved — mechanically, not from the commit message.**
+  The current test file was run against the *fix commit's* sources (3 passed),
+  then against the **red commit's** sources with the test left as it is today
+  (`git checkout 68d3b83 -- search-results.tsx advanced-search-page.tsx`): **3
+  failed**, each for the bug's own reason — `Unable to find an element with the
+  text: /3 candidates found/i`, `…/no candidates found/i … selector
+  '[aria-live]'`, and `Unable to find role="region" and name /results/i`. No
+  import error, no bad selector, no missing fixture. Sources restored afterwards.
+- **The fix commit edits one line of its own red test** (`/no candidates
+  matched/` → `/no candidates found/`). Checked rather than waved through: the
+  edit changes the *expected wording* of the announcement, not the strength of
+  the assertion — the test still requires a live region that names the outcome —
+  and the commit body argues the case (announcing the empty state's own sentence
+  duplicates the paragraph focus lands the reader on a moment later). No
+  pre-existing test was touched.
+- **Re-walked in a real browser with a probe written at review**
+  (`.nightly/probes/i57-review-verify.mjs`, evidence `.nightly/evidence/i57-review/`),
+  which asks three questions the fix's own probe did not. In **390×844 light**,
+  **390×844 dark** and **1440×900**, all identical: the Results heading lands at
+  `top=105` against a sticky bar whose bottom edge is `61` — so it is genuinely
+  *visible*, not merely at a small offset — the region is `document.activeElement`,
+  the live regions read `polite:Searching candidates` then `polite:50 candidates
+  found.`, the before/after viewport bitmaps are **CHANGED** (they were
+  `IDENTICAL` at triage), 50 cards, zero console errors, zero page errors.
+- **A second search returning the same people still moves the viewport.** Scrolled
+  back to `0`, re-ran the same job description: `scrollY` returns to `964` and the
+  region takes focus again. That is the case the re-tap storm lives in, and it
+  works because the effect is keyed on the search session id rather than on the
+  results array.
+- **Desktop was checked, not assumed.** At 1440×900 the fix scrolls `698` and
+  focuses the results — it takes the recruiter to what they asked for rather than
+  yanking them somewhere unexpected, and the announcement they never had on any
+  viewport now exists.
+- **Blast radius is one component.** `SearchResults` has exactly one non-test
+  caller (`advanced-search-page.tsx:402`). All 45 tests under
+  `apps/web/src/features/search` pass, including the four in
+  `search-results.test.tsx` / `search-results-feedback.test.tsx` that use
+  `getByRole("status")` as a *unique* locator — which is why the new region is a
+  bare `aria-live` and not a third `role="status"`.
+- **Design conformance:** `SURFACE` and `FOCUS_RING` come from
+  `shared-components/surface.ts`, no hand-written card classes, no hardcoded
+  colour, nothing that needs a `dark:` counterpart (the new markup is `sr-only`
+  plus a scroll margin), and both themes were captured. No schema crossed a
+  boundary, so there is no contract to drift.
+
+**Residual, accepted rather than hidden:** if a search *fails* after an earlier
+one succeeded, the polite region blanks and then re-emits the previous
+`"50 candidates found."` while the assertive `role="alert"` announces the
+failure. The count is not false — those 50 results are still the ones on screen —
+and the assertive alert states the failure first, so this is stale rather than
+misleading. Worth tightening the day the error path gets its own outcome text;
+not worth blocking a fix that removes total silence.
+
+**Not verified at review:** no real device, no real touch, and **no real screen
+reader** — every "announced" here is read from live-region text content, which is
+the input to an announcement, not a recording of one. The empty-outcome
+announcement is proved only at the component layer; no real query was driven to
+zero results in a browser. The re-tap storm was not re-measured against a human:
+that feedback stops the third tap remains a reasonable inference. And no
+committed visual scenario was added — `/dashboard/search` needs a session and a
+paid embedding per run, so the geometry proof stays a nightly probe. That gap is
+recorded under **Scenarios** above and is still open.
 
 **Not verified at triage:** only 390×844 and 1440×900 were measured — the width
 at which the Results heading first crosses the fold is unknown, so the affected
