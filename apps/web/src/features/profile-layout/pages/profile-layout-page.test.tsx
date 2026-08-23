@@ -40,6 +40,7 @@ vi.mock("../../../lib/auth-api", () => ({
   updateBlockPositions: vi.fn(),
 }));
 
+import { queryClient as appQueryClient } from "../../../lib/query-client";
 import { buildDefaultLayout } from "../grid-utils";
 import { ProfileLayoutPage } from "./profile-layout-page";
 
@@ -160,4 +161,51 @@ describe("ProfileLayoutPage — GET /me/layout fails", () => {
       groups.some((label) => label.startsWith("Profile header block")),
     ).toBe(true);
   });
+});
+
+/**
+ * Every test above mounts a test-only client with `retry: false`, so they prove
+ * the error screen EXISTS but never that a user sees it. In the real app the
+ * editor sat on its "Loading tabs" skeleton for ~7.5s first — the initial
+ * request plus three silent retries at 1s/2s/4s. This client inherits the app's
+ * shipped defaults instead of restating them, so it cannot drift.
+ */
+function renderPageWithShippedQueryDefaults() {
+  return render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: appQueryClient.getDefaultOptions() })
+      }
+    >
+      <ProfileLayoutPage />
+    </QueryClientProvider>,
+  );
+}
+
+describe("ProfileLayoutPage — how fast a failed layout load is admitted", () => {
+  beforeEach(() => {
+    fetchLayout.mockReset();
+  });
+
+  it("reaches the error screen in about a second, with a bounded number of attempts", async () => {
+    fetchLayout.mockRejectedValue(new Error("boom"));
+
+    const startedAt = performance.now();
+    const { container } = renderPageWithShippedQueryDefaults();
+
+    await waitFor(
+      () => {
+        expect(container.textContent ?? "").toMatch(ERROR_COPY);
+      },
+      { timeout: 15_000 },
+    );
+    const elapsedMs = performance.now() - startedAt;
+
+    // A user waits a couple of seconds before deciding a screen is broken.
+    expect(elapsedMs).toBeLessThan(1_500);
+
+    // One quick retry heals a transient blip invisibly; three, spaced
+    // exponentially, only hide the failure. The screen has its own Retry.
+    expect(fetchLayout.mock.calls.length).toBeLessThanOrEqual(2);
+  }, 20_000);
 });

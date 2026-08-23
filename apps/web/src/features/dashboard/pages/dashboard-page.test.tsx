@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -50,6 +50,7 @@ vi.mock("../../resume-import/components/resume-import-modal", () => ({
   ResumeImportModal: () => null,
 }));
 
+import { queryClient as appQueryClient } from "../../../lib/query-client";
 import { DashboardPage } from "./dashboard-page";
 
 function renderDashboard() {
@@ -70,7 +71,9 @@ afterEach(() => {
 
 describe("DashboardPage profile panel", () => {
   it("shows an error state, not the empty state, when GET /me fails", async () => {
-    fetchMyProfile.mockRejectedValue(new Error("Request failed with status 500"));
+    fetchMyProfile.mockRejectedValue(
+      new Error("Request failed with status 500"),
+    );
 
     renderDashboard();
 
@@ -116,4 +119,55 @@ describe("DashboardPage profile panel", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+});
+
+/**
+ * The two tests above mount a test-only client with `retry: false`, so they can
+ * see WHETHER the error state exists but never HOW LONG it takes to arrive. In
+ * the real app the panel sat on its loading skeleton for ~7.7s first — the
+ * initial request plus three silent retries at 1s/2s/4s — which reads as a
+ * frozen product, not a failing one.
+ *
+ * This client inherits the app's real defaults rather than restating them, so
+ * it cannot drift away from what ships.
+ */
+function renderDashboardWithShippedQueryDefaults() {
+  return render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: appQueryClient.getDefaultOptions() })
+      }
+    >
+      <DashboardPage />
+    </QueryClientProvider>,
+  );
+}
+
+describe("DashboardPage profile panel — how fast a failure is admitted", () => {
+  it("reaches the error state in about a second, with a bounded number of attempts", async () => {
+    fetchMyProfile.mockRejectedValue(
+      new Error("Request failed with status 500"),
+    );
+
+    const startedAt = performance.now();
+    renderDashboardWithShippedQueryDefaults();
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole("alert")).toHaveTextContent(
+          /couldn.t load your profile/i,
+        );
+      },
+      { timeout: 15_000 },
+    );
+    const elapsedMs = performance.now() - startedAt;
+
+    // A user waits a couple of seconds before deciding a screen is broken.
+    expect(elapsedMs).toBeLessThan(1_500);
+
+    // One quick retry is worth keeping — it heals a transient blip without
+    // ever showing an error. Three, spaced exponentially, are not: the panel
+    // already offers its own Retry button.
+    expect(fetchMyProfile.mock.calls.length).toBeLessThanOrEqual(2);
+  }, 20_000);
 });
