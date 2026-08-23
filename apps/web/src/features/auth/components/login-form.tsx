@@ -10,6 +10,8 @@ import { FeedbackMessage } from "../../../shared-components/feedback-message";
 type LoginFormProps = {
   isPending: boolean;
   errorMessage?: string;
+  // Rejects when the sign-in fails. The parent owns how that reads to the user
+  // and passes it back down as `errorMessage`.
   onSubmit: (data: LoginInput) => Promise<void>;
 };
 
@@ -31,7 +33,21 @@ export function LoginForm({
   });
 
   return (
-    <form className="space-y-3" onSubmit={handleSubmit(onSubmit)}>
+    <form
+      className="space-y-3"
+      onSubmit={handleSubmit(async (data) => {
+        try {
+          await onSubmit(data);
+        } catch {
+          // A wrong password is the most ordinary thing that can happen here,
+          // and it is already handled: the parent renders it as `errorMessage`
+          // below. react-hook-form re-throws whatever the submit handler
+          // rejects with, so letting it through would hand every failed sign-in
+          // to the global unhandledrejection handler — which is Sentry in
+          // production.
+        }
+      })}
+    >
       <Input
         id="login-email"
         type="email"

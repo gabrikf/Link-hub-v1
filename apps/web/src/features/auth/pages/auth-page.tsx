@@ -137,12 +137,16 @@ export function AuthPage() {
 
   const googleLogin = useGoogleLogin({
     scope: "openid email profile",
-    onSuccess: async (tokenResponse) => {
+    onSuccess: (tokenResponse) => {
       if (!tokenResponse.access_token) {
         return;
       }
 
-      await googleSignInMutation.mutateAsync({
+      // `mutate`, not `mutateAsync`: nothing here needs the result, and the
+      // library does not await this callback, so a rejected `mutateAsync` would
+      // escape to the global unhandledrejection handler. The failure is already
+      // rendered from `googleSignInMutation.error` below.
+      googleSignInMutation.mutate({
         accessToken: tokenResponse.access_token,
       });
     },

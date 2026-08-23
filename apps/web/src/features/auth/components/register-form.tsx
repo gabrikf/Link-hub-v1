@@ -10,6 +10,8 @@ import { Input } from "../../../shared-components/input";
 type RegisterFormProps = {
   isPending: boolean;
   errorMessage?: string;
+  // Rejects when the registration fails. The parent owns how that reads to the
+  // user and passes it back down as `errorMessage`.
   onSubmit: (data: CreateUserInput) => Promise<void>;
 };
 
@@ -50,7 +52,19 @@ export function RegisterForm({
     <form
       className="space-y-3"
       onSubmit={handleSubmit(async (data) => {
-        await onSubmit(data);
+        try {
+          await onSubmit(data);
+        } catch {
+          // An address that is already registered is an ordinary outcome, and
+          // it is already handled: the parent renders it as `errorMessage`
+          // below. react-hook-form re-throws whatever the submit handler
+          // rejects with, so letting it through would hand the message — which
+          // quotes the email the user just typed — to the global
+          // unhandledrejection handler, which is Sentry in production.
+          // Keep the typed values so the correction is one edit, not a retype.
+          return;
+        }
+
         reset();
       })}
     >
