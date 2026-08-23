@@ -10,6 +10,7 @@
 - **Found:** 2026-08-22 · **Report:** docs/qa/reports/2026-08-22-nightly.md
 - **GitHub:** none — found by the autonomous nightly loop; not yet filed
 - **Origin:** `.nightly/QUEUE.json` CAND-0105, confirmed in run `2026-08-22T18:58:46.702Z`, iteration 4 (TRIAGE)
+- **Re-reproduced:** 2026-08-23, iteration 33 (TRIAGE) — in a real browser, with a passing mouse control and the resulting order read back from Postgres. Claimed as the next fix.
 
 ## Summary
 
@@ -47,8 +48,31 @@ Space drops and persists — the documented dnd-kit sortable keyboard path.
 
 ## Evidence
 
-- `.nightly/evidence/BUG-20260822-links-keyboard-reorder/kbd-drag-probe.txt` — the probe script and its output, including both live-region announcements and `ORDER CHANGED: false`.
-- Independent read path: the assertion is on the re-read DOM order after the drop, not on an event handler firing. The three probe links were deleted afterwards and `GET /links` verified back to `[]`.
+- `.nightly/evidence/BUG-20260822-links-keyboard-reorder/i33-reproduction.txt` — **the re-reproduction at iteration 33 (2026-08-23)** and the strongest of the two, because it adds a control and a persistence check. Probe: `i33-kbd-probe.mjs`.
+- `.nightly/evidence/BUG-20260822-links-keyboard-reorder/kbd-drag-probe.txt` — the first run (iteration 4), including both live-region announcements and `ORDER CHANGED: false`.
+- Independent read path: the assertion is on the re-read DOM order after the drop, not on an event handler firing.
+- **Mouse control, same page and session:** dragging the same grip with the pointer changes the order *and* fires `PATCH /links/reorder`.
+- **Persistence read back from Postgres, not inferred from a 2xx:**
+  `docker exec linkhub-postgres-dev psql -U linkhub_user -d linkhub_dev -tAc 'SELECT title, "order" FROM links ...'`
+  returns `I30-Bravo|0`, `I30-Alpha|1`, `I30-Charlie|2` after the mouse drag.
+  So `handleDragEnd`, the mutation, the route, the use case and the write are all
+  healthy end to end. The keyboard path simply never reaches them: the live
+  region still names the dragged item as its own droppable, so `onDragEnd` sees
+  `active.id === over.id` and the `oldIndex === newIndex` guard returns early.
+
+### Harness notes for whoever writes the regression test
+
+Two things cost this investigation four wasted runs:
+
+1. The nightly servers are **web :5273 / api :3344**, exported as `E2E_WEB_URL`
+   and `E2E_API_URL`. Something else on **:3333** answers `GET /health` with
+   `{"status":"ok"}` but 404s every real route, so a probe pointed there looks
+   like "this account has no links" rather than like a connection error. Read
+   the env vars; never hardcode a port.
+2. `page.waitForLoadState("networkidle")` is **not** a safe wait on this
+   dashboard — it resolves before `GET /links` returns, and a vite HMR update
+   can reload the page underneath afterwards. Wait for the control itself:
+   `await grips.first().waitFor({ state: "visible" })`.
 
 ## Fix
 
