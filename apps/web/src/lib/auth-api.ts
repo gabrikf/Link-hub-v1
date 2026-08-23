@@ -365,10 +365,23 @@ export async function fetchMyProfile(): Promise<ProfileResponse> {
   return profileSchema.parse(response.data);
 }
 
+/**
+ * The public readers below receive the handle already decoded — it comes off
+ * the router param — so it has to be re-encoded before it goes back into a URL
+ * path. A handle holding `/`, `?` or `#` otherwise reshapes the request and the
+ * api answers 404 for a profile it serves fine at the encoded path.
+ *
+ * Only the places that *build* a URL from a raw handle need this. The router
+ * (`to="/profile/$username"` with params) and the Share link (read off
+ * `window.location.href`) already hand out encoded values; encoding those again
+ * would double-encode them.
+ */
 export async function fetchPublicProfile(
   username: string,
 ): Promise<ProfileResponse> {
-  const response = await apiClient.get(`/profile/${username}`);
+  const response = await apiClient.get(
+    `/profile/${encodeURIComponent(username)}`,
+  );
   return profileSchema.parse(response.data);
 }
 
@@ -672,7 +685,9 @@ export async function saveResumeTitlesBulk(
 export async function fetchPublicResume(
   username: string,
 ): Promise<PublicResumeResponse> {
-  const response = await apiClient.get(`/profile/${username}/resume`);
+  const response = await apiClient.get(
+    `/profile/${encodeURIComponent(username)}/resume`,
+  );
   return publicResumeSchema.parse(response.data);
 }
 
@@ -871,7 +886,7 @@ export async function fetchPublicWorkExperiences(
   username: string,
 ): Promise<PublicWorkExperienceResponse[]> {
   const response = await apiClient.get(
-    `/profile/${username}/work-experiences`,
+    `/profile/${encodeURIComponent(username)}/work-experiences`,
   );
 
   return publicWorkExperienceSchema.array().parse(response.data);

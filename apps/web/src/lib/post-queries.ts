@@ -78,9 +78,16 @@ export async function fetchPublicPosts(
     query.set("offset", String(params.offset));
   }
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  const response = await fetchWithTokens(`/profile/${username}/posts${suffix}`, {
-    method: "GET",
-  });
+  // The handle arrives decoded from the router param, so it is re-encoded here
+  // before going back into a URL path — otherwise a `/`, `?` or `#` in the
+  // handle reshapes the request and this panel renders its error state on a
+  // profile the api serves fine.
+  const response = await fetchWithTokens(
+    `/profile/${encodeURIComponent(username)}/posts${suffix}`,
+    {
+      method: "GET",
+    },
+  );
   return publicPostSchema.array().parse(response.data);
 }
 
