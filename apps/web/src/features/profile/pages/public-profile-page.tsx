@@ -222,10 +222,27 @@ export function PublicProfilePage() {
         />
       </div>
 
+      {/*
+        `mt-3` clears the theme toggle, which is `fixed right-4 top-3 z-40` on
+        the VIEWPORT (App.tsx) while this pill is `self-end` in flow inside the
+        centred container above — so the two overlap at every width where the
+        container's right edge reaches the viewport gutter, and the toggle (on a
+        higher layer) ate the top 8px of the only sign-in CTA on the page. That
+        band is not phones-only: `MOBILE_QUERY` flips `max-w-md` <-> `max-w-6xl`
+        at 1024, which puts ordinary 1024-1152 laptops in it too, so the
+        reservation must NOT be breakpoint-gated.
+
+        Vertical, not horizontal: the toggle's bottom edge is at y=48 (top-3 =
+        12 + h-9 = 36) and `py-10` on the container puts this pill's top at 40.
+        12px of top margin moves it to 52 — below the toggle at EVERY width,
+        with the pill still hugging the right edge, stacked under the toggle it
+        used to collide with. `TopBarNav` reserves `pr-28` for the same toggle,
+        but it renders nothing when signed out, so this page never inherits it.
+      */}
       {!userInfo ? (
         <Link
           to="/"
-          className="anim-fade-in inline-flex items-center gap-2 self-end rounded-full border border-zinc-300 bg-white/70 px-3 py-2 text-sm shadow-sm backdrop-blur transition hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:bg-zinc-900"
+          className="anim-fade-in mt-3 inline-flex items-center gap-2 self-end rounded-full border border-zinc-300 bg-white/70 px-3 py-2 text-sm shadow-sm backdrop-blur transition hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:bg-zinc-900"
         >
           <FiLogIn className="h-4 w-4" aria-hidden="true" />
           Login
