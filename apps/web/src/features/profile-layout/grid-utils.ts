@@ -225,6 +225,53 @@ export const minBlockWidth = (cols: number) => (cols <= 4 ? 1 : 2);
 /** Minimum block height in rows, mirroring `EditorGrid`'s `minH`. */
 export const MIN_BLOCK_HEIGHT = 2;
 
+/** True when two layouts put every block on exactly the same cells. */
+function sameGeometry(
+  before: readonly GridLayoutItem[],
+  after: readonly GridLayoutItem[],
+): boolean {
+  return before.every((item) => {
+    const moved = after.find((entry) => entry.i === item.i);
+    return (
+      moved !== undefined &&
+      moved.x === item.x &&
+      moved.y === item.y &&
+      moved.w === item.w &&
+      moved.h === item.h
+    );
+  });
+}
+
+/**
+ * One drop attempt: react-grid-layout's own drag maths, run on a throwaway copy
+ * (`moveElement` mutates the layout it is handed).
+ */
+function attemptMove(
+  items: readonly GridLayoutItem[],
+  blockId: string,
+  x: number,
+  y: number,
+  cols: number,
+): readonly GridLayoutItem[] {
+  const copy = items.map((item) => ({ ...item }));
+  const target = copy.find((item) => item.i === blockId);
+  if (!target) {
+    return copy;
+  }
+  const moved = moveElement(
+    copy,
+    target,
+    x,
+    y,
+    true,
+    false,
+    verticalCompactor.type,
+    cols,
+    false,
+  );
+  return verticalCompactor.compact(moved, cols);
+}
+
 /**
  * Move one block by a grid-cell delta, pushing neighbours out of the way and
  * repacking — the same `moveElement` + vertical compaction react-grid-layout
@@ -235,6 +282,20 @@ export const MIN_BLOCK_HEIGHT = 2;
  * keyboard equivalent for drag or resize, so a keyboard user could not arrange
  * a layout at all. Arrow-key nudging is not a complete a11y story, but it is
  * the part that makes the editor operable.
+ *
+ * VERTICALLY, A ROW IS NOT A POSITION. The grid is vertically compacted, so
+ * every block already rests on the one above it: dropping it one row higher
+ * changes nothing, because the compactor floats it straight back down. A block
+ * only moves when it crosses a whole neighbour, and neighbours are six rows
+ * tall while the keyboard sends one row per press — which is why ArrowUp and
+ * ArrowDown used to be permanent no-ops. So `dy` is read as a DIRECTION with a
+ * minimum distance: the block is dropped at `y + dy` and, if the compacted
+ * result is the layout the user is already looking at, one row further, until
+ * the arrangement actually changes or the grid runs out. In practice that is
+ * "swap with the neighbour on that side", for a neighbour of any height.
+ *
+ * Returns the input array unchanged when the nudge has nowhere to go, so the
+ * caller can skip persisting a byte-identical layout.
  *
  * Callers must pass ONE ZONE at a time — see `compactBlocks`.
  */
@@ -252,23 +313,34 @@ export function moveBlockBy(
   }
 
   const x = clampInt(target.x + dx, 0, cols - target.w);
-  const y = Math.max(0, target.y + dy);
-  if (x === target.x && y === target.y) {
+  const firstY = Math.max(0, target.y + dy);
+  if (x === target.x && firstY === target.y) {
     return blocks;
   }
 
-  const moved = moveElement(
-    items,
-    target,
-    x,
-    y,
-    true,
-    false,
-    verticalCompactor.type,
-    cols,
-    false,
-  );
-  return applyGeometry(blocks, verticalCompactor.compact(moved, cols));
+  const step = Math.sign(dy);
+  // Down stops one row below the lowest block in the zone: past that there is
+  // nothing left to cross. Up stops at the top of the grid.
+  const lastY =
+    step > 0
+      ? items.reduce((bottom, item) => Math.max(bottom, item.y + item.h), 0)
+      : 0;
+
+  const candidates =
+    step === 0
+      ? [firstY]
+      : Array.from(
+          { length: Math.max(0, (lastY - firstY) * step + 1) },
+          (_unused, index) => firstY + index * step,
+        );
+
+  for (const y of candidates) {
+    const attempt = attemptMove(items, blockId, x, y, cols);
+    if (!sameGeometry(items, attempt)) {
+      return applyGeometry(blocks, attempt);
+    }
+  }
+  return blocks;
 }
 
 /**

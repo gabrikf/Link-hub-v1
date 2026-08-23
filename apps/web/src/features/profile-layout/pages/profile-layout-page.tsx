@@ -741,16 +741,26 @@ export function ProfileLayoutPage() {
    * Apply a keyboard nudge/resize to the block's OWN zone and persist it. The
    * zone matters: pinned blocks and a tab's blocks are separate grids with
    * independent y-coordinates, so they must be recompacted separately.
+   *
+   * A nudge that cannot move — the top block pressing ArrowUp, a block already
+   * at its minimum size — returns the very array it was given. Persisting that
+   * would send the server a layout identical to the one it already stores, once
+   * per keypress, so an arrow key held against the edge of the grid becomes a
+   * write storm that changes nothing.
    */
   const applyGeometryChange = (
     block: ProfileBlock,
     transform: (zoneBlocks: ProfileBlock[]) => ProfileBlock[],
   ) => {
     const zoneBlocks = block.pinnedAllTabs ? pinned : tabBlocks;
+    const next = transform(zoneBlocks);
+    if (next === zoneBlocks) {
+      return;
+    }
     const zoneKey = block.pinnedAllTabs
       ? "pinned"
       : `tab:${activeTab?.id ?? "none"}`;
-    persistPositions(blocksToRglLayout(transform(zoneBlocks)), zoneKey);
+    persistPositions(blocksToRglLayout(next), zoneKey);
   };
 
   const renderCard = (block: ProfileBlock) => (
