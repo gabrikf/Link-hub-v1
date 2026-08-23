@@ -247,6 +247,49 @@ describe("moveBlockBy", () => {
     expect(byId.a.gridY).toBe(2);
   });
 
+  /**
+   * The delta the card actually sends is ONE row (`ArrowUp` -> `dy: -1` in
+   * `grid-block-card.tsx`), and real blocks are much taller than one row. One
+   * row can never clear a six-row neighbour: the vertical compactor floats the
+   * block straight back down, so the press does nothing and the user cannot
+   * reorder their profile without a mouse.
+   */
+  it("lifts a block over a taller neighbour with the one-row delta the card sends", () => {
+    const blocks = [
+      makeBlock({ id: "tall", gridX: 0, gridY: 0, gridW: 12, gridH: 6 }),
+      makeBlock({ id: "short", gridX: 0, gridY: 6, gridW: 12, gridH: 2 }),
+    ];
+
+    const moved = moveBlockBy(blocks, "short", 0, -1, GRID_COLUMNS.pc);
+    const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
+
+    expect(byId.short.gridY).toBe(0);
+    expect(byId.tall.gridY).toBe(2);
+  });
+
+  it("drops a block under a shorter neighbour with the one-row delta the card sends", () => {
+    const blocks = [
+      makeBlock({ id: "tall", gridX: 0, gridY: 0, gridW: 12, gridH: 6 }),
+      makeBlock({ id: "short", gridX: 0, gridY: 6, gridW: 12, gridH: 2 }),
+    ];
+
+    const moved = moveBlockBy(blocks, "tall", 0, 1, GRID_COLUMNS.pc);
+    const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
+
+    expect(byId.short.gridY).toBe(0);
+    expect(byId.tall.gridY).toBe(2);
+  });
+
+  it("returns the same blocks when a nudge has nowhere to go, so nothing is persisted", () => {
+    const blocks = [
+      makeBlock({ id: "tall", gridX: 0, gridY: 0, gridW: 12, gridH: 6 }),
+      makeBlock({ id: "short", gridX: 0, gridY: 6, gridW: 12, gridH: 2 }),
+    ];
+
+    expect(moveBlockBy(blocks, "tall", 0, -1, GRID_COLUMNS.pc)).toBe(blocks);
+    expect(moveBlockBy(blocks, "short", 0, 1, GRID_COLUMNS.pc)).toBe(blocks);
+  });
+
   it("leaves the input untouched and ignores an unknown id", () => {
     const blocks = [makeBlock({ id: "a", gridX: 0, gridW: 4, gridH: 2 })];
 
