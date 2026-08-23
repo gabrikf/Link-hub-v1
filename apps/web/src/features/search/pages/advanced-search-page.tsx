@@ -49,6 +49,7 @@ function createSearchSessionId(): string {
 export function AdvancedSearchPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const resultsRef = useRef<HTMLElement | null>(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [rankedResults, setRankedResults] = useState<RankedCandidate[]>([]);
@@ -133,6 +134,38 @@ export function AdvancedSearchPage() {
       setHasSearched(true);
     },
   });
+
+  /**
+   * Take the recruiter to the results once a search lands.
+   *
+   * The composer, two semantic selects and the mandatory-filters block together
+   * overflow a phone viewport, so the results begin roughly 1000px below the
+   * fold. Without this the page is pixel-identical before and after a
+   * successful search and the only way to tell them apart is to scroll — which
+   * is why a recruiter re-taps and pays for the same embedding, pgvector query
+   * and on-device re-rank two or three times over.
+   *
+   * Keyed on the session id rather than on the results array, so two searches
+   * that happen to return the same people still move the viewport, and so it
+   * runs after the results have been committed rather than inside `onSuccess`.
+   */
+  useEffect(() => {
+    if (!searchSessionId) {
+      return;
+    }
+
+    const region = resultsRef.current;
+    if (!region) {
+      return;
+    }
+
+    // Focus first, scroll second: `focus()` would jump the page, and a smooth
+    // scroll reads as movement rather than as a teleport.
+    region.focus({ preventScroll: true });
+    // Optional call — jsdom does not implement it and the test environment
+    // must not turn a missing layout engine into a thrown error.
+    region.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [searchSessionId]);
 
   const isBusy = searchMutation.isPending || isModelLoading;
 
@@ -367,6 +400,7 @@ export function AdvancedSearchPage() {
       </section>
 
       <SearchResults
+        ref={resultsRef}
         results={rankedResults}
         isBusy={isBusy}
         hasSearched={hasSearched}

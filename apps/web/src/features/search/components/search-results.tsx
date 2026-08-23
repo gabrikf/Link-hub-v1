@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, type Ref } from "react";
 import { Link } from "@tanstack/react-router";
 import type {
   RecruiterSearchWorkEvidence,
@@ -478,6 +478,9 @@ function CandidateCardSkeleton({ index }: { index: number }) {
 
 const SKELETON_CARD_COUNT = 3;
 
+/** Names the results region, which the page focuses once a search lands. */
+const RESULTS_HEADING_ID = "search-results-heading";
+
 type SearchResultsProps = {
   results: RankedCandidate[];
   isBusy: boolean;
@@ -491,9 +494,42 @@ type SearchResultsProps = {
   onCopyEmail: CandidateAction;
   onViewProfile?: CandidateAction;
   onNotRelevant?: CandidateAction;
+  /**
+   * The page focuses this region once a search lands. Results start below a
+   * phone's fold, so without moving the viewport a successful search looks
+   * exactly like no search at all.
+   */
+  ref?: Ref<HTMLElement>;
 };
 
 const noopAction: CandidateAction = () => {};
+
+/**
+ * What a screen reader hears when a search finishes.
+ *
+ * Empty while a search is in flight — `LoadingLabel` already announces that —
+ * and empty before the first search, so the region only ever speaks about an
+ * outcome. It stays mounted either way: a live region inserted together with
+ * its text is unreliably announced.
+ */
+function describeSearchOutcome(
+  isBusy: boolean,
+  hasSearched: boolean,
+  resultCount: number,
+): string {
+  if (isBusy || !hasSearched) {
+    return "";
+  }
+
+  if (resultCount === 0) {
+    // Deliberately not the empty state's own wording: focus lands on this
+    // region, so the reader meets that paragraph — and its remediation advice
+    // — a moment later. Announcing it twice is noise.
+    return "No candidates found.";
+  }
+
+  return `${resultCount} candidate${resultCount === 1 ? "" : "s"} found.`;
+}
 
 export function SearchResults({
   results,
@@ -503,15 +539,28 @@ export function SearchResults({
   onCopyEmail,
   onViewProfile = noopAction,
   onNotRelevant = noopAction,
+  ref,
 }: SearchResultsProps) {
   // A search in flight used to render nothing at all — no cards, no empty
   // state — so the page looked broken for the seconds the reranker takes.
   const isLoadingFirstResults = isBusy && results.length === 0;
 
   return (
-    <section className={`p-6 ${SURFACE}`}>
+    <section
+      ref={ref}
+      // Focusable only programmatically, and named, so landing here says
+      // "Results" rather than dropping the reader into an anonymous group.
+      tabIndex={-1}
+      aria-labelledby={RESULTS_HEADING_ID}
+      // `scroll-mt-20` clears the sticky top bar: without it the scroll lands
+      // the "Results" header underneath the nav and the recruiter arrives at a
+      // region whose own heading is hidden.
+      className={`scroll-mt-20 p-6 ${SURFACE} ${FOCUS_RING}`}
+    >
       <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">Results</h2>
+        <h2 id={RESULTS_HEADING_ID} className="text-base font-semibold">
+          Results
+        </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           {isBusy
             ? "Ranking candidates…"
@@ -520,6 +569,16 @@ export function SearchResults({
               : "Re-ranked on your device"}
         </p>
       </header>
+
+      {/* The visible count above is a static label a reader only meets by
+          walking to it. This is the part that speaks when results land.
+
+          A bare `aria-live` rather than `role="status"`: this section already
+          carries two status roles — the degraded-ranking notice and the
+          loading label — and a third would compete with them for no gain. */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {describeSearchOutcome(isBusy, hasSearched, results.length)}
+      </p>
 
       {/* What the % on each card means. This lived only in a native `title=`
           tooltip: no hover affordance, unreachable by keyboard, invisible on

@@ -133,7 +133,7 @@ describe("AdvancedSearchPage — feedback when a search lands", () => {
   it("announces that a search found nobody", async () => {
     await runSearch(0);
 
-    const announcement = await screen.findByText(/no candidates matched/i, {
+    const announcement = await screen.findByText(/no candidates found/i, {
       selector: "[aria-live]",
     });
 
