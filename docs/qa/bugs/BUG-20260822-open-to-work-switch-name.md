@@ -1,6 +1,6 @@
 # BUG-20260822-open-to-work-switch-name: the "Open to work" switch has no accessible name
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Friction
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Diego, the curating developer — Accessibility-Reliant axis
@@ -54,10 +54,41 @@ is empty.
 <!-- filled when status moves to fixed -->
 - **Root cause:** *symptom* — the switch announces with no name. *Cause* — `apps/web/src/features/dashboard/components/dashboard-profile-form.tsx:272` renders the `role="switch"` button with only a decorative span child and no labelling attribute.
 - **Root Cause (taxonomy):** null-data
-- **Fix commit:** —
+- **Fix commit:** `1b2451052359cca4d7ca0ce8a3823760ecb0f02d` — the two paragraphs that already carry the text get ids (`profile-open-to-work-label`, `profile-open-to-work-hint`) and the button points at them with `aria-labelledby` / `aria-describedby`. Deliberately not a duplicated `aria-label`: the name now comes from the visible text, so it cannot drift from it. Red test: `d7d5603be46884433b67a23ff914d40b3989f6f6`.
 - **Regression test:** `@testing-library/react` beside the component (`dashboard-profile-form.test.tsx`): `expect(screen.getByRole("switch", { name: /open to work/i })).toBeInTheDocument()`. Seen failing first — today the query finds nothing while a bare `getByRole("switch")` passes, which is exactly the trap this test closes.
-- **Gate:** —
+- **Gate:** `guardrails PASS` at fix time (iteration 51). Re-run independently at review (iteration 52): `npm run build:schemas` ok, `npm run check-types` 8/8, `scripts/guardrails/lint-changed.mjs` clean (1 known recorded finding ignored).
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+**Reviewed and approved at iteration 52 (REVIEW_FIX), by an agent that did not write the fix.**
+
+- **Red proved, then green proved** — the commit message was not taken on trust.
+  At `d7d5603` the bug's own test fails **2 of 6** for the right reason:
+  `getByRole("switch", { name: /open to work/i })` finds nothing while the roles
+  dump lists the switch itself, unnamed, and `toHaveAccessibleDescription`
+  receives empty. Back on `nightly/qa-hardening` at `1b24510`: **6 passed**.
+- **Run the test from `apps/web`, not the repo root.** `npx vitest related <path>`
+  at the root resolves a config without jsdom and fails all six with
+  `document is not defined` — a red that proves nothing. Use
+  `npm run test --workspace apps/web -- related src/features/dashboard/components/dashboard-profile-form.test.tsx`.
+- **Re-walked in a real browser, both themes**, with a probe written from scratch
+  at review (`.nightly/evidence/BUG-20260822-open-to-work-switch-name/i52-review-probe.mjs`)
+  that reads the name from Chromium's **ARIA snapshot** rather than only from a
+  `getByRole` selector that could pass for the wrong reason. In light and in dark
+  the snapshot line is `- switch "Open to work" [checked]`; named switch count 1;
+  `aria-labelledby` / `aria-describedby` resolved; zero console errors; zero
+  4xx/5xx.
+- **The control still works, and its visual state still tracks its a11y state.**
+  Clicking flips `aria-checked` `true → false`, the switch stays named after the
+  toggle, and the background follows (`emerald oklch(0.696 0.17 162.48) → zinc
+  oklch(0.871 0.006 286.286)`) — both read the same `watched.openToWork`, so they
+  cannot diverge.
+- **Duplicate-id hazard checked live, not assumed:** each id occurs exactly once
+  in the DOM, `DashboardProfileForm` has one call site
+  (`dashboard-page.tsx:788`), and static `profile-*` ids are already this
+  component's convention.
+- **Not verified:** no real screen reader was run — the announcement string is
+  expected output, not a recording. Not checked at 390px. The switch was never
+  exercised through a real save (no POST, no row read back), so persistence of
+  `openToWork` remains uncovered by any test. That gap is real and is not this
+  fix's job.
