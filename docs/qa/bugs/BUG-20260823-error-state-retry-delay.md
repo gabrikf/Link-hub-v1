@@ -151,3 +151,94 @@ Apply it to `meQuery` in `dashboard-page.tsx` and `layoutQuery` in
 Additionally, re-run `.nightly/probes/i76-triage-retry-delay.mjs` after the fix
 and record the new `error copy visible at` numbers. A green test is not the same
 evidence as a measured screen.
+
+---
+
+## Review — iteration 78, independent. Verdict: **approved**
+
+Reviewer did not write the fix. Reviewed `2ad3193` (red) → `77511b6` (fix).
+
+### Red proved, not taken on trust
+
+Detached checkout of `2ad3193`, the bug's two tests run there:
+
+```
+× DashboardPage … reaches the error state in about a second   expected 7068.469578 to be less than 1500
+× ProfileLayoutPage … reaches the error screen in about a second  expected 7024.552406 to be less than 1500
+  Tests  2 failed | 6 passed (8)
+```
+
+On `nightly/qa-hardening`: `367ms` / `320ms`, **8 passed (8)**.
+
+Both red failures print the bug's own symptom — elapsed-time-to-error — so
+neither is an import, selector or fixture artefact. The four pre-existing
+error-state tests in the same two files pass on **both** sides, so the fix could
+not have gone green by breaking the error state it was supposed to reach faster.
+
+The red commit is **+104 / −2**; the two deletions are a prettier re-wrap of one
+existing `mockRejectedValue(...)` call. No assertion was edited.
+
+### The fix itself
+
+`+22 / −0` across three files. No reformatting, no renames, no drive-bys, no
+`.skip`, no `eslint-disable`, no type assertion, no swallowed error, no monkey
+patch. `packages/schemas/**` is untouched, so no boundary shape moved and
+nothing was widened. `build:schemas` + `check-types` (8/8) + `lint-changed`
+(51 files, clean) all pass.
+
+**Blast radius searched.** `queryKey: ["me"]` has two observers —
+`dashboard-page.tsx:140` (policy applied) and `profile-layout-page.tsx:334`
+(deliberately not) — and `["layout"]` has one. Both error branches are guarded
+by absent data (`meQuery.isError && !meQuery.data`,
+`layoutQuery.isError && !full`), so the shorter retry **cannot** flash an error
+panel over already-loaded data when a background refetch fails.
+
+### The user-visible harm, re-walked
+
+The bug's own repro, `.nightly/probes/i76-triage-retry-delay.mjs`, re-run by the
+reviewer:
+
+```
+/dashboard,        /me        → 500 : error copy 1125ms (was 7730), 2 requests (was 4)
+/dashboard/layout, /me/layout → 500 : error copy  942ms (was 7513), 2 requests (was 4)
+```
+
+The acceptance e2e the FIX iteration never ran —
+`05-profile-appearance.spec.ts:893` — passes in 5.2s.
+
+### The fix's central claim, tested independently
+
+`retry: 1` was chosen over `retry: false` on the argument that one quick retry
+still heals a transient blip invisibly. That argument was never tested, so a new
+probe tested it: `.nightly/probes/i78-review-retry-delay.mjs` fails only the
+**first** request and lets every later one through.
+
+```
+/dashboard        first /me → 500, rest OK : error never shown, content at 673ms, 2 attempts
+/dashboard/layout first /me/layout → 500   : error never shown, content at 409ms, 2 attempts
+```
+
+No lingering skeleton at 8s on either route. The fix did not trade a slow error
+for a spurious one.
+
+**Dark theme**, both error screens (`html.dark` true): error copy at 830ms and
+749ms, console clean apart from the two intentional 500s. Evidence
+`.nightly/evidence/i78-dark-dashboard-me.png`,
+`.nightly/evidence/i78-dark-layout-me-layout.png`.
+
+### Accepted with the fix — not blockers
+
+- `meQuery` on `/dashboard/layout` still inherits the library default and made
+  **4** attempts when probed. Correctly left alone: that route has no designed
+  error state for a failed `/me`, and the probe shows no user-visible harm —
+  the editor renders at 517ms, no skeleton lingers, no error copy ever appears.
+  Applying the policy there would only make blank fields arrive sooner.
+- The same query key now behaves differently per route. Harmless today (the two
+  observers never mount together), worth knowing before a third observer of
+  `["me"]` is added.
+- Nothing **enforces** the policy for the next screen that gates an error state
+  on `isError` — the exported constant and its doc comment are the whole
+  mechanism. A lint rule or a shared hook is a refactor with its own blast
+  radius.
+- `05-profile-appearance.spec.ts:822` stays red on the stale fabricated-defaults
+  assertion (`CAND-0116`, rejected `harness` at i61). Not this fix; not re-run.
