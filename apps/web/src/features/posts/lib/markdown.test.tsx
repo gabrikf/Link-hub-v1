@@ -91,6 +91,24 @@ describe("markdownExcerpt", () => {
     );
   });
 
+  it("keeps hyphens and underscores that are part of the prose", () => {
+    const body =
+      "Rebuilt the front-end of our e-commerce checkout between 2023-2024 and renamed every snake_case config key.";
+    expect(markdownExcerpt(body)).toBe(body);
+  });
+
+  it("strips leading bullets and quote markers without eating in-word hyphens", () => {
+    expect(markdownExcerpt("- blue-green deploys\n> ship it")).toBe(
+      "blue-green deploys ship it",
+    );
+  });
+
+  it("unwraps _emphasis_ but leaves an identifier's underscores alone", () => {
+    expect(markdownExcerpt("_Shipped_ the user_id migration")).toBe(
+      "Shipped the user_id migration",
+    );
+  });
+
   it("truncates with an ellipsis past the max length", () => {
     const excerpt = markdownExcerpt("word ".repeat(60), 20);
     expect(excerpt.endsWith("…")).toBe(true);
