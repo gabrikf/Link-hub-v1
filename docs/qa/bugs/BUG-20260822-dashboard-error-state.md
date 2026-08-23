@@ -1,6 +1,6 @@
 # BUG-20260822-dashboard-error-state: when /me fails, the dashboard profile panel is indistinguishable from a wiped account
 
-- **Status:** open
+- **Status:** fixed-pending-review
 - **Impact (user-side):** Alarm and wasted work — a transient 5xx looks like data loss
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Diego, the curating developer
@@ -46,10 +46,14 @@ autosave that turns it into data loss.
 <!-- filled when status moves to fixed -->
 - **Root cause:** *symptom* — a failed `/me` renders as an empty account. *Cause* — `dashboard-page.tsx:750` branches on `meQuery.isLoading` only, and the else branch feeds `DashboardProfileDisplay` with `meQuery.data?.x ?? ""` for every field, so error and empty collapse into one render. `meQuery.isError` is never read in `apps/web/src/features/dashboard/pages/dashboard-page.tsx` (`isError` appears there only for mutations). `apps/web/src/lib/session.ts` already documents this failure mode for expired sessions; a plain 5xx is still unhandled.
 - **Root Cause (taxonomy):** missing-state — error is folded into the empty path
-- **Fix commit:** —
-- **Regression test:** component test with `@testing-library/react` asserting error copy renders when the `/me` query errors, and that it differs from the empty state. Fails today.
-- **Gate:** —
+- **Fix:** the panel grew a third branch — `meQuery.isError && !meQuery.data` renders the new `apps/web/src/features/dashboard/components/dashboard-profile-display-error.tsx`: a `role="alert"` "Couldn't load your profile", copy stating nothing was lost, and a "Try again" button wired to `meQuery.refetch()`. The condition deliberately keeps stale data over the error panel, so a failed *background* refetch does not blank a panel that already has content.
+- **Fix commit:** `91963b9`
+- **Regression test:** `apps/web/src/features/dashboard/pages/dashboard-page.test.tsx` — renders `DashboardPage` with a real `QueryClient` (`retry: false`) and a rejecting `fetchMyProfile`, asserts the alert is present and the empty-state copy is not. Red commit `a6443e8` (`→ Unable to find role="alert"`); it fails for the bug's own symptom — with the same rejecting query a temporary `findByText("No description yet.")` passes. A second test (a resolving `/me` still renders the saved profile) guards the filled state.
+- **Gate:** `guardrails PASS` — 5/5 turbo tasks, apps/web 51 test files / 449 tests, i18n-parity skipped (no locales dir).
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+- **Browser-verified after the fix, both themes**, on web :5273 / api :3344 with `GET /me` forced to 500 and polled to t+20s (past all 4 retries): `.nightly/evidence/BUG-20260822-dashboard-error-state/i37-probe-me-500-fixed.mjs`, transcript `i37-fix-verification.txt`, screenshots `i37-me-500-fixed-light.png` / `i37-me-500-fixed-dark.png`.
+- Panel now reads `Couldn't load your profile | Nothing was lost — we just couldn't reach the server. … | Try again`. `role="alert"` count 1, `Edit profile` button count 0, `No description yet.` and `Your name` absent — in light **and** dark.
+- **Retry works:** with `/me` allowed through again, one click of "Try again" brought back the real seeded profile in a single request (`i37-me-500-fixed-after-retry.png`).
+- **Not verified:** mobile viewport (1440×900 only), no screen-reader run, retry path exercised in light theme only.
