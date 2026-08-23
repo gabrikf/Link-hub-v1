@@ -196,3 +196,51 @@ state has never been *seen* in either theme. No psql; this bug is entirely
 client-side. The stale-refetch path is asserted at the render layer only, not
 against a live api. `e2e/journeys/05-profile-appearance.spec.ts:874-877` still
 asserts the old fabricated-default behaviour — still open, still for a human.
+
+## Review of attempt 2 — APPROVED, 2026-08-22 (loop iteration 26)
+
+**Red-then-green proved mechanically.** At `cf0ae21` the fourth case fails for
+the regression itself — `expected 'Couldn\'t load your layoutYour tabs a…' not
+to match /couldn.?t load|…/i`, i.e. the error screen replacing a loaded editor —
+while the three older cases pass (`Tests 1 failed | 3 passed (4)`). At
+`nightly/qa-hardening`: `Tests 4 passed (4)`. The three surviving cases are what
+show `&& !full` did not quietly undo the original fix.
+
+**The fix reads right.** `if (layoutQuery.isError && !full)` is the honest
+restatement of the defect: `buildDefaultLayout` is reached only when `full` is
+`undefined`, so only that state can fabricate a layout and only that state earns
+the error screen. A failed *background* refetch keeps real data in the cache and
+now keeps the editor. A failed zod parse in `fetchLayout` also lands in `isError`
+with no data, so contract drift still reaches the error screen rather than a
+stock arrangement. No hook runs below the early return (`awk 'NR>831 &&
+/use[A-Z]/'` over the file finds nothing). `lint-changed` clean over 24 files.
+
+**Nothing else moved.** Fix commit: 27 lines, one file, comments included. Test
+commit: one added case plus `renderPage()` also returning the `QueryClient` —
+additive, no existing assertion touched. No schema, no `eslint-disable`, no type
+assertion, no `.skip`, no widened validation, no scope creep.
+
+**Seen in a real browser, at last, in both themes.** Earlier iterations recorded
+port 3333 as serving an unrelated api; the nightly instance is in fact reachable
+(`VISUAL_API_URL=:3344`, `VISUAL_APP_URL=:5273`) and the visual runner works
+against it. Ad-hoc scenario, signed in as `seed-python-data-042`, `GET
+/me/layout` mocked to 500 on `/dashboard/layout`: **7 assertions passed, 0
+console errors** — the error card renders with its copy and a working *Try
+again*, no `Changes save automatically`, no fabricated `Profile header block`,
+and the dark capture resolves real dark tokens (card `oklch(0.21 0.006 285.885)`,
+body `oklch(0.141 0.005 285.823)`), so the `dark:` variants are now looked at
+rather than read off class strings. Unmocking and reloading brings the real
+editor back. Screenshots: `.visual/review-layout-error-{error-light,error-dark,filled-light}.png`.
+
+**Still open for a human** (unchanged, not a blocker for this fix):
+`e2e/journeys/05-profile-appearance.spec.ts:874-877` still asserts the fabricated
+`Profile header block` group is present on a 500 — that assertion now encodes the
+bug. Separately, `npm run visual:login` writes only `linkhub.auth.tokens` and not
+`linkhub.auth.user-info`, so every authed visual scenario bounces to `/` with
+"Session expired"; this review had to write both keys by hand.
+
+**Not verified by this review:** Playwright journeys were not run (the storage
+states they need are a separate concern from the visual runner's). No psql — the
+bug is entirely client-side. The stale-refetch survival path is proved at the
+render layer only; it was not reproduced against a live api by making a real save
+and failing its refetch.
