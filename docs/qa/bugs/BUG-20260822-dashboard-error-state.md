@@ -57,3 +57,58 @@ autosave that turns it into data loss.
 - Panel now reads `Couldn't load your profile | Nothing was lost — we just couldn't reach the server. … | Try again`. `role="alert"` count 1, `Edit profile` button count 0, `No description yet.` and `Your name` absent — in light **and** dark.
 - **Retry works:** with `/me` allowed through again, one click of "Try again" brought back the real seeded profile in a single request (`i37-me-500-fixed-after-retry.png`).
 - **Not verified:** mobile viewport (1440×900 only), no screen-reader run, retry path exercised in light theme only.
+
+## Review — APPROVED (iteration 38)
+
+**Red → green proved mechanically, not from the commit message.** At `a6443e8`,
+`npx vitest related src/features/dashboard/pages/dashboard-page.test.tsx --run`
+gives 1 failed / 1 passed, failing at `dashboard-page.test.tsx:80` with
+`Unable to find role="alert"` — and the DOM dump printed alongside it shows the
+whole `DashboardPage` rendered (react-select, dnd-kit, the link form), so it is
+the assertion failing and not an import, a bad mock or a missing fixture. At
+`48e52d3` the same command gives 2 passed. The full gate was re-run
+independently: `guardrails PASS`, 51 web test files / 449 tests.
+
+**The fix is the missing branch, not a mask.** `meQuery.isError` was read
+nowhere on the page; it is now. `isError && !meQuery.data` is the right
+condition — bare `isError` would blank a panel holding real content the moment a
+background refetch 5xx'd. No type assertion, no `eslint-disable`, no `.skip`, no
+swallowed error, no timing hack. No schema moved, so nothing was widened. No
+test was edited: the red commit only adds a file, the fix commit touches none.
+Blast radius is one panel — `DashboardProfileDisplayError` is imported only by
+`dashboard-page.tsx`, and the Edit dialog stays mounted on the error path but
+unreachable, its only trigger living in the branch that is now replaced. The
+appearance copy this bug reported (`Banner`, `Not set`) lives inside
+`DashboardProfileDisplay`, so it goes with the rest of the panel. Design
+conforms: every red utility has a `dark:` counterpart and matches
+`FeedbackMessage` / `RouteErrorState`, `react-icons/fi` only, the repo `Button`
+with `fullWidth={false}` / `isLoading`, no `SURFACE` fork. Four states now
+complete for this panel: loading, error, empty, filled.
+
+**Re-walked independently in the browser** with the reviewer's own probes, not
+by re-running the FIX agent's: `i38-review-probe.mjs` (transcript
+`i38-review-verification.txt`) over **light desktop, dark desktop and light
+mobile 390×844** — the viewport the fix had left unverified. All three: alert
+count 1, `No description yet.` / `Your name` / `@username` / `Banner` /
+`Not set` all absent, `Edit profile` count 0, `Try again` visible.
+`i38-review-retry-probe.mjs` re-proves the retry in **dark**: one click, exactly
+one request, the real seeded profile back, and **no skeleton flash** across 8
+samples over 4s.
+
+**Watch out — the retry backoff is slower and more variable than "~t+7.5s".** A
+fixed 12s wait caught two of three runs still on attempt 2/3, showing the
+skeleton and looking exactly like a regression. Poll until `meCalls >= 4` **and**
+the panel stops saying `Loading profile`.
+
+**Still not verified after review:** no screen reader (the `role="alert"` is
+asserted by construction and by locator count, but nobody listened to it); no
+dark mobile capture; no psql, since this is a read path and nothing was written.
+The `deep-review` skill's full artifact pipeline was not run — it is a
+multi-agent round sized for hundreds of files, and this diff is 2 files / 69
+lines; its rubric was applied by hand against `AGENTS.md`, `DESIGN.md` and the
+six LinkHub priorities, and its linter lanes were covered by the full gate.
+
+**Advisory, out of scope:** the `meQuery.data?.x ?? ""` shape that caused this
+bug still feeds the Edit dialog's `initialValues` (`dashboard-page.tsx:333-343`)
+and the resume-import panel (`:723-724`), and the stale-data-wins branch shows a
+last-known profile with no sign the refresh failed. Both are their own tasks.
