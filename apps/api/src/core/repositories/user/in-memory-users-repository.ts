@@ -1,12 +1,16 @@
 import { UserEntity } from "../../entity/user/user-entity.js";
+import { normalizeEmail } from "../../entity/user/normalize-email.js";
 import { IUsersRepository } from "./user-repository.js";
 
 export class InMemoryUsersRepository implements IUsersRepository {
   private users: UserEntity[] = [];
 
   async findByEmailOrLogin(emailOrLogin: string): Promise<UserEntity | null> {
+    const normalized = normalizeEmail(emailOrLogin);
     const user = this.users.find(
-      (user) => user.email === emailOrLogin || user.login === emailOrLogin,
+      (user) =>
+        normalizeEmail(user.email) === normalized ||
+        user.login === emailOrLogin,
     );
     return user || null;
   }
@@ -17,7 +21,10 @@ export class InMemoryUsersRepository implements IUsersRepository {
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
-    const user = this.users.find((candidate) => candidate.email === email);
+    const normalized = normalizeEmail(email);
+    const user = this.users.find(
+      (candidate) => normalizeEmail(candidate.email) === normalized,
+    );
     return user || null;
   }
 
