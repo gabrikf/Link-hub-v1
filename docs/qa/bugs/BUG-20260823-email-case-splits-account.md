@@ -124,3 +124,121 @@ repository will not exercise it, and the tests will pass for the wrong reason.
 **Scope discipline for FIX:** normalise the email; do not touch `login`
 matching (logins are a separate identifier and are not part of this bug), do not
 change the error messages, and do not write a migration.
+
+---
+
+# Review — APPROVED (iteration 71)
+
+Independent review of `c566114` (red) / `5560cb3` (fix). Verdict: **approved**,
+moved to `fixed[]`.
+
+## Red is red, and for the right reason
+
+Detached checkout of `c566114`, the bug's own three files only:
+
+```
+FAIL login.use-case.test.ts       > should sign in a stored capitalised address typed back in lowercase
+     InvalidCredentialsError  thrown at login.use-case.ts:27   <- the lookup missed, not the hash
+FAIL create-user.use-case.test.ts > should throw DuplicateResourceError when the same mailbox is registered in a different case
+     promise RESOLVED instead of rejecting, with login "case-split-again"  <- a second account
+FAIL oauth-sign-in.use-case.test.ts > links existing user when the provider email differs only by case
+     expected true to be false  (isNewUser)
+
+Test Files  3 failed (3)     Tests  3 failed | 19 passed (22)
+```
+
+Each failure prints the bug's own symptom — no import error, no missing fixture,
+no bad selector. Back on `nightly/qa-hardening`: **22 passed (22)**.
+
+The red commit is **84 insertions / 0 deletions**: no existing test was edited to
+let the fix through. The fix commit is **3 files / 37 insertions** with no
+reformatting, no renames and no drive-by changes.
+
+## The fix repairs the cause
+
+The defect was never "the login handler forgot to lowercase" — the address was
+compared as a raw string at the repository, which is why one missing rule
+produced three symptoms. `normalizeEmail` is applied to **both sides** of the
+comparison in **both** implementations, so the accounts already stored with
+capitals — the people actually hurt — are found too. Normalising on write would
+have left exactly those accounts split forever, and would have risked rewriting a
+legacy address into a unique violation on an unrelated profile save.
+
+No `no-workarounds` signal: no type assertion, no `eslint-disable`, no `.skip`,
+no swallowed error, no timing hack. `@repo/schemas` was not touched at all, so no
+boundary shape changed and nothing was widened. TRIAGE's scope discipline was
+honoured: `login` matching is untouched, error messages are unchanged, and no
+migration was written.
+
+**Blast radius searched and closed.** Every email lookup in the repository funnels
+through `IUsersRepository.findByEmailOrLogin` / `findByEmail` — callers are
+`login.use-case.ts:24`, `create-user.use-case.ts:26-27`,
+`oauth-sign-in.use-case.ts:58` and `:68`, and `seed-realistic.ts:1375`. Both
+implementations were changed together, so the in-memory suite and production
+cannot drift apart. That is the precise failure mode triage warned about.
+
+## Drizzle proved directly, not through the dev server
+
+The hermetic suite cannot reach `DrizzleUserRepository`, so the branch's own
+repository was constructed in-process against `linkhub_dev`
+(`.nightly/probes/i71-drizzle-email-case.ts`), with a row inserted by psql holding
+capitals:
+
+```
+findByEmailOrLogin(lowercase)     caf30a3f… I71.Probe.i71p30726@linkhub.local
+findByEmailOrLogin(UPPERCASE)     caf30a3f… I71.Probe.i71p30726@linkhub.local
+findByEmailOrLogin(exact)         caf30a3f… I71.Probe.i71p30726@linkhub.local
+findByEmailOrLogin(login handle)  caf30a3f… probe-i71p30726
+findByEmail(lowercase)            caf30a3f… I71.Probe.i71p30726@linkhub.local
+findByEmail(absent)               null
+findByEmailOrLogin(absent login)  null
+```
+
+A second probe pushed `' OR '1'='1`, `x' OR lower(email) LIKE '%` and
+`%@linkhub.local` through `findByEmail`: **all null**. The ``sql`` `` template
+binds parameters and does not over-match.
+
+## The user-visible harm is gone
+
+Re-walked from the bug's own entry point on a **verified fresh** api process:
+
+```
+1 register capitalised   201
+2 login exact            200
+3 login lowercase        200   (was 401)
+4 register lowercase     409   DUPLICATE_RESOURCE  (was 201)
+5 login UPPERCASE        200
+6 wrong password         401
+7 unknown mailbox        401
+psql lower(email)=…      exactly 1 row
+```
+
+Mailbox `I71.Ok.i71ok10506018@linkhub.local`; every success returns the same user
+id `e541370b-c118-44c3-af70-b2fe2d65c85c`. The negative cases still reject, so the
+lookup was widened by case only.
+
+**Method note for future reviews:** checking out the red commit restarts the
+`tsx watch` api, and after checking back out the watcher is deaf (git replaces
+the file inode), so the server keeps serving the RED code. The first walk of this
+reproduction "reproduced" the bug against a stale server. Touch a file the
+checkout did not rewrite (`apps/api/src/index.ts`), wait for the listener pid to
+change, and only then believe a curl result.
+
+Design, dark mode and the four-state rule are not applicable — this is an api-only
+change and nothing user-visible changed shape.
+
+## Accepted with the fix, not a blocker
+
+`lower(email)` cannot use `users_email_unique`, so sign-in is now a sequential
+scan. Measured rather than assumed: **454 users, 0.318 ms execution**. The
+follow-up is a **non-unique** functional index on `users (lower(email))` — a
+migration, and its own task. It is recorded in the queue entry's
+`left_for_a_human`.
+
+## Not verified
+
+The OAuth path is covered by a use-case test and by reading
+`oauth-sign-in.use-case.ts:58`, but has still never been driven through a real
+Google provider — the caveat i68, i69 and i70 each carried. `npm run check-types`
+reported 8/8 **cached**, so it re-proved nothing beyond the cache key; the fix
+commit's own `guardrails PASS` is what stands.
