@@ -1,6 +1,6 @@
 # BUG-20260822-layout-vertical-keyboard: blocks cannot be reordered vertically without a mouse
 
-- **Status:** open
+- **Status:** fixed — approved at review (iteration 49)
 - **Impact (user-side):** Blocked — a keyboard-only user cannot arrange their profile
 - **Severity:** High · **Priority:** P2
 - **Persona Affected:** Diego, the curating developer — Accessibility-Reliant axis
@@ -52,10 +52,75 @@ keyboard substitute for drag.
 <!-- filled when status moves to fixed -->
 - **Root cause:** *symptom* — vertical arrow keys do nothing. *Cause* — `moveBlockBy` in the layout feature's `grid-utils.ts` nudges by exactly ±1 row and then re-runs `verticalCompactor.compact`, which floats the block straight back. A single row can never clear a 4–6 row neighbour, and nothing accumulates because state is recompacted from the original `gridY` on every press.
 - **Root Cause (taxonomy):** algorithm — the nudge and the compactor fight each other
-- **Fix commit:** —
-- **Regression test:** a unit test beside `grid-utils.test.ts` using `dy: -1` against a realistically tall neighbour. **The existing test at `grid-utils.test.ts:236` passes only because it uses `dy: -2` against an `h: 2` block** — a full block height, which the card handler never sends. Add the missing case; do **not** edit that existing test to make a fix pass. The e2e assertion in journey 05 covers the user-visible half.
-- **Gate:** —
+- **Fix commit:** `12a3386` (red `dea5742`), the second attempt. The first,
+  `c938e6c` (red `df12cbc`), was rejected at review: it read `dy` as a direction
+  with a minimum distance — correct — but accepted the first candidate row where
+  *anything* in the layout changed. On a row shared by two half-width blocks that
+  is satisfied far too early, because shoving the row-mates aside is itself a
+  change, so a single `ArrowUp` left the focused block where it was, flung an
+  untouched neighbour to the bottom of the profile, and persisted it. `12a3386`
+  changes one condition: a candidate counts only when **the block the user is
+  nudging** ends up on a different cell; otherwise the loop keeps walking. When
+  no candidate moves it, the input array is returned, so a nudge with nowhere to
+  go still writes nothing. `sameGeometry` had no other caller and went with its
+  last use.
+- **Regression test:** five new cases in `grid-utils.test.ts` — the one-row nudge over a taller neighbour in both directions, the same-array guard for a nudge with nowhere to go, and (in `dea5742`) the shared-row shape plus its bystander/no-write mirror. No existing test was edited: both red commits are insert-only, and the pre-existing `dy: -2` case at `:236` — which passed only because a full block height is a delta the card never sends — is untouched.
+- **Gate:** `guardrails PASS` at `12a3386` (web 51 files / 454 tests). At review: `check-types` 8/8, `lint-changed` clean.
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+Reviewed independently at iteration 49 (REVIEW_FIX) and **approved**. Full
+transcript: `.nightly/evidence/BUG-20260822-layout-vertical-keyboard/i49-review-approve.md`.
+
+**Red → green, run at the commits rather than taken from the message.** At
+`dea5742`: `1 failed | 27 passed`, and the failure is a real geometry assertion —
+`expected 6 to be +0` at `grid-utils.test.ts:315`, i.e. the focused block never
+moved — not an import error or a bad fixture. At `nightly/qa-hardening`:
+`28 passed`.
+
+**The fix cannot make a working nudge worse, and that was measured, not argued.**
+The new condition only *narrows* which candidate rows are accepted, so every
+nudge that already moved its target is byte-identical. Running one throwaway
+probe at **both** commits over three shapes no committed test covers:
+
+| shape | press | red `dea5742` | fix `12a3386` |
+|---|---|---|---|
+| mobile 4-col `a@x0y0w2h4 / b@x2y0w2h4 / c@x0y4w4h4` | `ArrowUp` on `c` | `a@y0 c@y4 b@y8` — c stuck, b flung | `c@y0 a@y4 b@y4` ✅ |
+| three in a row `p/q/r@y0w4 / s@y6w12` | `ArrowUp` on `s` | `p@y0 s@y6 q@y12 r@y12` | `s@y0 p/q/r@y6` ✅ |
+| `T@y0w12 / L@y6w6 / R@y6w6` | `ArrowUp` on `L` | `L@y0 T@y6 R@y12` | identical |
+
+So the fix also repairs the **4-column mobile grid**, which no test asserts. The
+last row is the known rough edge — nudging one half of a row above a full-width
+block drops its row-mate below that block — and it is **pre-existing and
+unchanged**, matching what react-grid-layout's own drag maths produce for a drop
+on that row.
+
+**Re-walked in a real browser.** The bug's own reproduction (journey 05,
+desktop, live app) passes and prints `1 position PATCH(es) for 10 ArrowUp
+presses` — the bug filed **eight** byte-identical writes for those same presses.
+The shared-row shape had never been in a browser at all; a review probe built it
+through the API and drove the real editor: `ArrowUp` on the full-width block
+gives `work_experiences@x0y0w12` with `links@x0y6` and `resume@x6y6` still side
+by side (1 PATCH), `ArrowDown` puts it back (1 PATCH) — **the first browser
+press of `ArrowDown` for this bug** — and `ArrowUp` on the top block writes
+nothing at all (0 PATCH). Zero console errors.
+
+**Read back out of Postgres mid-move**, since the journey restores its baseline
+in `afterAll` and psql after the suite proves nothing: `work_experiences 0/0/12/6`,
+`links 0/6/6/6`, `resume 6/6/6/6`, all at `updated_at 2026-08-23 07:17:10.341`.
+The developer's original geometry was then restored from `i40-snapshot.json` and
+re-checked in psql.
+
+**Not applicable:** nothing visual changed — no markup, class string or
+component — so `DESIGN.md`, the `SURFACE*` constants, `dark:` counterparts,
+`--profile-accent-*` and the four-state rule have nothing to answer here. No
+boundary shape changed, so there is no contract drift and nothing was widened.
+
+**Still not verified:** dark theme and 390px were not looked at (nothing visual
+changed; the 4-column grid is measured only at the unit layer). The
+pinned-blocks zone is still exercised by nothing. No screen reader.
+`Shift+Arrow` resize was not re-walked in a browser. The `deep-review` skill's
+full artifact pipeline was not run — it is a multi-agent round sized for
+hundreds of files and this diff is one file / 30 lines; its rubric was applied
+by hand and its linter lanes (`build:schemas`, `check-types`, `lint-changed`)
+were run.
