@@ -38,6 +38,7 @@ import {
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyResumeQuery } from "../../../lib/profile-queries";
+import { RETRY_BEHIND_AN_ERROR_STATE } from "../../../lib/query-client";
 import { reportError } from "../../../lib/report-error";
 import { detectLinkIcon, LINK_ICON_OPTIONS } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
@@ -139,6 +140,7 @@ export function DashboardPage() {
     queryKey: ["me"],
     queryFn: fetchMyProfile,
     enabled: hasSession,
+    ...RETRY_BEHIND_AN_ERROR_STATE,
   });
 
   const linksQuery = useQuery({

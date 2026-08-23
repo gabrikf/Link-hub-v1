@@ -54,6 +54,7 @@ import {
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyResumeQuery } from "../../../lib/profile-queries";
+import { RETRY_BEHIND_AN_ERROR_STATE } from "../../../lib/query-client";
 import { reportError } from "../../../lib/report-error";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
@@ -339,6 +340,7 @@ export function ProfileLayoutPage() {
     queryKey: ["layout"],
     queryFn: fetchLayout,
     enabled: hasSession,
+    ...RETRY_BEHIND_AN_ERROR_STATE,
   });
 
   const linksQuery = useQuery({
