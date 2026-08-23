@@ -135,6 +135,33 @@ describe("OAuthSignInUseCase", () => {
     expect(linkedAccount?.providerAccountId).toBe(validInput.providerAccountId);
   });
 
+  it("links existing user when the provider email differs only by case", async () => {
+    // The account was created by hand with capitals; Google hands the same
+    // mailbox back lowercased. It must be one account, not two.
+    const existingUser = UserEntity.create({
+      email: "Case.Split@Example.com",
+      login: "local-user",
+      name: "Local Name",
+      password: "hashed-password",
+      description: null,
+      avatarUrl: null,
+      googleId: null,
+    });
+    await usersRepository.create(existingUser);
+
+    const lowercaseFromProvider: IOAuthSignInUseCaseInput = {
+      ...validInput,
+      email: "case.split@example.com",
+    };
+    vi.mocked(mockValidator).mockReturnValue(lowercaseFromProvider);
+
+    const result = await sut.execute(lowercaseFromProvider);
+
+    expect(result.isNewUser).toBe(false);
+    expect(result.user.id).toBe(existingUser.id);
+    expect(usersRepository.count()).toBe(1);
+  });
+
   it("throws when provider email is not verified", async () => {
     vi.mocked(mockValidator).mockReturnValue({
       ...validInput,

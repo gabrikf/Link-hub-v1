@@ -183,6 +183,34 @@ describe("LoginUseCase", () => {
       expect(timeDiff).toBeLessThan(1000); // Less than 1 second difference
     });
 
+    it("should sign in a stored capitalised address typed back in lowercase", async () => {
+      // Arrange - the phone keyboard capitalised the address at signup, so the
+      // row holds capitals the person will never reproduce by hand.
+      const capitalisedUser = UserEntity.create({
+        email: "Case.Split@Example.com",
+        login: "case-split",
+        name: "Case Split",
+        password: "hashed_password123",
+        description: null,
+        avatarUrl: null,
+        googleId: null,
+      });
+      await usersRepository.create(capitalisedUser);
+
+      const lowercaseInput: ILoginUseCaseInput = {
+        email: "case.split@example.com",
+        password: "password123",
+      };
+      vi.mocked(mockValidator).mockReturnValue(lowercaseInput);
+
+      // Act
+      const result = await loginUseCase.execute(lowercaseInput);
+
+      // Assert - one mailbox, one account, whatever the case
+      expect(result.user.id).toBe(capitalisedUser.id);
+      expect(result.accessToken).toBeTypeOf("string");
+    });
+
     it("should not expose password in returned user", async () => {
       // Arrange
       vi.mocked(mockValidator).mockReturnValue(validInput);

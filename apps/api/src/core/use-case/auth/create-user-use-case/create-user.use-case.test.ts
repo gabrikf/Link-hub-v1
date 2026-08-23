@@ -116,6 +116,35 @@ describe("CreateUserUseCase", () => {
       expect(refreshTokenRepository.count()).toBe(0);
     });
 
+    it("should throw DuplicateResourceError when the same mailbox is registered in a different case", async () => {
+      // Arrange - the account already on file was typed with capitals
+      const existingUser = UserEntity.create({
+        email: "Case.Split@Example.com",
+        login: "case-split",
+        name: "Existing User",
+        password: "hashedpassword",
+        description: null,
+        avatarUrl: null,
+        googleId: null,
+      });
+      await usersRepository.create(existingUser);
+
+      const lowercaseSignup: ICreateUserUseCaseInput = {
+        ...validInput,
+        email: "case.split@example.com",
+        login: "case-split-again",
+      };
+      vi.mocked(mockValidator).mockReturnValue(lowercaseSignup);
+
+      // Act & Assert - the same mailbox must not become a second account
+      await expect(createUserUseCase.execute(lowercaseSignup)).rejects.toThrow(
+        new DuplicateResourceError("User", "email", lowercaseSignup.email)
+      );
+
+      expect(usersRepository.count()).toBe(1);
+      expect(refreshTokenRepository.count()).toBe(0);
+    });
+
     it("should throw DuplicateResourceError when login already exists", async () => {
       // Arrange
       const existingUser = UserEntity.create({
