@@ -47,6 +47,7 @@ import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { SURFACE } from "../../../shared-components/surface";
 import { DashboardHeader } from "../components/dashboard-header";
 import { DashboardProfileDisplay } from "../components/dashboard-profile-display";
+import { DashboardProfileDisplayError } from "../components/dashboard-profile-display-error";
 import { DashboardProfileDisplaySkeleton } from "../components/dashboard-profile-display-skeleton";
 import { LinkListSkeleton } from "../components/link-list-skeleton";
 import { DashboardLinkForm } from "../components/dashboard-link-form";
@@ -747,8 +748,19 @@ export function DashboardPage() {
           </p>
         </div>
 
+        {/* Error is its own state. Rendering the display's defaults for a
+            failed /me made a transient 5xx look like a wiped account. Stale
+            data still wins over the error panel: showing what we last had
+            beats blanking the panel on a failed background refetch. */}
         {meQuery.isLoading ? (
           <DashboardProfileDisplaySkeleton />
+        ) : meQuery.isError && !meQuery.data ? (
+          <DashboardProfileDisplayError
+            onRetry={() => {
+              void meQuery.refetch();
+            }}
+            isRetrying={meQuery.isFetching}
+          />
         ) : (
           <DashboardProfileDisplay
             name={meQuery.data?.name ?? ""}
