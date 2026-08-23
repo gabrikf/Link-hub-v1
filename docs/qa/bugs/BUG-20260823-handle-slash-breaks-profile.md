@@ -1,6 +1,6 @@
 # BUG-20260823-handle-slash-breaks-profile: the web drops the URL encoding of a handle, so a profile the api serves happily is permanently unreachable from its own page
 
-- **Status:** confirmed (triaged at iteration 69, queued behind BUG-20260823-email-case-splits-account)
+- **Status:** confirmed — **claimed for FIX at iteration 72**, re-reproduced there from scratch with a third independent account (see "Re-reproduction at iteration 72"). Was queued behind BUG-20260823-email-case-splits-account, which is now fixed and approved.
 - **Impact (user-side):** A developer whose handle contains a path-significant character has a public profile nobody can open — including from the dashboard's own Share link
 - **Severity:** Minor · **Priority:** P3
 - **Persona Affected:** any developer at registration; the Login field is a bare text box with no charset rule, no hint and no example
@@ -75,6 +75,44 @@ handles" generally.
 - Accounts left in the dev database on purpose: `i69/slash/i699718` (triage),
   and from the hunt `i68/slash/i68b9347`, `i68 space i68b9347`,
   `i68-normal-i68c9368`.
+
+## Re-reproduction at iteration 72 (third account, nothing taken on trust)
+
+Triage does not inherit a verdict. The whole chain was walked again with a brand
+new account, `i72/slash/i72slash18071`
+(`769c48d8-f9aa-473e-87ab-642b675eeb38`), read back out of Postgres by id before
+anything else was believed:
+
+```
+POST /auth/register  login "i72/slash/i72slash18071"          -> 201
+psql  SELECT id, login FROM users WHERE id='769c48d8-…'       -> 769c48d8-… | i72/slash/i72slash18071
+GET  /profile/i72%2Fslash%2Fi72slash18071                     -> 200   (api serves it)
+GET  /profile/i72/slash/i72slash18071                         -> 404   (three segments)
+GET  /profile/i72%2Fslash%2Fi72slash18071/posts               -> 200
+GET  /profile/i72%2Fslash%2Fi72slash18071/work-experiences    -> 200
+```
+
+Then the page itself, `node .nightly/probes/i72-slug-profile.mjs
+"i72/slash/i72slash18071" slash-profile`:
+
+- body: `Profile not found. Back to login`
+- captured response: `404 GET http://localhost:3344/profile/i72/slash/i72slash18071`
+- console: one `Failed to load resource … 404`
+
+**Control, same probe, same run:** `seed-javascript-fullstack-001` renders the
+full profile with **zero** failed requests and **zero** console errors. So the
+probe is sound and the difference is the handle.
+
+Evidence: `.nightly/probes/i72-slug-profile.mjs`,
+`.nightly/evidence/i72-triage/slash-profile.png`,
+`.nightly/evidence/i72-triage/control-normal.png`.
+
+Scope re-read at i72: the four raw interpolations are still the only ones. Two
+neighbours were checked and are **not** in scope — `search-results.tsx:295` uses
+TanStack Router's `to="/profile/$username"` with params, which encodes for you,
+and `public-profile-page.tsx:156` builds the Share URL from
+`window.location.href` (already encoded); its `/profile/${username}` branch is a
+non-browser fallback this app never takes.
 
 ## Judgement at triage
 
