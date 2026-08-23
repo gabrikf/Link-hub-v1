@@ -284,6 +284,17 @@ function failedRequests(
     .filter((entry) => !options.allow?.test(entry));
 }
 
+/**
+ * What dnd-kit is telling a screen reader right now. It renders one hidden
+ * `role="status"` live region per DndContext; the dashboard mounts exactly one.
+ */
+function dragAnnouncement(page: Page): Promise<string | null> {
+  return page.evaluate(
+    () =>
+      document.querySelector("[role='status'][aria-live]")?.textContent ?? null,
+  );
+}
+
 function requireBox(box: { x: number; y: number; width: number; height: number } | null) {
   if (!box) {
     throw new Error("element has no bounding box — it is not rendered");
@@ -627,6 +638,95 @@ test("reordering links reorders them for the visitor", async ({
     ).toEqual([]);
   } finally {
     await stranger.close();
+    await sweepE2eLinks(accessToken);
+  }
+});
+
+test("links can be reordered with the keyboard alone", async ({ page }) => {
+  const first = e2eTitle("kbd-first");
+  const second = e2eTitle("kbd-second");
+
+  const accessToken = await openDashboard(page);
+
+  // The write path is the same one the mouse test proves, so the ONLY thing
+  // that can make this test red is dnd-kit never handing `handleDragEnd` a
+  // neighbour as `over`. Recording the request separates "the keyboard never
+  // started a reorder" from "the reorder was sent and the server refused it".
+  const reorderRequests: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "PATCH" &&
+      request.url().includes("/links/reorder")
+    ) {
+      reorderRequests.push(request.url());
+    }
+  });
+
+  try {
+    await createLinkViaUi(page, first, externalUrl("kbd-first"));
+    await createLinkViaUi(page, second, externalUrl("kbd-second"));
+
+    // Only this spec's own rows: the nightly database is never reset, so the
+    // list also holds whatever other links the account already had.
+    const rows = page.getByRole("listitem").filter({ hasText: E2E_PREFIX });
+    await expect(rows).toHaveCount(2);
+    expect((await rows.allInnerTexts())[0]).toContain(first);
+
+    const grip = linkRow(page, first).getByRole("button", {
+      name: "Drag to reorder",
+    });
+    await grip.waitFor({ state: "visible" });
+    await grip.focus();
+    await expect(grip).toBeFocused();
+
+    // The documented dnd-kit sortable keyboard path: Space lifts, an arrow key
+    // moves the item past its neighbour, Space drops. No pointer is involved.
+    //
+    // Each step waits for what dnd-kit ANNOUNCES to assistive tech rather than
+    // for a delay, which is both the deterministic wait and the thing a
+    // screen-reader user actually hears:
+    //   "Draggable item <active> was moved over droppable area <over>."
+    await page.keyboard.press("Space");
+    await expect
+      .poll(() => dragAnnouncement(page), { timeout: 5_000 })
+      .toMatch(/was moved over droppable area/);
+
+    await page.keyboard.press("ArrowDown");
+    await expect
+      .poll(
+        async () => {
+          const [, active, over] =
+            /item (\S+) was moved over droppable area ([^.]+)\./.exec(
+              (await dragAnnouncement(page)) ?? "",
+            ) ?? [];
+          return active && over && active !== over ? "travelled" : "stuck";
+        },
+        {
+          timeout: 5_000,
+          message:
+            "ArrowDown never moved the lifted link over its neighbour — it is still its own droppable",
+        },
+      )
+      .toBe("travelled");
+
+    await page.keyboard.press("Space");
+
+    await expect
+      .poll(async () => (await rows.allInnerTexts())[0], { timeout: 10_000 })
+      .toContain(second);
+
+    expect(
+      reorderRequests,
+      "the keyboard drop never sent PATCH /links/reorder",
+    ).toHaveLength(1);
+
+    // Persistence, read back from the api rather than from the optimistic
+    // cache the drop just wrote.
+    const persisted = (await listOwnerLinks(accessToken))
+      .filter((link) => link.title.startsWith(E2E_PREFIX))
+      .map((link) => link.title);
+    expect(persisted).toEqual([second, first]);
+  } finally {
     await sweepE2eLinks(accessToken);
   }
 });
