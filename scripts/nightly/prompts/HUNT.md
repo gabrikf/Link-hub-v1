@@ -5,8 +5,14 @@ feel**, and nothing else.
 
 ### Pick this round's lane
 
-Read `MEMORY.md` for which lanes previous HUNT rounds already ran, and pick the
-highest-value lane not yet covered. Run **one** lane per iteration:
+**Read `.nightly/LANES.md`.** It is the authoritative checklist of which lanes
+are `DONE`, `PARTIAL` and `TODO`, and it lists them in the order to work them.
+Take the topmost `TODO`, run exactly that one, and when you have genuinely
+finished it, edit that file to mark it `DONE` with a one-line note on what you
+covered. A lane marked `DONE` without being walked is a lie that costs the next
+iteration nothing to detect and everything to trust.
+
+Run **one** lane per iteration:
 
 | Lane | What it is |
 |---|---|

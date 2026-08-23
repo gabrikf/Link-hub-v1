@@ -1,0 +1,269 @@
+{
+  "candidates": [
+    {
+      "id": "CAND-0101",
+      "title": "@repo/schemas cannot be imported from a Playwright spec",
+      "source": "harness",
+      "area": "infra",
+      "evidence": "packages/schemas package.json `exports` declares only an `import` condition; Playwright transpiles specs to CJS, so require() throws ERR_PACKAGE_PATH_NOT_EXPORTED. Specs currently import ../../packages/schemas/dist/index.js directly.",
+      "user_impact": "None directly. But it blocks the `.parse() a real captured payload` pattern AGENTS.md calls the strongest sensor in this repo \u2014 which is exactly how BUG-20260822-public-posts-contract was caught. Fixing it makes every future e2e spec able to assert the contract.",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0102",
+      "title": "AI Match % chip has no accessible role, label or test id",
+      "source": "e2e-baseline",
+      "area": "search",
+      "evidence": "The score is a bare <span> with a text node (e.g. `62%`) plus a nested label span; journey 03 has to regex-scrape it out of the card's innerText.",
+      "user_impact": "A screen-reader user cannot tell which number is the match score. Low severity but real; the score is the whole point of the search screen.",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0103",
+      "title": "create_commit_summary_post tells agents `repo` is publishable, but the public projection drops metadata",
+      "source": "e2e-baseline",
+      "area": "mcp",
+      "evidence": "MCP tool description says repo is 'served alongside the post on their public profile \u2014 so treat it as publishable'. publicPostResponseSchema omits metadata entirely, so it is never served. Docs and behaviour disagree in the SAFE direction.",
+      "user_impact": "No leak today. But an agent author reading the description may put publishable-quality data in metadata expecting it to show, and a future change that starts serving metadata would leak repo names that were never disclosure-scanned (disclosure does not scan metadata).",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0104",
+      "title": "visual-check scenario loading-state pattern is broken",
+      "source": "harness",
+      "area": "infra",
+      "evidence": "scripts/visual/scenarios/public-profile.scenario.mjs fails at its loading step: mock(PROFILE_API, {delay: Infinity}) then goto(PROFILE) times out the navigation (net::ERR_ABORTED on the document) and unmock() is never reached.",
+      "user_impact": "None \u2014 harness only. But it means the repo's own reference scenario cannot capture a loading state, so the four-state rule is unenforceable via that path.",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0105",
+      "title": "dnd-kit keyboard sensor does not lift on the block grip button",
+      "source": "e2e-baseline",
+      "area": "layout",
+      "evidence": "The drag handle is keyboard-focusable but Space/Arrow/Space does not start a drag; a real pointer drag with intermediate moves works.",
+      "user_impact": "Compounds BUG-20260822-layout-vertical-keyboard: the documented keyboard path into dnd-kit is also dead.",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0106",
+      "title": "open-to-work switch has no accessible name",
+      "source": "e2e-baseline",
+      "area": "dashboard",
+      "evidence": "dashboard-profile-form.tsx renders a bare <button role=\"switch\"> with no label; a screen reader announces 'switch, not pressed'.",
+      "user_impact": "A screen-reader user cannot tell what the toggle controls \u2014 and it publicly advertises job-seeking status.",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0107",
+      "title": "Malformed-email inline validation is unreachable behind native browser validation",
+      "source": "e2e-baseline",
+      "area": "auth",
+      "evidence": "The register form has no noValidate and the field is type=email, so `not-an-email` is caught by Chrome's native bubble and zod's 'Invalid email format' never renders.",
+      "user_impact": "The user does get feedback, so this is low severity \u2014 but the app's own styled error is unreachable for the most common typo class and the native bubble ignores the app's dark mode.",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0108",
+      "title": "Public profile payload includes each link's userId",
+      "source": "e2e-baseline",
+      "area": "profile",
+      "evidence": "GET /profile/:username returns links carrying userId to anonymous visitors.",
+      "user_impact": "Minor internal-id exposure on a public endpoint; no direct harm, but it is gratuitous.",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0109",
+      "title": "DELETE /me/layout/blocks/:id returns 400 when sent content-type: application/json with no body",
+      "source": "harness",
+      "area": "api",
+      "evidence": "'Body cannot be empty\u2026' \u2014 any standard API client that sets a default JSON content-type on DELETE hits this.",
+      "user_impact": "None in the web app today; a rough edge for the MCP server and any external client.",
+      "first_seen_iteration": 0
+    },
+    {
+      "id": "CAND-0110",
+      "title": "Two journey tests are flaky under a full sequential run",
+      "source": "harness",
+      "area": "infra",
+      "evidence": "In the 42-test full run, 03-recruiter-search.spec.ts:312 timed out after 60s waiting for getByRole('article') and 04-link-sharing.spec.ts:569 saw the pre-reorder link order. Re-running BOTH specs together immediately afterwards: 16/16 passed, relevance overlap 0 as expected. The search endpoint was independently probed at the same time and returned HTTP 200 with candidates, so quota exhaustion is ruled out.",
+      "user_impact": "None directly \u2014 no product defect is demonstrated. It matters because REGRESSION compares against a baseline: two tests that fail ~sometimes make a clean night look like a regression, and a real regression look like noise. Diagnose before trusting any full-run comparison. Likely suspects: dev-server dep-optimisation reloads mid-run, and cross-journey load on one api process.",
+      "first_seen_iteration": 0
+    }
+  ],
+  "confirmed": [
+    {
+      "id": "BUG-20260822-public-posts-contract",
+      "title": "Every public profile with a published post shows \"Could not load posts. Please try again.\"",
+      "severity": "blocker",
+      "area": "profile",
+      "user_impact": "A developer publishes a post, shares their profile link \u2014 the single artifact this product exists to produce \u2014 and every visitor sees an error where the posts should be. Silent: an empty profile looks fine, so it only appears the moment someone actually publishes.",
+      "reproduction": [
+        "Sign in as any user and publish at least one post (gabrielkochf already has 3 published).",
+        "Open http://localhost:5173/profile/gabrielkochf while signed out.",
+        "Wait ~12s for react-query to exhaust its 3 retries.",
+        "The Posts block renders 'Could not load posts. Please try again.'"
+      ],
+      "expected": "The published posts render on the public profile.",
+      "observed": "Both Posts blocks show the error state. GET /profile/gabrielkochf/posts returns HTTP 200 with 3 valid rows \u2014 the failure is entirely client-side parsing.",
+      "evidence": ".visual/bug-public-posts.png ; live payload parsed through the shared schema fails with `invalid_type: expected record, received undefined at [0].metadata`",
+      "suspected_cause": "CONTRACT DRIFT. apps/api/src/infra/http/controllers/posts/posts-controller.ts:66 declares `publicPostResponseSchema = postResponseSchema.omit({ metadata: true })`, so the public feed never carries `metadata`. apps/web/src/lib/post-queries.ts:75 parses that response with `postSchema.array().parse(...)`, and packages/schemas/src/posts/index.ts:31 declares `metadata: z.record(z.string(), z.unknown()).nullable()` \u2014 nullable but NOT optional, therefore required. Every row fails.",
+      "test_plan": "Contract test first: `.parse()` a REAL captured payload from GET /profile/:username/posts through the schema the web client actually uses. Put it beside the schema in packages/schemas or in apps/api's posts controller tests. Then decide the fix at the CONTRACT level \u2014 either the public projection keeps `metadata` (nulled), or the web parses a public-specific schema. Do NOT simply widen postSchema.metadata to .optional(): AGENTS.md forbids widening a schema so a bad payload passes, and that would hide the drift rather than fix it. An e2e assertion in e2e/journeys/02-agent-posts.spec.ts already covers the user-visible half.",
+      "status": "confirmed",
+      "found_by": "journey-02 agent + verified independently against the running api and the rendered page"
+    },
+    {
+      "id": "BUG-20260822-agent-self-publish",
+      "title": "An agent holding a PAT can publish its own post straight out of the review queue",
+      "severity": "major",
+      "area": "posts",
+      "user_impact": "The review queue tells the user 'Nothing here is public until you approve it', and the approve endpoint's own docs say it is 'the only way a machine-authored post becomes public'. Both are false: update_post{status:'published'} over a PAT releases a pending_review post itself. This is the consent gate for machine-written content about someone's real work.",
+      "reproduction": [
+        "Mint a PAT through /dashboard/settings \u2192 Advanced settings \u2192 Create token.",
+        "Via the MCP server, create_post so it lands in pending_review.",
+        "Via the MCP server, update_post { id, status: 'published' }.",
+        "The post is public; the human never approved it."
+      ],
+      "expected": "A pending_review post can only be released by the human, through the review queue.",
+      "observed": "MCP returns 'Post updated \u2705 \u2026 status: published' and the post is publicly visible.",
+      "evidence": "e2e/journeys/02-agent-posts.spec.ts:635",
+      "suspected_cause": "apps/api/src/core/use-case/posts/shared/post-status-rules.ts \u2014 ALLOWED_STATUS_TRANSITIONS permits pending_review \u2192 published with no authType check, so a PAT-authenticated caller passes the same gate a session user does.",
+      "test_plan": "Unit test next to the use case in apps/api/src/core/**: a PAT-authenticated transition pending_review \u2192 published must be refused. Then an HTTP-level test via build-test-app.ts + server.inject. The e2e assertion already exists.",
+      "status": "confirmed",
+      "found_by": "journey-02 agent, driving the real apps/mcp server over stdio JSON-RPC"
+    },
+    {
+      "id": "BUG-20260822-links-url-scheme",
+      "severity": "blocker",
+      "area": "profile",
+      "title": "Public profile links accept javascript:, data: and vbscript: URLs (latent stored XSS)",
+      "user_impact": "Any user can store a javascript:/data: URL as a public profile link. Today React 19 neutralises javascript: hrefs, so it is not exploitable through the current renderer \u2014 but React does NOT block data:, the defence is entirely the framework's, and the public profile is the page strangers visit. One renderer change, one dangerouslySetInnerHTML, or one non-React consumer of the API turns this into stored XSS against every visitor.",
+      "reproduction": [
+        "Sign in and add a profile link with url `javascript:alert(1)`.",
+        "POST /links returns 201 and stores it verbatim.",
+        "GET /profile/:username serves it publicly.",
+        "apps/web/src/features/profile/components/profile-blocks.tsx:247 renders href={link.url} with no filtering."
+      ],
+      "expected": "Only http(s) URLs are accepted for anything that reaches an <a href> on a public page.",
+      "observed": "createLinkSchemaInput.safeParse accepts javascript:, JaVaScRiPt:, data:text/html, vbscript: and ftp:. Verified directly against the built schema.",
+      "evidence": "node -e with createLinkSchemaInput vs httpUrlSchema \u2014 links schema ACCEPTs all five, httpUrlSchema rejects all five",
+      "suspected_cause": "packages/schemas/src/links/index.ts uses a bare `z.string().url()` on linkSchema.url, createLinkSchemaInput.url and updateLinkSchemaInput.url. The repo ALREADY has the correct validator 30 lines away in packages/schemas/src/profile-blocks/index.ts \u2014 `httpUrlSchema` \u2014 whose own doc comment says: 'Every user-supplied URL that reaches an href or media src must use this.' The links module simply does not use it.",
+      "test_plan": "Contract test in packages/schemas: assert createLinkSchemaInput/updateLinkSchemaInput REJECT javascript:, data:, vbscript: and accept https:. That test fails today. Fix is `url: httpUrlSchema` in all three places. Then an api-level test via build-test-app.ts + server.inject asserting POST /links 400s on a javascript: URL. e2e/journeys/04-link-sharing.spec.ts already asserts no live non-http(s) href renders.",
+      "status": "confirmed",
+      "found_by": "journey-04 agent + verified independently against the built schema"
+    },
+    {
+      "id": "BUG-20260822-auth-unhandled-rejection",
+      "severity": "major",
+      "area": "auth",
+      "title": "Every failed login or registration escapes as an unhandled promise rejection carrying the user's email",
+      "user_impact": "Wrong password is the single most common failure path in any app. Each one throws an uncaught rejection; Sentry's global unhandledrejection handler captures it in production. The registration variant's message body contains the user's email address ('User with email x@y already exists'), which sendDefaultPii:false does NOT scrub because it is in the message, not a PII field. So the app ships user emails to Sentry on a routine error path.",
+      "reproduction": [
+        "Open / and submit the login form with a wrong password.",
+        "The visible error renders correctly and no tokens are written \u2014 but the console shows `uncaught: Invalid email or password`.",
+        "Repeat with the register form using an email that already exists: `uncaught: User with email '<email>' already exists`."
+      ],
+      "expected": "A rejected mutation is handled by the form; nothing reaches the global unhandledrejection handler.",
+      "observed": "Both forms produce uncaught rejections. Confirmed by e2e guard assertions in journey 01.",
+      "evidence": "e2e/journeys/01-signup-resume.spec.ts:201 and :255",
+      "suspected_cause": "apps/web/src/features/auth/components/register-form.tsx:52 does handleSubmit(async (data) => { await onSubmit(data); reset(); }) and login-form.tsx:34 does handleSubmit(onSubmit), where onSubmit is auth-page.tsx's mutateAsync wrapper (lines 131/135). react-hook-form re-throws whatever the valid-handler rejects with, so every rejected mutateAsync escapes. Sentry init: apps/web/src/lib/report-error.ts:90.",
+      "test_plan": "Component test with @testing-library/react next to each form: submit, reject the mutation, assert the error renders AND that no unhandled rejection is produced. One fix covers both \u2014 catch in the submit handler, or use mutate instead of mutateAsync. The e2e guard assertions already cover the user-visible half.",
+      "status": "confirmed",
+      "found_by": "journey-01 agent"
+    },
+    {
+      "id": "BUG-20260822-layout-vertical-keyboard",
+      "severity": "major",
+      "area": "layout",
+      "title": "Blocks cannot be reordered vertically without a mouse \u2014 ArrowUp/ArrowDown are permanent no-ops",
+      "user_impact": "Reordering blocks is the primary thing a layout editor does, and vertically it is mouse-only. A keyboard or assistive-tech user cannot arrange their profile at all. Each futile press also fires a debounced PATCH that persists nothing.",
+      "reproduction": [
+        "Open /dashboard/layout and focus the bottom block card.",
+        "Press ArrowUp ten times.",
+        "gridY never changes (observed 16 -> 16).",
+        "Sideways works: ArrowRight moves x 0->1, shift+ArrowLeft resizes w 12->11."
+      ],
+      "expected": "Arrow keys move a block vertically, the app's own documented keyboard substitute for drag.",
+      "observed": "ArrowUp/ArrowDown are no-ops; 10 presses produced 4 PATCH /me/layout/blocks/positions writes all carrying byte-identical geometry.",
+      "evidence": "e2e/journeys/05-profile-appearance.spec.ts:767",
+      "suspected_cause": "moveBlockBy in the layout feature's grid-utils.ts nudges by exactly +/-1 row then re-runs verticalCompactor.compact, which floats the block straight back. A single row can never clear a 4-6 row neighbour, and nothing accumulates because state is recompacted from the original gridY each press. The existing unit test at grid-utils.test.ts:236 passes only because it uses dy:-2 against an h:2 block \u2014 a full block height, which the card handler never sends.",
+      "test_plan": "Unit test beside grid-utils.test.ts using dy:-1 against a realistically tall neighbour \u2014 that test fails today and is the honest version of the existing one. Do NOT edit the existing test to make a fix pass; add the missing case. Then the e2e assertion in journey 05 covers the user-visible half.",
+      "status": "confirmed",
+      "found_by": "journey-05 agent"
+    },
+    {
+      "id": "BUG-20260822-layout-error-fabricated",
+      "severity": "major",
+      "area": "layout",
+      "title": "When /me/layout fails, the editor shows a fabricated default layout as if it were the user's own",
+      "user_impact": "On a 5xx the user sees a full grid of blocks they never created, an enabled toolbar, and the status line 'Changes save automatically'. Nothing says anything failed. A user who drags anything is editing a fabricated layout, and the autosave then persists it over their real one. This is the four-state rule AGENTS.md makes mandatory, and the failure mode is data loss rather than a blank screen.",
+      "reproduction": [
+        "Open /dashboard/layout with GET /me/layout mocked to 500.",
+        "The page renders a complete default layout (e.g. a 'Profile header block' card) with a working toolbar.",
+        "No error copy appears anywhere."
+      ],
+      "expected": "An error state that tells the user the layout could not be loaded and does not offer editing.",
+      "observed": "buildDefaultLayout(viewport) is rendered as though it were saved data.",
+      "evidence": "e2e/journeys/05-profile-appearance.spec.ts:822",
+      "suspected_cause": "layoutQuery.isError is never read in apps/web/src/features/profile-layout/pages/profile-layout-page.tsx; on failure `full` is undefined and the code falls back to buildDefaultLayout(viewport).",
+      "test_plan": "Component test with @testing-library/react: render the page with the layout query in an error state, assert error copy is shown and the editor is not interactive. Fails today. RouteErrorState / the route-states helpers in apps/web/src/shared-components/route-states.tsx are the intended primitives.",
+      "status": "confirmed",
+      "found_by": "journey-05 agent"
+    },
+    {
+      "id": "BUG-20260822-dashboard-error-state",
+      "severity": "major",
+      "area": "dashboard",
+      "title": "When /me fails, the dashboard profile panel is indistinguishable from a wiped account",
+      "user_impact": "On a 5xx the panel renders 'Your name', '@username', 'No description yet.' and a working Edit button. A user whose request merely failed is shown what looks like an account that lost all its data \u2014 and may re-enter everything over a transient error.",
+      "reproduction": [
+        "Open /dashboard with GET /me mocked to 500.",
+        "The profile panel renders placeholder identity and an enabled Edit button.",
+        "No error copy appears."
+      ],
+      "expected": "An error state distinct from the empty state.",
+      "observed": "Empty-state copy is shown for a failed request.",
+      "evidence": "e2e/journeys/05-profile-appearance.spec.ts:893",
+      "suspected_cause": "meQuery.isError is never read in apps/web/src/features/dashboard/pages/dashboard-page.tsx. apps/web/src/lib/session.ts already documents this exact failure mode for expired sessions; a plain 5xx is still unhandled.",
+      "test_plan": "Component test with @testing-library/react asserting error copy renders when the /me query errors, and that it differs from the empty state. Fails today.",
+      "status": "confirmed",
+      "found_by": "journey-05 agent"
+    }
+  ],
+  "fixed": [],
+  "escalated": [],
+  "rejected": [
+    {
+      "id": "REJ-0101",
+      "title": "First-ever visit to /dashboard/search discards the submit",
+      "reason": "dev-server-artifact",
+      "detail": "Vite optimizes the TensorFlow.js dep pulled in by the reranker worker and answers with a full page reload; a submit in that window is lost. Does not affect a built bundle. Do not file it; journey 03's openSearchPage() helper handles it."
+    }
+  ],
+  "seed_baseline": {
+    "recorded_at": "2026-08-22 (hand-off, before iteration 1)",
+    "command": "npx playwright test --project=desktop --reporter=list",
+    "totals": {
+      "total": 42,
+      "passed": 32,
+      "failed": 9,
+      "skipped": 1,
+      "duration": "4.0m"
+    },
+    "expected_failures_are_confirmed_bugs": [
+      "01-signup-resume.spec.ts:201  -> BUG-20260822-auth-unhandled-rejection",
+      "01-signup-resume.spec.ts:255  -> BUG-20260822-auth-unhandled-rejection",
+      "02-agent-posts.spec.ts:396    -> BUG-20260822-public-posts-contract",
+      "02-agent-posts.spec.ts:635    -> BUG-20260822-agent-self-publish",
+      "05-profile-appearance.spec.ts:767 -> BUG-20260822-layout-vertical-keyboard",
+      "05-profile-appearance.spec.ts:822 -> BUG-20260822-layout-error-fabricated",
+      "05-profile-appearance.spec.ts:893 -> BUG-20260822-dashboard-error-state"
+    ],
+    "known_flaky_do_not_file_as_product_bugs": [
+      "03-recruiter-search.spec.ts:312 \u2014 see CAND-0110",
+      "04-link-sharing.spec.ts:569 \u2014 see CAND-0110"
+    ],
+    "skipped": "01-signup-resume.spec.ts:353 \u2014 the AI resume parse. Gated behind E2E_ALLOW_AI_SPEND because it bills the live OPENAI_API_KEY on every run.",
+    "note": "A REGRESSION run that shows exactly these 7 failures and nothing else has caused no regression. Anything beyond them is new."
+  }
+}

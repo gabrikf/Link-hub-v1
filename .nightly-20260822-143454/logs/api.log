@@ -1,0 +1,227 @@
+
+> dev:api
+> npm run dev --workspace=api
+
+
+> api@1.0.0 dev
+> tsx watch src/index.ts
+
+Error: listen EADDRINUSE: address already in use 0.0.0.0:3333
+    at Server.setupListenHandle [as _listen2] (node:net:1941:16)
+    at listenInCluster (node:net:1998:12)
+    at node:net:2207:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3333
+}
+9:30:23 AM [tsx] change in ./../../packages/schemas/dist/index.js Rerunning...
+c9:30:24 AM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+9:30:36 AM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+Received SIGTERM, shutting down
+cError: listen EADDRINUSE: address already in use 0.0.0.0:3333
+    at Server.setupListenHandle [as _listen2] (node:net:1941:16)
+    at listenInCluster (node:net:1998:12)
+    at node:net:2207:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3333
+}
+9:36:01 AM [tsx] change in ./../../packages/schemas/dist/posts/index.js Rerunning...
+c9:36:01 AM [tsx] change in ./../../packages/schemas/dist/resume/index.js Restarting...
+c9:36:02 AM [tsx] change in ./../../packages/schemas/dist/uploads/index.js Restarting...
+c9:36:02 AM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+c9:36:05 AM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+Error caught by global handler: {
+  name: 'InvalidCredentialsError',
+  message: 'Invalid email or password',
+  stack: undefined,
+  path: '/api/v1/auth/login',
+  method: 'POST'
+}
+9:52:49 AM [tsx] change in ./../../packages/schemas/dist/links/index.js Restarting...
+Received SIGTERM, shutting down
+c9:52:50 AM [tsx] change in ./../../packages/schemas/dist/resume/index.js Restarting...
+c9:52:50 AM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+c9:52:52 AM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+9:53:27 AM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+Received SIGTERM, shutting down
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+9:54:58 AM [tsx] change in ./../../packages/schemas/dist/links/index.js Restarting...
+Received SIGTERM, shutting down
+9:54:58 AM [tsx] change in ./../../packages/schemas/dist/profile-blocks/index.js Process hasn't exited. Killing process...
+c9:54:58 AM [tsx] change in ./../../packages/schemas/dist/activity/index.js Restarting...
+c9:54:59 AM [tsx] change in ./../../packages/schemas/dist/posts/index.js Restarting...
+c9:54:59 AM [tsx] change in ./../../packages/schemas/dist/resume/index.js Restarting...
+c9:54:59 AM [tsx] change in ./../../packages/schemas/dist/ai-import/index.js Restarting...
+c9:54:59 AM [tsx] change in ./../../packages/schemas/dist/interactions/index.js Restarting...
+c9:55:00 AM [tsx] change in ./../../packages/schemas/dist/uploads/index.js Restarting...
+c9:55:00 AM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+c9:55:03 AM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cError: listen EADDRINUSE: address already in use 0.0.0.0:3333
+    at Server.setupListenHandle [as _listen2] (node:net:1941:16)
+    at listenInCluster (node:net:1998:12)
+    at node:net:2207:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3333
+}
+9:55:53 AM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Rerunning...
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+Error caught by global handler: {
+  name: 'UnauthorizedError',
+  message: 'Invalid token payload',
+  stack: undefined,
+  path: '/me/work-experiences',
+  method: 'GET'
+}
+Error caught by global handler: {
+  name: 'UnauthorizedError',
+  message: 'Invalid token payload',
+  stack: undefined,
+  path: '/me',
+  method: 'GET'
+}
+Error caught by global handler: {
+  name: 'UnauthorizedError',
+  message: 'Invalid token payload',
+  stack: undefined,
+  path: '/links',
+  method: 'GET'
+}
+Error caught by global handler: {
+  name: 'UnauthorizedError',
+  message: 'Invalid token payload',
+  stack: undefined,
+  path: '/me/resume',
+  method: 'GET'
+}
+Error caught by global handler: {
+  name: 'UnauthorizedError',
+  message: 'Invalid token payload',
+  stack: undefined,
+  path: '/resume/catalog/skills',
+  method: 'GET'
+}
+Error caught by global handler: {
+  name: 'UnauthorizedError',
+  message: 'Invalid token payload',
+  stack: undefined,
+  path: '/resume/catalog/titles',
+  method: 'GET'
+}
+12:36:23 PM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+Received SIGTERM, shutting down
+c12:36:23 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+12:41:24 PM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+Received SIGTERM, shutting down
+c12:41:25 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+12:41:38 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+Received SIGTERM, shutting down
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+12:41:56 PM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+Received SIGTERM, shutting down
+c12:41:57 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+12:46:58 PM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+Received SIGTERM, shutting down
+c12:46:59 PM [tsx] change in ./../../packages/schemas/dist/agent-policy/index.js Restarting...
+c12:46:59 PM [tsx] change in ./../../packages/schemas/dist/ai/preprocessing.js Restarting...
+c12:46:59 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3333
+Docs on http://localhost:3333/docs
+Received SIGTERM, shutting down
+
+> dev:api
+> npm run dev --workspace=api
+
+
+> api@1.0.0 dev
+> tsx watch src/index.ts
+
+Server listening on http://localhost:3344
+Docs on http://localhost:3344/docs
+Error caught by global handler: {
+  name: 'ResourceNotFoundError',
+  message: "User with identifier '__nightly_probe__' not found",
+  stack: undefined,
+  path: '/profile/__nightly_probe__/posts',
+  method: 'GET'
+}
+Error caught by global handler: {
+  name: 'ResourceNotFoundError',
+  message: "User with identifier '__nightly_probe__' not found",
+  stack: undefined,
+  path: '/profile/__nightly_probe__/posts',
+  method: 'GET'
+}
+2:26:15 PM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+Received SIGTERM, shutting down
+c2:26:16 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3344
+Docs on http://localhost:3344/docs
+Error caught by global handler: {
+  name: 'ResourceNotFoundError',
+  message: "User with identifier 'nobody-owns-this-mt4nhiu5pgk0' not found",
+  stack: undefined,
+  path: '/profile/nobody-owns-this-mt4nhiu5pgk0',
+  method: 'GET'
+}
+2:27:06 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+Received SIGTERM, shutting down
+cServer listening on http://localhost:3344
+Docs on http://localhost:3344/docs
+2:29:34 PM [tsx] change in ./../../packages/schemas/dist/links/index.js Restarting...
+Received SIGTERM, shutting down
+c2:29:35 PM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+c2:29:36 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3344
+Docs on http://localhost:3344/docs
+2:30:08 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+Received SIGTERM, shutting down
+cServer listening on http://localhost:3344
+Docs on http://localhost:3344/docs
+Error caught by global handler: {
+  name: 'ResourceNotFoundError',
+  message: "User with identifier '__nightly_probe__' not found",
+  stack: undefined,
+  path: '/profile/__nightly_probe__/posts',
+  method: 'GET'
+}
+2:32:59 PM [tsx] change in ./../../packages/schemas/dist/profile-blocks/index.js Restarting...
+Received SIGTERM, shutting down
+c2:32:59 PM [tsx] change in ./../../packages/schemas/dist/resume/index.js Restarting...
+c2:33:00 PM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+c2:33:01 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+cServer listening on http://localhost:3344
+Docs on http://localhost:3344/docs
+2:33:49 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+Received SIGTERM, shutting down
+cServer listening on http://localhost:3344
+Docs on http://localhost:3344/docs
+2:34:53 PM [tsx] change in ./../../packages/schemas/dist/index.js Restarting...
+Received SIGTERM, shutting down
+c2:34:53 PM [tsx] change in ./../../packages/schemas/dist/work-experience/index.js Restarting...
+c

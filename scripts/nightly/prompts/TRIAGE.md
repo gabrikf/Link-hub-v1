@@ -1,5 +1,11 @@
 ## PHASE: TRIAGE — decide what is worth fixing tonight
 
+> **READ `.nightly/LANES.md` FIRST.** It carries the hunt-lane checklist and a
+> routing rule that OVERRIDES the "Then stop" section at the bottom of this
+> file. In short: while any lane is `TODO` and more than 45 minutes remain, an
+> empty confirmed queue routes to `HUNT`, never to `REGRESSION`. The first night
+> fixed 8 bugs but walked only 2 of 7 lanes; this run exists to finish the rest.
+
 You are the gate between "something looked wrong" and "we are changing
 production code the night before a deploy". Be strict. Rejecting a candidate is
 a normal, good outcome.
@@ -76,5 +82,9 @@ whole journey as a Playwright spec under `e2e/journeys/`.
 node scripts/nightly/state.mjs set next_phase '"FIX"'
 ```
 Legal: `FIX` (a confirmed bug is claimed), `HUNT` (nothing confirmed and there
-is time to look harder), `REGRESSION` (everything confirmed is now fixed),
-`REPORT` (out of time).
+is time to look harder), `REGRESSION` (everything confirmed is fixed **and**
+every lane in `.nightly/LANES.md` is `DONE`), `REPORT` (out of time).
+
+**Do not choose `REGRESSION` while a lane is still `TODO` and there is time.**
+Finishing the queue is not finishing the night — the queue was pre-seeded, and
+the lanes are where new bugs actually come from.

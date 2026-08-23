@@ -1,0 +1,1273 @@
+
+── guardrails ────────────────────────────────────────────────────
+   base a885226367ac   budget 90s
+
+  ✔ build @repo/schemas  (7.5s)
+turbo 2.5.6
+
+• Packages in scope: //, @repo/eslint-config, @repo/schemas, @repo/typescript-config, @repo/ui, api, extractor, mcp, training, web
+• Running check-types in 10 packages
+• Remote caching disabled
+@repo/schemas:check-types: cache hit, replaying logs d088ef267730433b
+@repo/schemas:check-types: 
+@repo/schemas:check-types: > @repo/schemas@0.0.0 check-types
+@repo/schemas:check-types: > tsc --noEmit
+@repo/schemas:check-types: 
+@repo/ui:check-types: cache hit, replaying logs 47a0596a04b7a42a
+@repo/ui:check-types: 
+@repo/ui:check-types: > @repo/ui@0.0.0 check-types
+@repo/ui:check-types: > tsc --noEmit
+@repo/ui:check-types: 
+@repo/schemas:build: cache hit, replaying logs 928251ab2e2c79b6
+@repo/schemas:build: 
+@repo/schemas:build: > @repo/schemas@0.0.0 build
+@repo/schemas:build: > tsc
+@repo/schemas:build: 
+web:check-types: cache hit, replaying logs 86aa57b79944d9be
+web:check-types: 
+web:check-types: > web@0.0.0 check-types
+web:check-types: > tsc -b
+web:check-types: 
+mcp:check-types: cache hit, replaying logs 9e8dc2ce3f8f8104
+mcp:check-types: 
+mcp:check-types: > mcp@1.0.0 check-types
+mcp:check-types: > tsc --noEmit
+mcp:check-types: 
+extractor:check-types: cache hit, replaying logs 2bb0bd929e09534b
+extractor:check-types: 
+extractor:check-types: > extractor@1.0.0 check-types
+extractor:check-types: > tsc --noEmit
+extractor:check-types: 
+api:check-types: cache hit, replaying logs 35ffeb3f6640326a
+api:check-types: 
+api:check-types: > api@1.0.0 check-types
+api:check-types: > tsc --noEmit -p tsconfig.json
+api:check-types: 
+training:check-types: cache hit, replaying logs c953f4cd1441d201
+training:check-types: 
+training:check-types: > training@1.0.0 check-types
+training:check-types: > tsc --noEmit
+training:check-types: 
+
+ Tasks:    8 successful, 8 total
+Cached:    8 cached, 8 total
+  Time:    328ms >>> FULL TURBO
+
+  ✔ check-types (affected)  (1.8s)
+lint-changed: 1 changed file(s) — clean.
+  ✔ lint (changed files, ratcheted)  (1.4s)
+
+    ┌─ TEST SCOPE NOTICE — these api test files were NOT run
+    │  src/infra/database/drizzle/search-indexes.e2e.test.ts
+    │  src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts
+    │  src/infra/http/controllers/resume/test/search.e2e.test.ts
+    │  OPENAI_API_KEY is not set — these call the live API and cost money per run.
+    │  Semantic search, the pgvector indexes and the DI container wiring
+    │  are therefore UNVERIFIED by this run. To cover them:
+    │    bash db-manage.sh start && npm run test --workspace=api
+    └─
+
+
+ RUN  v3.2.7 /home/gabriel/Documents/www/linkhub-v.1/apps/api
+
+ ✓ src/infra/providers/bullmq-activity-digest-queue.test.ts (6 tests) 309ms
+ ✓ src/infra/providers/bullmq-resume-embedding-queue.test.ts (6 tests) 603ms
+   ✓ BullMqResumeEmbeddingQueue > still processes an edit made inside the window  336ms
+ ✓ src/core/use-case/activity/generate-activity-digest-use-case/render-activity-digest.test.ts (12 tests) 221ms
+ ✓ src/core/use-case/activity/generate-activity-digest-use-case/generate-activity-digest.use-case.test.ts (21 tests) 302ms
+ ✓ src/core/use-case/resumes/search-testing/search-sources.test.ts (8 tests) 68ms
+ ✓ src/core/use-case/posts/update-post-use-case/update-post.use-case.test.ts (37 tests) 24ms
+ ✓ src/core/repositories/activity-event/in-memory-activity-event-repository.test.ts (8 tests) 17ms
+ ✓ src/core/use-case/activity/preview-activity-digest-use-case/preview-activity-digest.use-case.test.ts (8 tests) 84ms
+ ✓ src/infra/providers/sharp-image-optimizer-provider.test.ts (9 tests) 1845ms
+   ✓ SharpImageOptimizerProvider > shrinks an oversized JPEG below the dimension limit  574ms
+   ✓ SharpImageOptimizerProvider > re-encodes WebP as WebP  700ms
+   ✓ SharpImageOptimizerProvider > passes GIF through byte-identically  361ms
+ ✓ src/core/use-case/activity/shared/digest-window.test.ts (15 tests) 17ms
+ ✓ src/core/use-case/activity/build-candidate-evidence-use-case/build-candidate-evidence.use-case.test.ts (23 tests) 47ms
+ ✓ src/core/use-case/resumes/search-testing/search-quality.test.ts (3 tests) 31ms
+ ✓ src/core/use-case/profile-layout/get-layout-use-case/get-layout.use-case.test.ts (5 tests) 26ms
+ ✓ src/core/use-case/resumes/search-testing/search-metamorphic.test.ts (9 tests) 67ms
+ ✓ src/core/use-case/posts/create-post-use-case/create-post.use-case.test.ts (16 tests) 52ms
+ ✓ src/core/use-case/interactions/record-candidate-interaction-use-case/record-candidate-interaction.use-case.test.ts (12 tests) 79ms
+ ✓ src/core/use-case/activity/shared/activity-buckets.test.ts (18 tests) 14ms
+ ✓ src/core/use-case/resumes/shared/build-weighted-resume-document.test.ts (7 tests) 10ms
+ ✓ src/core/use-case/resumes/process-resume-embedding-job-use-case/process-resume-embedding-job.sources.test.ts (7 tests) 16ms
+ ✓ src/core/repositories/resume-search/in-memory-resume-search-repository.test.ts (7 tests) 24ms
+ ✓ src/core/use-case/activity/create-git-connection-use-case/create-git-connection.use-case.test.ts (8 tests) 13ms
+ ✓ src/infra/http/webhooks/forge-payload-mapper.test.ts (20 tests) 13ms
+ ✓ src/core/use-case/agent-policy/get-work-context-use-case/get-work-context.use-case.test.ts (14 tests) 20ms
+ ✓ src/core/use-case/resumes/transform-recruiter-search-input-use-case/transform-recruiter-search-input.use-case.test.ts (3 tests) 38ms
+ ✓ src/core/use-case/profile-layout/update-block-use-case/update-block.use-case.test.ts (14 tests) 19ms
+ ✓ src/core/use-case/resumes/shared/build-resume-source-documents.test.ts (9 tests) 28ms
+ ✓ src/infra/providers/openai-embedding-provider.test.ts (6 tests) 26ms
+ ✓ src/core/use-case/agent-policy/redact-work-disclosure.test.ts (26 tests) 42ms
+ ✓ src/core/use-case/auth/google-sign-in-use-case/google-sign-in.use-case.test.ts (6 tests) 16ms
+stderr | src/infra/http/middleware/ai-quota-guard.test.ts > aiQuotaGuard — refunds > refunds a unit when the request fails with a 4xx
+Error caught by global handler: {
+  name: [32m'BadRequestError'[39m,
+  message: [32m'Provide a resume with enough content.'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/guarded-bad-request'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/middleware/ai-quota-guard.test.ts > aiQuotaGuard — refunds > does NOT refund on a 5xx
+Error caught by global handler: {
+  name: [32m'InternalServerError'[39m,
+  message: [32m'upstream exploded'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/guarded-boom'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/middleware/ai-quota-guard.test.ts > aiQuotaGuard — no authenticated user > rejects with 401 rather than metering everyone as one bucket
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Authentication required'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/guarded-anonymous'[39m,
+  method: [32m'POST'[39m
+}
+
+ ✓ src/infra/http/middleware/ai-quota-guard.test.ts (12 tests) 113ms
+ ✓ src/core/entity/git-connection/git-connection-entity.test.ts (21 tests) 25ms
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > GET /me/agent-policy > returns 403 for a PAT missing the profile:read scope
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'Missing required scope: profile:read'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/agent-policy'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitHub > rejects a tampered body with 401 and records nothing
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook signature'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/github/c2d5785d-09ee-40b2-b00d-de8ad18f42f0'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > GET /me/agent-policy > returns 401 without an Authorization header
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Missing or invalid authorization header'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/agent-policy'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/api-tokens/test/api-tokens.e2e.test.ts > API Tokens E2E — management with JWT > returns 403 when revoking a token owned by another user
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'You do not have access to this token'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/tokens/7ceeb440-ed9b-4df8-9f27-a53be88d5e1f'[39m,
+  method: [32m'DELETE'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitHub > verifies BEFORE schema validation: an unsigned malformed body gets 401, not 400
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook signature'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/github/be2c6899-da36-4ab6-9a05-aad4a4aea003'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitHub > ignores the legacy sha1 header
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook signature'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/github/b34445b3-dee0-4664-a61b-8866c4bd0575'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — connections CRUD (JWT only) > answers a duplicate provider+kind source with 409, not a unique-violation 500
+Error caught by global handler: {
+  name: [32m'ConflictError'[39m,
+  message: [32m'A extractor (personal) source already exists: "First laptop". Finish its setup or disconnect it first.'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > returns 403 when patching or deleting someone else's post
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'You do not have access to this post'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/d3a187b4-f14a-48c5-9565-02b99e590ded'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > returns 403 when patching or deleting someone else's post
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'You do not have access to this post'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/d3a187b4-f14a-48c5-9565-02b99e590ded'[39m,
+  method: [32m'DELETE'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > returns 403 when patching or deleting someone else's post
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'You do not have access to this post'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/d3a187b4-f14a-48c5-9565-02b99e590ded'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/api-tokens/test/api-tokens.e2e.test.ts > PAT auth + scopes E2E (security-critical) > rejects a PAT with only posts:read on POST /me/posts (403)
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'Missing required scope: posts:write'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > PATCH /me/agent-policy > REFUSES a PAT outright — an agent must never widen its own policy
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/agent-policy'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > machine-authored posts: review, approve, never edit > returns 403 when patching the CONTENT of a machine-authored post
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m"This post was written by software (source: 'commit') and its content is immutable by design — that is what lets a reader trust it was not edited afterwards. Rejected field(s): body. The only permitted changes are 'status' (approve it, or delete the post and have the software write a new one) and, for the owner in a real session, attaching an 'externalUrl'."[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/53aaf2bc-40a3-4c8a-aae5-63d0bf8f600e'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitHub > 404s a connection id that is unknown, not a uuid, or the wrong forge
+Error caught by global handler: {
+  name: [32m'NotFoundError'[39m,
+  message: [32m'Webhook endpoint not found'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/github/55555555-5555-4555-8555-555555555555'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitHub > 404s a connection id that is unknown, not a uuid, or the wrong forge
+Error caught by global handler: {
+  name: [32m'NotFoundError'[39m,
+  message: [32m'Webhook endpoint not found'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/github/not-a-uuid'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitHub > 404s a connection id that is unknown, not a uuid, or the wrong forge
+Error caught by global handler: {
+  name: [32m'NotFoundError'[39m,
+  message: [32m'Webhook endpoint not found'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/github/8f874800-218f-4482-a4e8-0e81e2ac8d15'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > PATCH /me/agent-policy > rejects an unknown disclosure level with 400
+Error caught by global handler: {
+  name: [32m'Error'[39m,
+  message: [32m'body/disclosureLevel Invalid option: expected one of "summary"|"detailed"|"full"'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/agent-policy'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/controllers/api-tokens/test/api-tokens.e2e.test.ts > PAT auth + scopes E2E (security-critical) > default-denies a PAT presented to a plain authGuard route — POST /me/tokens (401)
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/tokens'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — connections CRUD (JWT only) > returns 404 when touching another user's connection, hiding that the id exists
+Error caught by global handler: {
+  name: [32m'ResourceNotFoundError'[39m,
+  message: [32m"Git connection with identifier '1380001a-5908-42b9-b659-f5bbd4954981' not found"[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/1380001a-5908-42b9-b659-f5bbd4954981'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > PATCH /me/agent-policy > rejects more than 50 blocked terms with 400
+Error caught by global handler: {
+  name: [32m'Error'[39m,
+  message: [32m'body/blockedTerms Too big: expected array to have <=50 items'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/agent-policy'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — connections CRUD (JWT only) > returns 404 when touching another user's connection, hiding that the id exists
+Error caught by global handler: {
+  name: [32m'ResourceNotFoundError'[39m,
+  message: [32m"Git connection with identifier '1380001a-5908-42b9-b659-f5bbd4954981' not found"[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/1380001a-5908-42b9-b659-f5bbd4954981'[39m,
+  method: [32m'DELETE'[39m
+}
+
+stderr | src/infra/http/controllers/api-tokens/test/api-tokens.e2e.test.ts > PAT auth + scopes E2E (security-critical) > rejects a revoked PAT with 401
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid or expired token'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/api-tokens/test/api-tokens.e2e.test.ts > PAT auth + scopes E2E (security-critical) > rejects an expired PAT with 401
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid or expired token'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitLab — legacy plaintext token > rejects a wrong token with 401
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook token'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/gitlab/93f5a493-6c4a-4ae6-9059-5ebaa0d43cb3'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/api-tokens/test/api-tokens.e2e.test.ts > PAT auth + scopes E2E (security-critical) > rejects an unknown lh_pat_ token with 401
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid or expired token'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitLab — legacy plaintext token > rejects a delivery with no credentials at all
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook token'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/gitlab/29192cdc-1ecd-4632-b827-efff315547f1'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — connections CRUD (JWT only) > PATs are locked out of the connections surface entirely > rejects POST /me/connections from a PAT even with every scope
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > machine-authored posts: review, approve, never edit > returns 403 when approving someone else's post
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'You do not have access to this post'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/f091020d-7db4-4cb2-bd03-f13bc2ade6f5/approve'[39m,
+  method: [32m'POST'[39m
+}
+
+ ✓ src/infra/http/controllers/api-tokens/test/api-tokens.e2e.test.ts (11 tests) 357ms
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — connections CRUD (JWT only) > PATs are locked out of the connections surface entirely > rejects GET, PATCH and DELETE from a PAT as well
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — connections CRUD (JWT only) > PATs are locked out of the connections surface entirely > rejects GET, PATCH and DELETE from a PAT as well
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/d7b567c3-6ba2-4621-acac-f60a747fe6a5'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — connections CRUD (JWT only) > PATs are locked out of the connections surface entirely > rejects GET, PATCH and DELETE from a PAT as well
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/d7b567c3-6ba2-4621-acac-f60a747fe6a5'[39m,
+  method: [32m'DELETE'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > machine-authored posts: review, approve, never edit > returns 401 when approving without a token
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Missing or invalid authorization header'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/647da518-944c-4008-b447-31e42a67beca/approve'[39m,
+  method: [32m'POST'[39m
+}
+
+ ✓ src/core/use-case/posts/list-public-posts-use-case/list-public-posts.use-case.test.ts (5 tests) 14ms
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > machine-authored posts: review, approve, never edit > returns 400 when un-publishing a post via PATCH
+Error caught by global handler: {
+  name: [32m'BadRequestError'[39m,
+  message: [32m"A post cannot move from status 'published' to 'draft'. Allowed from 'published': published. A published post can only be deleted, never unpublished or re-edited."[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/a551d793-ae72-4b3f-a81e-2e43632fd6ae'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitLab — 19.0+ signing token > rejects a signature from a key we do not hold
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook signature'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/gitlab/2bf370aa-8a5b-4b94-8a05-11e8a0d06cfb'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > returns 404 when getting a missing (but well-formed) post id
+Error caught by global handler: {
+  name: [32m'ResourceNotFoundError'[39m,
+  message: [32m"Post with identifier '0f3d0912-d422-410b-a7f0-d093de43f324' not found"[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/0f3d0912-d422-410b-a7f0-d093de43f324'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitLab — 19.0+ signing token > rejects an expired timestamp even though the signature is valid
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook signature'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/gitlab/96cdb65a-3131-4535-9c37-95b881864ee6'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > GET /me/work-context > returns 403 for a PAT missing profile:read
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'Missing required scope: profile:read'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/work-context'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > returns 401 when no Authorization header is present
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Missing or invalid authorization header'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitLab — 19.0+ signing token > rejects a tampered body
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook signature'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/gitlab/d4128cf2-7094-4a40-a36b-75c7325eddb8'[39m,
+  method: [32m'POST'[39m
+}
+
+ ✓ src/core/use-case/resumes/shared/build-candidate-search-projection.test.ts (17 tests) 18ms
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > body validation (zod bounds) > rejects a create with a missing body (400)
+Error caught by global handler: {
+  name: [32m'Error'[39m,
+  message: [32m'body/body Invalid input: expected string, received undefined'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > PATCH /me/work-experiences/:id/disclosure > returns 403 for someone else's role
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'You can only edit your own work experiences'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/work-experiences/4efd6237-7322-49c2-a44d-d4bc1540a1eb/disclosure'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > body validation (zod bounds) > rejects an over-long body (> 20000 chars) with 400
+Error caught by global handler: {
+  name: [32m'Error'[39m,
+  message: [32m'body/body Too big: expected string to have <=20000 characters'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — POST /me/activity > returns 403 for a PAT that lacks activity:write
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'Missing required scope: activity:write'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/activity'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > PATCH /me/work-experiences/:id/disclosure > refuses a PAT — a privacy control is a human decision
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/work-experiences/62db6925-d77c-4627-97f1-7ff1356aed43/disclosure'[39m,
+  method: [32m'PATCH'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — POST /me/activity > returns 403 for a PAT created with the DEFAULT scopes
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'Missing required scope: activity:write'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/activity'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — POST /me/activity > returns 403 when ingesting for someone else's connectionId
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m'You do not have access to this connection'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/activity'[39m,
+  method: [32m'POST'[39m
+}
+
+ ✓ src/infra/http/webhooks/webhook-signature.test.ts (21 tests) 23ms
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > Write-side enforcement on POST /me/posts > rejects an agent post naming the employer with 400 and an actionable message
+Error caught by global handler: {
+  name: [32m'BadRequestError'[39m,
+  message: [32m'Post mentions "Acme Corp", which your disclosure level (summary) does not allow. Describe the capability without naming the employer or client — what you built, the stack, the practices and the outcome are all still allowed — or raise your disclosure level in LinkHub settings under "What your agent may share".'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > body validation (zod bounds) > rejects too many tags (> 20) with 400
+Error caught by global handler: {
+  name: [32m'Error'[39m,
+  message: [32m'body/tags Too big: expected array to have <=20 items'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Posts E2E (JWT session) > body validation (zod bounds) > rejects too many images (> 12) with 400
+Error caught by global handler: {
+  name: [32m'Error'[39m,
+  message: [32m'body/images Too big: expected array to have <=12 items'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/routes/test/webhooks.e2e.test.ts > Webhooks E2E > GitLab — 19.0+ signing token > prefers the signed path and does not fall back to a plaintext token
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid webhook signature'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/webhooks/gitlab/85f0bbbd-b57c-44b8-bbb2-4f41b0e04b51'[39m,
+  method: [32m'POST'[39m
+}
+
+ ✓ src/infra/http/routes/test/webhooks.e2e.test.ts (18 tests) 496ms
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — POST /me/activity > rejects a clear-text value where a fingerprint was promised
+Error caught by global handler: {
+  name: [32m'Error'[39m,
+  message: [32m'body/events/0/repoFingerprint Must be a hex sha-256 fingerprint'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/activity'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — POST /me/activity > rejects an event with neither a repo nor a repoFingerprint
+Error caught by global handler: {
+  name: [32m'BadRequestError'[39m,
+  message: [32m'events[0]: one of repo or repoFingerprint is required'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/activity'[39m,
+  method: [32m'POST'[39m
+}
+
+stderr | src/infra/http/controllers/posts/test/posts.e2e.test.ts > Public feed E2E — GET /profile/:username/posts (no auth) > returns 404 for an unknown username
+Error caught by global handler: {
+  name: [32m'ResourceNotFoundError'[39m,
+  message: [32m"User with identifier 'ghost' not found"[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/profile/ghost/posts'[39m,
+  method: [32m'GET'[39m
+}
+
+ ✓ src/infra/http/controllers/posts/test/posts.e2e.test.ts (21 tests) 545ms
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — POST /me/activity > rejects a timestamp where a date was required
+Error caught by global handler: {
+  name: [32m'Error'[39m,
+  message: [32m'body/events/0/occurredOn Must be a YYYY-MM-DD date'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/activity'[39m,
+  method: [32m'POST'[39m
+}
+
+ ✓ src/core/use-case/profiles/update-profile-use-case/update-profile.use-case.test.ts (5 tests) 14ms
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > Write-side enforcement on POST /me/posts > blocks an agent PATCH that introduces a blocked term
+Error caught by global handler: {
+  name: [32m'BadRequestError'[39m,
+  message: [32m'Post mentions "Project Falcon", which your disclosure level (summary) does not allow. Describe the capability without naming the employer or client — what you built, the stack, the practices and the outcome are all still allowed — or raise your disclosure level in LinkHub settings under "What your agent may share".'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/2c50f124-b2de-4f78-b67f-e4b674961b81'[39m,
+  method: [32m'PATCH'[39m
+}
+
+ ✓ src/core/use-case/resumes/search-resumes-by-recruiter-query-use-case/search-resumes-by-recruiter-query.use-case.test.ts (6 tests) 55ms
+stderr | src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts > Agent policy E2E > Write-side enforcement on POST /me/posts > refuses an agent PATCH of its OWN post's content, before disclosure even runs
+Error caught by global handler: {
+  name: [32m'ForbiddenError'[39m,
+  message: [32m"This post was written by software (source: 'mcp') and its content is immutable by design — that is what lets a reader trust it was not edited afterwards. Rejected field(s): body. The only permitted changes are 'status' (approve it, or delete the post and have the software write a new one) and, for the owner in a real session, attaching an 'externalUrl'."[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/posts/b4824e55-4f7f-4ec7-8443-a30292cd9bb5'[39m,
+  method: [32m'PATCH'[39m
+}
+
+ ✓ src/infra/http/controllers/agent-policy/test/agent-policy.e2e.test.ts (23 tests) 611ms
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — GET /me/connections/:id/health and /digest-preview > answers 404 — identically — for a missing id and someone else's connection
+Error caught by global handler: {
+  name: [32m'ResourceNotFoundError'[39m,
+  message: [32m"GitConnection with identifier '33333333-3333-4333-8333-333333333333' not found"[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/33333333-3333-4333-8333-333333333333/health'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — GET /me/connections/:id/health and /digest-preview > answers 404 — identically — for a missing id and someone else's connection
+Error caught by global handler: {
+  name: [32m'ResourceNotFoundError'[39m,
+  message: [32m"GitConnection with identifier '665bc29f-862e-4089-b48a-28ebe9175d12' not found"[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/665bc29f-862e-4089-b48a-28ebe9175d12/health'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — GET /me/connections/:id/health and /digest-preview > answers 404 — identically — for a missing id and someone else's connection
+Error caught by global handler: {
+  name: [32m'ResourceNotFoundError'[39m,
+  message: [32m"GitConnection with identifier '33333333-3333-4333-8333-333333333333' not found"[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/33333333-3333-4333-8333-333333333333/digest-preview'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — GET /me/connections/:id/health and /digest-preview > answers 404 — identically — for a missing id and someone else's connection
+Error caught by global handler: {
+  name: [32m'ResourceNotFoundError'[39m,
+  message: [32m"GitConnection with identifier '665bc29f-862e-4089-b48a-28ebe9175d12' not found"[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/665bc29f-862e-4089-b48a-28ebe9175d12/digest-preview'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — GET /me/connections/:id/health and /digest-preview > rejects a PAT on both routes, whatever scopes it carries
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/c3d359f8-3fd9-4aa7-95e4-2d6895e0b831/health'[39m,
+  method: [32m'GET'[39m
+}
+
+stderr | src/infra/http/controllers/activity/test/activity.e2e.test.ts > Activity E2E — GET /me/connections/:id/health and /digest-preview > rejects a PAT on both routes, whatever scopes it carries
+Error caught by global handler: {
+  name: [32m'UnauthorizedError'[39m,
+  message: [32m'Invalid token payload'[39m,
+  stack: [90mundefined[39m,
+  path: [32m'/me/connections/c3d359f8-3fd9-4aa7-95e4-2d6895e0b831/digest-preview'[39m,
+  method: [32m'GET'[39m
+}
+
+ ✓ src/infra/http/controllers/activity/test/activity.e2e.test.ts (23 tests) 702ms
+ ✓ src/core/use-case/profile-layout/create-tab-use-case/create-tab.use-case.test.ts (4 tests) 9ms
+ ✓ src/core/use-case/resumes/reveal-candidate-contact-use-case/reveal-candidate-contact.use-case.test.ts (4 tests) 11ms
+ ✓ src/infra/providers/cached-embedding-provider.test.ts (7 tests) 18ms
+ ✓ src/core/use-case/resumes/add-skill-to-resume-use-case/add-skill-to-resume.use-case.test.ts (4 tests) 12ms
+ ✓ src/core/use-case/resumes/list-skills-catalog-use-case/list-skills-catalog.use-case.test.ts (1 test) 6ms
+ ✓ src/core/use-case/posts/delete-post-use-case/delete-post.use-case.test.ts (6 tests) 24ms
+ ✓ src/core/use-case/agent-policy/set-work-experience-disclosure-use-case/set-work-experience-disclosure.use-case.test.ts (5 tests) 15ms
+ ✓ src/infra/providers/redis-ai-quota-provider.test.ts (11 tests) 10ms
+ ✓ src/core/providers/ai-quota/in-memory-ai-quota-provider.test.ts (6 tests) 8ms
+ ✓ src/core/use-case/resumes/upsert-my-resume-use-case/upsert-my-resume.use-case.test.ts (3 tests) 15ms
+ ✓ src/core/use-case/posts/list-my-posts-use-case/list-my-posts.use-case.test.ts (5 tests) 9ms
+ ✓ src/core/use-case/resumes/get-public-resume-by-username-use-case/get-public-resume-by-username.use-case.test.ts (3 tests) 9ms
+ ✓ src/core/use-case/profile-layout/delete-tab-use-case/delete-tab.use-case.test.ts (6 tests) 15ms
+ ✓ src/core/use-case/activity/ingest-activity-use-case/ingest-activity.use-case.test.ts (15 tests) 31ms
+ ✓ src/core/use-case/links/list-user-links-use-case/list-user-links.use-case.test.ts (2 tests) 14ms
+ ✓ src/core/use-case/profile-layout/create-block-use-case/create-block.use-case.test.ts (8 tests) 29ms
+ ✓ src/core/use-case/activity/update-git-connection-use-case/update-git-connection.use-case.test.ts (7 tests) 14ms
+ ✓ src/core/use-case/work-experiences/create-work-experience-use-case/create-work-experience.use-case.test.ts (3 tests) 12ms
+ ✓ src/core/use-case/agent-policy/get-agent-policy-use-case/get-agent-policy.use-case.test.ts (4 tests) 10ms
+ ✓ src/core/use-case/ai-import/apply-ai-resume-import-use-case/apply-ai-resume-import.use-case.test.ts (8 tests) 31ms
+ ✓ src/core/use-case/api-tokens/revoke-api-token-use-case/revoke-api-token.use-case.test.ts (4 tests) 24ms
+ ✓ src/infra/providers/openai-recruiter-query-conversion-provider.test.ts (6 tests) 41ms
+ ✓ src/core/use-case/resumes/process-resume-embedding-job-use-case/process-resume-embedding-job.use-case.test.ts (4 tests) 27ms
+ ✓ src/core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.test.ts (5 tests) 14ms
+ ✓ src/core/use-case/profile-layout/rename-tab-use-case/rename-tab.use-case.test.ts (4 tests) 26ms
+ ✓ src/core/use-case/resumes/save-resume-skills-bulk-use-case/save-resume-skills-bulk.use-case.test.ts (1 test) 14ms
+ ✓ src/infra/providers/deterministic-embedding-provider.test.ts (7 tests) 17ms
+ ✓ src/core/use-case/agent-policy/update-agent-policy-use-case/update-agent-policy.use-case.test.ts (6 tests) 11ms
+ ✓ src/core/use-case/links/toggle-link-visibility-use-case/toggle-link-visibility.use-case.test.ts (4 tests) 8ms
+ ✓ src/core/use-case/activity/get-connection-health-use-case/get-connection-health.use-case.test.ts (6 tests) 13ms
+ ✓ src/core/use-case/resumes/add-title-to-resume-use-case/add-title-to-resume.use-case.test.ts (5 tests) 27ms
+ ✓ src/core/use-case/posts/approve-post-use-case/approve-post.use-case.test.ts (8 tests) 31ms
+ ✓ src/core/entity/activity-event/activity-event-entity.test.ts (5 tests) 20ms
+ ✓ src/core/use-case/activity/sweep-due-activity-digests-use-case/sweep-due-activity-digests.use-case.test.ts (11 tests) 33ms
+ ✓ src/core/use-case/activity/shared/repo-fingerprint.test.ts (8 tests) 9ms
+ ✓ src/core/use-case/resumes/save-resume-titles-bulk-use-case/save-resume-titles-bulk.use-case.test.ts (1 test) 6ms
+ ✓ src/core/use-case/auth/create-user-use-case/create-user.use-case.test.ts (6 tests) 29ms
+ ✓ src/core/use-case/resumes/shared/embedding-config.test.ts (4 tests) 5ms
+ ✓ src/infra/http/utils/validate-image.test.ts (5 tests) 18ms
+ ✓ src/infra/di/container-wiring.test.ts (22 tests) 16ms
+ ✓ src/core/use-case/resumes/create-custom-title-use-case/create-custom-title.use-case.test.ts (3 tests) 12ms
+ ✓ src/core/use-case/links/reorder-links-use-case/reorder-links.use-case.test.ts (3 tests) 33ms
+ ✓ src/core/use-case/profile-layout/delete-block-use-case/delete-block.use-case.test.ts (5 tests) 11ms
+ ✓ src/core/use-case/auth/login-use-case/login.use-case.test.ts (9 tests) 22ms
+ ✓ src/core/use-case/links/get-link-by-id-use-case/get-link-by-id.use-case.test.ts (3 tests) 9ms
+ ✓ src/core/use-case/posts/get-post-use-case/get-post.use-case.test.ts (3 tests) 18ms
+ ✓ src/core/use-case/resumes/list-titles-catalog-use-case/list-titles-catalog.use-case.test.ts (1 test) 12ms
+ ✓ src/core/use-case/profile-layout/update-block-positions-use-case/update-block-positions.use-case.test.ts (5 tests) 25ms
+ ✓ src/core/use-case/resumes/get-my-resume-use-case/get-my-resume.use-case.test.ts (2 tests) 12ms
+ ✓ src/core/use-case/auth/oauth-sign-in-use-case/oauth-sign-in.use-case.test.ts (4 tests) 9ms
+ ✓ src/core/use-case/links/delete-link-use-case/delete-link.use-case.test.ts (3 tests) 14ms
+ ✓ src/core/use-case/profile-layout/reorder-tabs-use-case/reorder-tabs.use-case.test.ts (5 tests) 28ms
+ ✓ src/core/use-case/links/update-link-use-case/update-link.use-case.test.ts (3 tests) 7ms
+ ✓ src/core/use-case/api-tokens/create-api-token-use-case/create-api-token.use-case.test.ts (2 tests) 17ms
+ ✓ src/infra/providers/s3-file-storage-provider.test.ts (5 tests) 16ms
+ ✓ src/core/use-case/api-tokens/list-api-tokens-use-case/list-api-tokens.use-case.test.ts (2 tests) 21ms
+ ✓ src/core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.test.ts (2 tests) 6ms
+ ✓ src/core/use-case/links/create-link-use-case/create-link.use-case.test.ts (3 tests) 7ms
+ ✓ src/core/use-case/resumes/create-custom-skill-use-case/create-custom-skill.use-case.test.ts (3 tests) 5ms
+ ✓ src/infra/http/middleware/api-access-guard.test.ts (6 tests) 7ms
+
+ Test Files  101 passed (101)
+      Tests  832 passed (832)
+   Start at  14:35:12
+   Duration  11.82s (transform 6.22s, setup 2.36s, collect 61.44s, tests 8.02s, environment 51ms, prepare 15.07s)
+
+  ✔ test — api  (12.6s)
+turbo 2.5.6
+
+• Packages in scope: //, @repo/eslint-config, @repo/schemas, @repo/typescript-config, @repo/ui, extractor, mcp, training, web
+• Running test in 9 packages
+• Remote caching disabled
+@repo/schemas:test: cache hit, replaying logs 035b4aed594845bf
+@repo/schemas:test: 
+@repo/schemas:test: > @repo/schemas@0.0.0 test
+@repo/schemas:test: > vitest run
+@repo/schemas:test: 
+@repo/schemas:test: 
+@repo/schemas:test:  RUN  v3.2.7 /home/gabriel/Documents/www/linkhub-v.1/packages/schemas
+@repo/schemas:test: 
+@repo/schemas:test:  ✓ src/matching/term-matching.test.ts (22 tests) 24ms
+@repo/schemas:test:  ✓ src/eval/ir-metrics.test.ts (37 tests) 153ms
+@repo/schemas:test:  ✓ src/matching/text-terms.test.ts (7 tests) 39ms
+@repo/schemas:test:  ✓ src/matching/blend.test.ts (5 tests) 34ms
+@repo/schemas:test:  ✓ src/eval/calibration.test.ts (23 tests) 45ms
+@repo/schemas:test:  ✓ src/ai/preprocessing.test.ts (11 tests) 110ms
+@repo/schemas:test: 
+@repo/schemas:test:  Test Files  6 passed (6)
+@repo/schemas:test:       Tests  105 passed (105)
+@repo/schemas:test:    Start at  08:06:11
+@repo/schemas:test:    Duration  2.57s (transform 2.01s, setup 0ms, collect 3.35s, tests 405ms, environment 1ms, prepare 2.84s)
+@repo/schemas:test: 
+@repo/schemas:build: cache hit, replaying logs 928251ab2e2c79b6
+@repo/schemas:build: 
+@repo/schemas:build: > @repo/schemas@0.0.0 build
+@repo/schemas:build: > tsc
+@repo/schemas:build: 
+web:test: cache hit, replaying logs 973c2e64b96a6f1a
+web:test: 
+web:test: > web@0.0.0 test
+web:test: > vitest run
+web:test: 
+web:test: 
+web:test:  RUN  v3.2.7 /home/gabriel/Documents/www/linkhub-v.1/apps/web
+web:test: 
+web:test: stderr | src/shared-components/avatar-cropper.test.tsx > AvatarCropper saving > surfaces a crop failure as an alert and does not call onCropped
+web:test: [avatar.crop] Error: Canvas exploded
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/shared-components/avatar-cropper.test.tsx:174:41
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:155:11
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1897:20
+web:test:     at new Promise (<anonymous>)
+web:test:     at runWithTimeout (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1863:10)
+web:test:     at runTest (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1574:12)
+web:test: [90m    at runNextTicks (node:internal/process/task_queues:64:5)[39m
+web:test: [90m    at processTimers (node:internal/timers:518:9)[39m
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8) { fileSize: [33m1[39m, fileType: [32m'image/png'[39m, rotation: [33m0[39m }
+web:test: 
+web:test:  ✓ src/lib/auth-api.test.ts (5 tests) 4472ms
+web:test:    ✓ fetchWithTokens > sends FormData as multipart, not as JSON  3230ms
+web:test:    ✓ fetchWithTokens > still sends plain object bodies as JSON  332ms
+web:test:    ✓ fetchWithTokens > attaches stored auth headers  385ms
+web:test:  ✓ src/features/auth/components/register-form.test.tsx (3 tests) 2209ms
+web:test:    ✓ RegisterForm persona picker > renders the 'prefer not to say' default plus every persona option  914ms
+web:test:    ✓ RegisterForm persona picker > includes the chosen persona in the submitted payload  760ms
+web:test:    ✓ RegisterForm persona picker > omits persona when 'prefer not to say' is left selected  532ms
+web:test:  ✓ src/features/posts/pages/review-queue-page.test.tsx (9 tests) 2883ms
+web:test:    ✓ ReviewQueuePage > lists only pending_review posts, newest first  593ms
+web:test:    ✓ ReviewQueuePage > attaches an external link to a machine post via the update mutation  877ms
+web:test:    ✓ ReviewQueuePage > rejects a non-http(s) link before calling the mutation  398ms
+web:test:    ✓ ReviewQueuePage > asks for confirmation before deleting  352ms
+web:test:  ✓ src/shared-components/avatar-cropper.test.tsx (19 tests) 4129ms
+web:test:    ✓ AvatarCropper visibility > opens a modal dialog once a file is picked  566ms
+web:test:    ✓ AvatarCropper saving > rasterises the crop and hands the resulting File to onCropped  356ms
+web:test:    ✓ AvatarCropper saving > passes the current rotation through to the rasteriser  344ms
+web:test:    ✓ AvatarCropper controls > advances rotation by 90° and wraps back to 0  309ms
+web:test:    ✓ AvatarCropper controls > resets zoom and rotation when a new file arrives  304ms
+web:test:  ✓ src/features/settings/components/create-token-dialog.test.tsx (6 tests) 4073ms
+web:test:    ✓ CreateTokenDialog > surfaces the one-time plaintext token with a copy affordance after creation  1443ms
+web:test:    ✓ CreateTokenDialog > shows the name error next to the field and focuses it  312ms
+web:test:    ✓ CreateTokenDialog > scope selection > never substitutes defaults for a deliberately empty selection  987ms
+web:test:    ✓ CreateTokenDialog > scope selection > sends exactly the scopes left checked  560ms
+web:test:    ✓ CreateTokenDialog > scope selection > offers activity:write but never grants it by default  544ms
+web:test:  ✓ src/features/settings/components/disclosure-panel.test.tsx (16 tests) 3910ms
+web:test:    ✓ DisclosurePanel > renders the three levels as selectable cards  622ms
+web:test:    ✓ DisclosurePanel > saves a new level when another card is picked  335ms
+web:test:    ✓ DisclosurePanel > adds a blocked term, appending to the existing list  866ms
+web:test:    ✓ DisclosurePanel > rejects a duplicate term case-insensitively — the server collapses them  439ms
+web:test:  ✓ src/features/settings/components/connect-panel.test.tsx (14 tests) 3144ms
+web:test:    ✓ ConnectPanel > renders a tab for each of the 4 AI tools  605ms
+web:test:    ✓ ConnectPanel > explains how to invoke the weekly_update prompt in each host  486ms
+web:test: stderr | src/features/posts/components/post-composer-dialog.test.tsx > PostComposerDialog server failures > keeps the dialog open and shows the server's reason
+web:test: [posts.create] Error: Post body contains a banned term
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/posts/components/post-composer-dialog.test.tsx:89:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:155:11
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1897:20
+web:test:     at new Promise (<anonymous>)
+web:test:     at runWithTimeout (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1863:10)
+web:test:     at runTest (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1574:12)
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8)
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8)
+web:test:     at runFiles (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1787:3) { status: [32m'published'[39m }
+web:test: 
+web:test: stderr | src/features/posts/components/post-composer-dialog.test.tsx > PostComposerDialog server failures > falls back to generic copy when the rejection carries no message
+web:test: [posts.create] Error: 
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/posts/components/post-composer-dialog.test.tsx:106:48
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:155:11
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1897:20
+web:test:     at new Promise (<anonymous>)
+web:test:     at runWithTimeout (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1863:10)
+web:test:     at runTest (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1574:12)
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8)
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8)
+web:test:     at runFiles (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1787:3) { status: [32m'published'[39m }
+web:test: 
+web:test:  ✓ src/features/posts/components/post-composer-dialog.test.tsx (7 tests) 4794ms
+web:test:    ✓ PostComposerDialog > blocks submit when the body is empty (zod gate) and surfaces an error  1452ms
+web:test:    ✓ PostComposerDialog > submits with valid content (source defaults to manual, status published)  718ms
+web:test:    ✓ PostComposerDialog > toggles the status to draft and includes it in the submitted payload  526ms
+web:test:    ✓ PostComposerDialog > adds a tag chip through the embedded TagInput and submits it  670ms
+web:test:    ✓ PostComposerDialog server failures > keeps the dialog open and shows the server's reason  599ms
+web:test:    ✓ PostComposerDialog server failures > falls back to generic copy when the rejection carries no message  442ms
+web:test:    ✓ PostComposerDialog server failures > closes the dialog only when the save actually succeeds  380ms
+web:test:  ✓ src/features/settings/components/connections-panel.test.tsx (20 tests) 5627ms
+web:test:    ✓ ConnectionsPanel list > renders each connection with provider, kind, cadence, auto-post and last digest  558ms
+web:test:    ✓ ConnectionsPanel list > renders row skeletons instead of a text label while loading  483ms
+web:test:    ✓ ConnectionsPanel one-time webhook secret > shows the secret once, with the webhook URL and the exact setup steps  1160ms
+web:test:    ✓ ConnectionsPanel one-time webhook secret > keeps the secret across a remount, because it is unrecoverable  883ms
+web:test:    ✓ ConnectionsPanel mutations > defaults the agent-summary toggle to off for a new connection  662ms
+web:test:    ✓ ConnectionsPanel mutations > edits an existing connection through the same dialog  476ms
+web:test:    ✓ ConnectionsPanel mutations > offers Both in the edit form and saves it as the mixed kind  559ms
+web:test:  ✓ src/features/settings/pages/settings-page.test.tsx (17 tests) 6222ms
+web:test:    ✓ SettingsPage automatic posts section > renders one unified section with the wizard as the primary path  872ms
+web:test:    ✓ SettingsPage automatic posts section > opens the wizard from the Add source button  472ms
+web:test:    ✓ SettingsPage automatic posts section > keeps the explainer hidden until asked for  451ms
+web:test:    ✓ SettingsPage advanced settings > opens the manual-setup disclosure after a token is created  1398ms
+web:test:    ✓ SettingsPage token list > hides revoked tokens behind a count toggle, both ways  447ms
+web:test:    ✓ SettingsPage token list > does not claim you have no tokens when every token is revoked  395ms
+web:test: stderr | src/features/settings/components/auto-post-wizard/auto-post-wizard.test.tsx > AutoPostWizard extractor path > explains a 409 as an already-existing source instead of a generic failure
+web:test: [settings.wizard-create-connection] { isAxiosError: [33mtrue[39m, response: { status: [33m409[39m } } { provider: [32m'extractor'[39m, kind: [32m'personal'[39m }
+web:test: 
+web:test:  ✓ src/features/resume-import/components/resume-import-modal.test.tsx (2 tests) 1894ms
+web:test:    ✓ ResumeImportModal parse step > replaces the upload form with a progress + skeleton state while the AI reads the resume  1814ms
+web:test:  ✓ src/shared-components/dialog.test.tsx (6 tests) 850ms
+web:test:    ✓ Dialog width-class suppression > keeps both defaults when no width override is passed  527ms
+web:test:  ✓ src/shared-components/button.test.tsx (13 tests) 1319ms
+web:test:    ✓ Button focus ring > carries the house focus ring so keyboard focus is visible  519ms
+web:test:  ✓ src/features/settings/components/how-it-works-dialog.test.tsx (6 tests) 1660ms
+web:test:    ✓ HowItWorksDialog > shows the three-panel pipeline with the local-first framing  955ms
+web:test:  ✓ src/shared-components/file-upload.test.tsx (20 tests) 1424ms
+web:test:    ✓ FileUpload > renders an error state (aria-invalid) for a bad file  304ms
+web:test:  ✓ src/features/search/components/search-results.test.tsx (11 tests) 1378ms
+web:test:    ✓ SearchResults > collapses a long work history behind a toggle and expands on demand  593ms
+web:test:  ✓ src/features/dashboard/components/dashboard-link-form.test.tsx (4 tests) 1411ms
+web:test:    ✓ DashboardLinkForm validation > blocks submit and names both empty fields instead of failing silently  499ms
+web:test:    ✓ DashboardLinkForm validation > rejects a URL that is not a URL  388ms
+web:test:    ✓ DashboardLinkForm validation > submits a valid link, keeping the fields the API schema does not carry  427ms
+web:test:  ✓ src/features/search/components/search-results-feedback.test.tsx (8 tests) 1129ms
+web:test:    ✓ F3 — the contact button no longer reads a listing email > offers a reveal action even though the candidate carries no email  431ms
+web:test:  ✓ src/features/work-history/components/work-history-manager.test.tsx (2 tests) 607ms
+web:test:    ✓ WorkHistoryManager loading state > renders entry-shaped skeletons instead of a text label while loading  367ms
+web:test:  ✓ src/shared-components/top-bar-nav.test.tsx (3 tests) 663ms
+web:test:    ✓ TopBarNav (desktop) > exposes an accessible name (aria-label) for every nav item  384ms
+web:test:  ✓ src/features/posts/components/tag-input.test.tsx (4 tests) 825ms
+web:test:    ✓ TagInput > adds a chip when Enter is pressed and strips a leading '#'  529ms
+web:test:  ✓ src/features/posts/pages/posts-page.test.tsx (5 tests) 817ms
+web:test:    ✓ PostsPage loading state > renders skeleton cards instead of a text label while posts load  424ms
+web:test:  ✓ src/features/settings/components/auto-post-wizard/auto-post-wizard.test.tsx (27 tests) 11074ms
+web:test:    ✓ AutoPostWizard source step > shows all four source cards with the MCP card recommended  1038ms
+web:test:    ✓ AutoPostWizard source step > prefills a sensible display name per source, following the kind selection  663ms
+web:test:    ✓ AutoPostWizard source step > never clobbers a name the user typed when kind changes  954ms
+web:test:    ✓ AutoPostWizard source step > offers Both for a machine that holds personal and work repos  302ms
+web:test:    ✓ AutoPostWizard source step > creates a mixed connection with the employer attached  632ms
+web:test:    ✓ AutoPostWizard source step > requires a display name before creating anything  380ms
+web:test:    ✓ AutoPostWizard extractor path > creates the connection once, and never again on Back → Next  648ms
+web:test:    ✓ AutoPostWizard extractor path > PATCHes edits made on the way Back into the reused connection  684ms
+web:test:    ✓ AutoPostWizard extractor path > deletes the abandoned connection when the provider changes after a create  684ms
+web:test:    ✓ AutoPostWizard extractor path > explains a 409 as an already-existing source instead of a generic failure  329ms
+web:test:    ✓ AutoPostWizard extractor path > shows the review-first extract flow and an inline activity:write token affordance  580ms
+web:test:    ✓ AutoPostWizard schedule step > PATCHes cadence for a resumed off connection once the user picks one  423ms
+web:test:    ✓ AutoPostWizard MCP path > creates no connection, reuses the host tabs, and watches for the agent's post  406ms
+web:test:    ✓ AutoPostWizard MCP path > flips verify only for a post that was not in the first snapshot, ignoring clock skew  495ms
+web:test:    ✓ AutoPostWizard MCP path > offers a cadence and per-tool automation guidance, and saves nothing  946ms
+web:test:  ✓ src/shared-components/app-error-boundary.test.tsx (2 tests) 605ms
+web:test:    ✓ AppErrorBoundary > renders its fallback WITHOUT any router context  597ms
+web:test:  ✓ src/features/resume/components/resume-read-only-card.test.tsx (3 tests) 725ms
+web:test:    ✓ ResumeReadOnlyCard > keeps the header and swaps only the body for a skeleton while loading  647ms
+web:test:  ✓ src/shared-components/form-fields.test.tsx (12 tests) 943ms
+web:test:    ✓ 'Input' error wiring > links the error to the control and marks it invalid  611ms
+web:test: stdout | src/features/profile/components/profile-share-button.test.tsx > ProfileShareButton > does NOT fall back to clipboard when the user aborts the native share
+web:test: [profile.share] handled DOMException {} 
+web:test: 
+web:test: stderr | src/features/profile/components/profile-share-button.test.tsx > ProfileShareButton > falls back to clipboard when share rejects with a non-abort error
+web:test: [profile.share] Error: share failed
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/profile/components/profile-share-button.test.tsx:60:45
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:155:11
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1897:20
+web:test:     at new Promise (<anonymous>)
+web:test:     at runWithTimeout (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1863:10)
+web:test:     at runTest (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1574:12)
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8)
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8)
+web:test:     at runFiles (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1787:3) 
+web:test: 
+web:test:  ✓ src/features/profile/components/profile-share-button.test.tsx (3 tests) 670ms
+web:test:    ✓ ProfileShareButton > does NOT fall back to clipboard when the user aborts the native share  525ms
+web:test:  ✓ src/features/dashboard/components/dashboard-profile-form.test.tsx (4 tests) 712ms
+web:test:    ✓ DashboardProfileForm save feedback > renders the save error inside the form, above the submit button  442ms
+web:test:  ✓ src/features/work-history/components/work-history-read-only.test.tsx (3 tests) 478ms
+web:test:    ✓ WorkHistoryReadOnly > renders entry placeholders inside the same timeline list while loading  442ms
+web:test: stderr | src/shared-components/image-input.test.tsx > ImageInput > does not commit an invalid pasted value
+web:test: An update to ImageInput inside a test was not wrapped in act(...).
+web:test: 
+web:test: When testing, code that causes React state updates should be wrapped into act(...):
+web:test: 
+web:test: act(() => {
+web:test:   /* fire events that update state */
+web:test: });
+web:test: /* assert on the output */
+web:test: 
+web:test: This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+web:test: 
+web:test:  ✓ src/shared-components/image-input.test.tsx (7 tests) 612ms
+web:test:  ✓ src/features/profile/components/profile-blocks.test.tsx (8 tests) 559ms
+web:test:  ✓ src/features/profile-layout/components/editor-grid.test.tsx (7 tests) 629ms
+web:test:    ✓ EditorGrid vertical compaction > packs a layout with a vertical hole up to the top  410ms
+web:test:  ✓ src/features/profile/components/posts-block.test.tsx (5 tests) 639ms
+web:test:    ✓ PostsBlock > renders post-shaped placeholders while the query is loading  462ms
+web:test: stdout | src/features/search/hooks/use-ai-rerank.test.ts > F15 — a rerank failure must not cost the recruiter their results > returns every candidate, in API order, when the model fails to load
+web:test: [search.rerank] handled Error: Preprocessing config version "v1" does not match the runtime version "v3".
+web:test:     at onMessage [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.ts:93:24[90m)[39m
+web:test:     at FakeWorker.emit [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.test.ts:31:7[90m)[39m
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.test.ts:45:14
+web:test: [90m    at node:internal/process/task_queues:149:7[39m
+web:test: [90m    at AsyncResource.runInAsyncScope (node:async_hooks:214:14)[39m
+web:test: [90m    at AsyncResource.runMicrotask (node:internal/process/task_queues:146:8)[39m { code: [32m'PREPROCESSING_INCOMPATIBLE'[39m }
+web:test: 
+web:test: stderr | src/features/search/hooks/use-ai-rerank.test.ts > F15 — a rerank failure must not cost the recruiter their results > degrades the same way when the worker itself blows up
+web:test: [search.rerank] Error: Worker execution failed
+web:test:     at onError [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.ts:101:24[90m)[39m
+web:test:     at FakeWorker.emit [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.test.ts:31:7[90m)[39m
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.test.ts:40:14
+web:test: [90m    at node:internal/process/task_queues:149:7[39m
+web:test: [90m    at AsyncResource.runInAsyncScope (node:async_hooks:214:14)[39m
+web:test: [90m    at AsyncResource.runMicrotask (node:internal/process/task_queues:146:8)[39m { code: [1mnull[22m, candidateCount: [33m3[39m }
+web:test: 
+web:test: stderr | src/features/search/hooks/use-ai-rerank.test.ts > F15 — a rerank failure must not cost the recruiter their results > clears the loading flag on the failure path too
+web:test: [search.rerank] Error: Worker execution failed
+web:test:     at onError [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.ts:101:24[90m)[39m
+web:test:     at FakeWorker.emit [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.test.ts:31:7[90m)[39m
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.test.ts:40:14
+web:test: [90m    at node:internal/process/task_queues:149:7[39m
+web:test: [90m    at AsyncResource.runInAsyncScope (node:async_hooks:214:14)[39m
+web:test: [90m    at AsyncResource.runMicrotask (node:internal/process/task_queues:146:8)[39m { code: [1mnull[22m, candidateCount: [33m3[39m }
+web:test: 
+web:test: stderr | src/features/search/hooks/use-ai-rerank.test.ts > F15 — a rerank failure must not cost the recruiter their results > leaks no listeners across repeated searches, successful or not
+web:test: [search.rerank] Error: Worker execution failed
+web:test:     at onError [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.ts:101:24[90m)[39m
+web:test:     at FakeWorker.emit [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.test.ts:31:7[90m)[39m
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/features/search/hooks/use-ai-rerank.test.ts:40:14
+web:test: [90m    at node:internal/process/task_queues:149:7[39m
+web:test: [90m    at AsyncResource.runInAsyncScope (node:async_hooks:214:14)[39m
+web:test: [90m    at AsyncResource.runMicrotask (node:internal/process/task_queues:146:8)[39m { code: [1mnull[22m, candidateCount: [33m3[39m }
+web:test: 
+web:test:  ✓ src/features/search/hooks/use-ai-rerank.test.ts (6 tests) 84ms
+web:test:  ✓ src/lib/crop-image.test.ts (16 tests) 164ms
+web:test:  ✓ src/features/profile-layout/components/editor-grid-skeleton.test.tsx (3 tests) 439ms
+web:test:    ✓ EditorGridSkeleton > announces the loading region for screen readers  361ms
+web:test:  ✓ src/features/posts/lib/markdown.test.tsx (14 tests) 61ms
+web:test: stderr | src/features/settings/lib/reveal-anchor.test.ts
+web:test: Not implemented: navigation to another Document
+web:test: 
+web:test:  ✓ src/features/settings/lib/reveal-anchor.test.ts (6 tests) 101ms
+web:test:  ✓ src/features/profile/components/profile-blocks-loading.test.tsx (4 tests) 513ms
+web:test:    ✓ ProfileBlocks loading states > shows link placeholders instead of the empty state while links load  341ms
+web:test:  ✓ src/features/search/utils/advanced-search.test.ts (17 tests) 110ms
+web:test: stdout | src/lib/unauthorized-interceptor.test.ts > createSessionRefresher > returns null when the refresh response is malformed
+web:test: [auth.refresh-session] handled ZodError: [
+web:test:   {
+web:test:     "origin": "string",
+web:test:     "code": "too_small",
+web:test:     "minimum": 1,
+web:test:     "inclusive": true,
+web:test:     "path": [
+web:test:       "accessToken"
+web:test:     ],
+web:test:     "message": "Too small: expected string to have >=1 characters"
+web:test:   },
+web:test:   {
+web:test:     "expected": "string",
+web:test:     "code": "invalid_type",
+web:test:     "path": [
+web:test:       "refreshToken"
+web:test:     ],
+web:test:     "message": "Invalid input: expected string, received undefined"
+web:test:   }
+web:test: ]
+web:test:     at attempt [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/lib/unauthorized-interceptor.ts:80:47[90m)[39m
+web:test: [90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m { status: [1mnull[22m, latchedUnsupported: [33mfalse[39m }
+web:test: 
+web:test: stdout | src/lib/unauthorized-interceptor.test.ts > createSessionRefresher > stops probing after a 404 — the endpoint is not implemented
+web:test: [auth.refresh-session] handled AxiosError: boom
+web:test:     at axiosErrorWithStatus [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/lib/unauthorized-interceptor.test.ts:33:17[90m)[39m
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/lib/unauthorized-interceptor.test.ts:116:49
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:155:11
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1897:20
+web:test:     at new Promise (<anonymous>)
+web:test:     at runWithTimeout (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1863:10)
+web:test:     at runTest (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1574:12)
+web:test: [90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8) {
+web:test:   isAxiosError: [33mtrue[39m,
+web:test:   config: { url: [32m'/me'[39m },
+web:test:   response: {
+web:test:     status: [33m404[39m,
+web:test:     data: {},
+web:test:     statusText: [32m''[39m,
+web:test:     headers: {},
+web:test:     config: { url: [32m'/me'[39m }
+web:test:   },
+web:test:   status: [33m404[39m
+web:test: } { status: [33m404[39m, latchedUnsupported: [33mtrue[39m }
+web:test: 
+web:test: stdout | src/lib/unauthorized-interceptor.test.ts > createSessionRefresher > keeps retrying after a transient refresh failure
+web:test: [auth.refresh-session] handled AxiosError: boom
+web:test:     at axiosErrorWithStatus [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/lib/unauthorized-interceptor.test.ts:33:17[90m)[39m
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/lib/unauthorized-interceptor.test.ts:131:49
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:155:11
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1897:20
+web:test:     at new Promise (<anonymous>)
+web:test:     at runWithTimeout (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1863:10)
+web:test:     at runTest (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1574:12)
+web:test: [90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8) {
+web:test:   isAxiosError: [33mtrue[39m,
+web:test:   config: { url: [32m'/me'[39m },
+web:test:   response: {
+web:test:     status: [33m500[39m,
+web:test:     data: {},
+web:test:     statusText: [32m''[39m,
+web:test:     headers: {},
+web:test:     config: { url: [32m'/me'[39m }
+web:test:   },
+web:test:   status: [33m500[39m
+web:test: } { status: [33m500[39m, latchedUnsupported: [33mfalse[39m }
+web:test: 
+web:test: stdout | src/lib/unauthorized-interceptor.test.ts > createSessionRefresher > keeps retrying after a transient refresh failure
+web:test: [auth.refresh-session] handled AxiosError: boom
+web:test:     at axiosErrorWithStatus [90m(/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/lib/unauthorized-interceptor.test.ts:33:17[90m)[39m
+web:test:     at [90m/home/gabriel/Documents/www/linkhub-v.1/apps/web/[39msrc/lib/unauthorized-interceptor.test.ts:131:49
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:155:11
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1897:20
+web:test:     at new Promise (<anonymous>)
+web:test:     at runWithTimeout (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1863:10)
+web:test:     at runTest (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1574:12)
+web:test: [90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8) {
+web:test:   isAxiosError: [33mtrue[39m,
+web:test:   config: { url: [32m'/me'[39m },
+web:test:   response: {
+web:test:     status: [33m500[39m,
+web:test:     data: {},
+web:test:     statusText: [32m''[39m,
+web:test:     headers: {},
+web:test:     config: { url: [32m'/me'[39m }
+web:test:   },
+web:test:   status: [33m500[39m
+web:test: } { status: [33m500[39m, latchedUnsupported: [33mfalse[39m }
+web:test: 
+web:test:  ✓ src/lib/unauthorized-interceptor.test.ts (14 tests) 37ms
+web:test:  ✓ src/lib/report-error.test.ts (8 tests) 217ms
+web:test:  ✓ src/features/profile-layout/grid-utils.test.ts (23 tests) 16ms
+web:test:  ✓ src/features/settings/lib/connection-queries.test.ts (8 tests) 23ms
+web:test:  ✓ src/features/settings/lib/connection-format.test.ts (15 tests) 11ms
+web:test:  ✓ src/lib/session.test.ts (3 tests) 19ms
+web:test:  ✓ src/workers/reranker-scoring.test.ts (18 tests) 16ms
+web:test: 
+web:test:  Test Files  47 passed (47)
+web:test:       Tests  436 passed (436)
+web:test:    Start at  08:06:43
+web:test:    Duration  24.06s (transform 8.11s, setup 17.24s, collect 39.16s, tests 74.90s, environment 83.07s, prepare 12.10s)
+web:test: 
+web:test: pps/web/[39msrc/lib/unauthorized-interceptor.test.ts:131:49
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:155:11
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:26
+web:test:     at file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1897:20
+web:test:     at new Promise (<anonymous>)
+web:test:     at runWithTimeout (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1863:10)
+web:test:     at runTest (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1574:12)
+web:test: [90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+web:test:     at runSuite (file:///home/gabriel/Documents/www/linkhub-v.1/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:1729:8) {
+web:test:   isAxiosError: [33mtrue[39m,
+web:test:   config: { url: [32m'/me'[39m },
+web:test:   response: {
+web:test:     status: [33m500[39m,
+web:test:     data: {},
+web:test:     statusText: [32m''[39m,
+web:test:     headers: {},
+web:test:     config: { url: [32m'/me'[39m }
+web:test:   },
+web:test:   status: [33m500[39m
+web:test: } { status: [33m500[39m, latchedUnsupported: [33mfalse[39m }
+web:test: 
+web:test:  ✓ src/lib/unauthorized-interceptor.test.ts (14 tests) 92ms
+web:test:  ✓ src/features/search/utils/advanced-search.test.ts (17 tests) 45ms
+web:test:  ✓ src/features/profile-layout/grid-utils.test.ts (23 tests) 24ms
+web:test:  ✓ src/features/settings/lib/connection-queries.test.ts (8 tests) 27ms
+web:test:  ✓ src/features/settings/lib/connection-format.test.ts (15 tests) 11ms
+web:test:  ✓ src/lib/session.test.ts (3 tests) 21ms
+web:test:  ✓ src/workers/reranker-scoring.test.ts (18 tests) 23ms
+web:test: 
+web:test:  Test Files  47 passed (47)
+web:test:       Tests  436 passed (436)
+web:test:    Start at  08:06:11
+web:test:    Duration  31.22s (transform 7.59s, setup 18.97s, collect 47.46s, tests 94.27s, environment 114.54s, prepare 16.36s)
+web:test: 
+extractor:test: cache hit, replaying logs de34514e37d240ff
+extractor:test: 
+extractor:test: > extractor@1.0.0 test
+extractor:test: > vitest run
+extractor:test: 
+extractor:test: 
+extractor:test:  RUN  v3.2.7 /home/gabriel/Documents/www/linkhub-v.1/apps/extractor
+extractor:test: 
+extractor:test:  ✓ src/technologies.test.ts (41 tests) 87ms
+extractor:test:  ✓ src/args.test.ts (6 tests) 16ms
+extractor:test:  ✓ src/fingerprint.test.ts (9 tests) 31ms
+extractor:test:  ✓ src/cli/extract-cli.test.ts (9 tests) 1502ms
+extractor:test:  ✓ src/extract.test.ts (15 tests) 4391ms
+extractor:test:    ✓ the payload never carries a clear-text identity > records a date and never a time, an hour or an offset  346ms
+extractor:test:    ✓ multiple author emails > discovers a different configured email per repository  548ms
+extractor:test:    ✓ re-running the extractor > keeps ids stable when new commits are added on top  405ms
+extractor:test:    ✓ re-running the extractor > gives the same ids from a second clone at a different path  644ms
+extractor:test:    ✓ robustness > skips paths that are not git repositories instead of failing  331ms
+extractor:test:  ✓ src/hook/handlers.test.ts (20 tests) 16650ms
+extractor:test:    ✓ Stop: stop_hook_active > does nothing at all and writes no file  360ms
+extractor:test:    ✓ Stop: the agent's own prose > is absent by default  356ms
+extractor:test:    ✓ Stop: the agent's own prose > stays absent when the setting is merely missing or falsy  457ms
+extractor:test:    ✓ Stop: debounce > spools again once work actually lands  425ms
+extractor:test:    ✓ the spool file itself > survives a truncated line rather than wedging behind it  309ms
+extractor:test:    ✓ the spool file itself > removes only what was delivered  367ms
+extractor:test:    ✓ the executable never blocks a session > exits 0 and writes nothing when stop_hook_active is true  2475ms
+extractor:test:    ✓ the executable never blocks a session > exits 0 on malformed stdin, an unknown command and no input  5268ms
+extractor:test:    ✓ the executable never blocks a session > exits 0 when the API is unreachable, and keeps the spool  2643ms
+extractor:test:    ✓ the executable never blocks a session > prints a pasteable settings snippet  1942ms
+extractor:test: 
+extractor:test:  Test Files  6 passed (6)
+extractor:test:       Tests  100 passed (100)
+extractor:test:    Start at  08:06:11
+extractor:test:    Duration  18.96s (transform 2.17s, setup 0ms, collect 7.88s, tests 22.68s, environment 1ms, prepare 2.90s)
+extractor:test: 
+training:test: cache hit, replaying logs 59e970f3fe8e2989
+training:test: 
+training:test: > training@1.0.0 test
+training:test: > vitest run
+training:test: 
+training:test: 
+training:test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/home/gabriel/Documents/www/linkhub-v.1/apps/training[39m
+training:test: 
+training:test:  [32m✓[39m src/lib/model-versions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+training:test:  [32m✓[39m src/lib/temporal-split.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+training:test:  [32m✓[39m src/lib/labels.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 75[2mms[22m[39m
+training:test:  [32m✓[39m src/lib/exposure.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+training:test:  [32m✓[39m src/lib/warm-start.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+training:test:  [32m✓[39m src/lib/quality-gates.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 96[2mms[22m[39m
+training:test:  [32m✓[39m src/lib/synthetic.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 263[2mms[22m[39m
+training:test: 2026-08-22 08:06:14.971585: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
+training:test: To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+training:test: 2026-08-22 08:06:14.971587: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
+training:test: To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+training:test: [90mstdout[2m | src/scripts/train-model.test.ts[2m > [22m[2mModel scoring — Fullstack React/Node.js query[2m > [22m[2mperfect candidate scores ≥ 0.90
+training:test: [22m[39m  perfect  → 96.6%
+training:test: 
+training:test: [90mstdout[2m | src/scripts/train-model.test.ts[2m > [22m[2mModel scoring — Fullstack React/Node.js query[2m > [22m[2mmedium candidate scores between 0.35 and 0.75
+training:test: [22m[39m  medium   → 40.4%
+training:test: 
+training:test: (node:78863) [DEP0051] DeprecationWarning: The `util.isNullOrUndefined` API is deprecated. Please use `arg === null || arg === undefined` instead.
+training:test: [90mstdout[2m | src/scripts/train-model.test.ts[2m > [22m[2mModel scoring — Fullstack React/Node.js query[2m > [22m[2mbad candidate scores ≤ 0.10
+training:test: [22m[39m  bad      → 0.0%
+training:test: (Use `node --trace-deprecation ...` to show where the warning was created)
+training:test: 
+training:test:  [32m✓[39m src/scripts/train-model.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 281[2mms[22m[39m
+training:test: (node:78861) [DEP0051] DeprecationWarning: The `util.isNullOrUndefined` API is deprecated. Please use `arg === null || arg === undefined` instead.
+training:test: (Use `node --trace-deprecation ...` to show where the warning was created)
+training:test: (node:78861) [DEP0044] DeprecationWarning: The `util.isArray` API is deprecated. Please use `Array.isArray()` instead.
+training:test:  [32m✓[39m src/scripts/frozen-scoring.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 999[2mms[22m[39m
+training:test:      [33m[2m✓[22m[39m re-encodes every case to the exact vector that was committed [33m 757[2mms[22m[39m
+training:test: 
+training:test: [2m Test Files [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+training:test: [2m      Tests [22m [1m[32m87 passed[39m[22m[90m (87)[39m
+training:test: [2m   Start at [22m 08:06:11
+training:test: [2m   Duration [22m 5.29s[2m (transform 5.07s, setup 0ms, import 16.42s, tests 1.88s, environment 12ms)[22m
+training:test: 
+
+ Tasks:    5 successful, 5 total
+Cached:    5 cached, 5 total
+  Time:    139ms >>> FULL TURBO
+
+  ✔ test — other workspaces (affected)  (0.9s)
+i18n-parity: skipped — apps/web/src/i18n/locales/ does not exist yet (LinkHub has no i18n; see the `i18n` skill for the planned setup).
+  ✔ i18n locale parity  (0.0s)
+
+   total 25.8s
+guardrails PASS
+
