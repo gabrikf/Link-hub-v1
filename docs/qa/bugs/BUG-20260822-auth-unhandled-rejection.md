@@ -42,13 +42,18 @@ carrying the address.
 ## Evidence
 
 - `e2e/journeys/01-signup-resume.spec.ts:201` and `:255` — the guard assertions that recorded it.
-- **Not re-reproduced in run `2026-08-22T18:58:46.702Z`.** Carried in from the hand-off on the strength of those assertions plus the code reading below. FIX must reproduce it first.
+- **Re-reproduced by hand in run `2026-08-22T18:58:46.702Z`, iteration 27 (TRIAGE).** A throwaway jsdom probe rendered `LoginForm` and `RegisterForm` with an `onSubmit` that rejects, with a `process.on("unhandledRejection")` listener attached. Both submits escaped:
+  - login → `Error: Invalid email or password`
+  - register → `Error: User with email 'ada@example.com' already exists` — **the address is in the message**, which is the privacy half of this bug.
+  Probe script and raw vitest output: `.nightly/evidence/BUG-20260822-auth-unhandled-rejection/`. The probe was deleted after the run; FIX writes the real regression test.
+- The Sentry half re-read this iteration: `apps/web/src/lib/report-error.ts:83-99` calls `Sentry.init` with default integrations (so the browser `onunhandledrejection` global handler is on) and `sendDefaultPii: false`, which scrubs PII *fields* and not message strings. The leak therefore lands wherever `VITE_SENTRY_DSN` is set.
 
 ## Fix
 
 <!-- filled when status moves to fixed -->
 - **Root cause:** *symptom* — uncaught rejections on every auth failure. *Cause* — `apps/web/src/features/auth/components/register-form.tsx:52` does `handleSubmit(async (data) => { await onSubmit(data); reset(); })` and `login-form.tsx:34` does `handleSubmit(onSubmit)`, where `onSubmit` is `auth-page.tsx`'s `mutateAsync` wrapper (lines 131/135). react-hook-form re-throws whatever the valid-handler rejects with, so every rejected `mutateAsync` escapes. Sentry init: `apps/web/src/lib/report-error.ts:90`.
 - **Root Cause (taxonomy):** unhandled-error-path
+- **Third call site, same mechanism (found at triage, iteration 27):** `auth-page.tsx`'s `useGoogleLogin({ onSuccess: async (t) => { await googleSignInMutation.mutateAsync(...) } })` also awaits a `mutateAsync` inside a handler nobody catches. It is not covered by the two form probes and is not what this bug was filed for, but a fix that only patches the two forms leaves it. Handle it in the same change if it is one line; otherwise say so.
 - **Fix commit:** —
 - **Regression test:** component test with `@testing-library/react` beside each form — submit, reject the mutation, assert the error renders **and** that no unhandled rejection is produced. One fix covers both forms (catch inside the submit handler, or use `mutate` instead of `mutateAsync`). The e2e guard assertions already cover the user-visible half.
 - **Gate:** —
