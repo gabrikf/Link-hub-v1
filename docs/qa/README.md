@@ -73,7 +73,7 @@ Gitignored by default (see the gitignore block appended to the repo root). Scree
 
 ## Registered bugs
 
-Registered from `.nightly/QUEUE.json` on 2026-08-22 (run `2026-08-22T18:58:46.702Z`, iterations 4 and 7 — TRIAGE). Ids are stable forever; status lives in each file.
+Registered from `.nightly/QUEUE.json` on 2026-08-22 (run `2026-08-22T18:58:46.702Z`, iterations 4 and 7 — TRIAGE) and on 2026-08-23 (same run, iteration 55 — TRIAGE, the two `responsive-dark` findings). Ids are stable forever; status lives in each file.
 
 | Bug | Severity | Area | One line |
 |---|---|---|---|
@@ -85,6 +85,8 @@ Registered from `.nightly/QUEUE.json` on 2026-08-22 (run `2026-08-22T18:58:46.70
 | [BUG-20260822-links-keyboard-reorder](bugs/BUG-20260822-links-keyboard-reorder.md) | High / P1 | dashboard | Profile links cannot be reordered by keyboard — the drag lifts and announces itself, then arrows do nothing |
 | [BUG-20260822-layout-vertical-keyboard](bugs/BUG-20260822-layout-vertical-keyboard.md) | High / P2 | layout | Blocks cannot be reordered vertically without a mouse — `ArrowUp`/`ArrowDown` are permanent no-ops that still write eight times |
 | [BUG-20260822-open-to-work-switch-name](bugs/BUG-20260822-open-to-work-switch-name.md) | Low / P3 | dashboard | The "Open to work" switch has no accessible name |
+| [BUG-20260823-mobile-search-no-feedback](bugs/BUG-20260823-mobile-search-no-feedback.md) | High / P2 | search | On a phone, a successful recruiter search changes nothing inside the viewport — 50 results land 1069px below the fold, the page never scrolls, and the live region says nothing |
+| [BUG-20260823-profile-login-tap-eaten](bugs/BUG-20260823-profile-login-tap-eaten.md) | Low / P3 | profile | On a phone the fixed theme toggle covers the top 8px of the public profile's Login pill and eats the tap |
 
 ## Adopted from
 
