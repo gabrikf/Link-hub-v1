@@ -225,23 +225,6 @@ export const minBlockWidth = (cols: number) => (cols <= 4 ? 1 : 2);
 /** Minimum block height in rows, mirroring `EditorGrid`'s `minH`. */
 export const MIN_BLOCK_HEIGHT = 2;
 
-/** True when two layouts put every block on exactly the same cells. */
-function sameGeometry(
-  before: readonly GridLayoutItem[],
-  after: readonly GridLayoutItem[],
-): boolean {
-  return before.every((item) => {
-    const moved = after.find((entry) => entry.i === item.i);
-    return (
-      moved !== undefined &&
-      moved.x === item.x &&
-      moved.y === item.y &&
-      moved.w === item.w &&
-      moved.h === item.h
-    );
-  });
-}
-
 /**
  * One drop attempt: react-grid-layout's own drag maths, run on a throwaway copy
  * (`moveElement` mutates the layout it is handed).
@@ -290,8 +273,8 @@ function attemptMove(
  * tall while the keyboard sends one row per press — which is why ArrowUp and
  * ArrowDown used to be permanent no-ops. So `dy` is read as a DIRECTION with a
  * minimum distance: the block is dropped at `y + dy` and, if the compacted
- * result is the layout the user is already looking at, one row further, until
- * the arrangement actually changes or the grid runs out. In practice that is
+ * result leaves it on the cell it started from, one row further, until THE
+ * BLOCK ITSELF lands somewhere new or the grid runs out. In practice that is
  * "swap with the neighbour on that side", for a neighbour of any height.
  *
  * Returns the input array unchanged when the nudge has nowhere to go, so the
@@ -336,7 +319,14 @@ export function moveBlockBy(
 
   for (const y of candidates) {
     const attempt = attemptMove(items, blockId, x, y, cols);
-    if (!sameGeometry(items, attempt)) {
+    const landed = attempt.find((item) => item.i === blockId);
+    // The candidate only counts when THE BLOCK THE USER IS NUDGING ends up on a
+    // different cell. Accepting "anything in the layout changed" lets a row a
+    // neighbour got shoved out of pass as a successful nudge: the focused block
+    // stays put, a bystander is flung to the bottom, and that scrambled layout
+    // is persisted. Keep walking instead — the row where the target really does
+    // cross its neighbour is further along the same direction.
+    if (landed && (landed.x !== target.x || landed.y !== target.y)) {
       return applyGeometry(blocks, attempt);
     }
   }
