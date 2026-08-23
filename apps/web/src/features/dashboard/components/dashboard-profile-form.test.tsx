@@ -82,3 +82,28 @@ describe("DashboardProfileForm save feedback", () => {
     expect(onDirtyChange).toHaveBeenCalledWith(false);
   });
 });
+
+/**
+ * The "Open to work" toggle publicly advertises job-seeking status, and it
+ * announced as a bare "switch, not checked": the visible "Open to work" text
+ * sat in a sibling paragraph that nothing tied to the control, so the
+ * accessible name computation had nothing to work with and the switch was
+ * unreachable from a screen reader's forms list / rotor.
+ */
+describe("DashboardProfileForm open-to-work switch", () => {
+  it("gives the switch an accessible name", () => {
+    renderForm();
+
+    expect(
+      screen.getByRole("switch", { name: /open to work/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("exposes the helper line as the switch's description", () => {
+    renderForm();
+
+    expect(screen.getByRole("switch")).toHaveAccessibleDescription(
+      /recruiter-friendly badge/i,
+    );
+  });
+});
