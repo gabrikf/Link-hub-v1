@@ -936,3 +936,127 @@ test("@responsive a username nobody owns shows a not-found state", async ({
     await stranger.close();
   }
 });
+
+/**
+ * BUG-20260823-profile-login-tap-eaten.
+ *
+ * The theme toggle is `fixed right-4 top-3` and is anchored to the VIEWPORT
+ * (apps/web/src/App.tsx); the signed-out Login pill is `self-end` in normal flow
+ * inside the profile's centred `max-w-md | max-w-6xl` container
+ * (public-profile-page.tsx). They overlap at every width where the container's
+ * right edge reaches the viewport gutter — which is NOT phones-only:
+ * `MOBILE_QUERY` flips the two max-widths at 1024, so 1024-1152 laptops sit in
+ * the band too. A 390-only assertion passes against a still-broken laptop, so
+ * both widths are pinned here.
+ *
+ * These viewports are set explicitly rather than inherited, so the check is not
+ * tagged `@responsive` — it would only re-run the same two widths on the mobile
+ * project.
+ */
+const LOGIN_PILL_VIEWPORTS = [
+  { label: "phone", width: 390, height: 844 },
+  { label: "laptop", width: 1024, height: 768 },
+] as const;
+
+type PillHit = { x: number; y: number; where: string; owner: string };
+
+/**
+ * Who actually receives a tap at each edge and corner of the Login pill.
+ * `boundingBox()` only says where the pill IS; `elementFromPoint` says who gets
+ * the click, which is the thing the visitor experiences.
+ */
+async function loginPillHits(page: Page): Promise<PillHit[]> {
+  const login = page.getByRole("link", { name: "Login" });
+  await expect(login).toBeVisible();
+  const box = requireBox(await login.boundingBox());
+
+  // The pill is `rounded-full`, and `elementFromPoint` honours border-radius, so
+  // its literal bounding-box corners belong to nobody even when nothing covers
+  // it. Inset the columns by the corner radius (= half the height): that is
+  // exactly the span of the pill's flat top and bottom edges, which is the part
+  // a visitor can actually aim at.
+  const radius = box.height / 2;
+
+  const columns = [
+    ["left", box.x + radius],
+    ["centre", box.x + box.width / 2],
+    ["right", box.x + box.width - radius],
+  ] as const;
+  const rows = [
+    ["top", box.y + 1],
+    ["middle", box.y + box.height / 2],
+    ["bottom", box.y + box.height - 1],
+  ] as const;
+
+  const points = columns.flatMap(([column, x]) =>
+    rows.map(([row, y]) => ({ x, y, where: `${row}-${column}` })),
+  );
+
+  return page.evaluate(
+    (probe) =>
+      probe.map((point) => {
+        const element = document.elementFromPoint(point.x, point.y);
+        const owner = element?.closest("a, button");
+        const label = owner
+          ? `${owner.tagName.toLowerCase()}:${(
+              owner.getAttribute("aria-label") ??
+              owner.textContent ??
+              ""
+            ).trim()}`
+          : `bare:${element?.tagName.toLowerCase() ?? "none"}`;
+        return { ...point, owner: label };
+      }),
+    points,
+  );
+}
+
+for (const viewport of LOGIN_PILL_VIEWPORTS) {
+  test(`the whole Login pill is tappable on a public profile at ${viewport.width}px`, async ({
+    browser,
+  }) => {
+    // Two contexts, two navigations and a real click — comfortably past the
+    // 60s default on a cold dev server.
+    test.slow();
+
+    for (const theme of ["light", "dark"] as const) {
+      const stranger = await openStranger(browser, { theme });
+
+      try {
+        await stranger.page.setViewportSize({
+          width: viewport.width,
+          height: viewport.height,
+        });
+        await gotoSettled(stranger.page, PUBLIC_PATH);
+
+        const hits = await loginPillHits(stranger.page);
+        const stolen = hits.filter((hit) => hit.owner !== "a:Login");
+
+        expect(
+          stolen,
+          `${viewport.label} ${viewport.width}px ${theme}: part of the Login pill is covered by another control`,
+        ).toEqual([]);
+
+        // Geometry is the cause; this is the symptom the visitor reports —
+        // aiming at the sign-in CTA flips the colour theme instead, and the
+        // flip is persisted, so it outlives the page.
+        if (theme === "light") {
+          const login = stranger.page.getByRole("link", { name: "Login" });
+          const box = requireBox(await login.boundingBox());
+
+          await stranger.page.mouse.click(box.x + box.width / 2, box.y + 3);
+
+          await expect(stranger.page).toHaveURL(/\/$/);
+          expect(
+            await stranger.page.evaluate(
+              (key) => window.localStorage.getItem(key),
+              THEME_KEY,
+            ),
+            "tapping the Login pill changed the visitor's saved theme",
+          ).toBe("light");
+        }
+      } finally {
+        await stranger.close();
+      }
+    }
+  });
+}
