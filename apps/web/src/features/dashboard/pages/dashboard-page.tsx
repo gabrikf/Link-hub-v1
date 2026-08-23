@@ -1,8 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import {
   SortableContext,
   arrayMove,
+  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import type { LinkIcon, LinkResponse } from "@repo/schemas";
@@ -446,6 +455,20 @@ export function DashboardPage() {
     setFocus("title");
   };
 
+  // Without an explicit sensor list dnd-kit falls back to a KeyboardSensor with
+  // no coordinate getter: arrow keys translate the lifted item by a fixed
+  // offset that never reaches the neighbour's collision box, so `over` stays
+  // the item itself and the drop is a no-op. `sortableKeyboardCoordinates`
+  // moves it to the next sortable item instead, which is what makes the list
+  // reorderable without a pointer. PointerSensor is declared with no options so
+  // the mouse behaviour stays exactly what it was.
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -560,6 +583,7 @@ export function DashboardPage() {
           <LinkListSkeleton />
         ) : (
           <DndContext
+            sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
