@@ -1,6 +1,6 @@
 # BUG-20260823-profile-login-tap-eaten: the theme toggle sits over the top of the public profile's Login link and eats the tap — on phones and on 1024–1152px laptops
 
-- **Status:** verified
+- **Status:** fixed (approved at review, iteration 60)
 - **Impact (user-side):** Friction (wrong action fires; recoverable in one more tap — but the wrong action persists to `localStorage`)
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Sam, the reader who arrives cold — on a phone **or on a 1024/1152-wide laptop**
@@ -106,12 +106,11 @@ and `.nightly/probes/i58-triage-widths.mjs`, report
 
 ## Fix
 
-<!-- filled when status moves to fixed -->
 - **Root cause:** *symptom* — the top 8px of the Login pill is dead to taps. *Cause* — the two controls are anchored to **different boxes**. `apps/web/src/App.tsx:43-47` renders the theme toggle `fixed right-4 top-3 z-40` against the **viewport**, on every route. `apps/web/src/features/profile/pages/public-profile-page.tsx:225-232` places the signed-out Login link `self-end` in normal flow inside the `mx-auto … max-w-6xl|max-w-md px-4 py-10` `<main>` at `:174-177`, against the **container**. Whenever the viewport is no wider than that max-width, the container's right edge lands in the viewport's gutter and the two boxes share an x-range — which is why the breakage comes in two bands rather than one, `MOBILE_QUERY` at 1024 being the seam between them. `apps/web/src/shared-components/top-bar-nav.tsx:147` solves the same collision with `pr-28`, but `TopBarNav` returns `null` when there is no session, so the public profile never inherits that reservation.
-- **Root Cause (taxonomy):** *to be set at fix time*
-- **Fix commit:** *pending*
-- **Regression test:** *pending* — see test plan below.
-- **Gate:** *pending*
+- **Root Cause (taxonomy):** layout/geometry — two overlapping controls anchored to different containing blocks, with no reservation between them.
+- **Fix commit:** `f310b7c` — one utility class, `mt-3` on the signed-out Login pill in `apps/web/src/features/profile/pages/public-profile-page.tsx`, plus the comment explaining the constraint. The toggle's bottom edge is `top-3 + h-9` = 3rem; `py-10` put the pill's top at 2.5rem; `mt-3` moves it to 3.25rem. Every term is rem-based, so the clearance is 0.25rem (4px at the default root size) and survives zoom and a changed root font size. Deliberately **not** breakpoint-gated, so the 1024–1152 band is covered by construction rather than by a second gate that could rot.
+- **Regression test:** `e2e/journeys/04-link-sharing.spec.ts` — "the whole Login pill is tappable on a public profile at 390px / at 1024px", red commit `31ba821`. Hit-tests a 3×3 grid over the pill, with the columns **inset by the corner radius** because `elementFromPoint` honours `border-radius` and the literal box corners of a `rounded-full` pill belong to nobody; then performs a real click at `top+3` and asserts both halves of the harm are gone (URL becomes `/`, saved theme unchanged).
+- **Gate:** `guardrails PASS` at the fix commit; re-checked independently at review — `build:schemas` OK, `check-types` 8/8, `lint-changed` clean (39 files, 2 known recorded findings ignored).
 
 ### Test plan agreed at triage
 
@@ -145,8 +144,72 @@ evidence left.
 
 ## Verification
 
-<!-- filled at REVIEW_FIX -->
-Not yet fixed.
+**Reviewed at iteration 60 by an agent that did not write the fix. Verdict:
+approved.**
+
+**Red/green proved mechanically, in the stronger form.** The fix commit touches
+no test, so instead of checking out `31ba821` wholesale (which would also run
+yesterday's test text), today's test file was kept and only the one source file
+was reverted to its red state. Against that source the two committed checks fail
+2/2 for the bug's **own** reason — top-left, top-centre and top-right of the pill
+at `y=41` all resolve to `button:Switch to dark theme`, at **390 and at 1024** —
+not an import error and not a bad selector, and the six non-top probe points
+still resolve to `a:Login`. Source restored; 2/2 pass on the branch head. Full
+journey 4 is green on both projects (17 passed).
+
+**Re-walked with a probe written at review, not reused from the fix**
+(`.nightly/probes/i60-review-verify.mjs`, evidence `.nightly/evidence/i60-review/`).
+It asks three things neither the fixer's probe nor the committed test does:
+the profile this bug was *filed* against (`seed-react-frontend-003`; the fixer
+walked `seed-go-sre-026`), the two band edges nobody had sampled (**1100** and
+**1152**), and a real click at `top+3` in **both** themes rather than light only.
+Ten widths × two themes: **20/20 pass** — no stolen hit-test point anywhere,
+every click navigates to `/`, and the saved `linkhub-theme` survives it.
+`login.top=52` against `toggle.bottom=48` on every row, with no dependence on
+width. Both themes were looked at, not just asserted
+(`.nightly/evidence/i60-review/i60-390-dark.png`, `i60-1024-light.png`): the
+pill now sits directly under the toggle, right-aligned to the same edge, and
+reads as an intentional stack. No horizontal scroll at either width.
+
+**The "one profile" caveat below is retired.** The `<main>` max-width is chosen
+by `pickViewport(matchMedia("(max-width: 1023px)"))` alone
+(`public-profile-page.tsx:23–67`) and never by the profile's saved layout —
+`resolveViewportLayout` applies that to the blocks *inside* the card. The
+geometry this bug lives in is profile-independent by construction, which is why
+two different seeded profiles measure identically.
+
+**Deviation from the agreed test plan, judged and accepted.** Triage asked for a
+visual scenario. The regression went into `e2e/journeys/` instead, because
+`scripts/visual/scenarios/` is gitignored except `public-profile.scenario.mjs`
+and the visual runner is a camera with no pass/fail report — so a scenario
+cannot satisfy the red-then-green protocol. The e2e home is stronger, not
+weaker: it asserts, and it runs in the gate.
+
+**Unrelated harness defect found while reviewing, recorded not fixed.**
+`npm run visual:run -- scripts/visual/scenarios/public-profile.scenario.mjs`
+fails at its LOADING step, and fails **identically with this fix reverted** —
+its `PROFILE_API` glob is `**/profile/<username>**`, which also matches the
+*page* URL, so `mock(…, { delay: Infinity })` hangs the document navigation and
+the app never boots (`net::ERR_ABORTED` on the HTML). That is a bug in the QA
+camera, not in the product — no user impact — but it does mean the repo's
+committed four-state proof for this page is currently unusable.
+
+### Still not verified after the fix
+
+- **No real device and no real touch.** A Playwright mouse click at a point
+  remains the model of a thumb.
+- **Signed-out only** — correctly, since the pill does not render otherwise, so
+  the ~12px downward shift cannot reach a signed-in visitor.
+- **No screen-reader check.** This is hit testing, not announcement.
+- **The signed-in public profile was not re-walked.** With the pill absent the
+  card top returns to `y=40` and the toggle's bottom edge at 48 sits over the
+  card's top-right 8px. Pre-existing, unchanged by this fix, and no interactive
+  control is there (the cover's Share button is ~28px lower) — but it is
+  untested.
+- **Widths between the sampled ones** are covered by the geometry argument
+  (`top=52 > bottom=48`, width-independent), not by sampling.
+
+---
 
 **Not verified at triage (updated at iteration 58).** The width bound i55 left
 open is now closed — 17 widths from 360 to 1920 were swept, so the affected
