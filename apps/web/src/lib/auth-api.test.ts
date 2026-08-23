@@ -129,6 +129,93 @@ describe("fetchWithTokens", () => {
   });
 });
 
+describe("public profile readers encode the handle", () => {
+  /**
+   * BUG-20260823-handle-slash-breaks-profile.
+   *
+   * The route param reaches the page already decoded, so a handle holding a
+   * character that is significant in a URL path (`/`, `?`, `#`) changed the
+   * *shape* of the outgoing request when it was interpolated raw: the api saw
+   * `/profile/a/b/c` instead of `/profile/a%2Fb%2Fc` and answered 404, and the
+   * visitor got "Profile not found." on a profile the api serves perfectly at
+   * the encoded path.
+   *
+   * All four public readers are asserted together on purpose. Encoding only
+   * `fetchPublicProfile` still leaves the resume, work-experience and posts
+   * panels of that same page broken.
+   */
+  const HANDLE = "dev/with?path#chars";
+  const ENCODED = "dev%2Fwith%3Fpath%23chars";
+
+  const PROFILE_PAYLOAD = {
+    username: HANDLE,
+    name: "Dev With Path Chars",
+    description: null,
+    userPhoto: null,
+    backgroundImageUrl: null,
+    bannerImageUrl: null,
+    themeAccent: null,
+    themePreset: null,
+    openToWork: false,
+    location: null,
+    persona: null,
+    links: [],
+  };
+
+  const RESUME_PAYLOAD = {
+    headlineTitle: null,
+    summary: null,
+    totalYearsExperience: null,
+    location: null,
+    seniorityLevel: null,
+    workModel: null,
+    contractType: null,
+    salaryExpectationMin: null,
+    salaryExpectationMax: null,
+    spokenLanguages: [],
+    noticePeriod: null,
+    openToRelocation: false,
+    skills: [],
+    titles: [],
+  };
+
+  it("fetchPublicProfile requests the encoded handle", async () => {
+    const { fetchPublicProfile } = await loadApi();
+    nextResponseData = PROFILE_PAYLOAD;
+
+    await fetchPublicProfile(HANDLE);
+
+    expect(captured[0]?.url).toBe(`/profile/${ENCODED}`);
+  });
+
+  it("fetchPublicResume requests the encoded handle", async () => {
+    const { fetchPublicResume } = await loadApi();
+    nextResponseData = RESUME_PAYLOAD;
+
+    await fetchPublicResume(HANDLE);
+
+    expect(captured[0]?.url).toBe(`/profile/${ENCODED}/resume`);
+  });
+
+  it("fetchPublicWorkExperiences requests the encoded handle", async () => {
+    const { fetchPublicWorkExperiences } = await loadApi();
+    nextResponseData = [];
+
+    await fetchPublicWorkExperiences(HANDLE);
+
+    expect(captured[0]?.url).toBe(`/profile/${ENCODED}/work-experiences`);
+  });
+
+  it("leaves an ordinary handle untouched", async () => {
+    const { fetchPublicProfile } = await loadApi();
+    nextResponseData = { ...PROFILE_PAYLOAD, username: "gabrielkochf" };
+
+    await fetchPublicProfile("gabrielkochf");
+
+    expect(captured[0]?.url).toBe("/profile/gabrielkochf");
+  });
+});
+
 describe("uploadImage", () => {
   it("posts the file to /me/uploads as multipart and returns the stored URL", async () => {
     await loadApi();

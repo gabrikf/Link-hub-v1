@@ -53,6 +53,26 @@ describe("fetchPublicPosts", () => {
   });
 
   /**
+   * BUG-20260823-handle-slash-breaks-profile.
+   *
+   * The public posts panel is the fourth reader on the public profile page, and
+   * it interpolated the already-decoded handle straight into the path. A handle
+   * holding `/`, `?` or `#` therefore reshaped the request — `?` in particular
+   * turned the rest of the handle into a query string — and the panel showed
+   * its error state on a profile the api serves fine at the encoded path.
+   */
+  it("encodes a handle that holds path-significant characters", async () => {
+    fetchWithTokens.mockResolvedValue({ data: [] });
+
+    await fetchPublicPosts("dev/with?path#chars", { limit: 2 });
+
+    expect(fetchWithTokens).toHaveBeenCalledWith(
+      "/profile/dev%2Fwith%3Fpath%23chars/posts?limit=2",
+      { method: "GET" },
+    );
+  });
+
+  /**
    * The other half of the contract: `metadata` is provenance the public feed
    * must never carry. A server that regressed and echoed it back gets it
    * stripped here rather than rendered.
