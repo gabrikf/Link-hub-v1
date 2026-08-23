@@ -290,6 +290,55 @@ describe("moveBlockBy", () => {
     expect(moveBlockBy(blocks, "short", 0, 1, GRID_COLUMNS.pc)).toBe(blocks);
   });
 
+  /**
+   * Two half-width blocks sharing a row, with a full-width block under them —
+   * a shape the 12-column grid exists for, and one the editor's own
+   * shift+Arrow resize can build.
+   *
+   * Lifting the full-width block over that shared row shoves BOTH row-mates
+   * out of the way, so intermediate rows exist where the layout changed but
+   * the focused block did not budge. Stopping at one of those is what makes a
+   * single ArrowUp fling an untouched neighbour to the bottom of the profile
+   * and save it, while the block the user was nudging never moves.
+   */
+  it("lifts a block over a shared row without flinging its occupants", () => {
+    const blocks = [
+      makeBlock({ id: "left", gridX: 0, gridY: 0, gridW: 6, gridH: 6 }),
+      makeBlock({ id: "right", gridX: 6, gridY: 0, gridW: 6, gridH: 6 }),
+      makeBlock({ id: "wide", gridX: 0, gridY: 6, gridW: 12, gridH: 6 }),
+    ];
+
+    const moved = moveBlockBy(blocks, "wide", 0, -1, GRID_COLUMNS.pc);
+    const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
+
+    // The focused block actually crossed the row above it...
+    expect(byId.wide.gridY).toBe(0);
+    // ...and its two neighbours came down together, still side by side.
+    expect(byId.left.gridY).toBe(6);
+    expect(byId.right.gridY).toBe(6);
+    expect(byId.left.gridX).toBe(0);
+    expect(byId.right.gridX).toBe(6);
+  });
+
+  it("drops one half of a shared row below the block under it, leaving its row-mate alone", () => {
+    const blocks = [
+      makeBlock({ id: "left", gridX: 0, gridY: 0, gridW: 6, gridH: 6 }),
+      makeBlock({ id: "right", gridX: 6, gridY: 0, gridW: 6, gridH: 6 }),
+      makeBlock({ id: "wide", gridX: 0, gridY: 6, gridW: 12, gridH: 6 }),
+    ];
+
+    const moved = moveBlockBy(blocks, "left", 0, 1, GRID_COLUMNS.pc);
+    const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
+
+    expect(byId.left.gridY).toBe(12);
+    // The row-mate is a bystander: it must not be dragged along or displaced.
+    expect(byId.right.gridY).toBe(0);
+    expect(byId.wide.gridY).toBe(6);
+
+    // The bottom block has nowhere further down to go: same array, no PATCH.
+    expect(moveBlockBy(blocks, "wide", 0, 1, GRID_COLUMNS.pc)).toBe(blocks);
+  });
+
   it("leaves the input untouched and ignores an unknown id", () => {
     const blocks = [makeBlock({ id: "a", gridX: 0, gridW: 4, gridH: 2 })];
 
