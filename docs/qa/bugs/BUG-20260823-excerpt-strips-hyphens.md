@@ -150,3 +150,119 @@ observable in jsdom. Do not spend the night's remaining time on one.
 `markdownToHtml`, do not touch the `list` branch (it is correct), and do not
 "improve" the excerpt into a markdown parser. Position-aware stripping of the
 markers the current class already targets is the whole job.
+
+---
+
+## Review — APPROVED (iteration 65, REVIEW_FIX, 2026-08-23)
+
+Reviewed independently of the agent that wrote the fix. Red `73cee34`, green
+`82d090a`.
+
+### Red-then-green, proved mechanically
+
+Detached checkout at `73cee34`, both test files run from `apps/web`:
+`4 failed | 19 passed (23)`. Every one of the four failures is the bug's own
+symptom, not an import error, a bad selector or a missing fixture:
+
+```
+markdownExcerpt > keeps hyphens and underscores that are part of the prose
+  expected "…front-end … 2023-2024 … snake_case…"  received "…frontend … 20232024 … snakecase…"
+markdownExcerpt > strips leading bullets and quote markers without eating in-word hyphens
+  expected "blue-green deploys ship it"             received "bluegreen deploys ship it"
+markdownExcerpt > unwraps _emphasis_ but leaves an identifier's underscores alone
+  expected "Shipped the user_id migration"          received "Shipped the userid migration"
+PostsBlock > shows the grid excerpt with the author's hyphens intact
+  rendered <p> read "Rebuilt the frontend of our checkout between 20232024."
+```
+
+Back on `nightly/qa-hardening`: `Test Files 2 passed (2) · Tests 23 passed (23)`.
+The three pre-existing `markdownExcerpt` assertions pass at **both** commits —
+the regression floor was never weakened. The red commit is `62 insertions, 0
+deletions`: no existing test was edited to let the fix through.
+
+### The fix itself
+
+Root cause, not symptom. The defect was that `.replace(/[#>*_`~-]/g, "")` has no
+notion of position; the fix replaces it with position-aware stripping
+(`stripBlockMarkers` at line-start only, `stripInlineMarkup` on paired
+delimiters) rather than special-casing the reported strings. None of the
+`no-workarounds` signals are present: no type assertion, no `eslint-disable`, no
+`.skip`, no widened schema, no swallowed error, no timing hack. No boundary
+shape changed, so `@repo/schemas` is not involved. The commit touches exactly
+one file and one function region — no reformatting, no renames, no drive-by
+edits. TRIAGE's scope discipline ("do not rewrite `markdownToHtml`, do not touch
+the `list` branch") was honoured.
+
+Blast radius is two call sites, both found and both re-walked live:
+`profile-blocks.tsx:755` (public, grid branch) and `posts-page.tsx:205` (owner
+dashboard, unconditional grid). Both render the result as a React text child, so
+there is no HTML sink. No class string changed, so `DESIGN.md`, the `SURFACE*`
+constants, the `dark:` pairings and `--profile-accent-*` are untouched, and the
+four-state handling of both screens is exactly as it was.
+
+`npm run check-types` passes (8/8 tasks) and `lint-changed` reports clean over
+42 changed files.
+
+### Behaviour against the real data, old vs new
+
+The four post bodies actually in the dev database were run through both the old
+and the new implementation. The old one corrupted three of the four —
+`fullstack`, `Serverenforced`, `codequality`, `assetmonitoring`,
+`developerportfolio`, `zeroLLM`, `autoposting`, `5step`. The new one reproduces
+all of them correctly and leaves **zero** stray markup characters
+(`[*_~`#]`) in any of the four excerpts.
+
+Performance: 200 excerpts of a 20,400-character body take 52 ms (0.26 ms each).
+All the new patterns use bounded negated classes, so there is no backtracking
+blow-up on a user-supplied body.
+
+### User-visible re-walk — `.nightly/probes/i65-review-excerpt.mjs`
+
+Written for this review rather than reusing the fix's own probe, and extended to
+the half the FIX iteration did not drive in a browser. A post whose body carries
+a heading, a bullet list, a code span, bold and a link with a hyphenated URL was
+published through the API, then read back off four screens. The assertion is not
+a keyword spot-check: the visible summary must be an **exact prefix** of the
+expected plain text.
+
+```
+PASS  public profile (grid, signed out, light)      — exact prefix (160 chars)
+PASS  public profile (grid, signed out, dark)       — exact prefix (160 chars)
+PASS  /dashboard/posts (unconditional grid, light)  — exact prefix (140 chars)
+PASS  /dashboard/posts (unconditional grid, dark)   — exact prefix (140 chars)
+```
+
+The dashboard was reached by signing in through the real form. Zero console
+errors, zero page errors, zero 4xx/5xx across all four contexts. Evidence:
+`.nightly/evidence/i65-review-excerpt/`. Cleanup was re-read from Postgres, not
+trusted from the probe: `posts` is back to 4 rows, no `Q3 recap` row survives,
+and no `profile_blocks` row of kind `posts` is off `layout: "list"`.
+
+### Advisories — recorded, none blocking
+
+None of these is a regression against the old behaviour and none meets the
+real-user-impact bar; they are written down so a later iteration does not
+rediscover them as findings.
+
+1. The excerpt unwraps `_emphasis_` and `~~strike~~`, but `markdownToHtml`
+   supports neither, so the rendered post shows `_Shipped_` where the grid
+   summary shows `Shipped`. The old code also deleted those characters, so this
+   is unchanged behaviour — but it is now encoded in a test.
+2. Emphasis spanning a hard line break (`**bold\ncontinued**`) leaves a literal
+   `**` in the excerpt, because the inline pass runs per line. The old code
+   deleted it. None of the four real bodies hard-wraps inside a paragraph, so
+   this is not reachable on today's data.
+3. `stripInlineMarkup` unwraps code spans *first*, which exposes their contents
+   to the emphasis rules — the opposite of the protect-then-restore order
+   `renderInline` uses. Harmless today (`_` needs a word boundary, `*` inside a
+   code span is rare) and no worse than the old blanket strip.
+4. `#### h4` and `+ item` are stripped by the excerpt but rendered literally by
+   `markdownToHtml`, which only handles `#{1,3}` and `[-*]` bullets.
+
+### Not verified
+
+One account, Chromium only, 1440×1000 only — no mobile width, since the change
+alters text content and no class string. Bodies that are mostly code fences,
+markdown tables, or nested/lazy blockquotes remain uncovered by any assertion,
+as TRIAGE intended. `deep-review` was run as its rubric and linter lanes applied
+by hand over the 40-line diff rather than as its full fan-out pipeline.
