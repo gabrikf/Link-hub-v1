@@ -1,6 +1,6 @@
 # BUG-20260827-work-context-stack-unredacted: `role.stack` is the one field `get_work_context` never redacts, so a blocked term in a role's tech stack is handed to the agent verbatim
 
-- **Status:** confirmed (triaged at iteration 111)
+- **Status:** fixed (red 9b3ee27 → fix 15a8468; reviewed and approved at iteration 116)
 - **Impact (user-side):** A developer who set their disclosure level to `summary` — or typed a client codename into their own blocked-terms list — still has that term shipped to their coding agent inside the payload LinkHub calls "the only sanctioned source of employment detail", and then gets a 400 refusing the very word LinkHub just gave them
 - **Severity:** Minor · **Priority:** P2
 - **Persona Affected:** Diego, the curating developer, and Atlas, the coding agent
@@ -13,7 +13,10 @@
   `docs/qa/automation-backlog/AB-20260827-disclosure-enforces-one-of-seven.md`
   (written by FIX iteration 109); promoted to a bug at triage iteration 111 after
   being reproduced live against the running api
-- **Evidence:** `.nightly/evidence/i111-triage-work-context-stack-unredacted.txt`
+- **Evidence:** `.nightly/evidence/i111-triage-work-context-stack-unredacted.txt`,
+  `.nightly/evidence/i114-triage-stack-unredacted-reconfirm.txt`,
+  `.nightly/evidence/i115-fix-stack-unredacted-live.txt`,
+  `.nightly/evidence/i116-review-stack-unredacted.txt`
 
 ## Summary
 
@@ -138,3 +141,62 @@ suite there:
   chosen, pin it in the test and say why in the commit body.
 - Do **not** also "fix" `apps/mcp/README.md:62` in this commit. The sentence
   becomes true the moment the field is fixed.
+
+## Fix
+
+Red `9b3ee27` (test), fix `15a8468` (source). One file, `+8 −1`:
+
+```ts
+// get-work-context.use-case.ts — toRole
+stack: role.mainStack.filter(
+  (entry) => findDisclosureViolations(entry, blockedTerms).length === 0,
+),
+```
+
+The cause was not a broken redactor — it was a redactor that was never called on
+this one field. `redactText`, `buildBlockedTerms` and the boundary rules were
+correct and are untouched.
+
+**Dropped, not redacted**, as the scope discipline above asked. `redactText`
+exists so a *sentence* survives losing a name ("Rebuilt checkout for
+[employer]." still reads); a stack entry is a *label* that the post-quality guide
+tells the agent to repeat in the body **and** in the tags, where tags embed at
+double weight. `"[employer] Platform"` would have traded a disclosure leak for a
+nonsense technology and a nonsense search tag. `title`'s `|| role.title` fallback
+was deliberately not copied: falling back there means shipping the term.
+
+## Review — iteration 116, approved
+
+- **Red is honest.** At `9b3ee27` the test fails on its own assertion about its
+  own field (`expected [ 'React', 'Acme Corp Platform', …(3) ] to not include
+  'Acme Corp Platform'`), with the other 15 tests in the file passing; at
+  `15a8468` the file is 16/16. `git merge-base --is-ancestor` confirms the red
+  commit is a real ancestor of the branch head.
+- **Blast radius.** 22 files / 457 tests green across `redact-work-disclosure`,
+  the use case and the MCP tool. `npm run check-types` reported all-cached, so
+  `npx tsc --noEmit` was forced directly in `apps/api` and `apps/mcp` — both
+  clean. The controller's response schema was already `z.array(z.string())`, so
+  nothing was widened and `packages/schemas` was not touched;
+  `apps/mcp/src/tools/get-work-context.ts:33` already guards `stack.length > 0`;
+  `role.mainStack` cannot be null (entity `?? []` over a `notNull` default-`[]`
+  column). The red commit is additive only — no existing test was edited.
+- **Live re-reproduction, made harder than the fix author's.** Three entries were
+  injected instead of one. `QuintoAndar Platform` **and** the slug spelling
+  `quintoandar-cli` are both dropped, while `Sunset Analytics` and the six real
+  technologies survive; the row was reverted and re-queried byte-identical
+  (`md5 f4a7a8b87a5b163bac36fb4b5c633439`). The slug case only works because the
+  fix reuses `findDisclosureViolations` — the write path's own detector — so the
+  read path can never disagree with the write path about what counts as a hit.
+  A hand-rolled `includes` check would have passed the authored test and still
+  leaked `quintoandar-cli`.
+- **Accepted consequence, recorded so it is not re-litigated.** A real technology
+  whose name collides with a blocked employer term now disappears from the
+  agent's context. That is the same answer the write path already gives (such a
+  post is refused with a 400), and the alternative is the leak this bug is about.
+- **Not verified:** nothing visual — this bug has no UI surface, so DESIGN.md,
+  dark mode and the four-state rule do not apply. The MCP tool's rendered text
+  was read but not exercised end-to-end through a live MCP client; the assertion
+  there rests on the existing `stack.length > 0` guard and the unchanged
+  `string[]` shape.
+
+`apps/mcp/README.md:62` was deliberately left alone: that sentence is true now.
