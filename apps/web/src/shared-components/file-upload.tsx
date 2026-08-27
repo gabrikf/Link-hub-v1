@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiAlertCircle,
   FiCamera,
@@ -79,6 +80,7 @@ export function FileUpload({
   helperText,
   cropToCircle = false,
 }: FileUploadProps) {
+  const { t } = useTranslation();
   const reactId = useId();
   const inputId = `file-upload-${reactId}`;
   const errorId = `${inputId}-error`;
@@ -109,10 +111,10 @@ export function FileUpload({
 
   const validate = (file: File): string | null => {
     if (!ACCEPTED_MIME_TYPES.includes(file.type)) {
-      return "Unsupported file type. Use JPEG, PNG, WebP, GIF, or AVIF.";
+      return t("errors.imageUnsupportedType");
     }
     if (file.size > MAX_SIZE_BYTES) {
-      return "Image is too large. Maximum size is 5 MB.";
+      return t("errors.imageTooLarge");
     }
     return null;
   };
@@ -134,7 +136,7 @@ export function FileUpload({
       setError(
         uploadError instanceof Error
           ? uploadError.message
-          : "Couldn't upload the image. Please try again.",
+          : t("errors.imageUploadFailed"),
       );
     }
   };
@@ -209,11 +211,11 @@ export function FileUpload({
    */
   const pickerLabel = isAvatar
     ? hasValue
-      ? "Change photo"
-      : "Add photo"
+      ? t("image.changePhoto")
+      : t("image.addPhoto")
     : hasValue
-      ? "Replace image"
-      : `Upload ${label ?? "image"}`;
+      ? t("image.replaceImage")
+      : t("image.uploadLabel", { label: label ?? "image" });
 
   const dropZone = (
     /* Drop zone (a non-interactive group) with an explicit real button as the
@@ -288,7 +290,11 @@ export function FileUpload({
           <img
             key={value}
             src={value}
-            alt={label ? `${label} preview` : "Uploaded image preview"}
+            alt={
+              label
+                ? t("image.labelPreview", { label })
+                : t("image.uploadedPreview")
+            }
             className={[
               "h-full w-full object-cover transition-opacity duration-300",
               previewLoaded ? "opacity-100" : "opacity-0",
@@ -302,12 +308,14 @@ export function FileUpload({
             {isAvatar ? (
               <span className="inline-flex flex-col items-center gap-0.5 text-white">
                 <FiCamera className="h-5 w-5" aria-hidden="true" />
-                <span className="text-[11px] font-medium">Change photo</span>
+                <span className="text-[11px] font-medium">
+                  {t("image.changePhoto")}
+                </span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium text-zinc-800 shadow-sm">
                 <FiUploadCloud className="h-4 w-4" aria-hidden="true" />
-                Replace
+                {t("common.replace")}
               </span>
             )}
           </div>
@@ -316,7 +324,7 @@ export function FileUpload({
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-center text-zinc-400 dark:text-zinc-500">
           <FiCamera className="h-6 w-6" aria-hidden="true" />
           <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-            Add photo
+            {t("image.addPhoto")}
           </span>
         </div>
       ) : (
@@ -325,10 +333,10 @@ export function FileUpload({
             <FiImage className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            Click or drop an image
+            {t("image.clickOrDrop")}
           </span>
           <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
-            JPEG, PNG, WebP, GIF or AVIF · up to 5 MB
+            {t("image.fileRequirements")}
           </span>
         </div>
       )}
@@ -341,7 +349,7 @@ export function FileUpload({
             aria-hidden="true"
           />
           {!isAvatar ? (
-            <span className="text-xs font-medium">Uploading…</span>
+            <span className="text-xs font-medium">{t("common.uploading")}</span>
           ) : null}
         </div>
       ) : null}
@@ -353,7 +361,7 @@ export function FileUpload({
         <button
           type="button"
           onClick={handleClear}
-          aria-label="Remove image"
+          aria-label={t("image.removeImage")}
           className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur transition hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black/20"
         >
           <FiX className="h-4 w-4" aria-hidden="true" />
@@ -378,7 +386,7 @@ export function FileUpload({
           {dropZone}
           <div className="min-w-0 space-y-1">
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              JPEG, PNG, WebP, GIF or AVIF · up to 5 MB
+              {t("image.fileRequirements")}
             </p>
             {hasValue && !isUploading ? (
               <Button
@@ -390,7 +398,7 @@ export function FileUpload({
                 onClick={handleClear}
               >
                 <FiTrash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                Remove photo
+                {t("image.removePhoto")}
               </Button>
             ) : null}
           </div>
@@ -413,7 +421,7 @@ export function FileUpload({
         </p>
       ) : (
         <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          Upload an image file — it's stored securely and served over a CDN.
+          {t("image.storedSecurely")}
         </p>
       )}
 

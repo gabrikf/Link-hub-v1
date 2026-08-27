@@ -1,6 +1,7 @@
 import type { ResumeResponse } from "@repo/schemas";
 import { SURFACE } from "../../../shared-components/surface";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiAward,
   FiBriefcase,
@@ -47,30 +48,6 @@ type ResumeReadOnlyCardProps = {
   surfaceClassName?: string;
 };
 
-const seniorityLabels: Record<string, string> = {
-  intern: "Intern",
-  junior: "Junior",
-  mid: "Mid",
-  senior: "Senior",
-  staff: "Staff",
-  principal: "Principal",
-};
-
-const workModelLabels: Record<string, string> = {
-  remote: "Remote",
-  hybrid: "Hybrid",
-  "on-site": "On-site",
-};
-
-const contractLabels: Record<string, string> = {
-  clt: "CLT",
-  pj: "PJ",
-  freelance: "Freelance",
-  contract: "Contract",
-  "full-time": "Full-time",
-  "part-time": "Part-time",
-};
-
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -81,20 +58,52 @@ const formatCurrency = (value: number) =>
 export function ResumeReadOnlyCard({
   resume,
   isLoading = false,
-  title = "Resume",
-  subtitle = "Read-only overview",
+  title,
+  subtitle,
   action,
-  emptyMessage = "No resume yet. Click edit to create your profile.",
+  emptyMessage,
   surfaceClassName = SURFACE,
 }: ResumeReadOnlyCardProps) {
+  const { t } = useTranslation();
+
+  const seniorityLabels: Record<string, string> = {
+    intern: t("enum.seniority.intern"),
+    junior: t("enum.seniority.junior"),
+    mid: t("enum.seniority.mid"),
+    senior: t("enum.seniority.senior"),
+    staff: t("enum.seniority.staff"),
+    principal: t("enum.seniority.principal"),
+  };
+
+  const workModelLabels: Record<string, string> = {
+    remote: t("enum.workModel.remote"),
+    hybrid: t("enum.workModel.hybrid"),
+    "on-site": t("enum.workModel.on-site"),
+  };
+
+  const contractLabels: Record<string, string> = {
+    clt: t("enum.contractType.clt"),
+    pj: t("enum.contractType.pj"),
+    freelance: t("enum.contractType.freelance"),
+    contract: t("enum.contractType.contract"),
+    "full-time": t("enum.contractType.full-time"),
+    "part-time": t("enum.contractType.part-time"),
+  };
+
+  const resolvedTitle = title ?? t("common.resume");
+  const resolvedSubtitle = subtitle ?? t("resume.readOnlyOverview");
+  const resolvedEmptyMessage = emptyMessage ?? t("resume.empty");
+
   return (
     <section className={`p-4 ${surfaceClassName}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            {title}
+            {resolvedTitle}
           </h3>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{subtitle}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            {resolvedSubtitle}
+          </p>
         </div>
         {/* The header stays put while loading; only the action (a control that
             would act on data that isn't here yet) is stubbed out. */}
@@ -109,53 +118,55 @@ export function ResumeReadOnlyCard({
 
       {isLoading ? (
         <>
-          <LoadingLabel>Loading resume</LoadingLabel>
+          <LoadingLabel>{t("resume.loading")}</LoadingLabel>
           <ResumeReadOnlyCardSkeleton />
         </>
       ) : !resume ? (
         <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/40 dark:text-zinc-400">
-          {emptyMessage}
+          {resolvedEmptyMessage}
         </div>
       ) : (
         <div className="mt-4 space-y-4">
           <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40">
             <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              {resume.headlineTitle || "Professional headline not set"}
+              {resume.headlineTitle || t("resume.headlineNotSet")}
             </p>
             <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-              {resume.summary || "No summary yet."}
+              {resume.summary || t("resume.noSummary")}
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <MetaPill icon={<FiMapPin className="h-3.5 w-3.5" />}>
-              {resume.location || "Location not set"}
+              {resume.location || t("resume.locationNotSet")}
             </MetaPill>
             <MetaPill icon={<FiAward className="h-3.5 w-3.5" />}>
               {resume.seniorityLevel
                 ? seniorityLabels[resume.seniorityLevel] ||
                   resume.seniorityLevel
-                : "Seniority not set"}
+                : t("resume.seniorityNotSet")}
             </MetaPill>
             <MetaPill icon={<FiCompass className="h-3.5 w-3.5" />}>
               {resume.workModel
                 ? workModelLabels[resume.workModel] || resume.workModel
-                : "Work model not set"}
+                : t("resume.workModelNotSet")}
             </MetaPill>
             <MetaPill icon={<FiBriefcase className="h-3.5 w-3.5" />}>
               {resume.contractType
                 ? contractLabels[resume.contractType] || resume.contractType
-                : "Contract type not set"}
+                : t("resume.contractTypeNotSet")}
             </MetaPill>
             <MetaPill icon={<FiStar className="h-3.5 w-3.5" />}>
               {resume.totalYearsExperience !== null
-                ? `${resume.totalYearsExperience} year(s) experience`
-                : "Experience not set"}
+                ? t("resume.yearsExperience", {
+                    count: resume.totalYearsExperience,
+                  })
+                : t("resume.experienceNotSet")}
             </MetaPill>
             <MetaPill icon={<FiUserCheck className="h-3.5 w-3.5" />}>
               {resume.openToRelocation
-                ? "Open to relocation"
-                : "Not open to relocation"}
+                ? t("common.openToRelocation")
+                : t("resume.notOpenToRelocation")}
             </MetaPill>
           </div>
 
@@ -164,14 +175,14 @@ export function ResumeReadOnlyCard({
               {resume.salaryExpectationMin !== null &&
               resume.salaryExpectationMax !== null
                 ? `${formatCurrency(resume.salaryExpectationMin)} - ${formatCurrency(resume.salaryExpectationMax)}`
-                : "Salary expectation not set"}
+                : t("resume.salaryNotSet")}
             </MetaPill>
             <MetaPill icon={<FiMessageCircle className="h-3.5 w-3.5" />}>
-              {resume.noticePeriod || "Notice period not set"}
+              {resume.noticePeriod || t("resume.noticePeriodNotSet")}
             </MetaPill>
           </div>
 
-          <SectionLabel label="Titles" />
+          <SectionLabel label={t("common.titles")} />
           {resume.titles.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {resume.titles.map((item) => (
@@ -180,17 +191,17 @@ export function ResumeReadOnlyCard({
                   className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-200"
                 >
                   {item.titleName}
-                  {item.isPrimary ? "(primary)" : ""}
+                  {item.isPrimary ? t("resume.primaryMarker") : ""}
                 </span>
               ))}
             </div>
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              No titles added yet.
+              {t("resume.noTitlesAdded")}
             </p>
           )}
 
-          <SectionLabel label="Skills" />
+          <SectionLabel label={t("common.skills")} />
           {resume.skills.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {resume.skills.map((item) => (
@@ -200,18 +211,18 @@ export function ResumeReadOnlyCard({
                 >
                   {item.skillName}
                   {item.yearsExperience !== null
-                    ? `(${item.yearsExperience}y)`
+                    ? t("resume.yearsShort", { count: item.yearsExperience })
                     : ""}
                 </span>
               ))}
             </div>
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              No skills added yet.
+              {t("resume.noSkillsAdded")}
             </p>
           )}
 
-          <SectionLabel label="Languages" />
+          <SectionLabel label={t("common.languages")} />
           {resume.spokenLanguages.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {resume.spokenLanguages.map((language) => (
@@ -225,7 +236,7 @@ export function ResumeReadOnlyCard({
             </div>
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              No spoken languages added yet.
+              {t("resume.noLanguagesAdded")}
             </p>
           )}
         </div>

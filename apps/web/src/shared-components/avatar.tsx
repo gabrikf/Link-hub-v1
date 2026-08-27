@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 type AvatarProps = {
   name?: string | null;
@@ -25,8 +26,11 @@ export function Avatar({
   size = DEFAULT_SIZE,
   className,
 }: AvatarProps) {
+  const { t } = useTranslation();
   const initial = getInitial(name);
-  const ariaLabel = name?.trim() ? `${name} avatar` : "User avatar";
+  const ariaLabel = name?.trim()
+    ? t("image.avatarOf", { name })
+    : t("image.userAvatar");
   // Track the url that failed to load so a new src automatically gets a fresh
   // try without needing an effect to reset state.
   const [failedUrl, setFailedUrl] = useState<string | null>(null);

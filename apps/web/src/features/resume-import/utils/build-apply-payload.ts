@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type {
   ApplyAiResumeImportInput,
   CreateWorkExperienceInput,
@@ -17,20 +18,22 @@ export type ResumeScalarField =
   | "salaryExpectationMax"
   | "noticePeriod";
 
-export const RESUME_SCALAR_FIELDS: {
+export const getResumeScalarFields = (
+  t: TFunction,
+): {
   key: ResumeScalarField;
   label: string;
-}[] = [
-  { key: "headlineTitle", label: "Headline" },
-  { key: "summary", label: "Summary" },
-  { key: "totalYearsExperience", label: "Years of experience" },
-  { key: "location", label: "Location" },
-  { key: "seniorityLevel", label: "Seniority" },
-  { key: "workModel", label: "Work model" },
-  { key: "contractType", label: "Contract type" },
-  { key: "salaryExpectationMin", label: "Salary expectation (min)" },
-  { key: "salaryExpectationMax", label: "Salary expectation (max)" },
-  { key: "noticePeriod", label: "Notice period" },
+}[] => [
+  { key: "headlineTitle", label: t("resumeImport.headline") },
+  { key: "summary", label: t("common.summary") },
+  { key: "totalYearsExperience", label: t("resumeImport.yearsOfExperience") },
+  { key: "location", label: t("common.location") },
+  { key: "seniorityLevel", label: t("common.seniority") },
+  { key: "workModel", label: t("common.workModel") },
+  { key: "contractType", label: t("common.contractType") },
+  { key: "salaryExpectationMin", label: t("resumeImport.salaryMin") },
+  { key: "salaryExpectationMax", label: t("resumeImport.salaryMax") },
+  { key: "noticePeriod", label: t("common.noticePeriod") },
 ];
 
 export function parsedValueFor(

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiCompass, FiRefreshCw } from "react-icons/fi";
 import { reportError } from "../lib/report-error";
 import { BrandLogo } from "./brand-logo";
@@ -26,6 +27,7 @@ function RouteShell({ children }: { children: React.ReactNode }) {
 }
 
 export function RouteErrorState({ error }: { error?: Error }) {
+  const { t } = useTranslation();
   // Message only in dev — a stack trace or an internal path means nothing to a
   // user and can leak API shape.
   const detail = import.meta.env.DEV ? error?.message : undefined;
@@ -48,10 +50,10 @@ export function RouteErrorState({ error }: { error?: Error }) {
         role="alert"
         className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
       >
-        Something went wrong
+        {t("common.somethingWentWrong")}
       </h1>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-        This page failed to load. Reloading usually clears it.
+        {t("errors.pageFailedToLoad")}
       </p>
       {detail ? (
         <pre className="mt-4 overflow-x-auto rounded-lg bg-zinc-100 p-3 text-left text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
@@ -65,13 +67,13 @@ export function RouteErrorState({ error }: { error?: Error }) {
           onClick={() => window.location.reload()}
         >
           <FiRefreshCw className="h-4 w-4" aria-hidden="true" />
-          Reload page
+          {t("common.reloadPage")}
         </Button>
         <Link
           to="/"
           className={`inline-flex h-10 items-center justify-center rounded-md border border-zinc-300 px-4 text-sm text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800 ${FOCUS_RING_PAGE}`}
         >
-          Go home
+          {t("common.goHome")}
         </Link>
       </div>
     </RouteShell>
@@ -79,17 +81,18 @@ export function RouteErrorState({ error }: { error?: Error }) {
 }
 
 export function RouteNotFound() {
+  const { t } = useTranslation();
   return (
     <RouteShell>
       <BrandLogo className="mx-auto mb-4 h-12 w-12 shadow-sm" />
       <p className="text-sm font-semibold tracking-widest text-violet-700 dark:text-violet-300">
-        404
+        {t("notFound.code")}
       </p>
       <h1 className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-        Page not found
+        {t("notFound.title")}
       </h1>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-        That link may be broken, or the profile may have been renamed.
+        {t("notFound.description")}
       </p>
       <div className="mt-6 flex justify-center">
         <Link
@@ -97,7 +100,7 @@ export function RouteNotFound() {
           className={`inline-flex h-10 items-center justify-center gap-2 rounded-md bg-violet-700 px-4 text-sm text-white transition hover:bg-violet-800 dark:bg-violet-600 dark:hover:bg-violet-500 ${FOCUS_RING_PAGE}`}
         >
           <FiCompass className="h-4 w-4" aria-hidden="true" />
-          Back to LinkHub
+          {t("notFound.backToLinkHub")}
         </Link>
       </div>
     </RouteShell>
@@ -110,13 +113,14 @@ export function RouteNotFound() {
  * network fetch of the chunk itself.
  */
 export function RoutePending() {
+  const { t } = useTranslation();
   return (
     <div
       className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-10"
       role="status"
       aria-live="polite"
     >
-      <span className="sr-only">Loading page</span>
+      <span className="sr-only">{t("notFound.loadingPage")}</span>
       <div className="anim-sheen h-8 w-48 rounded-full bg-zinc-200/80 dark:bg-zinc-800" />
       <div className="anim-sheen h-56 w-full rounded-2xl bg-zinc-200/80 dark:bg-zinc-800" />
     </div>

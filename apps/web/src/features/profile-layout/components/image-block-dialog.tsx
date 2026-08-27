@@ -1,5 +1,6 @@
 import { imageBlockConfigSchema, type ImageBlockConfig } from "@repo/schemas";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiPlus, FiTrash2 } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
@@ -23,6 +24,7 @@ export function ImageBlockDialog({
   isSubmitting = false,
   onSubmit,
 }: ImageBlockDialogProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [layout, setLayout] = useState<"single" | "gallery">("single");
   const [rows, setRows] = useState<ImageRow[]>([{ url: "", alt: "" }]);
@@ -70,7 +72,7 @@ export function ImageBlockDialog({
     });
 
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Add at least one image URL.");
+      setError(parsed.error.issues[0]?.message ?? t("layout.imageBlock.needsUrl"));
       return;
     }
 
@@ -82,13 +84,15 @@ export function ImageBlockDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={initialConfig ? "Edit image block" : "Add image block"}
+      title={
+        initialConfig ? t("layout.imageBlock.edit") : t("layout.imageBlock.add")
+      }
       contentClassName="max-w-lg"
     >
       <div className="space-y-4">
         <Input
           id="image-block-title"
-          label="Title (optional)"
+          label={t("common.titleOptional")}
           value={title}
           maxLength={120}
           onChange={(event) => setTitle(event.target.value)}
@@ -96,7 +100,7 @@ export function ImageBlockDialog({
 
         <div>
           <span className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300">
-            Layout
+            {t("common.layout")}
           </span>
           <div className="flex gap-2">
             {(["single", "gallery"] as const).map((option) => (
@@ -111,7 +115,11 @@ export function ImageBlockDialog({
                     : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800",
                 ].join(" ")}
               >
-                {option}
+                {t(
+                  option === "single"
+                    ? "layout.imageBlock.single"
+                    : "layout.imageBlock.gallery",
+                )}
               </button>
             ))}
           </div>
@@ -125,14 +133,14 @@ export function ImageBlockDialog({
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                  Image {index + 1}
+                  {t("layout.imageBlock.imageNumber", { index: index + 1 })}
                 </span>
                 <Button
                   type="button"
                   variant="icon"
                   size="icon"
                   fullWidth={false}
-                  aria-label={`Remove image ${index + 1}`}
+                  aria-label={t("image.removeImageNumber", { index: index + 1 })}
                   disabled={rows.length === 1}
                   onClick={() => removeRow(index)}
                 >
@@ -140,14 +148,14 @@ export function ImageBlockDialog({
                 </Button>
               </div>
               <FileUpload
-                label="Image"
+                label={t("common.image")}
                 aspect="cover"
                 value={row.url.trim() || null}
                 onChange={(url) => updateRow(index, { url: url ?? "" })}
               />
               <Input
                 id={`image-alt-${index}`}
-                label="Alt text (optional)"
+                label={t("layout.imageBlock.altOptional")}
                 value={row.alt}
                 maxLength={200}
                 onChange={(event) => updateRow(index, { alt: event.target.value })}
@@ -162,7 +170,7 @@ export function ImageBlockDialog({
             onClick={addRow}
           >
             <FiPlus className="h-4 w-4" aria-hidden="true" />
-            Add image
+            {t("common.addImage")}
           </Button>
         </div>
 
@@ -174,16 +182,16 @@ export function ImageBlockDialog({
             fullWidth={false}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             isLoading={isSubmitting}
-            loadingLabel="Saving"
+            loadingLabel={t("common.saving")}
             onClick={handleSave}
           >
-            Save
+            {t("common.save")}
           </Button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { FiX } from "react-icons/fi";
 import { Button } from "./button";
 
@@ -39,6 +40,7 @@ export function Dialog({
   defaultOpen,
   onOpenChange,
 }: DialogProps) {
+  const { t } = useTranslation();
   return (
     <RadixDialog.Root
       open={open}
@@ -69,7 +71,10 @@ export function Dialog({
               fullWidth={false}
               className="absolute right-2 top-2"
               aria-label={
-                closeLabel ?? (title ? `Close ${title}` : "Close dialog")
+                closeLabel ??
+                (title
+                  ? t("dialog.closeTitled", { title })
+                  : t("dialog.close"))
               }
             >
               <FiX className="h-4 w-4" aria-hidden="true" />

@@ -1,6 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import type { ParsedResumeData, ResumeResponse } from "@repo/schemas";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { FiCheckCircle, FiLoader, FiUploadCloud } from "react-icons/fi";
 import { applyResumeImport, parseResumeImport } from "../../../lib/auth-api";
 import { Button } from "../../../shared-components/button";
@@ -13,9 +15,9 @@ import {
 import { TextArea } from "../../../shared-components/text-area";
 import {
   buildApplyPayload,
+  getResumeScalarFields,
   isResumeFieldEmpty,
   parsedValueFor,
-  RESUME_SCALAR_FIELDS,
   type ImportSelection,
   type ResumeScalarField,
 } from "../utils/build-apply-payload";
@@ -54,10 +56,11 @@ function buildDefaultSelection(
   currentResume: ResumeResponse | null,
   currentProfileName: string,
   currentProfileDescription: string | null,
+  t: TFunction,
 ): ImportSelection {
   const resumeFields = new Set<ResumeScalarField>();
 
-  for (const { key } of RESUME_SCALAR_FIELDS) {
+  for (const { key } of getResumeScalarFields(t)) {
     const hasValue = parsedValueFor(parsed, key) !== null;
     if (hasValue && isResumeFieldEmpty(currentResume, key)) {
       resumeFields.add(key);
@@ -101,6 +104,7 @@ export function ResumeImportModal({
   const [parsed, setParsed] = useState<ParsedResumeData | null>(null);
   const [selection, setSelection] = useState<ImportSelection>(emptySelection);
   const [result, setResult] = useState<ApplyResult | null>(null);
+  const { t } = useTranslation();
 
   const parseMutation = useMutation({
     mutationFn: parseResumeImport,
@@ -112,6 +116,7 @@ export function ResumeImportModal({
           currentResume,
           currentProfileName,
           currentProfileDescription,
+          t,
         ),
       );
       setStep("review");
@@ -207,8 +212,8 @@ export function ResumeImportModal({
           onOpenChange(true);
         }
       }}
-      title="Fill profile from your resume"
-      description="Upload or paste your resume and let AI pre-fill your profile. You review everything before it's saved."
+      title={t("resumeImport.title")}
+      description={t("resumeImport.subtitle")}
       contentClassName="max-w-2xl"
     >
       {step === "input" ? (
@@ -226,10 +231,10 @@ export function ResumeImportModal({
               <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center transition hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/40">
                 <FiUploadCloud className="h-7 w-7 text-zinc-400" />
                 <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                  {file ? file.name : "Click to upload a PDF, DOCX or TXT"}
+                  {file ? file.name : t("resumeImport.clickToUpload")}
                 </span>
                 <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Your resume is parsed by AI to extract a structured profile.
+                  {t("resumeImport.parsedByAi")}
                 </span>
                 <input
                   type="file"
@@ -241,15 +246,15 @@ export function ResumeImportModal({
 
               <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-zinc-400">
                 <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-                or paste text
+                {t("resumeImport.orPasteText")}
                 <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
               </div>
 
               <TextArea
                 id="resume-paste"
-                label="Paste resume text"
+                label={t("resumeImport.pasteResumeText")}
                 rows={6}
-                placeholder="Paste the content of your resume here..."
+                placeholder={t("resumeImport.pastePlaceholder")}
                 value={pasteText}
                 onChange={(event) => setPasteText(event.target.value)}
               />
@@ -260,7 +265,7 @@ export function ResumeImportModal({
                   message={
                     parseMutation.error instanceof Error
                       ? parseMutation.error.message
-                      : "Could not parse the resume. Try another file."
+                      : t("resumeImport.parseFailed")
                   }
                 />
               ) : null}
@@ -274,17 +279,17 @@ export function ResumeImportModal({
               fullWidth={false}
               onClick={resetAndClose}
             >
-              Skip for now
+              {t("resumeImport.skipForNow")}
             </Button>
             <Button
               type="button"
               fullWidth={false}
               disabled={!canParse}
               isLoading={parseMutation.isPending}
-              loadingLabel="Reading resume..."
+              loadingLabel={t("resumeImport.readingResume")}
               onClick={handleParse}
             >
-              Parse with AI
+              {t("resumeImport.parseWithAi")}
             </Button>
           </div>
         </div>
@@ -296,8 +301,8 @@ export function ResumeImportModal({
               under mobile browser chrome this scroll area was taller than the
               space actually visible. */}
           <div className="max-h-[55svh] space-y-5 overflow-y-auto pr-1">
-            <ReviewGroup title="Profile basics">
-              {RESUME_SCALAR_FIELDS.map(({ key, label }) => {
+            <ReviewGroup title={t("resumeImport.profileBasics")}>
+              {getResumeScalarFields(t).map(({ key, label }) => {
                 const value = parsedValueFor(parsed, key);
                 if (value === null) {
                   return null;
@@ -310,7 +315,7 @@ export function ResumeImportModal({
                     onToggle={() => toggleResumeField(key)}
                     label={label}
                     value={displayValue(value)}
-                    note={alreadyFilled ? "already set" : undefined}
+                    note={alreadyFilled ? t("resumeImport.alreadySet") : undefined}
                   />
                 );
               })}
@@ -324,9 +329,9 @@ export function ResumeImportModal({
                       includeProfileName: !p.includeProfileName,
                     }))
                   }
-                  label="Display name"
+                  label={t("resumeImport.displayName")}
                   value={parsed.profileName}
-                  note={currentProfileName ? "already set" : undefined}
+                  note={currentProfileName ? t("resumeImport.alreadySet") : undefined}
                 />
               ) : null}
 
@@ -339,9 +344,9 @@ export function ResumeImportModal({
                       includeProfileDescription: !p.includeProfileDescription,
                     }))
                   }
-                  label="Profile bio"
+                  label={t("resumeImport.profileBio")}
                   value={parsed.profileDescription}
-                  note={currentProfileDescription ? "already set" : undefined}
+                  note={currentProfileDescription ? t("resumeImport.alreadySet") : undefined}
                 />
               ) : null}
 
@@ -354,14 +359,14 @@ export function ResumeImportModal({
                       includeLanguages: !p.includeLanguages,
                     }))
                   }
-                  label="Languages"
+                  label={t("common.languages")}
                   value={parsed.spokenLanguages.join(", ")}
                 />
               ) : null}
             </ReviewGroup>
 
             {parsed.titles && parsed.titles.length > 0 ? (
-              <ReviewGroup title="Titles">
+              <ReviewGroup title={t("common.titles")}>
                 <ChipToggleList
                   items={parsed.titles}
                   selected={selection.titles}
@@ -371,7 +376,7 @@ export function ResumeImportModal({
             ) : null}
 
             {parsed.skills && parsed.skills.length > 0 ? (
-              <ReviewGroup title="Skills">
+              <ReviewGroup title={t("common.skills")}>
                 <ChipToggleList
                   items={parsed.skills}
                   selected={selection.skills}
@@ -381,7 +386,7 @@ export function ResumeImportModal({
             ) : null}
 
             {parsed.workExperiences && parsed.workExperiences.length > 0 ? (
-              <ReviewGroup title="Work history">
+              <ReviewGroup title={t("common.workHistory")}>
                 <div className="space-y-2">
                   {parsed.workExperiences.map((entry, index) => (
                     <CheckboxRow
@@ -390,7 +395,10 @@ export function ResumeImportModal({
                       onToggle={() => toggleWork(index)}
                       label={`${entry.title} · ${entry.companyName}`}
                       value={
-                        [entry.startDate, entry.isCurrent ? "Present" : entry.endDate]
+                        [
+                          entry.startDate,
+                          entry.isCurrent ? t("common.present") : entry.endDate,
+                        ]
                           .filter(Boolean)
                           .join(" — ") || ""
                       }
@@ -407,7 +415,7 @@ export function ResumeImportModal({
               message={
                 applyMutation.error instanceof Error
                   ? applyMutation.error.message
-                  : "Could not save the imported data."
+                  : t("resumeImport.saveFailed")
               }
             />
           ) : null}
@@ -419,16 +427,16 @@ export function ResumeImportModal({
               fullWidth={false}
               onClick={() => setStep("input")}
             >
-              Back
+              {t("common.back")}
             </Button>
             <Button
               type="button"
               fullWidth={false}
               isLoading={applyMutation.isPending}
-              loadingLabel="Saving..."
+              loadingLabel={t("common.saving")}
               onClick={handleApply}
             >
-              Apply selected to my profile
+              {t("resumeImport.applySelected")}
             </Button>
           </div>
         </div>
@@ -439,16 +447,18 @@ export function ResumeImportModal({
           <FiCheckCircle className="mx-auto h-10 w-10 text-emerald-500" />
           <div>
             <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              Your profile has been updated.
+              {t("resumeImport.profileUpdated")}
             </p>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Added {result.skillsAdded} skill(s), {result.titlesAdded} title(s)
-              and {result.workExperiencesAdded} work experience(s). Profile
-              fields were filled where empty.
+              {t("resumeImport.appliedSummary", {
+                skillsAdded: result.skillsAdded,
+                titlesAdded: result.titlesAdded,
+                workExperiencesAdded: result.workExperiencesAdded,
+              })}
             </p>
           </div>
           <Button type="button" fullWidth={false} onClick={resetAndClose}>
-            Done
+            {t("common.done")}
           </Button>
         </div>
       ) : null}
@@ -471,6 +481,7 @@ export function ResumeImportModal({
  * rather than exactly on it.
  */
 function ResumeParseProgress() {
+  const { t } = useTranslation();
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 dark:border-violet-500/30 dark:bg-violet-500/10">
@@ -479,11 +490,10 @@ function ResumeParseProgress() {
             className="h-4 w-4 shrink-0 animate-spin"
             aria-hidden="true"
           />
-          Reading your resume…
+          {t("resumeImport.readingYourResume")}
         </p>
         <p className="mt-1 text-xs text-violet-800/80 dark:text-violet-200/80">
-          The AI is pulling out your profile basics, titles, skills and work
-          history. This usually takes 10–30 seconds — keep this dialog open.
+          {t("resumeImport.readingDetail")}
         </p>
         <div
           aria-hidden="true"
@@ -517,9 +527,7 @@ function ResumeParseProgress() {
         `space-y-5` sibling, so leading with it would push the banner down by
         a phantom 20px.
       */}
-      <LoadingLabel>
-        Reading your resume. This can take up to a minute.
-      </LoadingLabel>
+      <LoadingLabel>{t("resumeImport.readingUpToAMinute")}</LoadingLabel>
     </div>
   );
 }

@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { SURFACE } from "../../../shared-components/surface";
 import { FiBriefcase, FiCalendar, FiMapPin } from "react-icons/fi";
 import { LoadingLabel } from "../../../shared-components/skeleton";
 import { Markdown } from "../../posts/lib/markdown";
 import {
-  employmentTypeLabels,
   formatWorkDateRange,
   formatWorkLocation,
-  workModelLabels,
+  getEmploymentTypeLabels,
+  getWorkModelLabels,
 } from "../utils/work-experience-format";
 import { WorkHistoryReadOnlySkeleton } from "./work-history-read-only-skeleton";
 
@@ -45,33 +46,40 @@ type WorkHistoryReadOnlyProps = {
 export function WorkHistoryReadOnly({
   workExperiences,
   isLoading = false,
-  title = "Work history",
-  subtitle = "Professional experience",
+  title,
+  subtitle,
   action,
-  emptyMessage = "No work experience added yet.",
+  emptyMessage,
   surfaceClassName = SURFACE,
 }: WorkHistoryReadOnlyProps) {
+  const { t } = useTranslation();
+  const resolvedTitle = title ?? t("common.workHistory");
+  const resolvedSubtitle = subtitle ?? t("common.professionalExperience");
+  const resolvedEmptyMessage = emptyMessage ?? t("work.emptyPublic");
+
   return (
     <section className={`p-4 ${surfaceClassName}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="inline-flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             <FiBriefcase className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
-            {title}
+            {resolvedTitle}
           </h3>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{subtitle}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            {resolvedSubtitle}
+          </p>
         </div>
         {action}
       </div>
 
       {isLoading ? (
         <>
-          <LoadingLabel>Loading work history</LoadingLabel>
+          <LoadingLabel>{t("work.loading")}</LoadingLabel>
           <WorkHistoryReadOnlySkeleton />
         </>
       ) : workExperiences.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/40 dark:text-zinc-400">
-          {emptyMessage}
+          {resolvedEmptyMessage}
         </div>
       ) : (
         <ol className="mt-4 space-y-3 border-l border-zinc-200 pl-4 dark:border-zinc-700">
@@ -85,12 +93,16 @@ export function WorkHistoryReadOnly({
 }
 
 function WorkHistoryItem({ item }: { item: WorkExperienceView }) {
+  const { t } = useTranslation();
   const dateRange = formatWorkDateRange(
     item.startDate,
     item.endDate,
     item.isCurrent,
+    t,
   );
   const location = formatWorkLocation(item);
+  const employmentTypeLabels = getEmploymentTypeLabels(t);
+  const workModelLabels = getWorkModelLabels(t);
   const employmentLabel = item.employmentType
     ? (employmentTypeLabels[
         item.employmentType as keyof typeof employmentTypeLabels
@@ -113,7 +125,7 @@ function WorkHistoryItem({ item }: { item: WorkExperienceView }) {
         </p>
         {item.isCurrent ? (
           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-            Current
+            {t("common.current")}
           </span>
         ) : null}
       </div>

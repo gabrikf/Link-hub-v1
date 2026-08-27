@@ -1,5 +1,6 @@
 import { uploadImageResponseSchema } from "@repo/schemas";
 import axios from "axios";
+import i18n from "../i18n";
 import { fetchWithTokens } from "./auth-api";
 import { reportError } from "./report-error";
 
@@ -40,14 +41,11 @@ function readUploadErrorMessage(error: unknown): string {
       ?.message;
 
     if (status === 400) {
-      return (
-        serverMessage ??
-        "That file isn't a supported image, or it's larger than 5 MB."
-      );
+      return serverMessage ?? i18n.t("errors.imageUnsupportedOrTooLarge");
     }
 
     if (status === 401) {
-      return "Your session has expired. Please sign in again.";
+      return i18n.t("errors.sessionHasExpired");
     }
 
     if (serverMessage && serverMessage.length > 0) {
@@ -55,5 +53,5 @@ function readUploadErrorMessage(error: unknown): string {
     }
   }
 
-  return "Couldn't upload the image. Please try again.";
+  return i18n.t("errors.imageUploadFailed");
 }

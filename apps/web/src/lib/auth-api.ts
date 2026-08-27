@@ -97,6 +97,7 @@ import axios, {
   type AxiosResponse,
 } from "axios";
 import { z } from "zod";
+import i18n from "../i18n";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
 import { reportError, reportHandled } from "./report-error";
 import {
@@ -281,11 +282,11 @@ const readErrorMessage = (error: unknown): string => {
     }
 
     return error.response?.status === 401
-      ? "Invalid email or password."
-      : "Request failed. Please try again.";
+      ? i18n.t("errors.invalidCredentials")
+      : i18n.t("common.requestFailed");
   }
 
-  return "Request failed. Please try again.";
+  return i18n.t("common.requestFailed");
 };
 
 export async function loginRequest(
@@ -769,7 +770,7 @@ export async function searchRecruiterResumes(
       throw new Error((data as { message: string }).message);
     }
 
-    throw new Error("Search failed. Try again.");
+    throw new Error(i18n.t("errors.searchFailed"));
   }
 
   if (Array.isArray(data)) {
@@ -934,7 +935,7 @@ export async function parseResumeImport(input: {
       throw new Error((data as { message: string }).message);
     }
 
-    throw new Error("Could not parse the resume. Try again.");
+    throw new Error(i18n.t("errors.resumeParseFailed"));
   }
 
   return aiResumeImportParseResponseSchema.parse(data);

@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { SURFACE } from "../../../shared-components/surface";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { FiActivity } from "react-icons/fi";
@@ -22,7 +23,6 @@ import {
   advancedSearchFormSchema,
   type AdvancedSearchFormValues,
   DEFAULT_TOP_K,
-  OPEN_TO_RELOCATION_OPTIONS,
   type RankedCandidate,
 } from "../types/advanced-search";
 import { buildRecruiterSearchPayload } from "../utils/advanced-search";
@@ -47,11 +47,21 @@ function createSearchSessionId(): string {
 }
 
 export function AdvancedSearchPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resultsRef = useRef<HTMLElement | null>(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  /*
+   * The tone travels with the message. It used to be derived with
+   * `feedbackMessage.startsWith("Email copied")`, which reads the English text
+   * to decide whether a toast is a success — so the success case would have
+   * rendered as an error the moment the string was translated.
+   */
+  const [feedback, setFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
   const [rankedResults, setRankedResults] = useState<RankedCandidate[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -73,7 +83,7 @@ export function AdvancedSearchPage() {
       contractTypes: [],
       seniorityLevels: [],
       workModels: [],
-      openToRelocation: OPEN_TO_RELOCATION_OPTIONS[0],
+      openToRelocation: { value: "any", label: t("common.any") },
       minYearsExperience: "",
       maxYearsExperience: "",
       locations: [],
@@ -124,11 +134,7 @@ export function AdvancedSearchPage() {
       setRankedResults(outcome.candidates);
       setLastSearchInput(searchInput);
       setSearchSessionId(createSearchSessionId());
-      setRerankNotice(
-        outcome.degraded
-          ? "On-device ranking is unavailable right now, so results are shown in the search engine's own order."
-          : null,
-      );
+      setRerankNotice(outcome.degraded ? t("search.rerankUnavailable") : null);
       // Distinguishes "no search has run" from "this search found nobody" —
       // one empty state used to serve both.
       setHasSearched(true);
@@ -177,13 +183,11 @@ export function AdvancedSearchPage() {
     });
 
     if (!hasSemanticInput) {
-      setFeedbackMessage(
-        "Add text, attach a file, or select at least one filter before searching.",
-      );
+      setFeedback({ tone: "error", message: t("search.needsInput") });
       return;
     }
 
-    setFeedbackMessage(null);
+    setFeedback(null);
 
     try {
       await searchMutation.mutateAsync(payload);
@@ -193,9 +197,11 @@ export function AdvancedSearchPage() {
         // The query text itself is a recruiter's hiring intent — never sent.
         extra: { hasAttachment: Boolean(attachmentFile) },
       });
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "Search failed. Try again.",
-      );
+      setFeedback({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : t("errors.searchFailed"),
+      });
     }
   });
 
@@ -284,20 +290,25 @@ export function AdvancedSearchPage() {
         });
 
         await navigator.clipboard.writeText(contact.email);
-        setFeedbackMessage(`Email copied: ${contact.email}`);
+        setFeedback({
+          tone: "success",
+          message: t("search.emailCopied", { email: contact.email }),
+        });
       } catch (error) {
         reportError(error, {
           action: "search.reveal-contact",
           extra: { rankPosition: index + 1 },
         });
-        setFeedbackMessage(
-          error instanceof Error
-            ? error.message
-            : "This candidate's contact details are unavailable.",
-        );
+        setFeedback({
+          tone: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("search.contactUnavailable"),
+        });
       }
     },
-    [lastSearchInput, searchSessionId],
+    [lastSearchInput, searchSessionId, t],
   );
 
   const handleViewProfile = useCallback(
@@ -312,9 +323,12 @@ export function AdvancedSearchPage() {
       // The only explicit negative the product collects. Everything else is
       // inferred from absence, which is far too noisy to train on.
       track(candidate, index, "NOT_RELEVANT");
-      setFeedbackMessage(`Thanks — ${candidate.name} marked as not relevant.`);
+      setFeedback({
+        tone: "success",
+        message: t("search.markedNotRelevantToast", { name: candidate.name }),
+      });
     },
-    [track],
+    [track, t],
   );
 
   const {
@@ -347,11 +361,10 @@ export function AdvancedSearchPage() {
             {/* Matches the posts / settings / profile-layout page heroes —
                 this is a top-level destination, not a section header. */}
             <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">
-              Advanced Search (AI)
+              {t("search.pageTitle")}
             </h1>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Describe your ideal candidate and we will generate the perfect
-              search query for semantic retrieval.
+              {t("search.pageSubtitle")}
             </p>
           </div>
         </div>
@@ -387,14 +400,9 @@ export function AdvancedSearchPage() {
           />
         </form>
 
-        {feedbackMessage ? (
+        {feedback ? (
           <div className="mt-3">
-            <FeedbackMessage
-              tone={
-                feedbackMessage.startsWith("Email copied") ? "success" : "error"
-              }
-              message={feedbackMessage}
-            />
+            <FeedbackMessage tone={feedback.tone} message={feedback.message} />
           </div>
         ) : null}
       </section>

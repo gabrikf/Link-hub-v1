@@ -1,6 +1,7 @@
 import type { ResumeResponse } from "@repo/schemas";
 import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { FiMinus, FiPlus, FiSave, FiX } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
@@ -15,6 +16,7 @@ import type {
   UpsertResumeInput,
 } from "../../../lib/auth-api";
 import { reportError } from "../../../lib/report-error";
+import type { TFunction } from "i18next";
 
 type SelectOption = {
   value: string;
@@ -73,46 +75,52 @@ type ResumeEditDialogProps = {
   onCreateTitleCatalogItem: (name: string) => Promise<CatalogItem>;
 };
 
-const booleanOptions: BooleanOption[] = [
-  { value: "yes", label: "Yes" },
-  { value: "no", label: "No" },
+/*
+ * These catalogues take `t` rather than closing over the i18next singleton.
+ *
+ * An earlier version called `t()` at module scope, which resolves once at
+ * import time: after a language switch the option lists — and, worse, the label
+ * carried on the value react-hook-form already holds — stayed in the old
+ * language until a full reload. Threading `t` through keeps both sides live.
+ */
+const getBooleanOptions = (t: TFunction): BooleanOption[] => [
+  { value: "yes", label: t("common.yes") },
+  { value: "no", label: t("common.no") },
 ];
 
-const seniorityOptions: SelectOption[] = [
-  { value: "intern", label: "Intern" },
-  { value: "junior", label: "Junior" },
-  { value: "mid", label: "Mid" },
-  { value: "senior", label: "Senior" },
-  { value: "staff", label: "Staff" },
-  { value: "principal", label: "Principal" },
+const getSeniorityOptions = (t: TFunction): SelectOption[] => [
+  { value: "intern", label: t("enum.seniority.intern") },
+  { value: "junior", label: t("enum.seniority.junior") },
+  { value: "mid", label: t("enum.seniority.mid") },
+  { value: "senior", label: t("enum.seniority.senior") },
+  { value: "staff", label: t("enum.seniority.staff") },
+  { value: "principal", label: t("enum.seniority.principal") },
 ];
 
-const workModelOptions: SelectOption[] = [
-  { value: "remote", label: "Remote" },
-  { value: "hybrid", label: "Hybrid" },
-  { value: "on-site", label: "On-site" },
+const getWorkModelOptions = (t: TFunction): SelectOption[] => [
+  { value: "remote", label: t("enum.workModel.remote") },
+  { value: "hybrid", label: t("enum.workModel.hybrid") },
+  { value: "on-site", label: t("enum.workModel.on-site") },
 ];
 
-const contractOptions: SelectOption[] = [
-  { value: "clt", label: "CLT" },
-  { value: "pj", label: "PJ" },
-  { value: "freelance", label: "Freelance" },
-  { value: "contract", label: "Contract" },
-  { value: "full-time", label: "Full-time" },
-  { value: "part-time", label: "Part-time" },
+const getContractOptions = (t: TFunction): SelectOption[] => [
+  { value: "clt", label: t("enum.contractType.clt") },
+  { value: "pj", label: t("enum.contractType.pj") },
+  { value: "freelance", label: t("enum.contractType.freelance") },
+  { value: "contract", label: t("enum.contractType.contract") },
+  { value: "full-time", label: t("enum.contractType.full-time") },
+  { value: "part-time", label: t("enum.contractType.part-time") },
 ];
 
-const defaultBooleanOption = booleanOptions[1];
-
-const commonLanguageOptions: SelectOption[] = [
-  { value: "Portuguese", label: "Portuguese" },
-  { value: "English", label: "English" },
-  { value: "Spanish", label: "Spanish" },
-  { value: "French", label: "French" },
-  { value: "German", label: "German" },
-  { value: "Italian", label: "Italian" },
-  { value: "Japanese", label: "Japanese" },
-  { value: "Mandarin", label: "Mandarin" },
+const getCommonLanguageOptions = (t: TFunction): SelectOption[] => [
+  { value: "Portuguese", label: t("enum.language.portuguese") },
+  { value: "English", label: t("enum.language.english") },
+  { value: "Spanish", label: t("enum.language.spanish") },
+  { value: "French", label: t("enum.language.french") },
+  { value: "German", label: t("enum.language.german") },
+  { value: "Italian", label: t("enum.language.italian") },
+  { value: "Japanese", label: t("enum.language.japanese") },
+  { value: "Mandarin", label: t("enum.language.mandarin") },
 ];
 
 export function ResumeEditDialog({
@@ -130,12 +138,13 @@ export function ResumeEditDialog({
   onCreateSkillCatalogItem,
   onCreateTitleCatalogItem,
 }: ResumeEditDialogProps) {
+  const { t } = useTranslation();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
 
   const baseForm = useForm<ResumeFormValues>({
-    defaultValues: getBaseDefaultValues(resume),
+    defaultValues: getBaseDefaultValues(resume, t),
   });
 
   useEffect(() => {
@@ -143,8 +152,10 @@ export function ResumeEditDialog({
       return;
     }
 
-    baseForm.reset(getBaseDefaultValues(resume));
-  }, [open, resume, baseForm]);
+    baseForm.reset(getBaseDefaultValues(resume, t));
+    // `t` is a dependency on purpose: switching language has to re-label the
+    // option the form is already holding, not just the list it offers.
+  }, [open, resume, baseForm, t]);
 
   const selectedSkillOptions = useWatch({
     control: baseForm.control,
@@ -258,14 +269,14 @@ export function ResumeEditDialog({
       optionsByKey.set(key, option);
     };
 
-    commonLanguageOptions.forEach(addOption);
+    getCommonLanguageOptions(t).forEach(addOption);
     (resume?.spokenLanguages ?? []).forEach((item) => {
       addOption({ value: item, label: item });
     });
     (selectedLanguages ?? []).forEach(addOption);
 
     return Array.from(optionsByKey.values());
-  }, [resume?.spokenLanguages, selectedLanguages]);
+  }, [resume?.spokenLanguages, selectedLanguages, t]);
 
   const requestClose = () => {
     if (baseForm.formState.isDirty) {
@@ -328,7 +339,7 @@ export function ResumeEditDialog({
       })),
     });
 
-    setSuccessMessage("Resume, skills, and titles saved successfully.");
+    setSuccessMessage(t("resume.saved"));
     baseForm.reset(values);
   });
 
@@ -338,9 +349,7 @@ export function ResumeEditDialog({
     } catch (error) {
       reportError(error, { action: "resume.save" });
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to save resume right now.",
+        error instanceof Error ? error.message : t("resume.saveFailed"),
       );
     }
   };
@@ -353,9 +362,7 @@ export function ResumeEditDialog({
     } catch (error) {
       reportError(error, { action: "resume.save-and-close" });
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to save resume right now.",
+        error instanceof Error ? error.message : t("resume.saveFailed"),
       );
     }
   };
@@ -403,12 +410,12 @@ export function ResumeEditDialog({
         );
       }
 
-      setSuccessMessage("Custom skill created and selected.");
+      setSuccessMessage(t("resume.skillCreated"));
       setErrorMessage(null);
     } catch (error) {
       reportError(error, { action: "resume.create-skill-option" });
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to create skill.",
+        error instanceof Error ? error.message : t("resume.skillCreateFailed"),
       );
     }
   };
@@ -433,12 +440,12 @@ export function ResumeEditDialog({
         );
       }
 
-      setSuccessMessage("Custom title created and selected.");
+      setSuccessMessage(t("resume.titleCreated"));
       setErrorMessage(null);
     } catch (error) {
       reportError(error, { action: "resume.create-title-option" });
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to create title.",
+        error instanceof Error ? error.message : t("resume.titleCreateFailed"),
       );
     }
   };
@@ -456,7 +463,10 @@ export function ResumeEditDialog({
       };
     });
 
-    baseForm.setValue("skills", nextRows, { shouldDirty: true, shouldTouch: true });
+    baseForm.setValue("skills", nextRows, {
+      shouldDirty: true,
+      shouldTouch: true,
+    });
   };
 
   const togglePrimaryTitle = (titleId: string) => {
@@ -477,7 +487,10 @@ export function ResumeEditDialog({
       return shouldBePrimary ? { ...row, isPrimary: false } : row;
     });
 
-    baseForm.setValue("titles", nextRows, { shouldDirty: true, shouldTouch: true });
+    baseForm.setValue("titles", nextRows, {
+      shouldDirty: true,
+      shouldTouch: true,
+    });
   };
 
   const isSavingAny = isSavingResume || isSavingSkills || isSavingTitles;
@@ -487,8 +500,8 @@ export function ResumeEditDialog({
       <Dialog
         open={open}
         onOpenChange={handleOpenChange}
-        title="Edit Resume"
-        description="Select multiple skills/titles, adjust years and primary title, then save everything together."
+        title={t("resume.editResume")}
+        description={t("resume.editSubtitle")}
         contentClassName="!w-[96vw] !max-w-none max-h-[92vh] overflow-y-auto xl:!w-[1400px]"
         buttons={
           <>
@@ -499,17 +512,17 @@ export function ResumeEditDialog({
               onClick={requestClose}
             >
               <FiX className="h-4 w-4" aria-hidden="true" />
-              Close
+              {t("common.close")}
             </Button>
             <Button
               type="button"
               fullWidth={false}
               onClick={handleSave}
               isLoading={isSavingAny}
-              loadingLabel="Saving..."
+              loadingLabel={t("common.saving")}
             >
               <FiSave className="h-4 w-4" aria-hidden="true" />
-              Save resume
+              {t("resume.saveResume")}
             </Button>
           </>
         }
@@ -517,22 +530,22 @@ export function ResumeEditDialog({
         <div className="space-y-5 pt-2">
           <section className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/30">
             <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Base information
+              {t("resume.baseInformation")}
             </h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 id="resume-headline"
-                label="Headline title"
+                label={t("resume.headlineTitle")}
                 {...baseForm.register("headlineTitle")}
               />
               <Input
                 id="resume-location"
-                label="Location"
+                label={t("common.location")}
                 {...baseForm.register("location")}
               />
               <Input
                 id="resume-total-years"
-                label="Total years experience"
+                label={t("resume.totalYears")}
                 type="number"
                 min={0}
                 max={60}
@@ -540,19 +553,19 @@ export function ResumeEditDialog({
               />
               <Input
                 id="resume-notice"
-                label="Notice period"
+                label={t("common.noticePeriod")}
                 {...baseForm.register("noticePeriod")}
               />
               <Input
                 id="resume-salary-min"
-                label="Salary expectation min"
+                label={t("resume.salaryMin")}
                 type="number"
                 min={0}
                 {...baseForm.register("salaryExpectationMin")}
               />
               <Input
                 id="resume-salary-max"
-                label="Salary expectation max"
+                label={t("resume.salaryMax")}
                 type="number"
                 min={0}
                 {...baseForm.register("salaryExpectationMax")}
@@ -561,14 +574,14 @@ export function ResumeEditDialog({
 
             <TextArea
               id="resume-summary"
-              label="Summary"
+              label={t("common.summary")}
               rows={4}
               {...baseForm.register("summary")}
             />
 
             <SelectField
               id="resume-languages"
-              label="Spoken languages"
+              label={t("resume.spokenLanguages")}
               name="spokenLanguages"
               control={baseForm.control}
               options={languageOptions}
@@ -576,61 +589,61 @@ export function ResumeEditDialog({
               isCreatable
               onCreateOption={handleCreateLanguageOption}
               closeMenuOnSelect={false}
-              placeholder="Select or type languages"
-              helperText="Pick multiple languages. Type a new one and press enter to add it."
+              placeholder={t("resume.selectLanguagesPlaceholder")}
+              helperText={t("resume.languagesHelp")}
             />
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <SelectField
                 id="resume-seniority"
-                label="Seniority"
+                label={t("common.seniority")}
                 name="seniorityLevel"
                 control={baseForm.control}
-                options={seniorityOptions}
+                options={getSeniorityOptions(t)}
                 isClearable
               />
               <SelectField
                 id="resume-work-model"
-                label="Work model"
+                label={t("common.workModel")}
                 name="workModel"
                 control={baseForm.control}
-                options={workModelOptions}
+                options={getWorkModelOptions(t)}
                 isClearable
               />
               <SelectField
                 id="resume-contract"
-                label="Contract type"
+                label={t("common.contractType")}
                 name="contractType"
                 control={baseForm.control}
-                options={contractOptions}
+                options={getContractOptions(t)}
                 isClearable
               />
               <SelectField
                 id="resume-relocation"
-                label="Open to relocation"
+                label={t("common.openToRelocation")}
                 name="openToRelocation"
                 control={baseForm.control}
-                options={booleanOptions}
+                options={getBooleanOptions(t)}
               />
             </div>
           </section>
 
           <section className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/30">
             <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Skills
+              {t("common.skills")}
             </h4>
             <SelectField
               id="resume-skills-multi"
-              label="Select skills"
+              label={t("resume.selectSkills")}
               name="selectedSkillOptions"
               control={baseForm.control}
               options={skillOptions}
-              placeholder="Select one or more skills"
+              placeholder={t("resume.selectSkillsPlaceholder")}
               isCreatable
               isMulti
               closeMenuOnSelect={false}
               onCreateOption={handleCreateSkillOption}
-              helperText="After selecting, each skill appears below with +/- controls for years of experience."
+              helperText={t("resume.skillsHelp")}
             />
 
             {skillRows.length > 0 ? (
@@ -650,7 +663,9 @@ export function ResumeEditDialog({
                         size="icon"
                         fullWidth={false}
                         onClick={() => updateSkillYears(row.skillId, -1)}
-                        aria-label={`Decrease ${row.skillName} years`}
+                        aria-label={t("resume.decreaseYears", {
+                          skillName: row.skillName,
+                        })}
                       >
                         <FiMinus className="h-4 w-4" aria-hidden="true" />
                       </Button>
@@ -663,7 +678,9 @@ export function ResumeEditDialog({
                         size="icon"
                         fullWidth={false}
                         onClick={() => updateSkillYears(row.skillId, 1)}
-                        aria-label={`Increase ${row.skillName} years`}
+                        aria-label={t("resume.increaseYears", {
+                          skillName: row.skillName,
+                        })}
                       >
                         <FiPlus className="h-4 w-4" aria-hidden="true" />
                       </Button>
@@ -673,27 +690,27 @@ export function ResumeEditDialog({
               </div>
             ) : (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                No skills selected.
+                {t("resume.noSkillsSelected")}
               </p>
             )}
           </section>
 
           <section className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/30">
             <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Titles
+              {t("common.titles")}
             </h4>
             <SelectField
               id="resume-titles-multi"
-              label="Select titles"
+              label={t("resume.selectTitles")}
               name="selectedTitleOptions"
               control={baseForm.control}
               options={titleOptions}
-              placeholder="Select one or more titles"
+              placeholder={t("resume.selectTitlesPlaceholder")}
               isCreatable
               isMulti
               closeMenuOnSelect={false}
               onCreateOption={handleCreateTitleOption}
-              helperText="After selecting, titles appear below and you can toggle one as primary."
+              helperText={t("resume.titlesHelp")}
             />
 
             {titleRows.length > 0 ? (
@@ -713,14 +730,16 @@ export function ResumeEditDialog({
                       fullWidth={false}
                       onClick={() => togglePrimaryTitle(row.titleId)}
                     >
-                      {row.isPrimary ? "Primary" : "Set primary"}
+                      {row.isPrimary
+                        ? t("common.primary")
+                        : t("resume.setPrimary")}
                     </Button>
                   </div>
                 ))}
               </div>
             ) : (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                No titles selected.
+                {t("resume.noTitlesSelected")}
               </p>
             )}
           </section>
@@ -737,8 +756,8 @@ export function ResumeEditDialog({
       <Dialog
         open={isCloseConfirmOpen}
         onOpenChange={setIsCloseConfirmOpen}
-        title="Unsaved changes"
-        description="If you close now, your unsaved resume, skills, and titles changes will be lost."
+        title={t("resume.unsavedChanges")}
+        description={t("resume.unsavedChangesBody")}
         buttons={
           <>
             <Button
@@ -747,7 +766,7 @@ export function ResumeEditDialog({
               fullWidth={false}
               onClick={() => setIsCloseConfirmOpen(false)}
             >
-              Keep editing
+              {t("common.keepEditing")}
             </Button>
             <Button
               type="button"
@@ -755,9 +774,9 @@ export function ResumeEditDialog({
               fullWidth={false}
               onClick={handleSaveAndClose}
               isLoading={isSavingAny}
-              loadingLabel="Saving..."
+              loadingLabel={t("common.saving")}
             >
-              Save and close
+              {t("resume.saveAndClose")}
             </Button>
             <Button
               type="button"
@@ -768,7 +787,7 @@ export function ResumeEditDialog({
                 onOpenChange(false);
               }}
             >
-              Close without saving
+              {t("resume.closeWithoutSaving")}
             </Button>
           </>
         }
@@ -777,7 +796,10 @@ export function ResumeEditDialog({
   );
 }
 
-function getBaseDefaultValues(resume: ResumeResponse | null): ResumeFormValues {
+function getBaseDefaultValues(
+  resume: ResumeResponse | null,
+  t: TFunction,
+): ResumeFormValues {
   return {
     headlineTitle: resume?.headlineTitle ?? "",
     summary: resume?.summary ?? "",
@@ -787,9 +809,9 @@ function getBaseDefaultValues(resume: ResumeResponse | null): ResumeFormValues {
         ? String(resume.totalYearsExperience)
         : "",
     location: resume?.location ?? "",
-    seniorityLevel: toOption(resume?.seniorityLevel, seniorityOptions),
-    workModel: toOption(resume?.workModel, workModelOptions),
-    contractType: toOption(resume?.contractType, contractOptions),
+    seniorityLevel: toOption(resume?.seniorityLevel, getSeniorityOptions(t)),
+    workModel: toOption(resume?.workModel, getWorkModelOptions(t)),
+    contractType: toOption(resume?.contractType, getContractOptions(t)),
     salaryExpectationMin:
       resume?.salaryExpectationMin !== null &&
       resume?.salaryExpectationMin !== undefined
@@ -805,9 +827,7 @@ function getBaseDefaultValues(resume: ResumeResponse | null): ResumeFormValues {
       label: item,
     })),
     noticePeriod: resume?.noticePeriod ?? "",
-    openToRelocation: resume?.openToRelocation
-      ? booleanOptions[0]
-      : defaultBooleanOption,
+    openToRelocation: getBooleanOptions(t)[resume?.openToRelocation ? 0 : 1],
     selectedSkillOptions: (resume?.skills ?? []).map((item) => ({
       value: item.skillId,
       label: item.skillName,

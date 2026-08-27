@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
+import i18n from "../i18n";
 import { reportError } from "../lib/report-error";
 import { FOCUS_RING_PAGE, SURFACE } from "./surface";
 
@@ -60,10 +61,10 @@ export class AppErrorBoundary extends Component<Props, State> {
             role="alert"
             className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
           >
-            Something went wrong
+            {i18n.t("common.somethingWentWrong")}
           </h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-            The app failed to start. Reloading usually clears it.
+            {i18n.t("errors.appFailedToStart")}
           </p>
           {detail ? (
             <pre className="mt-4 overflow-x-auto rounded-lg bg-zinc-100 p-3 text-left text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
@@ -77,14 +78,14 @@ export class AppErrorBoundary extends Component<Props, State> {
               className={`inline-flex h-10 items-center justify-center gap-2 rounded-md bg-violet-700 px-4 text-sm text-white transition hover:bg-violet-800 dark:bg-violet-600 dark:hover:bg-violet-500 ${FOCUS_RING_PAGE}`}
             >
               <FiRefreshCw className="h-4 w-4" aria-hidden="true" />
-              Reload page
+              {i18n.t("common.reloadPage")}
             </button>
             {/* Plain anchor, not <Link>: see the note above. */}
             <a
               href="/"
               className={`inline-flex h-10 items-center justify-center rounded-md border border-zinc-300 px-4 text-sm text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800 ${FOCUS_RING_PAGE}`}
             >
-              Go home
+              {i18n.t("common.goHome")}
             </a>
           </div>
         </div>

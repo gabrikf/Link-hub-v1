@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import axios from "axios";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiLogIn } from "react-icons/fi";
 import {
   fetchPublicProfile,
@@ -23,6 +24,7 @@ import { PublicProfileSkeleton } from "../components/public-profile-skeleton";
 const MOBILE_QUERY = "(max-width: 1023px)";
 
 export function PublicProfilePage() {
+  const { t } = useTranslation();
   const { username } = useParams({ from: "/profile/$username" });
   const userInfo = useUserInfoStore((state) => state.userInfo);
 
@@ -115,7 +117,7 @@ export function PublicProfilePage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
         <p className="text-zinc-700 dark:text-zinc-200">
-          Couldn&apos;t load this profile. Please try again.
+          {t("profile.loadFailed")}
         </p>
         <div className="flex items-center gap-2">
           <button
@@ -123,13 +125,13 @@ export function PublicProfilePage() {
             onClick={() => profileQuery.refetch()}
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
-            Retry
+            {t("common.retry")}
           </button>
           <Link
             to="/"
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
           >
-            Back to login
+            {t("auth.backToLogin")}
           </Link>
         </div>
       </main>
@@ -139,12 +141,12 @@ export function PublicProfilePage() {
   if (!profileQuery.isLoading && !profile) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
-        <p className="text-zinc-700 dark:text-zinc-200">Profile not found.</p>
+        <p className="text-zinc-700 dark:text-zinc-200">{t("profile.notFound")}</p>
         <Link
           to="/"
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
         >
-          Back to login
+          {t("auth.backToLogin")}
         </Link>
       </main>
     );
@@ -245,7 +247,7 @@ export function PublicProfilePage() {
           className="anim-fade-in mt-3 inline-flex items-center gap-2 self-end rounded-full border border-zinc-300 bg-white/70 px-3 py-2 text-sm shadow-sm backdrop-blur transition hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:bg-zinc-900"
         >
           <FiLogIn className="h-4 w-4" aria-hidden="true" />
-          Login
+          {t("auth.loginTab")}
         </Link>
       ) : null}
 

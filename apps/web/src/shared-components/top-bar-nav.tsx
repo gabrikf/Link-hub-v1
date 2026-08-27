@@ -6,6 +6,7 @@ import {
   type ComponentType,
   type ReactElement,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiEdit3,
   FiGrid,
@@ -72,6 +73,7 @@ function NavTooltip({
 }
 
 export function TopBarNav() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -96,35 +98,35 @@ export function TopBarNav() {
   const navItems: NavItem[] = [
     {
       key: "dashboard",
-      label: "Dashboard",
+      label: t("nav.dashboard"),
       to: "/dashboard",
       icon: FiGrid,
       isActive: (path) => path === "/dashboard",
     },
     {
       key: "layout",
-      label: "Profile layout",
+      label: t("common.profileLayout"),
       to: "/dashboard/layout",
       icon: FiLayout,
       isActive: (path) => path.startsWith("/dashboard/layout"),
     },
     {
       key: "posts",
-      label: "Posts",
+      label: t("common.posts"),
       to: "/dashboard/posts",
       icon: FiEdit3,
       isActive: (path) => path.startsWith("/dashboard/posts"),
     },
     {
       key: "search",
-      label: "Recruiter search",
+      label: t("nav.recruiterSearch"),
       to: "/dashboard/search",
       icon: FiSearch,
       isActive: (path) => path.startsWith("/dashboard/search"),
     },
     {
       key: "profile",
-      label: "Public profile",
+      label: t("nav.publicProfile"),
       to: "/profile/$username",
       params: { username: userInfo.login },
       icon: FiUser,
@@ -132,7 +134,7 @@ export function TopBarNav() {
     },
     {
       key: "settings",
-      label: "Settings",
+      label: t("nav.settings"),
       to: "/dashboard/settings",
       icon: FiSettings,
       isActive: (path) => path.startsWith("/dashboard/settings"),
@@ -149,7 +151,7 @@ export function TopBarNav() {
           <BrandLogo className="h-9 w-9 shrink-0 shadow-sm" />
           <div className="min-w-0">
             <p className="text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100">
-              LinkHub
+              {t("common.brandName")}
             </p>
             <p className="truncate text-xs leading-tight text-zinc-500 dark:text-zinc-400">
               {userInfo.name}
@@ -172,14 +174,14 @@ export function TopBarNav() {
             </NavTooltip>
           ))}
           <span className="mx-1 h-6 w-px shrink-0 bg-zinc-200 dark:bg-zinc-700" />
-          <NavTooltip label="Logout">
+          <NavTooltip label={t("nav.logout")}>
             <Button
               type="button"
               variant="icon"
               size="icon"
               fullWidth={false}
               className="rounded-full"
-              aria-label="Logout"
+              aria-label={t("nav.logout")}
               onClick={logout}
             >
               <FiLogOut className="h-5 w-5" aria-hidden="true" />
@@ -194,7 +196,7 @@ export function TopBarNav() {
           size="icon"
           fullWidth={false}
           className="md:hidden"
-          aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-label={isMobileMenuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
           aria-expanded={isMobileMenuOpen}
           onClick={() => setIsMobileMenuOpen((open) => !open)}
         >
@@ -236,7 +238,7 @@ export function TopBarNav() {
               onClick={logout}
             >
               <FiLogOut className="h-4 w-4" aria-hidden="true" />
-              Logout
+              {t("nav.logout")}
             </Button>
           </div>
         </nav>

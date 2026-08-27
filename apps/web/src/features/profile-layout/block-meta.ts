@@ -1,4 +1,5 @@
 import type { BlockKind, CustomBlockKind } from "@repo/schemas";
+import type { TFunction } from "i18next";
 import type { IconType } from "react-icons";
 import {
   FiBriefcase,
@@ -12,65 +13,71 @@ import {
   FiVideo,
 } from "react-icons/fi";
 
-export const BLOCK_META: Record<
-  BlockKind,
-  { label: string; description: string; Icon: IconType }
-> = {
-  header: {
-    label: "Profile header",
-    description: "Avatar, name, username and bio.",
-    Icon: FiUser,
-  },
-  links: {
-    label: "Links",
-    description: "Your public links list.",
-    Icon: FiLink2,
-  },
-  resume: {
-    label: "Resume",
-    description: "Professional summary and details.",
-    Icon: FiFileText,
-  },
-  work_experiences: {
-    label: "Work history",
-    description: "Your professional experience.",
-    Icon: FiBriefcase,
-  },
-  text: {
-    label: "Text",
-    description: "A rich block of custom text.",
-    Icon: FiType,
-  },
-  video: {
-    label: "Video",
-    description: "Embed a YouTube or Vimeo video.",
-    Icon: FiVideo,
-  },
-  image: {
-    label: "Image",
-    description: "A single image or a gallery.",
-    Icon: FiImage,
-  },
-  button: {
-    label: "Button",
-    description: "A call-to-action link button.",
-    Icon: FiMousePointer,
-  },
-  posts: {
-    label: "Posts",
-    description: "A feed of your published posts.",
-    Icon: FiRss,
-  },
-};
+export function getBlockMeta(
+  t: TFunction,
+): Record<BlockKind, { label: string; description: string; Icon: IconType }> {
+  return {
+    header: {
+      label: t("layout.block.header"),
+      description: t("layout.block.headerDescription"),
+      Icon: FiUser,
+    },
+    links: {
+      label: t("common.links"),
+      description: t("layout.block.linksDescription"),
+      Icon: FiLink2,
+    },
+    resume: {
+      label: t("common.resume"),
+      description: t("layout.block.resumeDescription"),
+      Icon: FiFileText,
+    },
+    work_experiences: {
+      label: t("common.workHistory"),
+      description: t("layout.block.workDescription"),
+      Icon: FiBriefcase,
+    },
+    text: {
+      label: t("common.text"),
+      description: t("layout.block.textDescription"),
+      Icon: FiType,
+    },
+    video: {
+      label: t("common.video"),
+      description: t("layout.block.videoDescription"),
+      Icon: FiVideo,
+    },
+    image: {
+      label: t("common.image"),
+      description: t("layout.block.imageDescription"),
+      Icon: FiImage,
+    },
+    button: {
+      label: t("common.button"),
+      description: t("layout.block.buttonDescription"),
+      Icon: FiMousePointer,
+    },
+    posts: {
+      label: t("common.posts"),
+      description: t("layout.block.postsDescription"),
+      Icon: FiRss,
+    },
+  };
+}
 
-/** Subset of BLOCK_META for the "add custom block" menu. */
-export const CUSTOM_BLOCK_META: Record<
+/** Subset of `getBlockMeta` for the "add custom block" menu. */
+export function getCustomBlockMeta(
+  t: TFunction,
+): Record<
   CustomBlockKind,
   { label: string; description: string; Icon: IconType }
-> = {
-  text: BLOCK_META.text,
-  video: BLOCK_META.video,
-  image: BLOCK_META.image,
-  button: BLOCK_META.button,
-  posts: BLOCK_META.posts,
-};
+> {
+  const blockMeta = getBlockMeta(t);
+  return {
+    text: blockMeta.text,
+    video: blockMeta.video,
+    image: blockMeta.image,
+    button: blockMeta.button,
+    posts: blockMeta.posts,
+  };
+}

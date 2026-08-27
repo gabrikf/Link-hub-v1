@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { clearAuthTokens } from "./auth-tokens";
 import { useUserInfoStore } from "./user-info-store";
 
@@ -16,6 +17,13 @@ import { useUserInfoStore } from "./user-info-store";
  * (App.tsx, so the redirect is a client-side route rather than a full reload).
  */
 
+/**
+ * English fallback / test fixture only. `handleSessionExpired` below resolves
+ * the message through `i18n.t(...)` at the moment it is parked, so the stored
+ * notice is in whatever language was active when the session expired — this
+ * constant is not read on that path, it exists so `session.test.ts` has a
+ * literal to assert against (the default locale renders identically).
+ */
 export const SESSION_EXPIRED_MESSAGE =
   "Your session expired, please sign in again.";
 
@@ -79,7 +87,7 @@ export function handleSessionExpired(): void {
   if (typeof window !== "undefined") {
     window.sessionStorage.setItem(
       SESSION_EXPIRED_STORAGE_KEY,
-      SESSION_EXPIRED_MESSAGE,
+      i18n.t("errors.sessionExpired"),
     );
   }
 

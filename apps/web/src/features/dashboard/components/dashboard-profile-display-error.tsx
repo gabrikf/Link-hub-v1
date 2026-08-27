@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 
@@ -19,6 +20,8 @@ export function DashboardProfileDisplayError({
   onRetry,
   isRetrying,
 }: DashboardProfileDisplayErrorProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-500/40 dark:bg-red-500/10">
       <div className="flex items-start gap-3">
@@ -31,11 +34,10 @@ export function DashboardProfileDisplayError({
             role="alert"
             className="text-sm font-semibold text-red-800 dark:text-red-200"
           >
-            Couldn’t load your profile
+            {t("dashboard.profileLoadErrorTitle")}
           </p>
           <p className="text-sm text-red-700 dark:text-red-300">
-            Nothing was lost — we just couldn’t reach the server. Your saved
-            name, description and images are still there.
+            {t("dashboard.profileLoadErrorBody")}
           </p>
         </div>
       </div>
@@ -46,11 +48,11 @@ export function DashboardProfileDisplayError({
         size="sm"
         fullWidth={false}
         isLoading={isRetrying}
-        loadingLabel="Retrying"
+        loadingLabel={t("common.retrying")}
         onClick={onRetry}
       >
         <FiRefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-        Try again
+        {t("common.tryAgain")}
       </Button>
     </div>
   );

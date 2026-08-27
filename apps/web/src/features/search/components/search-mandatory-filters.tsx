@@ -1,5 +1,6 @@
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { Input } from "../../../shared-components/input";
 import { SelectField } from "../../../shared-components/select";
 import type { AdvancedSearchFormValues } from "../types/advanced-search";
@@ -30,6 +31,8 @@ export function SearchMandatoryFilters({
   isOpen,
   onToggle,
 }: SearchMandatoryFiltersProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="mt-5 border-t border-zinc-200 pt-4 dark:border-zinc-800">
       <button
@@ -42,67 +45,68 @@ export function SearchMandatoryFilters({
         ) : (
           <FiChevronDown className="h-4 w-4" aria-hidden="true" />
         )}
-        Required filters — only show candidates who match these (optional)
+        {t("search.mandatoryFilters")}
       </button>
 
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-        These are hard requirements, not preferences. Anything you set here
-        removes candidates who don&apos;t match — the AI still ranks whoever
-        passes. Leave a field empty to ignore it.
+        {t("search.mandatoryFiltersHelp")}
       </p>
 
       {isOpen ? (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <SelectField
             id="filter-contract-types"
-            label="Contract type"
+            label={t("common.contractType")}
             name="contractTypes"
             control={control}
             isMulti
             closeMenuOnSelect={false}
             options={CONTRACT_TYPE_OPTIONS.map((item) => ({
               value: item,
-              label: item,
+              label: t(`enum.contractType.${item}`),
             }))}
           />
 
           <SelectField
             id="filter-seniority"
-            label="Seniority"
+            label={t("common.seniority")}
             name="seniorityLevels"
             control={control}
             isMulti
             closeMenuOnSelect={false}
             options={SENIORITY_OPTIONS.map((item) => ({
               value: item,
-              label: item,
+              label: t(`enum.seniority.${item}`),
             }))}
           />
 
           <SelectField
             id="filter-work-model"
-            label="Work model"
+            label={t("common.workModel")}
             name="workModels"
             control={control}
             isMulti
             closeMenuOnSelect={false}
             options={WORK_MODEL_OPTIONS.map((item) => ({
               value: item,
-              label: item,
+              label: t(`enum.workModel.${item}`),
             }))}
           />
 
           <SelectField
             id="filter-open-to-relocation"
-            label="Open to relocation"
+            label={t("common.openToRelocation")}
             name="openToRelocation"
             control={control}
-            options={OPEN_TO_RELOCATION_OPTIONS}
+            options={OPEN_TO_RELOCATION_OPTIONS.map((option) => ({
+              value: option.value,
+              label: t(`common.${option.value}`),
+            }))}
           />
 
           <Input
             id="filter-min-years"
-            label="Min years experience"
+            label={t("search.minYears")}
             placeholder="0"
             inputMode="numeric"
             error={errors.minYearsExperience?.message}
@@ -111,7 +115,7 @@ export function SearchMandatoryFilters({
 
           <Input
             id="filter-max-years"
-            label="Max years experience"
+            label={t("search.maxYears")}
             placeholder="20"
             inputMode="numeric"
             error={errors.maxYearsExperience?.message}
@@ -120,32 +124,35 @@ export function SearchMandatoryFilters({
 
           <SelectField
             id="filter-locations"
-            label="Locations"
+            label={t("search.locations")}
             name="locations"
             control={control}
             options={LOCATION_OPTIONS}
             isMulti
             isCreatable
             closeMenuOnSelect={false}
-            helperText="Select multiple locations or type a new one"
+            helperText={t("search.selectLocationsPlaceholder")}
             className="sm:col-span-2 lg:col-span-3"
           />
 
           <SelectField
             id="filter-languages"
-            label="Languages"
+            label={t("common.languages")}
             name="spokenLanguages"
             control={control}
-            options={LANGUAGE_OPTIONS}
+            options={LANGUAGE_OPTIONS.map((option) => ({
+              value: option.value,
+              label: t(`enum.language.${option.value.toLowerCase()}`),
+            }))}
             isMulti
             isCreatable
             closeMenuOnSelect={false}
-            helperText="Select multiple languages or type a new one"
+            helperText={t("search.selectLanguagesPlaceholder")}
           />
 
           <SelectField
             id="filter-notice-period"
-            label="Notice period"
+            label={t("common.noticePeriod")}
             name="noticePeriods"
             control={control}
             options={NOTICE_PERIOD_OPTIONS}
@@ -156,31 +163,31 @@ export function SearchMandatoryFilters({
 
           <SelectField
             id="filter-mandatory-skills"
-            label="Skills"
+            label={t("common.skills")}
             name="mandatorySkills"
             control={control}
             options={SKILL_OPTIONS}
             isMulti
             isCreatable
             closeMenuOnSelect={false}
-            helperText="Required — candidates must have this to appear"
+            helperText={t("search.mandatoryHelper")}
           />
 
           <SelectField
             id="filter-mandatory-titles"
-            label="Titles"
+            label={t("common.titles")}
             name="mandatoryTitles"
             control={control}
             options={TITLE_OPTIONS}
             isMulti
             isCreatable
             closeMenuOnSelect={false}
-            helperText="Required — candidates must have this to appear"
+            helperText={t("search.mandatoryHelper")}
           />
 
           <Input
             id="filter-min-salary"
-            label="Min salary"
+            label={t("search.minSalary")}
             placeholder="3000"
             inputMode="numeric"
             error={errors.minSalary?.message}
@@ -189,7 +196,7 @@ export function SearchMandatoryFilters({
 
           <Input
             id="filter-max-salary"
-            label="Max salary"
+            label={t("search.maxSalary")}
             placeholder="8000"
             inputMode="numeric"
             error={errors.maxSalary?.message}
@@ -198,22 +205,22 @@ export function SearchMandatoryFilters({
 
           <Input
             id="filter-name-contains"
-            label="Name contains"
-            placeholder="Ana"
+            label={t("search.nameContains")}
+            placeholder={t("search.namePlaceholder")}
             {...register("nameContains")}
           />
 
           <Input
             id="filter-username-contains"
-            label="Username contains"
+            label={t("search.usernameContains")}
             placeholder="ana.dev"
             {...register("usernameContains")}
           />
 
           <Input
             id="filter-profile-text-contains"
-            label="Profile text contains"
-            placeholder="distributed systems"
+            label={t("search.profileTextContains")}
+            placeholder={t("search.profileTextPlaceholder")}
             className="sm:col-span-2 lg:col-span-3"
             {...register("profileTextContains")}
           />

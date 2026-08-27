@@ -1,4 +1,5 @@
 import { memo, useState, type Ref } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import type {
   RecruiterSearchWorkEvidence,
@@ -59,12 +60,13 @@ type WorkHistoryProps = {
  * be three lines of `title · company — 6 stack items` with no dates at all.
  */
 function WorkHistory({ experiences }: WorkHistoryProps) {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (experiences.length === 0) {
     return (
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        No work history listed
+        {t("search.noWorkHistory")}
       </p>
     );
   }
@@ -89,8 +91,16 @@ function WorkHistory({ experiences }: WorkHistoryProps) {
             experience.endDate,
             experience.isCurrent,
           );
+          // Same wire values as the candidate chips above, same catalogue.
           const arrangement = [experience.employmentType, experience.workModel]
             .filter((value): value is string => Boolean(value))
+            .map((value) =>
+              t(`enum.contractType.${value}`, {
+                defaultValue: t(`enum.workModel.${value}`, {
+                  defaultValue: value,
+                }),
+              }),
+            )
             .join(" · ");
 
           return (
@@ -102,13 +112,15 @@ function WorkHistory({ experiences }: WorkHistoryProps) {
                 {experience.title}
                 <span className="text-zinc-500 dark:text-zinc-400">
                   {" "}
-                  at {experience.companyName}
+                  {t("search.atCompany", {
+                    companyName: experience.companyName,
+                  })}
                 </span>
                 {experience.isCurrent ? (
                   <span
                     className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${BADGE.success}`}
                   >
-                    Current
+                    {t("common.current")}
                   </span>
                 ) : null}
               </p>
@@ -153,12 +165,12 @@ function WorkHistory({ experiences }: WorkHistoryProps) {
           {isExpanded ? (
             <>
               <FiChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
-              Show fewer roles
+              {t("search.showFewerRoles")}
             </>
           ) : (
             <>
               <FiChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-              Show {hiddenCount} more role{hiddenCount === 1 ? "" : "s"}
+              {t("search.moreRoles", { count: hiddenCount })}
             </>
           )}
         </button>
@@ -177,6 +189,8 @@ type ShippedWorkProps = {
  * closest thing here to "here is what this person actually built".
  */
 function ShippedWork({ evidence }: ShippedWorkProps) {
+  const { t } = useTranslation();
+
   if (evidence.length === 0) {
     return null;
   }
@@ -185,7 +199,7 @@ function ShippedWork({ evidence }: ShippedWorkProps) {
     <div className="mt-3">
       <p className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
         <FiGitCommit className="h-3.5 w-3.5" aria-hidden="true" />
-        Shipped work
+        {t("search.shippedWork")}
       </p>
 
       <ul className="mt-1.5 space-y-2">
@@ -224,7 +238,7 @@ function ShippedWork({ evidence }: ShippedWorkProps) {
                     className="inline-flex items-center gap-1 text-xs text-violet-700 hover:underline dark:text-violet-300"
                   >
                     <FiExternalLink className="h-3 w-3" aria-hidden="true" />
-                    Source
+                    {t("common.source")}
                   </a>
                 ) : null}
               </div>
@@ -263,6 +277,7 @@ const CandidateCard = memo(function CandidateCard({
   onViewProfile,
   onNotRelevant,
 }: CandidateCardProps) {
+  const { t } = useTranslation();
   const match = describeMatch(candidate.aiScore);
   const years = candidate.totalYearsExperience;
   // Local only: the card stays on screen (the recruiter may have mis-tapped)
@@ -312,18 +327,18 @@ const CandidateCard = memo(function CandidateCard({
           </div>
 
           <p className="mt-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
-            {candidate.headlineTitle ?? "Candidate without headline"}
+            {candidate.headlineTitle ?? t("search.noHeadline")}
             {years !== null ? (
               <span className="text-zinc-500 dark:text-zinc-400">
                 {" "}
-                · {years} year{years === 1 ? "" : "s"} of experience
+                · {t("search.yearsOfExperience", { count: years })}
               </span>
             ) : null}
           </p>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             {candidate.summary ??
               candidate.profileDescription ??
-              "No summary provided"}
+              t("search.noSummary")}
           </p>
         </div>
 
@@ -353,7 +368,7 @@ const CandidateCard = memo(function CandidateCard({
             onClick={() => onCopyEmail(candidate, index)}
           >
             <FiMail className="h-4 w-4" aria-hidden="true" />
-            Reveal Email
+            {t("search.revealEmail")}
           </Button>
 
           {/* The only explicit negative a recruiter can give us. Everything
@@ -369,7 +384,9 @@ const CandidateCard = memo(function CandidateCard({
             className={`inline-flex cursor-pointer items-center gap-1 rounded-sm text-xs font-medium text-zinc-500 hover:text-zinc-700 disabled:cursor-default disabled:no-underline dark:text-zinc-400 dark:hover:text-zinc-200 ${FOCUS_RING}`}
           >
             <FiThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
-            {isDismissed ? "Marked not relevant" : "Not relevant"}
+            {isDismissed
+              ? t("search.markedNotRelevant")
+              : t("search.notRelevant")}
           </button>
         </div>
       </div>
@@ -377,22 +394,47 @@ const CandidateCard = memo(function CandidateCard({
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-400">
         <span className={CHIP_CLASS}>
           <FiMapPin className="h-3.5 w-3.5" aria-hidden="true" />
-          {candidate.location ?? "Unknown location"}
+          {candidate.location ?? t("search.unknownLocation")}
+        </span>
+        {/*
+          These three carry the API's wire value ("senior", "on-site",
+          "full-time"), which used to be rendered raw — English lowercase, on
+          every locale. The enum catalogue is keyed by that same wire value, so
+          the lookup is direct; `defaultValue` keeps a value the catalogue does
+          not know about rendering as itself rather than as a raw key.
+        */}
+        <span className={CHIP_CLASS}>
+          {candidate.seniorityLevel
+            ? t(`enum.seniority.${candidate.seniorityLevel}`, {
+                defaultValue: candidate.seniorityLevel,
+              })
+            : t("search.seniorityUnknown")}
         </span>
         <span className={CHIP_CLASS}>
-          {candidate.seniorityLevel ?? "seniority n/a"}
+          {candidate.workModel
+            ? t(`enum.workModel.${candidate.workModel}`, {
+                defaultValue: candidate.workModel,
+              })
+            : t("search.workModelUnknown")}
         </span>
         <span className={CHIP_CLASS}>
-          {candidate.workModel ?? "work model n/a"}
-        </span>
-        <span className={CHIP_CLASS}>
-          {candidate.contractType ?? "contract n/a"}
+          {candidate.contractType
+            ? t(`enum.contractType.${candidate.contractType}`, {
+                defaultValue: candidate.contractType,
+              })
+            : t("search.contractUnknown")}
         </span>
         {candidate.noticePeriod ? (
-          <span className={CHIP_CLASS}>Notice: {candidate.noticePeriod}</span>
+          <span className={CHIP_CLASS}>
+            {t("search.noticePeriodValue", {
+              noticePeriod: candidate.noticePeriod,
+            })}
+          </span>
         ) : null}
         <span className={CHIP_CLASS}>
-          Relocation {candidate.openToRelocation ? "yes" : "no"}
+          {t("search.relocationValue", {
+            answer: candidate.openToRelocation ? "yes" : "no",
+          })}
         </span>
       </div>
 
@@ -400,7 +442,7 @@ const CandidateCard = memo(function CandidateCard({
       <section className="mt-4 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-800/60">
         <h3 className="inline-flex items-center gap-1 text-xs font-semibold tracking-wide text-zinc-700 uppercase dark:text-zinc-200">
           <FiBriefcase className="h-3.5 w-3.5" aria-hidden="true" />
-          Proof of work
+          {t("search.proofOfWork")}
         </h3>
 
         <div className="mt-2">
@@ -413,32 +455,32 @@ const CandidateCard = memo(function CandidateCard({
       {/* Secondary detail — self-declared, so it sits below the real evidence. */}
       <div className="mt-3 grid gap-2 text-xs text-zinc-600 dark:text-zinc-400 sm:grid-cols-3">
         <div className={PANEL_CLASS}>
-          <p className="font-semibold">Skills</p>
+          <p className="font-semibold">{t("common.skills")}</p>
           <p className="mt-1 line-clamp-2">
             {candidate.skills.length > 0
               ? candidate.skills.join(", ")
-              : "No skills listed"}
+              : t("search.noSkillsListed")}
           </p>
         </div>
 
         <div className={PANEL_CLASS}>
-          <p className="font-semibold">Titles</p>
+          <p className="font-semibold">{t("common.titles")}</p>
           <p className="mt-1 line-clamp-2">
             {candidate.titles.length > 0
               ? candidate.titles.join(", ")
-              : "No titles listed"}
+              : t("search.noTitlesListed")}
           </p>
         </div>
 
         <div className={PANEL_CLASS}>
           <p className="inline-flex items-center gap-1 font-semibold">
             <FiGlobe className="h-3.5 w-3.5" aria-hidden="true" />
-            Languages
+            {t("common.languages")}
           </p>
           <p className="mt-1 line-clamp-2">
             {candidate.spokenLanguages.length > 0
               ? candidate.spokenLanguages.join(", ")
-              : "No languages listed"}
+              : t("search.noLanguagesListed")}
           </p>
         </div>
       </div>
@@ -513,6 +555,7 @@ const noopAction: CandidateAction = () => {};
  * its text is unreliably announced.
  */
 function describeSearchOutcome(
+  t: ReturnType<typeof useTranslation>["t"],
   isBusy: boolean,
   hasSearched: boolean,
   resultCount: number,
@@ -525,10 +568,10 @@ function describeSearchOutcome(
     // Deliberately not the empty state's own wording: focus lands on this
     // region, so the reader meets that paragraph — and its remediation advice
     // — a moment later. Announcing it twice is noise.
-    return "No candidates found.";
+    return t("search.noCandidatesFound");
   }
 
-  return `${resultCount} candidate${resultCount === 1 ? "" : "s"} found.`;
+  return t("search.candidatesFound", { count: resultCount });
 }
 
 export function SearchResults({
@@ -541,6 +584,7 @@ export function SearchResults({
   onNotRelevant = noopAction,
   ref,
 }: SearchResultsProps) {
+  const { t } = useTranslation();
   // A search in flight used to render nothing at all — no cards, no empty
   // state — so the page looked broken for the seconds the reranker takes.
   const isLoadingFirstResults = isBusy && results.length === 0;
@@ -559,14 +603,14 @@ export function SearchResults({
     >
       <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 id={RESULTS_HEADING_ID} className="text-base font-semibold">
-          Results
+          {t("common.results")}
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           {isBusy
-            ? "Ranking candidates…"
+            ? t("search.rankingCandidates")
             : hasSearched
-              ? `${results.length} candidates re-ranked locally`
-              : "Re-ranked on your device"}
+              ? t("search.rerankedCount", { count: results.length })
+              : t("search.rerankedOnDevice")}
         </p>
       </header>
 
@@ -577,7 +621,7 @@ export function SearchResults({
           carries two status roles — the degraded-ranking notice and the
           loading label — and a third would compete with them for no gain. */}
       <p className="sr-only" aria-live="polite" aria-atomic="true">
-        {describeSearchOutcome(isBusy, hasSearched, results.length)}
+        {describeSearchOutcome(t, isBusy, hasSearched, results.length)}
       </p>
 
       {/* What the % on each card means. This lived only in a native `title=`
@@ -585,10 +629,9 @@ export function SearchResults({
           touch — so "62%" read as a probability of something. */}
       <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
         <span className="font-medium text-zinc-700 dark:text-zinc-300">
-          Match
+          {t("common.match")}
         </span>{" "}
-        is how much of your search a candidate covers — skills, titles and real
-        work history weigh heaviest. It is not a probability of anything.
+        {t("search.matchExplainer")}
       </p>
 
       {/* Non-blocking on purpose: the candidates below are real and the search
@@ -605,7 +648,7 @@ export function SearchResults({
       <div className="grid gap-3">
         {isLoadingFirstResults ? (
           <>
-            <LoadingLabel>Searching candidates</LoadingLabel>
+            <LoadingLabel>{t("search.searching")}</LoadingLabel>
             {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
               <CandidateCardSkeleton key={index} index={index} />
             ))}
@@ -629,9 +672,7 @@ export function SearchResults({
           <p
             className={`px-4 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400 ${SURFACE_EMPTY}`}
           >
-            {hasSearched
-              ? "No candidates matched this search. Try removing a mandatory filter, widening the years of experience, or describing the role in less specific terms."
-              : "No results yet. Write in the chat box or upload a file to start."}
+            {hasSearched ? t("search.noMatchesHelp") : t("search.noResultsYet")}
           </p>
         ) : null}
       </div>

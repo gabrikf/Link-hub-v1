@@ -20,6 +20,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { FiExternalLink, FiLink2, FiUser } from "react-icons/fi";
 import type { PublicResumeResponse } from "../../../lib/auth-api";
 import { getLinkIconOption } from "../../../lib/link-icons";
@@ -100,6 +101,7 @@ export function ProfileBlocks({
   linksLoading = false,
   variant = "full",
 }: ProfileBlocksProps) {
+  const { t } = useTranslation();
   const isPreview = variant === "preview";
   const cols = GRID_COLUMNS[viewport];
 
@@ -223,7 +225,7 @@ export function ProfileBlocks({
                 </p>
               ) : (
                 <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  No profile description yet.
+                  {t("profile.noDescription")}
                 </p>
               )}
             </div>
@@ -234,7 +236,7 @@ export function ProfileBlocks({
           <div className="space-y-3">
             {linksLoading ? (
               <>
-                <LoadingLabel>Loading links</LoadingLabel>
+                <LoadingLabel>{t("dashboard.loadingLinks")}</LoadingLabel>
                 <ProfileLinksSkeleton />
               </>
             ) : links.length > 0 ? (
@@ -285,7 +287,7 @@ export function ProfileBlocks({
               <div
                 className={`px-4 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400 ${SURFACE_EMPTY}`}
               >
-                No public links yet.
+                {t("profile.noLinks")}
               </div>
             )}
           </div>
@@ -298,9 +300,9 @@ export function ProfileBlocks({
           <ResumeReadOnlyCard
             resume={resume}
             isLoading={resumeLoading}
-            title="Resume"
-            subtitle="Professional summary"
-            emptyMessage="This user has not published resume details yet."
+            title={t("common.resume")}
+            subtitle={t("profile.professionalSummary")}
+            emptyMessage={t("profile.noResumeDetails")}
             surfaceClassName={SURFACE_PROFILE}
           />
         );
@@ -309,7 +311,7 @@ export function ProfileBlocks({
           <WorkHistoryReadOnly
             workExperiences={workExperiences}
             isLoading={workLoading}
-            subtitle="Professional experience"
+            subtitle={t("common.professionalExperience")}
             surfaceClassName={SURFACE_PROFILE}
           />
         );
@@ -394,7 +396,7 @@ export function ProfileBlocks({
       {orderedTabs.length > 1 ? (
         <div
           role="tablist"
-          aria-label="Profile sections"
+          aria-label={t("profile.sections")}
           className="flex flex-wrap justify-center gap-2"
           onKeyDown={handleTabKeyDown}
         >
@@ -483,6 +485,7 @@ function TextBlock({ config }: { config: TextBlockConfig | null }) {
 }
 
 function VideoBlock({ config }: { config: VideoBlockConfig | null }) {
+  const { t } = useTranslation();
   if (!config) {
     return null;
   }
@@ -515,7 +518,7 @@ function VideoBlock({ config }: { config: VideoBlockConfig | null }) {
         >
           <iframe
             src={embedUrl}
-            title={config.title ?? "Embedded video"}
+            title={config.title ?? t("profile.embeddedVideo")}
             className="absolute inset-0 h-full w-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
@@ -526,7 +529,7 @@ function VideoBlock({ config }: { config: VideoBlockConfig | null }) {
         <div
           className={`px-4 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400 ${SURFACE_EMPTY}`}
         >
-          Unable to embed this video URL.
+          {t("profile.videoEmbedFailed")}
         </div>
       )}
     </div>
@@ -653,6 +656,7 @@ function PostsBlock({
   username: string;
   config: PostsBlockConfig | null;
 }) {
+  const { t } = useTranslation();
   const limit = config?.limit ?? 5;
   const layout = config?.layout ?? "list";
   const tagFilter = config?.tag?.trim().toLowerCase();
@@ -680,16 +684,16 @@ function PostsBlock({
 
       {postsQuery.isLoading ? (
         <>
-          <LoadingLabel>Loading posts</LoadingLabel>
+          <LoadingLabel>{t("profile.loadingPosts")}</LoadingLabel>
           <PostsBlockSkeleton layout={layout} count={Math.min(limit, 3)} />
         </>
       ) : postsQuery.isError ? (
         <p className="text-sm text-red-600">
-          Could not load posts. Please try again.
+          {t("profile.postsLoadFailed")}
         </p>
       ) : posts.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          No posts published yet.
+          {t("profile.noPosts")}
         </p>
       ) : (
         <div
@@ -736,7 +740,7 @@ function PostsBlock({
                         href={href}
                         target="_blank"
                         rel="noreferrer"
-                        aria-label="Open external link"
+                        aria-label={t("profile.openExternalLink")}
                         className="accent-text-hover -my-2 -mr-2 ml-auto inline-flex min-h-[40px] min-w-[40px] items-center justify-center p-2 text-zinc-400 transition"
                       >
                         <FiExternalLink className="h-4 w-4" aria-hidden="true" />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiCheck, FiShare2 } from "react-icons/fi";
 import { reportError, reportHandled } from "../../../lib/report-error";
 
@@ -18,6 +19,7 @@ export function ProfileShareButton({
   name,
   className,
 }: ProfileShareButtonProps) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -40,8 +42,8 @@ export function ProfileShareButton({
 
   const handleShare = useCallback(async () => {
     const shareData = {
-      title: `${name} · LinkHub`,
-      text: `Check out ${name}'s profile`,
+      title: t("profile.documentTitle", { name }),
+      text: t("profile.shareText", { name }),
       url,
     };
 
@@ -68,13 +70,13 @@ export function ProfileShareButton({
       // Clipboard unavailable (e.g. insecure context) — no-op.
       reportHandled(error, { action: "profile.share-copy" });
     }
-  }, [flashCopied, name, url]);
+  }, [flashCopied, name, t, url]);
 
   return (
     <button
       type="button"
       onClick={handleShare}
-      aria-label="Share this profile"
+      aria-label={t("profile.shareThisProfile")}
       className={[
         "inline-flex items-center gap-1.5 rounded-full border border-white/40 bg-black/35 px-3 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur transition hover:bg-black/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
         className ?? "",
@@ -85,12 +87,12 @@ export function ProfileShareButton({
       {copied ? (
         <>
           <FiCheck className="h-3.5 w-3.5" aria-hidden="true" />
-          Copied
+          {t("common.copied")}
         </>
       ) : (
         <>
           <FiShare2 className="h-3.5 w-3.5" aria-hidden="true" />
-          Share
+          {t("common.share")}
         </>
       )}
     </button>

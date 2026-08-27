@@ -24,6 +24,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import {
   FiAlertCircle,
   FiCheck,
@@ -63,7 +64,7 @@ import { Input } from "../../../shared-components/input";
 import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
 import { SURFACE } from "../../../shared-components/surface";
 import { PublicProfilePreview } from "../../profile/components/public-profile-preview";
-import { CUSTOM_BLOCK_META } from "../block-meta";
+import { getCustomBlockMeta } from "../block-meta";
 import { ButtonBlockDialog } from "../components/button-block-dialog";
 import { EditorGrid } from "../components/editor-grid";
 import { EditorGridSkeleton } from "../components/editor-grid-skeleton";
@@ -152,6 +153,8 @@ function SaveIndicator({
   status: SaveStatus;
   onRetry: () => void;
 }) {
+  const { t } = useTranslation();
+
   if (status === "error") {
     return (
       <Button
@@ -163,7 +166,7 @@ function SaveIndicator({
         onClick={onRetry}
       >
         <FiAlertCircle className="h-4 w-4" aria-hidden="true" />
-        Couldn&apos;t save — retry
+        {t("layout.saveFailedRetry")}
       </Button>
     );
   }
@@ -177,7 +180,7 @@ function SaveIndicator({
       {status === "saving" ? (
         <>
           <FiLoader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-          Saving…
+          {t("common.saving")}
         </>
       ) : status === "saved" ? (
         <>
@@ -185,10 +188,10 @@ function SaveIndicator({
             className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400"
             aria-hidden="true"
           />
-          All changes saved
+          {t("layout.allChangesSaved")}
         </>
       ) : (
-        "Changes save automatically"
+        t("layout.autosaveNotice")
       )}
     </span>
   );
@@ -215,6 +218,8 @@ function LayoutLoadFailed({
   onRetry: () => void;
   isRetrying: boolean;
 }) {
+  const { t } = useTranslation();
+
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col items-center px-4 py-16">
       <div className={`${SURFACE} anim-fade-up w-full p-8 text-center`}>
@@ -224,11 +229,10 @@ function LayoutLoadFailed({
         {/* role="alert" on the wrapper, so the heading keeps its heading role. */}
         <div role="alert">
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            Couldn&apos;t load your layout
+            {t("layout.loadErrorTitle")}
           </h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-            Your tabs and blocks are still there — we just couldn&apos;t read
-            them right now. Nothing on your profile has changed.
+            {t("layout.loadErrorBody")}
           </p>
         </div>
         <div className="mt-6 flex justify-center">
@@ -236,11 +240,11 @@ function LayoutLoadFailed({
             type="button"
             fullWidth={false}
             isLoading={isRetrying}
-            loadingLabel="Try again"
+            loadingLabel={t("common.tryAgain")}
             onClick={onRetry}
           >
             <FiRefreshCw className="h-4 w-4" aria-hidden="true" />
-            Try again
+            {t("common.tryAgain")}
           </Button>
         </div>
       </div>
@@ -249,6 +253,7 @@ function LayoutLoadFailed({
 }
 
 export function ProfileLayoutPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userInfo = useUserInfoStore((state) => state.userInfo);
@@ -675,7 +680,7 @@ export function ProfileLayoutPage() {
   /* ------------------------------- Handlers -------------------------------- */
 
   const handleAddTab = () => {
-    const title = `Tab ${orderedTabs.length + 1}`;
+    const title = t("layout.tabNumber", { number: orderedTabs.length + 1 });
     createTabMutation.mutate({ viewport, title });
   };
 
@@ -810,6 +815,7 @@ export function ProfileLayoutPage() {
     editingBlock && CUSTOM_KINDS.includes(editingBlock.kind as CustomBlockKind)
       ? (editingBlock.kind as CustomBlockKind)
       : addKind;
+  const customBlockMeta = getCustomBlockMeta(t);
 
   // NOTE: the "Show links" / "Show resume" pills that used to live in the
   // add-block row are gone. They competed with the in-card Visible switch for
@@ -870,12 +876,26 @@ export function ProfileLayoutPage() {
         */}
         {isTooNarrow ? null : (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+            {/* `Trans`, not `t`: the emphasis belongs on the viewport word,
+                and which word that is sits in a different place in each of the
+                three languages. The `<strong>` slot in the locale value maps
+                onto the span below, so word order stays the translator's call
+                and the styling stays ours. */}
             <span>
-              Editing the{" "}
-              <span className="font-semibold text-zinc-700 dark:text-zinc-200">
-                {viewport === "pc" ? "desktop" : "mobile"}
-              </span>{" "}
-              layout — desktop and mobile keep their own tabs and arrangement.
+              <Trans
+                i18nKey="layout.editingViewport"
+                values={{
+                  viewportLabel:
+                    viewport === "pc"
+                      ? t("layout.viewport.desktopLower")
+                      : t("layout.viewport.mobileLower"),
+                }}
+                components={{
+                  strong: (
+                    <span className="font-semibold text-zinc-700 dark:text-zinc-200" />
+                  ),
+                }}
+              />
             </span>
             <span
               aria-hidden="true"
@@ -888,12 +908,10 @@ export function ProfileLayoutPage() {
         )}
 
         <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl dark:text-zinc-100">
-          Profile layout
+          {t("common.profileLayout")}
         </h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Design independent layouts for desktop and mobile. Arrange blocks in a
-          freeform grid, group them into content tabs — each viewport has its
-          own — and pin blocks so they show everywhere.
+          {t("layout.pageSubtitle")}
         </p>
       </header>
 
@@ -910,13 +928,10 @@ export function ProfileLayoutPage() {
             <FiMonitor className="h-6 w-6" aria-hidden="true" />
           </span>
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            Open the layout studio on a larger screen
+            {t("layout.needsWiderScreen")}
           </h2>
           <p className="max-w-sm text-sm text-zinc-600 dark:text-zinc-400">
-            Arranging blocks needs a canvas at least 1024px wide — on this
-            screen a grid column would be about 15px across. Your published
-            profile is unaffected, and you can still design the mobile layout
-            from a desktop browser.
+            {t("layout.needsWiderScreenBody")}
           </p>
         </section>
       ) : (
@@ -928,10 +943,10 @@ export function ProfileLayoutPage() {
             >
               {(
                 [
-                  { value: "pc", label: "PC layout", Icon: FiMonitor },
+                  { value: "pc", label: t("layout.pcLayout"), Icon: FiMonitor },
                   {
                     value: "mobile",
-                    label: "Mobile layout",
+                    label: t("layout.mobileLayout"),
                     Icon: FiSmartphone,
                   },
                 ] as const
@@ -970,14 +985,14 @@ export function ProfileLayoutPage() {
               fullWidth={false}
               className="justify-center rounded-2xl"
               isLoading={isLayoutLoading || meQuery.isLoading}
-              loadingLabel="Preview"
+              loadingLabel={t("common.preview")}
               onClick={() => {
                 setPreviewDevice(viewport);
                 setPreviewOpen(true);
               }}
             >
               <FiEye className="h-4 w-4" aria-hidden="true" />
-              Preview
+              {t("common.preview")}
             </Button>
           </div>
 
@@ -985,10 +1000,10 @@ export function ProfileLayoutPage() {
           <section className="anim-fade-up space-y-3 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-500/30 dark:bg-violet-500/5">
             <div>
               <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                Shown on all tabs
+                {t("layout.shownOnAllTabs")}
               </h2>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Pinned blocks render above the tab content on every tab.
+                {t("layout.pinnedHelp")}
               </p>
             </div>
             {isLayoutLoading ? (
@@ -996,7 +1011,7 @@ export function ProfileLayoutPage() {
                 cols={cols}
                 viewport={viewport}
                 spans={PINNED_SKELETON_SPANS(cols)}
-                label="Loading pinned blocks"
+                label={t("layout.loadingPinned")}
               />
             ) : (
               <EditorGrid
@@ -1005,7 +1020,7 @@ export function ProfileLayoutPage() {
                 viewport={viewport}
                 onChange={(items) => persistPositions(items, "pinned")}
                 renderCard={renderCard}
-                emptyMessage="No pinned blocks. Toggle a block's “All tabs” switch to pin it here."
+                emptyMessage={t("layout.noPinnedBlocks")}
               />
             )}
           </section>
@@ -1015,7 +1030,7 @@ export function ProfileLayoutPage() {
             <div className="flex flex-wrap items-center gap-2">
               {isLayoutLoading ? (
                 <>
-                  <LoadingLabel>Loading tabs</LoadingLabel>
+                  <LoadingLabel>{t("layout.loadingTabs")}</LoadingLabel>
                   {TAB_PILL_SKELETON_WIDTHS.map((width) => (
                     <Skeleton
                       key={width}
@@ -1041,7 +1056,9 @@ export function ProfileLayoutPage() {
                   >
                     <button
                       type="button"
-                      aria-label={`Move ${tab.title} left`}
+                      aria-label={t("layout.moveTabLeft", {
+                        tabTitle: tab.title,
+                      })}
                       disabled={index === 0}
                       onClick={() => moveTab(tab.id, -1)}
                       className="text-zinc-400 hover:text-zinc-700 disabled:opacity-30 dark:hover:text-zinc-200"
@@ -1062,7 +1079,9 @@ export function ProfileLayoutPage() {
                     </button>
                     <button
                       type="button"
-                      aria-label={`Rename ${tab.title}`}
+                      aria-label={t("layout.renameTabNamed", {
+                        tabTitle: tab.title,
+                      })}
                       onClick={() => {
                         setRenameTarget(tab);
                         setRenameValue(tab.title);
@@ -1082,11 +1101,15 @@ export function ProfileLayoutPage() {
                       variant="ghost"
                       size="icon"
                       fullWidth={false}
-                      aria-label={`Delete ${tab.title}`}
+                      aria-label={t("layout.deleteTabNamed", {
+                        tabTitle: tab.title,
+                      })}
                       disabled={orderedTabs.length <= 1}
                       shouldHaveConfirmation
-                      confirmationTitle={`Delete “${tab.title}”?`}
-                      confirmationDescription="The tab is removed from this layout only — the other viewport keeps its own tabs. Blocks inside it move to the first tab of this layout, and pinned blocks are untouched."
+                      confirmationTitle={t("layout.deleteTabTitle", {
+                        tabTitle: tab.title,
+                      })}
+                      confirmationDescription={t("layout.deleteTabBody")}
                       onClick={() => handleDeleteTab(tab.id)}
                       className="h-6 w-6 p-0 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
                     >
@@ -1094,7 +1117,9 @@ export function ProfileLayoutPage() {
                     </Button>
                     <button
                       type="button"
-                      aria-label={`Move ${tab.title} right`}
+                      aria-label={t("layout.moveTabRight", {
+                        tabTitle: tab.title,
+                      })}
                       disabled={index === orderedTabs.length - 1}
                       onClick={() => moveTab(tab.id, 1)}
                       className="text-zinc-400 hover:text-zinc-700 disabled:opacity-30 dark:hover:text-zinc-200"
@@ -1117,7 +1142,7 @@ export function ProfileLayoutPage() {
                 onClick={handleAddTab}
               >
                 <FiPlus className="h-4 w-4" aria-hidden="true" />
-                Add tab
+                {t("layout.addTab")}
               </Button>
             </div>
 
@@ -1135,18 +1160,18 @@ export function ProfileLayoutPage() {
                 onClick={() => setAddMenuOpen((open) => !open)}
               >
                 <FiPlus className="h-4 w-4" aria-hidden="true" />
-                Add block
+                {t("layout.addBlock")}
               </Button>
 
               {addMenuOpen ? (
                 <div
                   role="menu"
-                  aria-label="Add a custom block"
+                  aria-label={t("layout.addCustomBlock")}
                   className="absolute left-0 top-12 z-20 w-64 space-y-1 rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
                 >
-                  {(Object.keys(CUSTOM_BLOCK_META) as CustomBlockKind[]).map(
+                  {(Object.keys(customBlockMeta) as CustomBlockKind[]).map(
                     (kind) => {
-                      const meta = CUSTOM_BLOCK_META[kind];
+                      const meta = customBlockMeta[kind];
                       return (
                         <button
                           key={kind}
@@ -1175,16 +1200,14 @@ export function ProfileLayoutPage() {
 
             {/* Active tab grid */}
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Tip: drag any edge or corner of a block to resize it — make blocks
-              narrower to place them side by side. Blocks always stack to the
-              top, so moving one pushes the others up to fill the space.
+              {t("layout.resizeTip")}
             </p>
             {isLayoutLoading ? (
               <EditorGridSkeleton
                 cols={cols}
                 viewport={viewport}
                 spans={TAB_SKELETON_SPANS(cols)}
-                label="Loading layout blocks"
+                label={t("layout.loadingBlocks")}
               />
             ) : (
               <EditorGrid
@@ -1195,7 +1218,7 @@ export function ProfileLayoutPage() {
                   persistPositions(items, `tab:${activeTab?.id ?? "none"}`)
                 }
                 renderCard={renderCard}
-                emptyMessage="This tab has no blocks yet. Use “Add block” to place one."
+                emptyMessage={t("layout.tabEmpty")}
               />
             )}
           </section>
@@ -1206,7 +1229,7 @@ export function ProfileLayoutPage() {
       <Dialog
         open={previewOpen}
         onOpenChange={setPreviewOpen}
-        title="Live preview"
+        title={t("common.livePreview")}
         contentClassName="w-[96vw] max-w-6xl"
       >
         <div className="space-y-4">
@@ -1214,8 +1237,16 @@ export function ProfileLayoutPage() {
             <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
               {(
                 [
-                  { value: "pc", label: "Desktop", Icon: FiMonitor },
-                  { value: "mobile", label: "Mobile", Icon: FiSmartphone },
+                  {
+                    value: "pc",
+                    label: t("layout.viewport.desktop"),
+                    Icon: FiMonitor,
+                  },
+                  {
+                    value: "mobile",
+                    label: t("layout.viewport.mobile"),
+                    Icon: FiSmartphone,
+                  },
                 ] as const
               ).map((option) => {
                 const isActive = previewDevice === option.value;
@@ -1267,7 +1298,7 @@ export function ProfileLayoutPage() {
             setRenameTarget(null);
           }
         }}
-        title="Rename tab"
+        title={t("layout.renameTab")}
       >
         {/*
           A `<form>`, not a `<div>`: the body used to be a plain div, so Enter
@@ -1284,7 +1315,7 @@ export function ProfileLayoutPage() {
         >
           <Input
             id="rename-tab"
-            label="Tab title"
+            label={t("layout.tabTitle")}
             value={renameValue}
             maxLength={40}
             autoFocus
@@ -1297,14 +1328,14 @@ export function ProfileLayoutPage() {
               fullWidth={false}
               onClick={() => setRenameTarget(null)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
               fullWidth={false}
               disabled={renameValue.trim().length === 0}
             >
-              Save
+              {t("common.save")}
             </Button>
           </div>
         </form>
