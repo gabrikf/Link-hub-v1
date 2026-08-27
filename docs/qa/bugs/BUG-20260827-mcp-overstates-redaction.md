@@ -175,3 +175,92 @@ six categories needs heuristics or a model call — unbounded false-positive rat
 against a deploy tomorrow — and stays recorded as its own task.
 
 Evidence: `.nightly/evidence/i108-mcp-overstates-redaction.txt`.
+
+---
+
+## Verification — REVIEW_FIX, iteration 110: **APPROVED**
+
+Red `9444527` → fix `493342e` (follow-up doc `277bea0`). Status: **fixed**.
+
+### Red → green, proved mechanically
+
+The fix commit edits two assertions inside its own red test file, so checking out
+`9444527` wholesale would have run the *old* test text. The narrower, stronger
+form was used instead — keep today's tests, revert only the five product files:
+
+```bash
+git checkout 9444527 -- apps/mcp/src/tools/get-work-context.ts \
+    apps/mcp/src/prompts/shared.ts apps/mcp/src/resources/post-guidelines.ts \
+    apps/mcp/src/api-client.ts \
+    apps/api/src/infra/http/controllers/agent-policy/agent-policy-controller.ts
+# apps/mcp: Test Files 3 failed (3) — Tests 12 failed | 143 passed (155)
+git checkout HEAD -- <the same five>
+# apps/mcp: 155 passed (155); whole workspace suite 269 passed (269)
+```
+
+All 12 failures are a copy string — no import error, no bad selector, no missing
+fixture. The count is 12 rather than the 11 quoted in the red commit body because
+the pre-existing `renders the header…` test also fails once the fix's corrected
+pins are in place; that is expected under this review form.
+
+### Live re-walk — real MCP server, real api, real PAT
+
+Logged in as `seed.python-data.042@linkhub.local` (`POST /auth/login`), minted a
+PAT (`POST /me/tokens`), and drove `npx tsx src/index.ts` over stdio with the
+real `@modelcontextprotocol/sdk` client. `GET /me/work-context` returned
+`disclosureLevel: "summary"`, 4 roles, `companyName: null` throughout — the one
+enforced category is live.
+
+What the agent now reads:
+
+- **tool description** — "…with the employer and client names on their denylist
+  ALREADY STRIPPED by LinkHub, and nothing else removed."
+- **output header** — "…that is the ONLY category it removes. Ticket ids,
+  customer names, internal codenames, unreleased products, architecture details
+  and headcount figures are NOT stripped and may still appear below: leaving them
+  out of the post is your job, not LinkHub's."
+- **achievements label** — "- Achievements (employer and client names stripped;
+  nothing else is):"
+- **Step 7b** — "**Employer and client names are enforced, not advised.**" then
+  "**Every other item above is yours to enforce.**" The true HTTP 400 sentence is
+  kept verbatim.
+- **`linkhub://guides/post-quality`** — "the one place the user's blocked employer
+  and client names have already been stripped. Nothing else on this list is
+  stripped anywhere; keeping it out is your job."
+
+Grep for "already redacted" over the **live** prompt text and the **live**
+resource text: none, none. The harmful sentence — "Everything below is already
+redacted — publish only what appears here" — is gone from every agent-visible
+surface, and the useful half of it survives.
+
+PAT revoked afterwards (`DELETE /me/tokens/:id` → 200), confirmed `revoked_at IS
+NOT NULL` in psql. No posts created, no fixture rows left behind.
+
+### Fix review
+
+- **Root cause, not symptom.** The defect was a claim about enforcement that
+  enforcement never backed. The claim is now true, and the six unenforced
+  categories are explicitly reassigned to the agent.
+- **Enforcement byte-identical**, verified independently: the api policy suite
+  reports **379 passed (20 files)** — unchanged. `packages/schemas` untouched, so
+  no contract drift and nothing widened.
+- **No `no-workarounds` signal** in 38 insertions / 15 deletions of pure prose;
+  no scope creep, no reformatting, no rename.
+- **Edited tests** (`register.test.ts:955`, `:966`) are legitimate here — the copy
+  *is* the behaviour under change — and are declared in the commit body per
+  `AGENTS.md`. The replacements are real pins, not weakened ones.
+- `npm run check-types` → 8/8.
+
+### Residuals recorded, not blocking
+
+A repo-wide grep for "already redacted" still hits `apps/mcp/README.md:62` and
+`:305` (the shipped npm package docs), `apps/mcp/src/api-client.ts:90` (a doc
+comment in the file whose `:33` this fix corrected), and the two FIX declared as
+deliberate — `get-work-context.use-case.ts:168` (fenced off at triage) and
+`create-token-dialog.tsx:21` (web copy). None sits in the agent's prompt path, so
+none is a leak on its own. Filed as `CAND-0131` for a future triage.
+
+The other half of this bug — the api enforcing one of seven categories — remains
+open as `docs/qa/automation-backlog/AB-20260827-disclosure-enforces-one-of-seven.md`.
+
+Evidence: `.nightly/evidence/i110-review-mcp-overstates-redaction.txt`.
