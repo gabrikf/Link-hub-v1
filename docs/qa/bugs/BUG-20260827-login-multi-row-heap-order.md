@@ -1,6 +1,6 @@
 # BUG-20260827-login-multi-row-heap-order: when one mailbox exists twice in different cases, login returns a heap-order row — the other owner is locked out with correct credentials
 
-- **Status:** confirmed (triaged at iteration 102, claimed for FIX)
+- **Status:** fixed — `c9f0bd2` (red) → `a5ca96c` (fix), **approved** by independent review at iteration 104
 - **Impact (user-side):** Total sign-in lockout. The developer types their own exact address and their own password and gets `INVALIDCREDENTIALS`, forever, with no recovery path
 - **Severity:** Blocker · **Priority:** P0
 - **Persona Affected:** Nina and Diego — any developer whose mailbox is duplicated in the database, which is exactly the population the pre-fix code created
@@ -137,3 +137,97 @@ interface for those tests to be honest.
    the database, and re-walk steps 4-7 above live. Heed the 08-23 review's method
    note: after any checkout, `tsx watch` serves stale code until the listener pid
    changes.
+
+---
+
+## Review — iteration 104, independent. Verdict: **approved**
+
+Reviewer did not write the fix. Reviewed `c9f0bd2` (red) → `a5ca96c` (fix).
+
+### Red proved, not taken on trust
+
+Detached checkout of `c9f0bd2`, the bug's three tests run there:
+
+```
+× LoginUseCase … signs each owner into their own account … (capitalised-first)
+    InvalidCredentialsError: Invalid email or password   login.use-case.ts:37
+× LoginUseCase … signs each owner into their own account … (lowercase-first)
+    InvalidCredentialsError: Invalid email or password   login.use-case.ts:37
+× LoginUseCase … does not let one owner's password open the other owner's address
+    promise resolved instead of rejecting, with email "Dup.Owner@Example.com"
+  Test Files  1 failed | 1 passed (2)
+       Tests  3 failed | 18 passed (21)
+```
+
+On `nightly/qa-hardening`: **21 passed (21)**.
+
+Every red failure prints the bug's own symptom — the *other* row's password hash
+being the one checked, and the capitalised row answering a login typed at the
+lowercase address — so none of them is an import, fixture or selector artefact.
+Both insertion orders fail there, which is what rules out a fix that merely
+reverses the array. The red commit is **+122 / −0**: no existing assertion was
+edited to make anything pass.
+
+### The fix itself
+
+**+58 / −7** across exactly the three declared files. No reformatting, no
+renames, no drive-bys, no `.skip`, no `eslint-disable`, no type assertion added,
+no swallowed error, no timing hack. `packages/schemas/**` is untouched, so no
+boundary shape moved and nothing was widened. Nothing under `.nightly/` is in
+either commit.
+
+**It is a root fix, not a deterministic version of the bug.** The choice lives in
+one pure function *above* both repositories
+(`apps/api/src/core/entity/user/select-matching-account.ts`) and both call it, so
+the in-memory suite cannot stay green while the Drizzle path diverges — which is
+exactly what triage insisted on. `ORDER BY` alone would have made the lockout
+stable rather than gone. The decisive check: `schema.ts:41-42` — `email` and
+`login` are **both `UNIQUE`** — so the first tier (the byte-for-byte stored
+address) matches at most one row. The winner is determined by construction, not
+by a tie-break that happens to look right.
+
+**Blast radius searched, not assumed.** The only callers of
+`findByEmail` / `findByEmailOrLogin` are `login.use-case`, `create-user.use-case`
+(twice: address and handle), `oauth-sign-in.use-case` (twice) and
+`seed-realistic.ts`. A search for `lower(` / `users.email` / `emailMatches`
+across `apps/api/src` finds no other case-insensitive user read still on the old
+first-row path. `findByLogin` is untouched and cannot be multi-row.
+
+`npm run build:schemas`, `npm run check-types` (8/8) and
+`node scripts/guardrails/lint-changed.mjs` (52 files clean, 6 recorded findings
+ignored) are all green.
+
+### The reproduction re-walked live
+
+Against the running api on the colliding pair triage left in `linkhub_dev`:
+
+```
+UP addr + UP pw -> 200  8105414c-…  T124.Lock.mtbot0md@linkhub.local
+LO addr + LO pw -> 200  96798ea2-…  t124.lock.mtbot0md@linkhub.local   (was 401 — the harm)
+UP addr + LO pw -> 401  INVALIDCREDENTIALS
+LO addr + UP pw -> 401  INVALIDCREDENTIALS                             (was 200, wrong account)
+```
+
+And the 08-23 behaviour is not narrowed: a fresh `I104.Case.i104rev1@…`
+registers 201, signs in 200 from the **lowercase** address and 200 from the
+**UPPERCASE** address with the same id, and re-registering it in uppercase is
+still refused 409. `psql` by the id this review controlled
+(`2d28cb97-837f-4135-a57e-8e0872f203c4`): one `users` row for that mailbox,
+three `refresh_tokens`. No UI surface, so `DESIGN.md`, dark mode and the
+four-state rule do not apply.
+
+### Residuals accepted with the fix
+
+- The pair can still be **created** — no `UNIQUE INDEX ON users (lower(email))`.
+  Correctly out of scope: that is `ESC-20260827-register-case-race`, whose
+  migration fails on existing data. After this fix the residual harm is a
+  duplicate account, not a locked-out owner.
+- **Login by handle is unreachable over HTTP**: `POST /auth/login` with a handle
+  in the `email` field is refused `400 VALIDATION_ERROR` at the route schema
+  (checked live). Pre-existing and unchanged here; the handle tier of
+  `selectMatchingAccount` is only exercised by create-user's duplicate check.
+- The **Drizzle path has no automated test**. The ordering rule sits above the
+  repository so the unit tests are honest, but only the live walk above covers
+  the SQL. A Postgres-bound repository test is its own task.
+- The four duplicated entity-mapping blocks in `user.repository.ts` were left
+  alone. Reviewed as correct restraint — that is a refactor, not this fix.
