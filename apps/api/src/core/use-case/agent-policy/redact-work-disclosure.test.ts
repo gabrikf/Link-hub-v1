@@ -117,9 +117,14 @@ describe("findDisclosureViolations", () => {
     expect(findDisclosureViolations("The sun is out", ["sun"])).toEqual(["sun"]);
   });
 
-  it("does not match a term glued to another word by a digit or underscore", () => {
+  it("does not match a term glued to another word by a digit, but does match one separated by an underscore", () => {
+    // A digit is part of a word token, so "sun" is genuinely absent from
+    // "sun4life". An underscore is punctuation between tokens — it is how a URL
+    // spells a space — so `my_sun_service` discloses "sun" exactly as
+    // `my-sun-service` does. This assertion used to expect [] on both, which is
+    // the leak in BUG-20260827-disclosure-underscore-slug written down as a test.
     expect(findDisclosureViolations("sun4life", ["sun"])).toEqual([]);
-    expect(findDisclosureViolations("my_sun_service", ["sun"])).toEqual([]);
+    expect(findDisclosureViolations("my_sun_service", ["sun"])).toEqual(["sun"]);
   });
 
   it("matches case-insensitively but reports the canonical spelling", () => {

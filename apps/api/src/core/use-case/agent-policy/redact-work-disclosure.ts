@@ -161,9 +161,16 @@ function buildTermBody(term: string): string {
  *
  * `\b` is ASCII-only in JavaScript, so `\bNubank\b` fails to behave for
  * "Fábrica" and friends. Instead we assert that the character on each side is
- * not a letter/digit/underscore, using unicode property escapes. Lookbehind and
+ * not a letter or digit, using unicode property escapes. Lookbehind and
  * lookahead keep the match zero-width, so overlapping terms each get their own
  * chance to match.
+ *
+ * The underscore is deliberately NOT in these classes. It is already a slug
+ * separator in `SEPARATOR_SPELLINGS`, and treating it as a word character here
+ * cancelled that rule at the edges of the term: `nubank_core` published the
+ * employer name straight to the anonymous feed while `nubank-core` was refused.
+ * In a URL an underscore is punctuation between tokens; a digit is part of one,
+ * which is why `sun4life` still does not match "sun".
  *
  * The boundaries are what keep the separator tolerance honest: "Acme Corp" hits
  * `acme-corp-internal` and `acmecorp.com`, but not `corporate-ledger` (the
@@ -171,7 +178,7 @@ function buildTermBody(term: string): string {
  */
 function buildTermPattern(term: string): RegExp {
   return new RegExp(
-    `(?<![\\p{L}\\p{N}_])${buildTermBody(term)}(?![\\p{L}\\p{N}_])`,
+    `(?<![\\p{L}\\p{N}])${buildTermBody(term)}(?![\\p{L}\\p{N}])`,
     "giu",
   );
 }
