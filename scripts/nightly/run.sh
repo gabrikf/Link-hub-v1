@@ -340,12 +340,14 @@ NON-NEGOTIABLE RULES FOR EVERY ITERATION
   - There is NO i18n in this repo. Never invent t() calls or report a missing
     translation.
   - NEVER COMMIT WHAT DOES NOT TYPE-CHECK, and never commit run artifacts. An
-    interrupted iteration once committed 8 tests that failed `npm run
-    check-types` plus 23 files from `.nightly-*/`, under the message
-    "fix: incomplete fix", and left the gate red on deploy morning. Before any
-    `git add`: run `npm run check-types` and see it exit 0. Add only the files
-    you wrote, by name — never `git add -A`, never `git add .`. If you are
-    interrupted mid-work, commit NOTHING and write what you had to MEMORY.md.
+    interrupted iteration once committed 8 tests that failed the type check,
+    plus 23 files from the .nightly archive directories, under the message
+    "fix: incomplete fix", and left the gate red on deploy morning.
+    Before staging anything: run  npm run check-types  and see it exit 0.
+    Stage only the files you wrote, BY NAME. Never stage every changed file at
+    once, and never stage the whole working directory. Nothing under .nightly
+    belongs in a commit, ever. If you are interrupted mid-work, commit NOTHING
+    and write what you had to MEMORY.md instead.
 
 THE STOP HOOK
   This repo runs \`scripts/guardrails/pre-push.mjs\` on the Claude Code Stop hook,
