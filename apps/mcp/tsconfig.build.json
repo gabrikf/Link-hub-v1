@@ -1,8 +1,0 @@
-{
-  // Same split as apps/extractor: this package ships an executable
-  // (`linkhub-mcp`), so `dist/` must contain the server and nothing else.
-  // Type CHECKING still uses the plain `tsconfig.json`, which includes the
-  // tests — `npm run check-types` must cover them or the assertions rot untyped.
-  "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/test-support.ts"]
-}

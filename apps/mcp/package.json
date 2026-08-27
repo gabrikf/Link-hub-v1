@@ -9,12 +9,9 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p .",
     "start": "node dist/index.js",
-    "check-types": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest --watch",
-    "test:coverage": "vitest run --coverage"
+    "check-types": "tsc --noEmit"
   },
   "keywords": [
     "mcp",
@@ -32,7 +29,6 @@
     "@repo/typescript-config": "*",
     "@types/node": "^24.3.0",
     "tsx": "^4.20.5",
-    "typescript": "5.9.2",
-    "vitest": "^3.2.4"
+    "typescript": "5.9.2"
   }
 }
