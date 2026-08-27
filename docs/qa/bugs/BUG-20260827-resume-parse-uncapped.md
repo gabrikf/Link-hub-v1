@@ -137,3 +137,74 @@ whitespace characters both return the handler's minimum-length 400 (the 1 MB bod
 was accepted by the route), and 1 200 000 returns 413 from `bodyLimit`. Full
 transcript in `.nightly/evidence/i111-triage-work-context-stack-unredacted.txt`,
 section B.
+
+---
+
+## Review — iteration 113. **Approved.**
+
+Red `279c1af` → fix `2646ccd`, verified mechanically and live.
+
+**Red then green, for the right reason.** At `279c1af` the suite is 3 passed / 1
+failed, and the failure is `expected 200 to be 400` — the over-cap paste was
+answered *200 after reaching the recording provider*, which is the bug itself and
+not an import error, a missing fixture or a bad selector. At branch HEAD all 4
+pass. The three tests that pass at red are what make that meaningful: the
+boundary, the untouched minimum, and the shared schema's number.
+
+**No blast radius.** The red commit registers `AiImportController` in
+`build-test-app.ts`, which every hermetic HTTP test shares, so the whole
+`apps/api` suite was run rather than the one file: **107 files, 937 tests, all
+passing.** `RESUME_TEXT_MAX_LENGTH` and `aiResumeImportTextInputSchema` have no
+other importers in `packages/schemas`, `apps/api`, `apps/web` or `apps/mcp`.
+
+**Not a widened schema.** `.max(100_000)` became `.max(RESUME_TEXT_MAX_LENGTH)`
+where the constant *is* `100_000`. Same number, same shape, nothing newly
+accepted. The change is contract-first and built: `RESUME_TEXT_MAX_LENGTH` is
+present in `packages/schemas/dist`. No type assertion, no `eslint-disable`, no
+`.skip`, no swallowed error, no timing hack, no edited pre-existing test, and no
+reformatting or renames riding along — two files in the fix commit, two in the
+red.
+
+**The trim question, checked.** The schema caps the *trimmed* string
+(`z.string().trim().max(...)`) and `resolveResumeText` trims on **both** the JSON
+and the multipart branch before returning, so the handler and the schema measure
+the same string. There is no window where one accepts what the other rejects.
+
+**Confirmed live on the running dev api, not by test alone.** Signed in as
+`seed.javascript-fullstack.001@linkhub.local` and re-walked the reproduction:
+
+| request | before | now |
+|---|---|---|
+| JSON, 100 001 chars | reached the model | `400` — "This resume is too long to parse: 100,001 characters, and the limit is 100,000. Paste a shorter version or upload the file itself." |
+| JSON, 500 000 chars | over the context window → `500` | same `400`, naming 500,000 |
+| multipart, 120 000 chars in the `resumeText` field | reached the model | same `400`, naming 120,000 |
+
+The multipart row is the one that matters: `parseResumeImport` in
+`apps/web/src/lib/auth-api.ts:895-921` always posts `FormData`, so the browser's
+paste travels the multipart branch — checking only the JSON branch would have
+proved the wrong path. Every response came back in tens of milliseconds, i.e.
+before any model call.
+
+**The message actually reaches the user.** `auth-api.ts:926-935` rethrows the
+api's `message` verbatim, and `resume-import-modal.tsx:257-263` renders
+`parseMutation.error.message` in an `tone="error"` banner. The developer reads
+the limit and their own length instead of "something went wrong". No screen
+changed, so the four-state rule and `DESIGN.md` are not in play.
+
+**Quota, per the iteration-111 correction.** The new failure is a 4xx, which
+`ai-quota-guard.ts` refunds on `finish`; the unrefunded 5xx is what the fix
+removes. The fix correctly asserts nothing about metering, and the guard is inert
+locally.
+
+Noted and deliberately **not** treated as findings: the quota unit is still spent
+up front and handed back on the reply's `finish` event (pre-existing INCR-first
+design, out of this bug's scope), and the paste textarea still has no client-side
+`maxLength`, so an over-long paste makes one round trip — now to a clear 400.
+
+**Not verified:** the at-cap 200 was not exercised live, because a 100 000-character
+body of real content is a genuine `gpt-4o-mini` parse; that boundary is pinned in
+the hermetic test instead. During the red checkout the `tsx watch` api on :3333
+reloaded onto the red tree and did not pick the branch back up on its own — it was
+nudged back with `touch apps/api/src/index.ts` (no restart) and confirmed serving
+branch HEAD before any live probe. Worth knowing for the next review: a
+`git checkout` in this repo moves what the dev server is running.
