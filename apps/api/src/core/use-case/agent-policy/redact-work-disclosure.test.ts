@@ -262,6 +262,30 @@ describe("findDisclosureViolations", () => {
       ).toEqual(["CI&T"]);
     });
 
+    it("matches a single-word employer glued to the next slug word by an underscore", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/nubank_core/ledger/pull/42",
+          ["Nubank"],
+        ),
+      ).toEqual(["Nubank"]);
+      expect(
+        findDisclosureViolations(
+          "https://jira.nubank_internal.com/browse/LED-1",
+          ["Nubank"],
+        ),
+      ).toEqual(["Nubank"]);
+    });
+
+    it("matches a multi-word employer slug trailed by an underscored word", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/acme_corp_internal/ledger",
+          ["Acme Corp"],
+        ),
+      ).toEqual(["Acme Corp"]);
+    });
+
     it("does not match a URL that merely contains one of the words", () => {
       expect(
         findDisclosureViolations(
