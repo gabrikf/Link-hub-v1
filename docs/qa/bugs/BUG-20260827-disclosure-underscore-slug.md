@@ -207,3 +207,88 @@ Layer is unchanged — a pure business rule, so
 Scope is unchanged and tight: `redact-work-disclosure.ts:174` and its test file.
 No `SEPARATOR_SPELLINGS` change, no `buildTermBody`/`buildGapPattern`
 restructuring, no error-message change, no `@repo/schemas` change.
+
+---
+
+## Review — iteration 107 — **APPROVED**
+
+Reviewed `5dc9a11` (red) → `f3bd182` (fix) by an agent that did not write either.
+
+### Red/green, proven mechanically
+
+| Commit | Result |
+|---|---|
+| `5dc9a11` | `2 failed \| 377 passed` — both failures are this bug's own assertions (`expected [] to deeply equal [ 'Nubank' ]`, `[ 'Acme Corp' ]`) |
+| `f3bd182` | `20 files, 379 passed` |
+
+The test fails for the bug's reason, not for an import error, a bad selector or a
+missing fixture, so the red proves what it claims to prove.
+
+### The fix
+
+Removing `_` from both lookarounds deletes a contradiction rather than adding a
+rule: `SEPARATOR_SPELLINGS` already declared `_` a separator, and the boundary
+class was cancelling it at the edges of the match. No type assertion, no
+`eslint-disable`, no `.skip`, no swallowed error, no timing hack. No
+`packages/schemas` change was needed because no shape crossing a boundary
+changed, so there is nothing unbuilt to trip a consumer later.
+
+**Blast radius** — four call sites, all walked:
+
+| Call site | Effect of the change |
+|---|---|
+| `enforce-post-disclosure.ts` | write path — refuses more, never fewer |
+| `get-work-context.use-case.ts` (`redactText`) | read path — redacts more |
+| `generate-activity-digest.use-case.ts` | digest — same direction |
+| `render-activity-digest.ts:277` | filters out more values, e.g. a repo named `sun_tracker` for an employer "Sun" |
+
+Every one moves strictly toward more redaction. None can now leak something it
+used to catch. All are inside the 379 green tests.
+
+**The edited assertion is accepted.** `redact-work-disclosure.test.ts:122`
+(`my_sun_service` → `["sun"]`, was `[]`) was pre-ruled by triage at iteration 105
+as the bug written down as a test, its blast radius was measured at exactly that
+one line out of 377, and the fix commit flags it under a `DELIBERATE TEST CHANGE`
+heading, in the test's own name, and in a comment above the assertion. The digit
+half (`sun4life` → `[]`) is untouched.
+
+### User-visible confirmation
+
+Through the real HTTP stack — route, PAT guard, zod, global error handler — with
+`buildTestApp()` + `server.inject`, a seeded `Nubank` role at `summary`, and a
+`posts:write` PAT:
+
+| `externalUrl` | Status |
+|---|---|
+| `github.com/nubank_core/ledger/pull/42` | **400**, message names "Nubank" |
+| `jira.nubank_internal.com/browse/LED-1` | **400** |
+| `github.com/nubank-core/ledger/pull/42` (control, always worked) | 400 |
+| `github.com/sun4life/ledger/pull/1` (control) | 201 |
+
+No visual surface is touched, so `DESIGN.md` and the four-state rule do not apply.
+
+> **The running dev api on :3333 cannot be used for this walk, and its answer
+> looks like a failed fix.** Checking out the red commit restarts the `tsx watch`
+> child on the broken source, and it does not reload afterwards — not on the
+> checkout back, not on `touch`, not on a real content edit. It answered 201 for
+> the underscore URL and 400 for the hyphen: the original bug, reproduced live on
+> pre-fix code. Check the listener's start time (`ss -ltnp | grep 3333`, then
+> `ps -o lstart -p <pid>`) before reading anything into it.
+
+### Residual gaps, recorded not blocking
+
+- Item 6 of the triage test plan (an HTTP-layer test for the *underscore*
+  `externalUrl`) was not added. It is duplicate coverage rather than a hole:
+  `agent-policy.e2e.test.ts` already asserts the wiring with a slug spelling
+  (`acme-corp-internal`), a plain spelling, and a negative control
+  (`corporate-ledger`), and the rule itself is a pure business rule, which
+  `AGENTS.md` places next to the use case — where the new tests are.
+- `/` remains neither a separator nor a boundary character, so
+  `github.com/acme/corp` still passes. Deliberate, and tracked as
+  **ESC-20260827-disclosure-slash-gap**.
+- The red commit `5dc9a11` also carries `scripts/nightly/run.sh` (+7 lines of
+  nightly-loop prompt text the fix did not author), swept in with the test file.
+  Harmless and unrelated to the behaviour, but whoever merges
+  `nightly/qa-hardening` should know one commit touches the loop harness. Not
+  rejected, because the only remedy is rewriting history, which this branch
+  forbids.
