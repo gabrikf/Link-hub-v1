@@ -30,7 +30,14 @@ export function LanguageToggle() {
     <div
       role="group"
       aria-label={t("nav.chooseLanguage")}
-      className="inline-flex h-9 items-center gap-0.5 rounded-full border border-zinc-300 bg-white/95 px-1 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/90"
+      /*
+       * Tighter below `sm`. The floating cluster is reserved for by the nav's
+       * right padding, and at 375px the roomy version wanted 213 of the
+       * header's 375 pixels — which squeezes the brand block past truncation
+       * and pushes the hamburger under the cluster. Measured: 109px roomy,
+       * 81px compact.
+       */
+      className="inline-flex h-9 items-center gap-0 rounded-full border border-zinc-300 bg-white/95 px-0.5 shadow-lg backdrop-blur sm:gap-0.5 sm:px-1 dark:border-zinc-700 dark:bg-zinc-900/90"
     >
       {SUPPORTED_LANGUAGES.map((language) => {
         const isActive = i18n.resolvedLanguage === language;
@@ -43,7 +50,11 @@ export function LanguageToggle() {
             aria-pressed={isActive}
             onClick={() => void changeLanguage(language)}
             className={[
-              "inline-flex h-7 cursor-pointer items-center justify-center rounded-full px-2 text-xs font-semibold transition",
+              // Fixed width, not padding: the nav reserves room for this
+              // cluster in `pr-*` steps, and a two-letter code sized by its
+              // own glyphs would move that number with the font that happens
+              // to resolve.
+              "inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-[11px] font-semibold transition sm:w-8 sm:text-xs",
               FOCUS_RING_PAGE,
               isActive
                 ? "bg-violet-700 text-white dark:bg-violet-500"

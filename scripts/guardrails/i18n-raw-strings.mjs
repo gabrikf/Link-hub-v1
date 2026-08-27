@@ -43,8 +43,23 @@ import { relative, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "../..");
 const SRC_DIR = resolve(ROOT, "apps/web/src");
 
-/** Attributes whose literal value is read aloud or shown to a user. */
-const VISIBLE_ATTRIBUTES = ["placeholder", "title", "alt", "aria-label"];
+/**
+ * Attributes and props whose literal value is read aloud or shown to a user.
+ *
+ * `label` and `helperText` are this repo's own conventions — `Input`,
+ * `SelectField`, `FieldSelect` and `Segmented` all take visible text through
+ * them. Leaving them out let a hardcoded `helperText="How often this source…"`
+ * survive a whole migration pass unseen, which is exactly the kind of gap that
+ * makes a green check misleading.
+ */
+const VISIBLE_ATTRIBUTES = [
+  "placeholder",
+  "title",
+  "alt",
+  "aria-label",
+  "label",
+  "helperText",
+];
 
 /** The source locale — the catalogue every `t()` call is checked against. */
 const SOURCE_LOCALE = resolve(ROOT, "apps/web/src/i18n/locales/en-US.json");
@@ -393,6 +408,7 @@ function collectSourceFiles(dir, out = []) {
 function collectUsedKeys(files) {
   const used = new Map();
   const prefixes = new Set();
+  const mentioned = new Set();
 
   for (const path of files) {
     const source = readFileSync(path, "utf8");
@@ -416,19 +432,34 @@ function collectUsedKeys(files) {
     while ((match = templateCall.exec(source)) !== null) {
       if (match[1]) prefixes.add(match[1]);
     }
+
+    /*
+     * Any quoted string that looks like a dotted key also counts as a
+     * reference. Keys reach `t()` in more ways than a literal first argument:
+     * through a ternary (`t(dark ? "nav.themeLight" : "nav.themeDark")`),
+     * through a field on a catalogue row (`labelKey: "enum.icon.arrow"`, read
+     * later as `t(option.labelKey)`), or through a lookup table. Matching the
+     * literal wherever it appears costs a little strictness — a key named in a
+     * comment counts — and removes the entire false-positive class, which
+     * matters more for a check whose findings are advisory.
+     */
+    const anyKeyLiteral = /(["'`])([a-z][\w-]*(?:\.[\w-]+)+)\1/g;
+    while ((match = anyKeyLiteral.exec(source)) !== null) {
+      mentioned.add(match[2]);
+    }
   }
 
-  return { used, prefixes };
+  return { used, prefixes, mentioned };
 }
 
 function checkKeys() {
   if (!existsSync(SOURCE_LOCALE)) {
-    return { problems: [], skipped: true };
+    return { problems: [], unreachable: [], skipped: true };
   }
 
   const catalogue = flattenKeys(JSON.parse(readFileSync(SOURCE_LOCALE, "utf8")));
   const files = collectSourceFiles(SRC_DIR);
-  const { used, prefixes } = collectUsedKeys(files);
+  const { used, prefixes, mentioned } = collectUsedKeys(files);
   const problems = [];
 
   for (const [key, where] of used) {
@@ -443,14 +474,26 @@ function checkKeys() {
     }
   }
 
+  /*
+   * Unreachable keys are a NOTICE, not a failure.
+   *
+   * A key can legitimately be reached in ways this scanner cannot see: through
+   * a variable (`t(option.labelKey)`), or from inside another locale value via
+   * i18next's own `$t()` nesting. Failing on those would make the gate red for
+   * correct code, and the skill is explicit that a check which cries wolf gets
+   * switched off within a week. A missing key is the opposite — a user reads
+   * `common.save` off the screen — so that half stays a hard failure.
+   */
+  const unreachable = [];
   for (const key of catalogue) {
     const base = key.replace(/_(one|other)$/, "");
     if (used.has(base) || used.has(key)) continue;
+    if (mentioned.has(base) || mentioned.has(key)) continue;
     if ([...prefixes].some((prefix) => key.startsWith(prefix))) continue;
-    problems.push(`en-US.json  "${key}" — defined but nothing renders it`);
+    unreachable.push(key);
   }
 
-  return { problems, skipped: false };
+  return { problems, unreachable, skipped: false };
 }
 
 function main() {
@@ -473,7 +516,16 @@ function main() {
     return 1;
   }
 
-  const { problems, skipped } = checkKeys();
+  const { problems, unreachable, skipped } = checkKeys();
+  if (unreachable.length > 0) {
+    console.log(
+      `i18n-raw-strings: note — ${unreachable.length} key(s) no literal t() call reaches. ` +
+        "Reached through a variable or an $t() nesting is fine; a genuinely dead key is not.",
+    );
+    for (const key of unreachable.slice(0, 15)) console.log(`  · ${key}`);
+    if (unreachable.length > 15) console.log(`  · … +${unreachable.length - 15} more`);
+  }
+
   if (problems.length > 0) {
     console.log(`i18n-raw-strings: ${problems.length} key problem(s)\n`);
     for (const problem of problems.slice(0, 60)) console.log(`  ${problem}`);

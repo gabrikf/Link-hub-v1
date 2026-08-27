@@ -1,5 +1,6 @@
 import type { RecruiterSearchInput } from "@repo/schemas";
 import { BADGE, BADGE_STRONG } from "../../../shared-components/surface";
+import i18n from "../../../i18n";
 import type {
   AdvancedSearchFormValues,
   ContractType,
@@ -63,9 +64,8 @@ export function describeMatch(aiScore: number | null): MatchStrength {
   if (aiScore === null) {
     return {
       percent: "—",
-      label: "Match unavailable",
-      description:
-        "On-device ranking could not run for this search, so results are shown in the search engine's own order.",
+      label: i18n.t("search.matchUnavailable"),
+      description: i18n.t("search.matchUnavailableDetail"),
       className: BADGE.neutral,
     };
   }
@@ -73,7 +73,7 @@ export function describeMatch(aiScore: number | null): MatchStrength {
   const normalized = aiScore <= 1 ? aiScore * 100 : aiScore;
   const clamped = Math.max(0, Math.min(100, normalized));
   const percent = `${Math.round(clamped)}%`;
-  const description = `Covers about ${percent} of what you searched for — skills, titles and real work history weigh heaviest.`;
+  const description = i18n.t("search.matchCoverage", { percent });
 
   // Tones come from the shared badge maps. `BADGE_STRONG` for the three tones
   // it defines — this chip is the one place a badge is the primary signal
@@ -82,7 +82,7 @@ export function describeMatch(aiScore: number | null): MatchStrength {
   if (clamped >= 75) {
     return {
       percent,
-      label: "Strong match",
+      label: i18n.t("search.matchStrong"),
       description,
       className: BADGE_STRONG.success,
     };
@@ -91,7 +91,7 @@ export function describeMatch(aiScore: number | null): MatchStrength {
   if (clamped >= 50) {
     return {
       percent,
-      label: "Good match",
+      label: i18n.t("search.matchGood"),
       description,
       className: BADGE.accent,
     };
@@ -100,7 +100,7 @@ export function describeMatch(aiScore: number | null): MatchStrength {
   if (clamped >= 25) {
     return {
       percent,
-      label: "Partial match",
+      label: i18n.t("search.matchPartial"),
       description,
       className: BADGE_STRONG.warning,
     };
@@ -108,7 +108,7 @@ export function describeMatch(aiScore: number | null): MatchStrength {
 
   return {
     percent,
-    label: "Weak match",
+    label: i18n.t("search.matchWeak"),
     description,
     className: BADGE_STRONG.neutral,
   };
@@ -163,12 +163,14 @@ export function formatTenure(
   const years = Math.floor(months / 12);
   const remainingMonths = months % 12;
 
+  // i18next chooses the plural form; the `${n} yr${n === 1 ? "" : "s"}` this
+  // replaced is an English rule spelled out in code.
   const parts: string[] = [];
   if (years > 0) {
-    parts.push(`${years} yr${years === 1 ? "" : "s"}`);
+    parts.push(i18n.t("search.durationYears", { count: years }));
   }
   if (remainingMonths > 0) {
-    parts.push(`${remainingMonths} mo${remainingMonths === 1 ? "" : "s"}`);
+    parts.push(i18n.t("search.durationMonths", { count: remainingMonths }));
   }
 
   return parts.join(" ");

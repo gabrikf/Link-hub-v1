@@ -145,8 +145,14 @@ export function TopBarNav() {
     <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/80 backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-950/80">
       {/* Right padding reserves space for the floating language + theme
           cluster, which is top-right at every breakpoint (the theme toggle
-          used to sit over page content on mobile). */}
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 py-3 pl-4 pr-52">
+          used to sit over page content on mobile). Both numbers are measured,
+          not guessed: the cluster measures 176px wide below `sm` and 204px
+          above it, plus its own `right-4` — 192px and 220px of reservation,
+          and the padding has to clear that at 1152px, where `max-w-6xl` stops
+          shrinking the container and it is widest relative to the viewport.
+          Under-reserving puts the hamburger beneath the cluster, where it
+          still takes the tap. */}
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 py-3 pl-4 pr-52 sm:pr-60">
         <div className="flex min-w-0 items-center gap-2.5">
           <BrandLogo className="h-9 w-9 shrink-0 shadow-sm" />
           <div className="min-w-0">

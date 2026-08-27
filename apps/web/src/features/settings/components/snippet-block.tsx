@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { FiCheck, FiCopy } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 import { useClipboard } from "../lib/use-clipboard";
@@ -18,6 +19,7 @@ export type Snippet = {
 };
 
 export function SnippetBlock({ snippet }: { snippet: Snippet }) {
+  const { t } = useTranslation();
   const { copied, copy } = useClipboard();
 
   return (
@@ -32,7 +34,9 @@ export function SnippetBlock({ snippet }: { snippet: Snippet }) {
           size="sm"
           fullWidth={false}
           className="shrink-0"
-          aria-label={`Copy ${snippet.target}`}
+          aria-label={t("settings.snippet.copyTarget", {
+            target: snippet.target,
+          })}
           onClick={() => copy(snippet.code)}
         >
           {copied ? (
@@ -40,7 +44,7 @@ export function SnippetBlock({ snippet }: { snippet: Snippet }) {
           ) : (
             <FiCopy className="h-3.5 w-3.5" aria-hidden="true" />
           )}
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("common.copied") : t("common.copy")}
         </Button>
       </div>
       <pre className="overflow-x-auto bg-white p-3 text-xs leading-relaxed text-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">

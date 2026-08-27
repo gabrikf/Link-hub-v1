@@ -1,4 +1,6 @@
 import type { GitConnectionKind, WorkExperienceResponse } from "@repo/schemas";
+import type { TFunction } from "i18next";
+import { Trans, useTranslation } from "react-i18next";
 import type { IconType } from "react-icons";
 import {
   FiCpu,
@@ -13,7 +15,10 @@ import {
   FOCUS_RING,
   SURFACE_INSET,
 } from "../../../../shared-components/surface";
-import { MIXED_KIND_HELPER, MIXED_KIND_RULE } from "../../lib/connection-format";
+import {
+  mixedKindHelper,
+  mixedKindRule,
+} from "../../lib/connection-format";
 import { DISCLOSURE_PANEL_ID } from "../disclosure-panel";
 import {
   Segmented,
@@ -39,48 +44,42 @@ type SourceCardDef = {
   needsDevMachine?: boolean;
 };
 
-const SOURCE_CARDS: SourceCardDef[] = [
-  {
-    key: "mcp",
-    icon: FiZap,
-    title: "Coding agent (MCP)",
-    description:
-      "Works with Claude Code, Claude Desktop, Cursor, VS Code + Copilot, Windsurf, Kiro, Codex CLI — anything that speaks MCP. Your agent writes the post itself from your git history; LinkHub adds zero AI cost.",
-    privacy:
-      "Reads: your git history, locally, through your own agent. Never reads: anything server-side — LinkHub only receives the finished post.",
-    recommended: true,
-    needsDevMachine: true,
-  },
-  {
-    key: "claude_code",
-    icon: FiCpu,
-    title: "Claude Code background hook",
-    description:
-      "Zero-touch: posts happen automatically from your sessions, metadata only.",
-    privacy:
-      "Reads: session metadata when a session ends. Never reads: code, commit messages, file paths.",
-    needsDevMachine: true,
-  },
-  {
-    key: "extractor",
-    icon: FiTerminal,
-    title: "Local extractor CLI",
-    description:
-      "For any machine or repo without an agent; you review a JSON file before anything uploads.",
-    privacy:
-      "Reads: local git metadata, hashed on your machine. Never reads: code, branch names, commit messages.",
-    needsDevMachine: true,
-  },
-  {
-    key: "forge",
-    icon: FiGitPullRequest,
-    title: "GitHub / GitLab webhooks",
-    description:
-      "Personal repos you own; server-side, no local install.",
-    privacy:
-      "Reads: pushed commits, merged PRs, reviews and releases via webhook. Never reads: your code or the repository contents.",
-  },
-];
+function getSourceCards(t: TFunction): SourceCardDef[] {
+  return [
+    {
+      key: "mcp",
+      icon: FiZap,
+      title: t("wizard.namePreset.codingAgent"),
+      description: t("wizard.source.mcpBody"),
+      privacy: t("wizard.source.mcpReads"),
+      recommended: true,
+      needsDevMachine: true,
+    },
+    {
+      key: "claude_code",
+      icon: FiCpu,
+      title: t("wizard.source.hookTitle"),
+      description: t("wizard.source.hookBody"),
+      privacy: t("wizard.source.hookReads"),
+      needsDevMachine: true,
+    },
+    {
+      key: "extractor",
+      icon: FiTerminal,
+      title: t("wizard.source.extractorTitle"),
+      description: t("wizard.source.extractorBody"),
+      privacy: t("wizard.source.extractorReads"),
+      needsDevMachine: true,
+    },
+    {
+      key: "forge",
+      icon: FiGitPullRequest,
+      title: t("wizard.source.webhookTitle"),
+      description: t("wizard.source.webhookBody"),
+      privacy: t("wizard.source.webhookReads"),
+    },
+  ];
+}
 
 export type SourceStepProps = {
   sourceKey: WizardSourceKey | null;
@@ -111,11 +110,12 @@ export function SourceStep({
   onDisplayNameChange,
   displayNameError,
 }: SourceStepProps) {
+  const { t } = useTranslation();
+  const sourceCards = getSourceCards(t);
   return (
     <div className="space-y-4">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Where does your work happen? Every option sends metadata only — never
-        code, never names.
+        {t("wizard.source.question")}
       </p>
 
       {/* aria-pressed buttons, not radio roles: role="radio" promises arrow-key
@@ -123,10 +123,10 @@ export function SourceStep({
           pattern as the `Segmented` control. */}
       <div
         role="group"
-        aria-label="Activity source"
+        aria-label={t("wizard.source.label")}
         className="grid gap-3 sm:grid-cols-2"
       >
-        {SOURCE_CARDS.map((card) => {
+        {sourceCards.map((card) => {
           const Icon = card.icon;
           const isSelected = card.key === sourceKey;
           return (
@@ -155,7 +155,7 @@ export function SourceStep({
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BADGE.success}`}
                   >
-                    Recommended
+                    {t("wizard.source.recommended")}
                   </span>
                 ) : null}
               </span>
@@ -172,7 +172,7 @@ export function SourceStep({
                   className={`mt-auto inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE.neutral}`}
                 >
                   <FiMonitor className="h-3 w-3" aria-hidden="true" />
-                  Needs your dev machine for setup
+                  {t("wizard.source.needsDevMachine")}
                 </span>
               ) : null}
             </button>
@@ -182,13 +182,15 @@ export function SourceStep({
 
       {sourceKey === "forge" ? (
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-zinc-700 dark:text-zinc-300">Forge</span>
+          <span className="text-sm text-zinc-700 dark:text-zinc-300">
+            {t("wizard.source.forge")}
+          </span>
           <Segmented
-            label="Forge"
+            label={t("wizard.source.forge")}
             value={forgeProvider}
             options={[
-              { value: "github", label: "GitHub" },
-              { value: "gitlab", label: "GitLab" },
+              { value: "github", label: t("enum.platform.github") },
+              { value: "gitlab", label: t("settings.provider.gitlab") },
             ]}
             onChange={onForgeProviderChange}
           />
@@ -201,66 +203,79 @@ export function SourceStep({
       {sourceKey === "mcp" ? (
         <div className={`p-4 ${SURFACE_INSET}`}>
           <p className="text-xs text-zinc-600 dark:text-zinc-400">
-            MCP needs no connection on LinkHub&apos;s side — your agent posts
-            with its own token. Nothing to name.
+            {t("wizard.source.mcpNoConnection")}
           </p>
         </div>
       ) : sourceKey ? (
         <div className={`space-y-3 p-4 ${SURFACE_INSET}`}>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-zinc-700 dark:text-zinc-300">
-              This activity is
+              {t("settings.connectionDialog.thisActivityIs")}
             </span>
             <Segmented
-              label="Activity kind"
+              label={t("wizard.source.activityKind")}
               value={kind}
               options={[
-                { value: "personal", label: "Personal" },
-                { value: "work", label: "Work" },
-                { value: "mixed", label: "Both" },
+                { value: "personal", label: t("common.personal") },
+                { value: "work", label: t("common.work") },
+                { value: "mixed", label: t("common.both") },
               ]}
               onChange={(value) => onKindChange(value)}
             />
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {MIXED_KIND_HELPER}
+            {mixedKindHelper()}
           </p>
 
           {kind !== "personal" ? (
             <>
               <WizardFieldSelect
                 id="wizard-work-experience"
-                label="Employer"
+                label={t("settings.connectionDialog.employer")}
                 value={workExperienceId ?? NO_ROLE}
                 onChange={(value) =>
                   onWorkExperienceChange(value === NO_ROLE ? null : value)
                 }
                 helperText={
                   roles.length === 0
-                    ? "Add work experience to your profile to link this source to an employer."
-                    : "Linking a role makes that role's own disclosure level apply."
+                    ? t("settings.connectionDialog.noRolesYet")
+                    : t("settings.connectionDialog.roleInherits")
                 }
               >
-                <option value={NO_ROLE}>Not linked to a role</option>
+                <option value={NO_ROLE}>
+                  {t("settings.connectionDialog.notLinked")}
+                </option>
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>
-                    {role.companyName} — {role.title}
+                    {t("settings.connectionDialog.roleOption", {
+                      companyName: role.companyName,
+                      title: role.title,
+                    })}
                   </option>
                 ))}
               </WizardFieldSelect>
+              {/* The anchor's text is part of the sentence, so it lives
+                  inside the locale value as a `<policyLink>` slot rather than
+                  being interpolated as an opaque blob whose position every
+                  language would have to accept. Not named `link`: that is a
+                  void element in the HTML parser Trans uses, and the anchor
+                  would render empty. */}
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                Work sources inherit your disclosure level — set it under{" "}
-                <a
-                  href={`#${DISCLOSURE_PANEL_ID}`}
-                  className={`font-medium text-violet-700 underline underline-offset-2 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200 ${FOCUS_RING} rounded`}
-                >
-                  What your agent may share
-                </a>
-                .
+                <Trans
+                  i18nKey="wizard.source.workInherits"
+                  components={{
+                    policyLink: (
+                      <a
+                        href={`#${DISCLOSURE_PANEL_ID}`}
+                        className={`font-medium text-violet-700 underline underline-offset-2 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200 ${FOCUS_RING} rounded`}
+                      />
+                    ),
+                  }}
+                />
               </p>
               {kind === "mixed" ? (
                 <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                  {MIXED_KIND_RULE}
+                  {mixedKindRule()}
                 </p>
               ) : null}
             </>
@@ -268,8 +283,8 @@ export function SourceStep({
 
           <Input
             id="wizard-display-name"
-            label="Display name"
-            placeholder="e.g. Work laptop — Claude Code"
+            label={t("resumeImport.displayName")}
+            placeholder={t("wizard.source.namePlaceholder")}
             value={displayName}
             error={displayNameError ?? undefined}
             onChange={(event) => onDisplayNameChange(event.target.value)}

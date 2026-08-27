@@ -1,4 +1,6 @@
 import { useMemo, type ReactNode } from "react";
+import type { TFunction } from "i18next";
+import { Trans, useTranslation } from "react-i18next";
 import {
   FiCheck,
   FiChevronDown,
@@ -6,10 +8,7 @@ import {
   FiTerminal,
   FiZap,
 } from "react-icons/fi";
-import {
-  FOCUS_RING,
-  SURFACE_GLASS,
-} from "../../../shared-components/surface";
+import { FOCUS_RING, SURFACE_GLASS } from "../../../shared-components/surface";
 import { CONNECT_PANEL_ID, resolveApiUrl } from "../lib/mcp-config";
 // Host tabs and snippet builders are shared with the auto-post wizard's MCP
 // path — one definition, two surfaces.
@@ -51,34 +50,32 @@ function Step({ index, title, children }: StepProps) {
 }
 
 /** What the agent is told to pull out of the git history before writing. */
-const COLLECTED_FACTS: Array<{ label: string; detail: string }> = [
+const getCollectedFacts = (
+  t: TFunction,
+): Array<{ label: string; detail: string }> => [
   {
-    label: "What actually shipped",
-    detail:
-      "user-visible capabilities, with the ten commits behind one feature collapsed into a single line",
+    label: t("settings.connect.whatShipped"),
+    detail: t("settings.connect.whatShippedDetail"),
   },
   {
-    label: "Impact",
-    detail: "who each change helps and how — the part a recruiter reads",
+    label: t("settings.connect.impact"),
+    detail: t("settings.connect.impactDetail"),
   },
   {
-    label: "Real numbers",
-    detail:
-      "latency, bundle size, coverage, endpoints, rows migrated — only ones it can verify in the diff",
+    label: t("settings.connect.realNumbers"),
+    detail: t("settings.connect.realNumbersDetail"),
   },
   {
-    label: "The stack",
-    detail:
-      "named with searchable technology names, read from your dependency and migration diffs",
+    label: t("settings.connect.theStack"),
+    detail: t("settings.connect.theStackDetail"),
   },
   {
-    label: "Links",
-    detail: "a public PR, release or demo, when one exists",
+    label: t("common.links"),
+    detail: t("settings.connect.evidenceDetail"),
   },
   {
-    label: "Scope + count",
-    detail:
-      "repo name and how many of your own commits the summary covers, stored as post metadata",
+    label: t("settings.connect.scopeAndCount"),
+    detail: t("settings.connect.scopeAndCountDetail"),
   },
 ];
 
@@ -88,12 +85,14 @@ type ConnectPanelProps = {
 };
 
 export function ConnectPanel({ token }: ConnectPanelProps) {
+  const { t } = useTranslation();
   const apiUrl = useMemo(() => resolveApiUrl(), []);
   const effectiveToken = token ?? TOKEN_PLACEHOLDER;
   const tabs = useMemo(
-    () => buildTabs(apiUrl, effectiveToken),
-    [apiUrl, effectiveToken],
+    () => buildTabs(t, apiUrl, effectiveToken),
+    [t, apiUrl, effectiveToken],
   );
+  const collectedFacts = getCollectedFacts(t);
 
   return (
     <section
@@ -106,13 +105,10 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
         </span>
         <div className="space-y-1">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            Connect your AI coding tools
+            {t("settings.connect.title")}
           </h2>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Connect once and your coding agent learns the whole workflow from
-            LinkHub itself — reading your git history, pulling out what shipped,
-            and writing it up the way a recruiter wants to read it. You never
-            have to paste writing rules into your agent.
+            {t("settings.connect.intro")}
           </p>
         </div>
       </div>
@@ -121,11 +117,10 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
         <p className="mt-4 flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
           <FiCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>
-            The snippets below are filled in with the token you just created.{" "}
-            <strong className="font-semibold">
-              It is gone when this tab closes
-            </strong>{" "}
-            — copy the one you need now, or you will have to create another.
+            <Trans
+              i18nKey="settings.connect.tokenNotice"
+              components={{ strong: <strong className="font-semibold" /> }}
+            />
           </span>
         </p>
       ) : (
@@ -136,9 +131,11 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
         // so every new user hit it.
         <p className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
           <FiTerminal className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Create a token above, then replace{" "}
-          <code className="font-mono break-all">{TOKEN_PLACEHOLDER}</code> with
-          it.
+          <Trans
+            i18nKey="settings.connect.replacePlaceholder"
+            values={{ placeholder: TOKEN_PLACEHOLDER }}
+            components={{ code: <code className="font-mono break-all" /> }}
+          />
         </p>
       )}
 
@@ -152,7 +149,7 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
           className={`flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
         >
           <FiTerminal className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Running LinkHub locally? Build the server first
+          {t("settings.connect.localBuildTitle")}
           <FiChevronDown
             className="ml-auto h-4 w-4 shrink-0 transition group-open:rotate-180"
             aria-hidden="true"
@@ -160,21 +157,19 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
         </summary>
 
         <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-          Only needed if you are running LinkHub from a checkout of the repo.
-          Run both from anywhere inside it — the second prints the absolute path
-          the config below needs, so you never have to type it by hand.
+          {t("settings.connect.localBuildBody")}
         </p>
         <div className="mt-3 space-y-3">
           <SnippetBlock
             snippet={{
-              target: "Terminal — build once",
+              target: t("settings.connect.terminalBuildOnce"),
               language: "bash",
               code: BUILD_COMMAND,
             }}
           />
           <SnippetBlock
             snippet={{
-              target: "Terminal — print your absolute entry path",
+              target: t("settings.connect.terminalPrintPath"),
               language: "bash",
               code: PATH_COMMAND,
             }}
@@ -182,19 +177,16 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
         </div>
       </details>
 
-      <Step index={1} title="Add LinkHub to your tool">
+      <Step index={1} title={t("settings.connect.addToTool")}>
         <ToolTabs tabs={tabs} idPrefix="connect" />
       </Step>
 
-      <Step index={2} title="What your agent does with your commits">
+      <Step index={2} title={t("settings.connect.whatAgentDoes")}>
         <p className="text-xs text-zinc-600 dark:text-zinc-400">
-          The <code className="font-mono">{PROMPT_NAME}</code> prompt ships with
-          the server, so the instructions travel with the connection — nothing
-          to paste into your agent, no rules file to maintain. When you run it,
-          your agent reads your git history for the period and pulls out:
+          {t("settings.connect.promptShips", { promptName: PROMPT_NAME })}
         </p>
         <ul className="mt-3 space-y-1.5">
-          {COLLECTED_FACTS.map((fact) => (
+          {collectedFacts.map((fact) => (
             <li
               key={fact.label}
               className="flex gap-2 text-xs text-zinc-600 dark:text-zinc-400"
@@ -213,31 +205,37 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
           ))}
         </ul>
         <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-          The full house style also lives on the server as the{" "}
-          <code className="font-mono">linkhub://guides/post-quality</code>{" "}
-          resource, which your agent can read on its own at any time.
+          {/* `<uri>` is a slot in the locale value, not literal markup. The
+              earlier version split the translated sentence on the URI string,
+              which only worked because that URI happens to be identical in all
+              three languages. */}
+          <Trans
+            i18nKey="settings.connect.houseStyle"
+            components={{ uri: <code className="font-mono" /> }}
+          />
         </p>
       </Step>
 
-      <Step index={3} title="What stops your employer's name getting out">
+      <Step index={3} title={t("settings.connect.employerSafety")}>
         <EnforcementGrid />
 
         <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-          Pick your level under{" "}
+          {t("settings.connect.pickYourLevel")}{" "}
           <a
             href={`#${DISCLOSURE_PANEL_ID}`}
             className={`font-medium text-violet-700 underline underline-offset-2 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200 ${FOCUS_RING} rounded`}
           >
-            What your agent may share
+            {t("settings.connect.whatAgentMayShare")}
           </a>
-          . Give the token the{" "}
-          <code className="font-mono">profile:read</code> scope so the server
-          can read it — without it your agent assumes the strictest level and
-          will not name any employer at all.
+          .{" "}
+          <Trans
+            i18nKey="settings.connect.profileReadScope"
+            components={{ code: <code className="font-mono" /> }}
+          />
         </p>
       </Step>
 
-      <Step index={4} title="Same week of commits, two very different posts">
+      <Step index={4} title={t("settings.connect.twoPosts")}>
         <ExamplePostsGrid />
       </Step>
     </section>

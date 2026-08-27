@@ -24,9 +24,9 @@ const getPersonaOptions = (
 ): ReadonlyArray<{ value: string; label: string }> => [
   { value: "developer", label: t("enum.persona.developer") },
   { value: "designer", label: t("enum.persona.designer") },
-  { value: "product-manager", label: t("enum.persona.productManager") },
-  { value: "product-owner", label: t("enum.persona.productOwner") },
-  { value: "qa-engineer", label: t("enum.persona.qaEngineer") },
+  { value: "product-manager", label: t("enum.persona.product-manager") },
+  { value: "product-owner", label: t("enum.persona.product-owner") },
+  { value: "qa-engineer", label: t("enum.persona.qa-engineer") },
   { value: "data", label: t("enum.persona.data") },
   { value: "devops", label: t("enum.persona.devops") },
   { value: "other", label: t("common.other") },

@@ -1,5 +1,6 @@
 import type { ApiTokenScope, CreateApiTokenOutput } from "@repo/schemas";
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiChevronDown, FiKey } from "react-icons/fi";
 import { reportError } from "../../../../lib/report-error";
 import { useCreateToken } from "../../../../lib/token-queries";
@@ -29,6 +30,7 @@ export function WizardTokenBlock({
   token: CreateApiTokenOutput | null;
   onCreated: (token: CreateApiTokenOutput) => void;
 }) {
+  const { t } = useTranslation();
   const createToken = useCreateToken();
   const [name, setName] = useState(defaultName);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function WizardTokenBlock({
         action: "settings.wizard-create-token",
         extra: { scopes },
       });
-      setError("Could not create the token. Please try again.");
+      setError(t("settings.createToken.failed"));
     }
   };
 
@@ -63,17 +65,19 @@ export function WizardTokenBlock({
             className="mt-0.5 h-4 w-4 shrink-0"
             aria-hidden="true"
           />
+          {/* Two sentences, the first emphasised. `<strong>` is a Trans slot
+              so a language that leads with the other clause can move it. */}
           <span>
-            <strong className="font-semibold">
-              This token is shown once and never again.
-            </strong>{" "}
-            The snippets below already contain it — copy them now.
+            <Trans
+              i18nKey="wizard.token.shownOnce"
+              components={{ strong: <strong className="font-semibold" /> }}
+            />
           </span>
         </p>
         <div className="mt-2">
           <SnippetBlock
             snippet={{
-              target: "Personal access token — shown once",
+              target: t("wizard.token.heading"),
               language: "text",
               code: token.token,
             }}
@@ -87,13 +91,13 @@ export function WizardTokenBlock({
     <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/60">
       <div className="flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
         <FiKey className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        This source uploads with a token ({scopes.join(", ")})
+        {t("wizard.token.uploadsWith", { scopes: scopes.join(", ") })}
       </div>
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <div className="min-w-0 flex-1">
           <Input
             id="wizard-token-name"
-            label="Token name"
+            label={t("wizard.token.name")}
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
@@ -104,14 +108,17 @@ export function WizardTokenBlock({
           fullWidth={false}
           className="shrink-0"
           isLoading={createToken.isPending}
-          loadingLabel="Creating..."
+          loadingLabel={t("common.creating")}
           onClick={handleCreate}
         >
-          Create token
+          {t("settings.token.create")}
         </Button>
       </div>
       {error ? (
-        <p role="alert" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+        <p
+          role="alert"
+          className="mt-1.5 text-xs text-red-600 dark:text-red-400"
+        >
           {error}
         </p>
       ) : null}
@@ -119,20 +126,22 @@ export function WizardTokenBlock({
         <summary
           className={`flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 ${FOCUS_RING} rounded`}
         >
-          I already have one
+          {t("wizard.token.alreadyHaveOne")}
           <FiChevronDown
             className="h-3.5 w-3.5 shrink-0 transition group-open:rotate-180"
             aria-hidden="true"
           />
         </summary>
         <p className="mt-1.5 text-xs text-zinc-600 dark:text-zinc-400">
-          Fine — use it wherever the snippets below say{" "}
-          <code className="font-mono break-all">LINKHUB_API_TOKEN</code>. It
-          must carry the{" "}
-          <code className="font-mono">{scopes.join(" ")}</code>{" "}
-          {scopes.length === 1 ? "scope" : "scopes"}; a token without{" "}
-          {scopes.length === 1 ? "it" : "them"} is rejected on upload, not
-          silently narrowed.
+          <Trans
+            i18nKey="wizard.token.scopeRequirement"
+            count={scopes.length}
+            values={{ scopes: scopes.join(" ") }}
+            components={{
+              token: <code className="font-mono break-all" />,
+              scopes: <code className="font-mono" />,
+            }}
+          />
         </p>
       </details>
     </div>

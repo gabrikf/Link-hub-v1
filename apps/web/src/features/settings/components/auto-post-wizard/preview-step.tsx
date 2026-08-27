@@ -1,4 +1,5 @@
 import type { DigestPreview, Post } from "@repo/schemas";
+import { useTranslation } from "react-i18next";
 import { FiFileText, FiInbox, FiLoader } from "react-icons/fi";
 import { SURFACE_INSET } from "../../../../shared-components/surface";
 import { Markdown } from "../../../posts/lib/markdown";
@@ -8,16 +9,15 @@ import { Markdown } from "../../../posts/lib/markdown";
  * mocked-up example pretending to be the user's data.
  */
 
-const TEMPLATE_CAPTION =
-  "Built from your real activity by a fixed template — no AI, byte-reproducible, nothing here names a repo, employer or teammate.";
-
 export function PreviewPostCard({
   post,
-  caption = TEMPLATE_CAPTION,
+  caption,
 }: {
   post: { title: string | null; body: string; tags: string[] | null };
   caption?: string;
 }) {
+  const { t } = useTranslation();
+  const resolvedCaption = caption ?? t("wizard.preview.fixedTemplate");
   return (
     <div className={`p-4 ${SURFACE_INSET}`}>
       {post.title ? (
@@ -41,7 +41,7 @@ export function PreviewPostCard({
         </div>
       ) : null}
       <p className="mt-3 border-t border-zinc-200 pt-2 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-        {caption}
+        {resolvedCaption}
       </p>
     </div>
   );
@@ -57,10 +57,15 @@ function EmptyPanel({
   return (
     <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
       <p className="flex items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-        <FiInbox className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
+        <FiInbox
+          className="h-4 w-4 shrink-0 text-zinc-400"
+          aria-hidden="true"
+        />
         {title}
       </p>
-      <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{children}</p>
+      <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+        {children}
+      </p>
     </div>
   );
 }
@@ -74,6 +79,8 @@ export function ConnectionPreviewBody({
   isLoading: boolean;
   isError: boolean;
 }) {
+  const { t } = useTranslation();
+
   if (isLoading) {
     return (
       // `role="status"`: the preview replaces this panel without user input,
@@ -87,7 +94,7 @@ export function ConnectionPreviewBody({
             className="h-4 w-4 shrink-0 animate-spin"
             aria-hidden="true"
           />
-          Building your preview from real events…
+          {t("wizard.preview.building")}
         </p>
         <div
           aria-hidden="true"
@@ -99,10 +106,8 @@ export function ConnectionPreviewBody({
 
   if (isError || !preview) {
     return (
-      <EmptyPanel title="Could not build a preview">
-        The preview endpoint did not answer. This does not affect the
-        connection — continue, and check the digest from the review queue when
-        it is due.
+      <EmptyPanel title={t("wizard.preview.failed")}>
+        {t("wizard.preview.failedBody")}
       </EmptyPanel>
     );
   }
@@ -112,9 +117,11 @@ export function ConnectionPreviewBody({
       <div className="space-y-2">
         <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
           <FiFileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          What your next digest would say — {preview.eventCount} event
-          {preview.eventCount === 1 ? "" : "s"}, {preview.window.from} to{" "}
-          {preview.window.to}.
+          {t("wizard.preview.windowSummary", {
+            count: preview.eventCount,
+            from: preview.window.from,
+            to: preview.window.to,
+          })}
         </p>
         <PreviewPostCard post={preview.post} />
       </div>
@@ -123,30 +130,33 @@ export function ConnectionPreviewBody({
 
   if (preview.status === "no_activity") {
     return (
-      <EmptyPanel title="No activity in this window yet">
-        Your first digest will wait for evidence — silence over filler. Nothing
-        posts until events arrive, so an empty week costs you nothing.
+      <EmptyPanel title={t("wizard.preview.noActivity")}>
+        {t("wizard.preview.noActivityBody")}
       </EmptyPanel>
     );
   }
 
   // insufficient_evidence
   return (
-    <EmptyPanel title="Events arrived, but none clears the bar yet">
-      Digests only make claims they can back: merged pull requests, submitted
-      reviews and releases qualify; a lone commit does not. Keep working — the
-      digest fills itself in.
+    <EmptyPanel title={t("wizard.preview.belowBar")}>
+      {t("wizard.preview.belowBarBody")}
     </EmptyPanel>
   );
 }
 
-export function McpPreviewBody({ detectedPost }: { detectedPost: Post | null }) {
+export function McpPreviewBody({
+  detectedPost,
+}: {
+  detectedPost: Post | null;
+}) {
+  const { t } = useTranslation();
+
   if (detectedPost) {
     return (
       <div className="space-y-2">
         <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
           <FiFileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          The post your agent just wrote:
+          {t("wizard.preview.agentPost")}
         </p>
         <PreviewPostCard
           post={{
@@ -154,17 +164,15 @@ export function McpPreviewBody({ detectedPost }: { detectedPost: Post | null }) 
             body: detectedPost.body,
             tags: detectedPost.tags,
           }}
-          caption="Written by your agent from your git history. It waits in the review queue until you approve it."
+          caption={t("wizard.preview.agentPostBody")}
         />
       </div>
     );
   }
 
   return (
-    <EmptyPanel title="No post detected yet">
-      Run the weekly_update prompt in your agent and the post appears in your
-      review queue — this wizard does not need to be open for that. Nothing is
-      public until you approve it.
+    <EmptyPanel title={t("wizard.preview.noPostYet")}>
+      {t("wizard.preview.noPostYetBody")}
     </EmptyPanel>
   );
 }

@@ -1,4 +1,5 @@
 import type { ApiToken } from "@repo/schemas";
+import type { TFunction } from "i18next";
 
 /**
  * Renders a masked hint of a token from its stored prefix — e.g.
@@ -22,8 +23,8 @@ export function formatDate(value: Date | null): string {
   return dateFormatter.format(value);
 }
 
-export function formatLastUsed(value: Date | null): string {
-  return value ? formatDate(value) : "Never used";
+export function formatLastUsed(value: Date | null, t: TFunction): string {
+  return value ? formatDate(value) : t("settings.token.neverUsed");
 }
 
 export type TokenStatus = "active" | "revoked" | "expired";

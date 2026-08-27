@@ -1,17 +1,18 @@
 import type { GitConnection } from "@repo/schemas";
 import { useMemo } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { FiAlertTriangle } from "react-icons/fi";
 import { reportHandled } from "../../../lib/report-error";
 import { Button } from "../../../shared-components/button";
 import {
   buildWebhookUrl,
-  CLAUDE_HOOK_NOTES,
+  claudeHookNotes,
   CLAUDE_HOOK_SNIPPET,
-  CLAUDE_HOOK_SUMMARY,
+  claudeHookSummary,
   CLAUDE_HOOK_TARGET,
-  EXTRACTOR_NOTES,
-  GITHUB_WEBHOOK_STEPS,
-  GITLAB_WEBHOOK_STEPS,
+  getExtractorNotes,
+  getGithubWebhookSteps,
+  getGitlabWebhookSteps,
   isForgeProvider,
   PROVIDER_LABELS,
 } from "../lib/connection-format";
@@ -105,6 +106,7 @@ export function NewConnectionSetup({
   created: StashedConnection;
   onDismiss?: () => void;
 }) {
+  const { t } = useTranslation();
   const apiUrl = useMemo(() => resolveApiUrl(), []);
   const webhookUrl = buildWebhookUrl(
     apiUrl,
@@ -123,32 +125,29 @@ export function NewConnectionSetup({
           />
           <div>
             <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-              Finish setting up {created.displayName}
+              {t("settings.setup.finishFor", {
+                displayName: created.displayName,
+              })}
             </h3>
             {isForge && created.webhookSecret ? (
               <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">
-                <strong className="font-semibold">
-                  The signing secret below is shown once and can never be
-                  retrieved again.
-                </strong>{" "}
-                Copy it into your forge now, or you will have to disconnect this
-                source and add it back.
+                <Trans
+                  i18nKey="settings.setup.secretShownOnce"
+                  components={{ strong: <strong className="font-semibold" /> }}
+                />
               </p>
             ) : isForge ? (
               // The resume path for a forge connection: the secret was shown
               // once at creation and is unrecoverable, so this block can only
               // restate the webhook facts, never the secret.
               <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">
-                This source is connected. {PROVIDER_LABELS[created.provider]}{" "}
-                sends events to the webhook URL below; the signing secret was
-                shown once when the connection was created. If it never made it
-                into the webhook config, disconnect this source and add it
-                again to get a new one.
+                {t("settings.setup.connectedWebhook", {
+                  providerLabel: PROVIDER_LABELS[created.provider],
+                })}
               </p>
             ) : (
               <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">
-                This source is connected. It sends nothing until the local tool
-                below is pointed at it.
+                {t("settings.setup.connectedLocal")}
               </p>
             )}
           </div>
@@ -162,7 +161,7 @@ export function NewConnectionSetup({
             className="shrink-0"
             onClick={onDismiss}
           >
-            Dismiss
+            {t("common.dismiss")}
           </Button>
         ) : null}
       </div>
@@ -171,7 +170,7 @@ export function NewConnectionSetup({
         {created.webhookSecret ? (
           <SnippetBlock
             snippet={{
-              target: "Webhook secret — shown once",
+              target: t("settings.setup.webhookSecret"),
               language: "text",
               code: created.webhookSecret,
             }}
@@ -181,7 +180,7 @@ export function NewConnectionSetup({
         {webhookUrl ? (
           <SnippetBlock
             snippet={{
-              target: "Webhook URL (Payload URL)",
+              target: t("settings.setup.webhookUrl"),
               language: "text",
               code: webhookUrl,
             }}
@@ -198,7 +197,7 @@ export function NewConnectionSetup({
               }}
             />
             <p className="text-xs text-zinc-700 dark:text-zinc-300">
-              {CLAUDE_HOOK_SUMMARY}
+              {claudeHookSummary()}
             </p>
           </>
         ) : null}
@@ -206,19 +205,21 @@ export function NewConnectionSetup({
 
       <div className="mt-3">
         <h4 className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-          Set it up in {PROVIDER_LABELS[created.provider]}
+          {t("settings.setup.setItUpIn", {
+            providerLabel: PROVIDER_LABELS[created.provider],
+          })}
         </h4>
         {created.provider === "github" ? (
-          <InstructionList steps={GITHUB_WEBHOOK_STEPS} />
+          <InstructionList steps={getGithubWebhookSteps(t)} />
         ) : null}
         {created.provider === "gitlab" ? (
-          <InstructionList steps={GITLAB_WEBHOOK_STEPS} />
+          <InstructionList steps={getGitlabWebhookSteps(t)} />
         ) : null}
         {created.provider === "claude_code" ? (
-          <InstructionList steps={CLAUDE_HOOK_NOTES} />
+          <InstructionList steps={claudeHookNotes()} />
         ) : null}
         {created.provider === "extractor" ? (
-          <InstructionList steps={EXTRACTOR_NOTES} />
+          <InstructionList steps={getExtractorNotes(t)} />
         ) : null}
       </div>
     </div>

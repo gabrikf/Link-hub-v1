@@ -1,4 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { FiCheckCircle, FiPlay } from "react-icons/fi";
 import type { ToolTab } from "../lib/mcp-tool-tabs";
 import { PROMPT_NAME } from "../lib/mcp-tool-tabs";
@@ -30,6 +31,7 @@ export function ToolTabs({
   activeKey,
   onActiveKeyChange,
 }: ToolTabsProps) {
+  const { t } = useTranslation();
   const [uncontrolledKey, setUncontrolledKey] = useState(tabs[0]?.key ?? "");
   const tablistRef = useRef<HTMLDivElement | null>(null);
 
@@ -73,7 +75,7 @@ export function ToolTabs({
       <div
         ref={tablistRef}
         role="tablist"
-        aria-label="AI tool"
+        aria-label={t("settings.tools.aiTool")}
         className="flex flex-wrap gap-1.5"
         onKeyDown={handleTabKeyDown}
       >
@@ -119,7 +121,9 @@ export function ToolTabs({
                 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
                 aria-hidden="true"
               />
-              Check it worked — {activeTab.label}
+              {t("settings.tools.checkItWorked", {
+                toolLabel: activeTab.label,
+              })}
             </div>
             <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-zinc-600 dark:text-zinc-400">
               {activeTab.verify.map((line) => (
@@ -131,12 +135,17 @@ export function ToolTabs({
           <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-500/30 dark:bg-violet-500/5">
             <div className="flex items-center gap-2 text-xs font-semibold text-violet-900 dark:text-violet-200">
               <FiPlay className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              Run the workflow — {activeTab.invokeLabel}
+              {t("settings.tools.runTheWorkflow", {
+                toolLabel: activeTab.invokeLabel,
+              })}
             </div>
             <div className="mt-2">
               <SnippetBlock
                 snippet={{
-                  target: `${activeTab.label} — start the ${PROMPT_NAME} workflow`,
+                  target: t("settings.tools.startWorkflow", {
+                    toolLabel: activeTab.label,
+                    promptName: PROMPT_NAME,
+                  }),
                   language: "text",
                   code: activeTab.invokeCommand,
                 }}
