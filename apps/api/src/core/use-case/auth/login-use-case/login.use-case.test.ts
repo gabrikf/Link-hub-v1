@@ -211,6 +211,94 @@ describe("LoginUseCase", () => {
       expect(result.accessToken).toBeTypeOf("string");
     });
 
+    // BUG-20260827-login-multi-row-heap-order: one mailbox can already exist
+    // twice in different cases (a pair of rows the case-insensitive lookup both
+    // matches). The lookup used to answer with whichever row the database
+    // happened to return first, so one of the two owners typed their own
+    // address and their own password and was refused, forever.
+    describe("when one mailbox is stored twice in different cases", () => {
+      let capitalisedOwner: UserEntity;
+      let lowercaseOwner: UserEntity;
+
+      async function seedCollidingPair(order: "capitalised-first" | "lowercase-first") {
+        capitalisedOwner = UserEntity.create({
+          email: "Dup.Owner@Example.com",
+          login: "dup-owner-capitalised",
+          name: "Capitalised Owner",
+          password: "hashed_capitalised-secret",
+          description: null,
+          avatarUrl: null,
+          googleId: null,
+        });
+        lowercaseOwner = UserEntity.create({
+          email: "dup.owner@example.com",
+          login: "dup-owner-lowercase",
+          name: "Lowercase Owner",
+          password: "hashed_lowercase-secret",
+          description: null,
+          avatarUrl: null,
+          googleId: null,
+        });
+
+        const pair =
+          order === "capitalised-first"
+            ? [capitalisedOwner, lowercaseOwner]
+            : [lowercaseOwner, capitalisedOwner];
+
+        for (const user of pair) {
+          await usersRepository.create(user);
+        }
+      }
+
+      it.each(["capitalised-first", "lowercase-first"] as const)(
+        "signs each owner into their own account, whatever order the rows were stored in (%s)",
+        async (order) => {
+          // Arrange
+          await seedCollidingPair(order);
+
+          // Act - the capitalised owner types their address exactly as stored
+          const capitalisedInput: ILoginUseCaseInput = {
+            email: "Dup.Owner@Example.com",
+            password: "capitalised-secret",
+          };
+          vi.mocked(mockValidator).mockReturnValue(capitalisedInput);
+          const capitalisedResult =
+            await loginUseCase.execute(capitalisedInput);
+
+          // Act - and so does the lowercase owner
+          const lowercaseInput: ILoginUseCaseInput = {
+            email: "dup.owner@example.com",
+            password: "lowercase-secret",
+          };
+          vi.mocked(mockValidator).mockReturnValue(lowercaseInput);
+          const lowercaseResult = await loginUseCase.execute(lowercaseInput);
+
+          // Assert - each one lands in their own account, not the other's
+          expect(capitalisedResult.user.id).toBe(capitalisedOwner.id);
+          expect(capitalisedResult.user.email).toBe("Dup.Owner@Example.com");
+          expect(lowercaseResult.user.id).toBe(lowercaseOwner.id);
+          expect(lowercaseResult.user.email).toBe("dup.owner@example.com");
+        }
+      );
+
+      it("does not let one owner's password open the other owner's address", async () => {
+        // Arrange
+        await seedCollidingPair("capitalised-first");
+
+        const crossedInput: ILoginUseCaseInput = {
+          email: "dup.owner@example.com",
+          password: "capitalised-secret",
+        };
+        vi.mocked(mockValidator).mockReturnValue(crossedInput);
+
+        // Act & Assert
+        await expect(loginUseCase.execute(crossedInput)).rejects.toThrow(
+          InvalidCredentialsError
+        );
+        expect(refreshTokenRepository.count()).toBe(0);
+      });
+    });
+
     it("should not expose password in returned user", async () => {
       // Arrange
       vi.mocked(mockValidator).mockReturnValue(validInput);
