@@ -139,3 +139,39 @@ source, not by driving a real MCP session from a host agent. What is *not* prove
 is that a given host agent would in fact publish the flagged-safe text — only
 that the platform tells it to. `apps/mcp` has an existing test file, so step 1-3
 are reachable without new harness work.
+
+## Re-verified at triage iteration 108 — still reproduces, now claimed for fix
+
+Iteration 106 changed `buildTermPattern` in the same file
+(`BUG-20260827-disclosure-underscore-slug`), so this bug was re-proved against
+HEAD `910c358` rather than trusted from the iteration-102 write-up. It stands
+unchanged — that fix widened *which spellings of an employer name* are caught,
+and this bug is about the six categories that were never on the list at all.
+
+Executed against the current source
+(`apps/api/src/core/use-case/agent-policy/redact-work-disclosure.ts`), for an
+account at `summary` with one role at Globex:
+
+```
+blockedTerms = ["Globex"]
+redacted     = "Led PROJ-4471 for our customer Acme Bank on the Falcon settlement engine (unreleased). Team of 42."
+violations   = []
+control      = ["Globex"]        // "Worked at Globex." — the denylist is live
+```
+
+The ticket id, the customer, the unreleased codename and the headcount come back
+byte-identical, and the write-side check accepts them. `role.stack` still bypasses
+redaction entirely (`get-work-context.use-case.ts:239` passes `role.mainStack`
+straight through, while `:243-244` is the only field that gets `redactText`).
+
+All six overstating strings are present at HEAD, as is the assertion that pins
+the current label (`apps/mcp/src/tools/register.test.ts:966`).
+
+**Fix scope reaffirmed: the copy half only.** No change to
+`redact-work-disclosure.ts`, `buildBlockedTerms`, `get-work-context.use-case.ts`
+or `@repo/schemas`; enforcement behaviour must be byte-identical afterwards, and
+the api policy suite must stay at 379 passing. Widening enforcement to the other
+six categories needs heuristics or a model call — unbounded false-positive rate
+against a deploy tomorrow — and stays recorded as its own task.
+
+Evidence: `.nightly/evidence/i108-mcp-overstates-redaction.txt`.
