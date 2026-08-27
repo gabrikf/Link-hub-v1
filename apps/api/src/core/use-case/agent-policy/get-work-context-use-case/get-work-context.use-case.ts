@@ -6,6 +6,7 @@ import type { IWorkExperienceRepository } from "../../../repositories/work-exper
 import {
   type DisclosureCompany,
   buildBlockedTerms,
+  findDisclosureViolations,
   redactText,
   resolveDisclosureCompanies,
   resolveEffectiveLevel,
@@ -236,7 +237,13 @@ export class GetWorkContextUseCase {
         role.endDate,
         role.isCurrent,
       ),
-      stack: role.mainStack,
+      // Dropped, not redacted. Prose survives redaction because the sentence
+      // still parses around "[employer]"; a stack entry is a label the agent
+      // repeats verbatim in the post body AND in the tags, so "[employer]
+      // Platform" would only trade a leak for a nonsense technology.
+      stack: role.mainStack.filter(
+        (entry) => findDisclosureViolations(entry, blockedTerms).length === 0,
+      ),
       practices: extractPractices(classifierText),
       domain: extractDomain(classifierText),
       companyName: level === "summary" ? null : role.companyName,
