@@ -1,48 +1,56 @@
 ---
 name: i18n
-description: The migration guide for adding internationalisation to LinkHub's web app — react-i18next with pt-BR, en-US and es-ES. Use when the user asks to add i18n, translate the UI, support another language, extract hardcoded strings, or when you are about to write user-visible text and need to know whether it should go through t(). LinkHub has NO i18n today; this skill is the plan, not a description of existing code.
+description: How internationalisation works in LinkHub's web app — react-i18next with pt-BR, en-US and es-ES, already shipped. Use when adding or changing any user-visible string, adding a locale, touching apps/web/src/i18n/, or when a guardrail reports a raw string or an unresolved key. Every user-visible string in apps/web goes through t(); this skill is the contract for keeping it that way.
 ---
 
-# i18n — the plan, not the present
+# i18n — how it works, and the rules that keep it usable
 
-## Read this first: there is no i18n in LinkHub today
+## Read this first: i18n is live
 
-Zero i18next. Zero react-intl. No locale files, no provider, no `t()`. Every
-user-visible string in `apps/web` is a hardcoded English literal and
-`index.html` says `<html lang="en">`.
+`apps/web` runs **react-i18next** with three locales. Every user-visible string
+goes through `t()`, `<html lang>` follows the active language, and two gate
+checks fail the build if either stops being true.
 
-**So: do not invent `t()` calls.** Do not add an i18n library because a string
-looked translatable. Do not create `apps/web/src/i18n/` speculatively. Writing
-`t('dashboard.title')` against a translation function that does not exist
-produces a screen that renders raw keys — a worse outcome than English text.
+```
+apps/web/src/i18n/
+  index.ts                 i18next init, imported once (for its side effect) from main.tsx
+  locales/
+    pt-BR.json
+    en-US.json             the source language and the fallback
+    es-ES.json
+apps/web/src/lib/language.ts   detection, persistence, <html lang>
+```
 
-Write plain English strings. This skill is what to do **when the user actually
-asks for i18n**, and how to write strings today so that migration is mechanical
-rather than archaeological.
+`lib/language.ts` deliberately mirrors `lib/theme.ts`: read `localStorage`, fall
+back to the environment, apply to the document, persist on change. It also
+widens a browser tag onto a shipped locale before i18next sees it — a browser
+reporting `pt`, `pt-PT` or `es-419` is a real user who should get a translated
+app, and i18next's own `supportedLngs` check is exact-match.
 
----
-
-## Writing strings today so the migration is cheap
-
-You are not doing i18n. You are avoiding the three things that make it painful:
-
-1. **Keep user-visible text at the JSX leaf.** A string assembled from three
-   variables three call sites away cannot be extracted without rewriting the
-   logic. Build the sentence where it is rendered.
-2. **Never concatenate a sentence from fragments.**
-   `"Deleted " + count + " posts"` is untranslatable — word order and
-   pluralisation differ per language. Write the whole sentence, with the
-   variable interpolated, as one literal.
-3. **Do not put user-visible text in a constant far from its use**, especially
-   not in a shared `constants.ts`. It hides the string from extraction and from
-   the reviewer.
-
-Follow those three and the eventual migration is find-and-replace. Ignore them
-and it is a refactor.
+**So: do not write a bare English string in JSX.** Not in a JSX text node, not
+in `placeholder`, `title`, `alt` or `aria-label`. The gate will catch it, but
+the point is that a raw string is a string a Brazilian user reads in English.
 
 ---
 
-## The target setup
+## Writing strings so they stay translatable
+
+1. **Keep user-visible text at the JSX leaf.** A string assembled three call
+   sites away cannot be extracted without rewriting the logic.
+2. **Never concatenate a sentence from fragments.** `"Deleted " + count + " posts"`
+   is untranslatable — word order and pluralisation differ per language. Write
+   the whole sentence, with the variable interpolated, as one key.
+3. **Do not park user-visible text in a module-level constant.** If a catalogue
+   genuinely has to live at module scope, make it a function of `t` — a
+   module-scope `i18n.t()` is evaluated once at import time and freezes the
+   first language for the life of the tab, which the live language switcher
+   makes visible. Where the shape cannot change because another feature imports
+   it as a plain `Record`, use a `get label()` accessor: same type, resolved on
+   every read.
+
+---
+
+## The setup
 
 ### Locales
 
@@ -51,41 +59,53 @@ Three, and they ship together:
 | Locale | Notes |
 |---|---|
 | `pt-BR` | Brazilian Portuguese |
-| `en-US` | English — the source language, since every existing string is already English |
+| `en-US` | English — the source language, and the fallback |
 | `es-ES` | Spanish (Spain) |
 
-```
-apps/web/src/i18n/
-  index.ts                 i18next init, imported once from main.tsx
-  locales/
-    pt-BR.json
-    en-US.json
-    es-ES.json
-```
+Region tags are deliberate: `pt-BR` is not `pt-PT` and `es-ES` is not `es-419`,
+and pretending otherwise produces translations that read as foreign to half the
+audience.
 
 ### Library
 
 **react-i18next**, not react-intl. Reasons that matter here: the hook API
-(`useTranslation`) fits the existing function-component codebase with no
-provider gymnastics; `Trans` handles the inline-markup cases (a link inside a
-sentence) that this app has on the profile and settings pages; and language
-detection plus lazy locale loading come as maintained plugins rather than
-hand-rolled code.
+(`useTranslation`) fits the function-component codebase with no provider
+gymnastics, and `Trans` handles the inline-markup cases — a `<code>` or a link
+inside a sentence — that the settings and layout pages have.
 
-Consult **context7** for the current react-i18next API before writing the init —
-it has changed shape across majors and a remembered example will be wrong.
+There is no `i18next-browser-languagedetector`. Detection is ~30 lines in
+`lib/language.ts` instead, because the plugin's `supportedLngs` matching is
+exact and would send a browser reporting plain `pt` to the English fallback.
+Doing it by hand also makes it unit-testable.
 
-### Init sketch (do not write this until asked)
+Consult **context7** before changing the init — the i18next API has moved across
+majors (this repo runs i18next 26 / react-i18next 17) and a remembered example
+will be wrong.
+
+### How the init is set up, and why
 
 - `initReactI18next`, `fallbackLng: "en-US"`, `supportedLngs` listing all three.
-- Detection order: an explicit user preference first, then `navigator.language`.
-  Persist the choice in `localStorage`, next to `linkhub-theme` — the same
-  pattern `src/lib/theme.ts` already uses.
-- **Update `<html lang>` when the language changes.** It is currently hardcoded
-  to `en`. Screen readers pick pronunciation from it, and leaving it stale is a
-  real accessibility defect, not a nicety.
-- `returnNull: false` so a missing key renders the key rather than `null`,
-  which turns a translation gap into something visible instead of an empty box.
+- **All three catalogues are bundled, not fetched.** A backend plugin buys lazy
+  loading and costs a frame of raw keys on first paint plus a race that renders
+  English when the network is slow. `initAsync: false` makes the first render
+  already have the catalogue.
+- Detection order: the stored preference first, then `navigator.languages`,
+  walked in order — a machine set to `["de-DE", "pt-BR", "en-US"]` gets
+  Portuguese, not English.
+- `returnNull: false` and `returnEmptyString: false`, so a missing key renders
+  as the key. Ugly on purpose: `common.save` on screen is a bug report, an empty
+  button is a mystery.
+- `escapeValue: false` — React escapes already, and letting i18next escape too
+  double-encodes apostrophes.
+- **`<html lang>` follows the active language** via the `languageChanged` event.
+  `index.html` ships a static `en`; screen readers take pronunciation from this
+  attribute and a stale value is a real accessibility defect.
+- There is deliberately **no `CustomTypeOptions`** declaration. Typing
+  `resources` as `typeof enUS` does turn a mistyped key into a compile error,
+  but measured on this catalogue it added 14 seconds to a cold `tsc -b` at 265
+  keys — and the catalogue is over a thousand. `i18n-raw-strings.mjs` checks
+  every `t("…")` against `en-US.json` instead: same bug caught, ~0.1s, and it
+  also finds keys nothing renders.
 
 ---
 
@@ -107,18 +127,23 @@ where it first appeared guarantees the next screen adds a duplicate.
 
 | Good | Bad |
 |---|---|
-| `save`, `cancel`, `delete`, `requiredField`, `noDataFound` | `dashboardSave`, `settingsCancelButton`, `profileEmptyState` |
+| `common.save`, `common.cancel`, `common.delete`, `common.tryAgain` | `dashboard.save`, `settings.cancelButton`, `profile.emptyState` |
 
-Namespace only where the text is genuinely domain-specific and would be
-ambiguous on its own:
+Everything reusable lives under `common.*`. A `<feature>.*` namespace is for
+text that is genuinely domain-specific and would be ambiguous on its own:
 
 ```
 common.save
 common.cancel
 profile.openToWork
-search.aiMatchPercent
-posts.awaitingReview
+search.matchExplainer
+posts.reviewQueue
 ```
+
+`enum.*` is a third case: closed sets that belong to the domain rather than to
+any one feature — work model, contract type, seniority, spoken languages,
+months. Before this existed, `resume`, `search` and `work-history` each had
+their own name for the same six contract types.
 
 ### 3. Changing an existing key's value is dangerous
 
@@ -140,9 +165,21 @@ that exists in one locale is a bug waiting for a user with a different browser
 language. If a translation is not ready, put the English text in as a
 placeholder — visible-but-wrong beats a raw key on screen.
 
-`scripts/guardrails/i18n-parity.mjs` enforces this. It already runs in the gate
-and is a no-op until `apps/web/src/i18n/locales/` exists — the day the first
-locale file lands, parity is enforced automatically. Nobody has to remember.
+`scripts/guardrails/i18n-parity.mjs` enforces this in the gate. Nobody has to
+remember.
+
+### 5. Enum leaves are named by the wire value
+
+`enum.contractType["full-time"]`, `enum.workModel["on-site"]`,
+`enum.persona["qa-engineer"]`. That lets a call site write
+``t(`enum.contractType.${value}`)`` with no lookup table — and it keeps the
+distinction that matters visible: **translate the label, never the value.**
+Every `value` in a `{value, label}` option array goes to the API and is matched
+server-side. A translated value is a silently broken search.
+
+Where a value may not be in the catalogue (data from the API rather than a
+closed set), pass `{ defaultValue: raw }` so an unknown value renders as itself
+rather than as a raw key.
 
 ---
 
@@ -166,7 +203,33 @@ locale file lands, parity is enforced automatically. Nobody has to remember.
 
 ---
 
-## The lint rule — turn it on WITH the migration, not before
+## The two gate checks
+
+`npm run i18n:check` runs both; the gate runs them too, and both are
+sub-second.
+
+**`i18n-parity.mjs`** — every locale holds the same key set (deep, dotted
+paths), no empty values, valid JSON. It guards the failure it was written for:
+somebody adds a key to `en-US` and ships, and `pt-BR` renders the raw key three
+weeks later in front of a user.
+
+**`i18n-raw-strings.mjs`** — the other half. Parity says nothing about the
+string that never became a key. It walks every `.tsx` in `apps/web/src` with a
+small JSX-aware scanner and reports visible text outside `t()`, plus the
+`placeholder`, `title`, `alt` and `aria-label` attributes. It also checks that
+every `t("…")` and `i18nKey="…"` resolves in `en-US.json`, and that every key in
+`en-US.json` is reachable from the code.
+
+Its known limit, worth knowing before you trust it: **it only reads JSX.** A
+user-visible string built in a plain `.ts` helper or a template literal is
+invisible to it. Those exist — `lib/auth-api.ts` error messages, for instance —
+and they are covered by review, not by the scanner. Extending it to arbitrary
+TypeScript was tried and produced mostly false positives; a check that cries
+wolf gets switched off in a week.
+
+---
+
+## The lint rule — optional, not enabled
 
 `eslint-plugin-i18next`, rule `i18next/no-literal-string`:
 
@@ -195,36 +258,43 @@ Three deliberate choices:
   strings.
 - **`t` in the exclude list**, or the rule flags the key you just passed to it.
 
-Do not enable this until the migration is actually underway. A rule that fires
-hundreds of times on day one is a rule people configure away.
+This is **not** enabled today. The two gate checks above already cover the same
+ground more precisely and without touching the recorded eslint ratchet in
+`.github/workflows/ci.yml`. Enable it only if you want editor-time feedback,
+and start at `warn`.
 
 ---
 
-## Migration order, when the user asks
+## Adding a fourth locale
 
-1. Install `i18next`, `react-i18next`, `i18next-browser-languagedetector`.
-   Check current APIs with **context7** first.
-2. Create `apps/web/src/i18n/index.ts` and three locale files, each with the
-   same starting key set. Import the init once, from `main.tsx`.
-3. Make `<html lang>` follow the active language.
-4. Add a language switcher — settings page, next to the theme toggle.
-5. Migrate **one feature at a time**, starting with the highest-traffic screen
-   that is also the most self-contained. Run `npm run i18n:parity` and the full
-   gate after each feature; do not migrate the whole app in one commit.
-6. Enable `i18next/no-literal-string` as `warn` once the first feature is done,
-   so new code is caught while old code is still being converted.
-7. When the warning count reaches zero, promote it to `error` and delete this
-   step from the plan.
+1. Add the tag to `SUPPORTED_LANGUAGES` and `PRIMARY_SUBTAG_TO_LANGUAGE` in
+   `apps/web/src/lib/language.ts`, and to `EXPECTED_LOCALES` in
+   `scripts/guardrails/i18n-parity.mjs`.
+2. Add the locale file with the **complete** key set — parity will tell you
+   exactly which keys are missing, by name.
+3. Add the code and endonym to `LANGUAGE_LABELS` in
+   `shared-components/language-toggle.tsx`, and the endonym key under
+   `enum.uiLanguage.*` in all locale files. The endonym is not translated: a
+   speaker who cannot read the interface still recognises their own language's
+   name.
+4. Register it in `LOCALES` in the visual scenario below and run it.
+
+## Verifying a change
 
 **The public profile (`/profile/$username`) is the highest-stakes screen.** It is
 the page strangers see, it is the product's shareable artifact, and it is
 public — a raw key visible there is visible to everyone, not just to a signed-in
-user who can be told to reload. Migrate it carefully and verify it with a visual
-scenario in all three locales:
+user who can be told to reload.
 
 ```bash
-npm run visual:run -- scripts/visual/scenarios/public-profile.scenario.mjs
+npm run visual:run -- scripts/visual/scenarios/i18n-locales.scenario.mjs
 ```
+
+One run walks it in all three locales and both themes and asserts the two things
+an eye is bad at: that no raw key reached the screen, and that nothing scrolls
+sideways. Portuguese and Spanish run 15-25% longer than English, so a button
+sized to "Save" splits at "Guardar cambios" — invisible to anyone developing in
+English.
 
 ---
 

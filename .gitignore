@@ -62,6 +62,9 @@ yarn-error.log*
 # gets un-ignored by name, right here, next to the reference one.
 scripts/visual/scenarios/*.scenario.mjs
 !scripts/visual/scenarios/public-profile.scenario.mjs
+# The i18n check is not scratch: it is the only thing that proves the three
+# locales still render, and the `i18n` skill points at it by name.
+!scripts/visual/scenarios/i18n-locales.scenario.mjs
 
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.
