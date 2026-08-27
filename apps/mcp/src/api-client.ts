@@ -30,7 +30,11 @@ interface OperationSuccess {
   success: boolean;
 }
 
-/** One role as returned by `GET /me/work-context` — already redacted server-side. */
+/**
+ * One role as returned by `GET /me/work-context`. The server has stripped the
+ * user's blocked employer and client names from these strings and nothing else
+ * — ticket ids, customer names, codenames and headcount figures survive.
+ */
 export interface WorkContextRole {
   id: string;
   title: string;

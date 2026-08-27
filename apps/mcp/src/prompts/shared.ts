@@ -63,13 +63,18 @@ ${allows}
 
 ${blocks}
 ${terms}
-This is **enforced**, not advised. LinkHub applies the same denylist server-side
-when the post is created: a post naming a blocked employer or client is rejected
+**Employer and client names are enforced, not advised.** LinkHub applies the
+same denylist server-side when a post is created: a post naming one is rejected
 with HTTP 400 that names the offending term. If that happens, rewrite the post
 around the term — retrying the same text will fail again.
 
-For anything about where the user has worked, call **\`get_work_context\`**. It
-returns their history already redacted to this level. Do **not** infer the
+**Every other item above is yours to enforce.** A post carrying one of them is
+accepted and published exactly as written — nothing catches it after you.
+LinkHub does not scan for ticket ids, customer names, internal codenames, unreleased products, architecture details or headcount figures.
+
+For anything about where the user has worked, call **\`get_work_context\`**.
+It returns their history with those same employer and client names stripped, and nothing else removed.
+Read what comes back against the list above. Do **not** infer the
 employer from the git remote, the package name, the directory path of any
 repository in the set, code comments or commit trailers — that is exactly the
 leak this policy prevents. The

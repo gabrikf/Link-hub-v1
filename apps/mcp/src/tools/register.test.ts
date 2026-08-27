@@ -952,7 +952,7 @@ describe("get_work_context", () => {
     expect(text).toContain(
       'Work history at disclosure level "detailed" (1 role(s)).',
     );
-    expect(text).toContain("publish only what appears here.");
+    expect(text).toContain("do not add anything that is not here either.");
     expect(text).toContain("### 1. Senior Backend Engineer");
     expect(text).toContain("- Employer: Acme Financial");
     expect(text).toContain("- Seniority: senior");
@@ -963,7 +963,7 @@ describe("get_work_context", () => {
     expect(text).toContain("- Stack: TypeScript, Fastify");
     expect(text).toContain("- Engineering practices: TDD");
     expect(text).toContain(
-      "- Achievements (already redacted):\n  - Cut p95 latency 40%",
+      "- Achievements (employer and client names stripped; nothing else is):\n  - Cut p95 latency 40%",
     );
   });
 
