@@ -1,0 +1,9 @@
+{
+  // The build config exists only to keep `*.test.ts` out of `dist/`: this
+  // package ships the `linkhub-mcp` executable an MCP host spawns, so the
+  // emitted tree should contain the server and nothing else. Type CHECKING
+  // still uses the plain `tsconfig.json`, which includes the tests — `npm run
+  // check-types` must cover them or the disclosure assertions rot untyped.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}
