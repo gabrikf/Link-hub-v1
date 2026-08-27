@@ -1,7 +1,7 @@
 # BUG-20260827-resume-parse-uncapped: the resume parser has no upper length check, so an over-long paste becomes an internal error instead of "too long" — and the shared 100 000-char cap is dead code
 
-- **Status:** confirmed (triaged at iteration 102)
-- **Impact (user-side):** A developer pasting a very long resume gets an unexplained failure at the one step the whole onboarding depends on, and burns one of their five daily AI-import attempts doing it
+- **Status:** confirmed (triaged at iteration 102, re-proved and corrected at iteration 111)
+- **Impact (user-side):** A developer pasting a very long resume gets an unexplained 500 at the one step the whole onboarding depends on, and burns one of their five daily AI-import attempts doing it — the quota guard refunds a 4xx but deliberately never refunds a 5xx, and this bug's failure mode is the 5xx
 - **Severity:** Minor · **Priority:** P2
 - **Persona Affected:** Nina, the arriving developer
 - **Journey Step:** J-resume-ai-import
@@ -113,3 +113,27 @@ no OpenAI.
    turns the schema from dead code into the single source of the number.
 4. **Regression guard:** the existing minimum-length 400 still fires on a short
    body, with its own unchanged message.
+
+**Correction recorded at triage iteration 111.** The impact line originally said
+the failing request burns a quota attempt, full stop. It does not, on the 400
+path: `ai-quota-guard.ts:96-115` hangs a `finish` listener on the reply that
+refunds the unit whenever `400 <= status < 500 && status !== 429`. The 5xx is
+explicitly *not* refunded (`:105-109` — "a 500 can just as easily be a failure
+AFTER the OpenAI call returned"), and the 5xx is exactly what an over-context
+prompt produces, so the quota harm survives — attached to the right status code.
+
+Two consequences for FIX:
+
+- **Do not write a test asserting a burnt quota unit on the new 400.** The
+  correct assertion is the opposite: the new rejection is a 400, so the unit is
+  refunded, which is the whole point of moving the failure from 500 to 400.
+- The guard is inert on a dev machine and in the hermetic suite — `config.enabled`
+  is false unless `NODE_ENV=production` or `AI_QUOTA_ENABLED=true`
+  (`ai-quota-guard.ts:34-40`) — so no `server.inject` test will meter anything
+  unless it flips that flag on purpose.
+
+Re-proved at HEAD `5daa538` on the running dev api: 100 001 and 1 000 000
+whitespace characters both return the handler's minimum-length 400 (the 1 MB body
+was accepted by the route), and 1 200 000 returns 413 from `bodyLimit`. Full
+transcript in `.nightly/evidence/i111-triage-work-context-stack-unredacted.txt`,
+section B.
