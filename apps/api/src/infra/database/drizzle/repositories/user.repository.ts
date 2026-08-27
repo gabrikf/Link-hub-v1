@@ -2,6 +2,7 @@ import { eq, or, sql } from "drizzle-orm";
 import type { AgentDisclosureLevel } from "@repo/schemas";
 import { UserEntity } from "../../../../core/entity/user/user-entity.js";
 import { normalizeEmail } from "../../../../core/entity/user/normalize-email.js";
+import { selectMatchingAccount } from "../../../../core/entity/user/select-matching-account.js";
 import { IUsersRepository } from "../../../../core/repositories/user/user-repository.js";
 import { db } from "../index.js";
 import { users } from "../schema.js";
@@ -17,10 +18,13 @@ function emailMatches(email: string) {
 
 export class DrizzleUserRepository implements IUsersRepository {
   async findByEmailOrLogin(login: string): Promise<UserEntity | null> {
-    const [user] = await db
+    const matches = await db
       .select()
       .from(users)
-      .where(or(...[emailMatches(login), eq(users.login, login)]));
+      .where(or(...[emailMatches(login), eq(users.login, login)]))
+      .orderBy(users.createdAt, users.id);
+
+    const user = selectMatchingAccount(matches, login);
 
     if (!user) return null;
 
@@ -49,7 +53,13 @@ export class DrizzleUserRepository implements IUsersRepository {
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
-    const [user] = await db.select().from(users).where(emailMatches(email));
+    const matches = await db
+      .select()
+      .from(users)
+      .where(emailMatches(email))
+      .orderBy(users.createdAt, users.id);
+
+    const user = selectMatchingAccount(matches, email);
 
     if (!user) return null;
 
