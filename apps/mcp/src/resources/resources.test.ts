@@ -473,3 +473,17 @@ describe("post_quality_guide agrees with the shared schemas", () => {
     expect(fiveTags.success).toBe(true);
   });
 });
+
+// ── BUG-20260827-mcp-overstates-redaction ───────────────────────────────────
+
+describe("post_quality_guide does not overstate what LinkHub redacts", () => {
+  it("stops calling get_work_context's payload already redacted", () => {
+    expect(POST_GUIDELINES).not.toContain("already redacted");
+    expect(POST_GUIDELINES).toContain(
+      "place the user's blocked employer and client names have already been stripped.",
+    );
+    expect(POST_GUIDELINES).toContain(
+      "Nothing else on this list is stripped anywhere; keeping it out is your job.",
+    );
+  });
+});

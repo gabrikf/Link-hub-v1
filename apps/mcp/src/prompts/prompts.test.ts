@@ -557,3 +557,55 @@ describe("since_last_post", () => {
     expect(text).not.toContain("the last 30 days");
   });
 });
+
+// ── What Step 7b claims LinkHub enforces ────────────────────────────────────
+
+/**
+ * BUG-20260827-mcp-overstates-redaction.
+ *
+ * Step 7b renders all seven `summary`-level blocks and then says "This is
+ * **enforced**, not advised" over the whole list. The server enforces one of
+ * them — employer and client names on the user's denylist. An agent that
+ * believes the other six are caught server-side has no reason to check them
+ * itself, and a post naming a ticket id or a customer is accepted and published.
+ */
+describe("Step 7b claims enforcement only where the server enforces", () => {
+  it.each(PROMPT_NAMES)("%s does not call the whole blocks list enforced", (name) => {
+    const text = render(name, {}, SUMMARY);
+
+    expect(text).not.toContain("This is **enforced**, not advised.");
+    expect(text).toContain(
+      "**Employer and client names are enforced, not advised.**",
+    );
+  });
+
+  it.each(PROMPT_NAMES)("%s makes the other blocks the agent's own job", (name) => {
+    const text = render(name, {}, SUMMARY);
+
+    expect(text).toContain("**Every other item above is yours to enforce.**");
+    expect(text).toContain(
+      "LinkHub does not scan for ticket ids, customer names, internal " +
+        "codenames, unreleased products, architecture details or headcount " +
+        "figures",
+    );
+  });
+
+  it.each(PROMPT_NAMES)(
+    "%s stops describing get_work_context as fully redacted",
+    (name) => {
+      const text = render(name, {}, SUMMARY);
+
+      expect(text).not.toContain("returns their history already redacted");
+      expect(text).toContain(
+        "returns their history with those same employer and client names " +
+          "stripped, and nothing else removed",
+      );
+    },
+  );
+
+  it.each(PROMPT_NAMES)("%s keeps the true HTTP 400 sentence", (name) => {
+    const text = render(name, {}, SUMMARY);
+
+    expect(text).toContain("rejected\nwith HTTP 400 that names the offending term");
+  });
+});

@@ -1108,3 +1108,93 @@ describe("get_work_context", () => {
     );
   });
 });
+
+// ── get_work_context: what it claims LinkHub enforces ─────────────────────────
+
+/**
+ * BUG-20260827-mcp-overstates-redaction.
+ *
+ * `redact-work-disclosure.ts` strips exactly one of the seven categories the
+ * `summary` level promises to block: employer and client names on the user's
+ * denylist. Ticket ids, customer names, internal codenames, unreleased
+ * products, architecture specifics and headcount figures come back from the api
+ * byte-identical. The tool used to call the whole payload "already redacted"
+ * and to close with "publish only what appears here" — which tells an agent
+ * that reading a role achievement is enough diligence, and is how "Led PROJ-4471
+ * for our customer Acme Bank on the unreleased Falcon engine. Team of 42."
+ * reaches a public post.
+ */
+describe("get_work_context does not overstate what LinkHub redacts", () => {
+  function setup(disclosure: DisclosureContext = makeDisclosure()) {
+    const host = createFakeHost();
+    const { stub, client } = createStubClient();
+    registerGetWorkContext(host.server, client, disclosure);
+    return { host, stub };
+  }
+
+  const LEAKY_ACHIEVEMENT =
+    "Led PROJ-4471 for our customer Acme Bank on the unreleased Falcon " +
+    "settlement engine. Team of 42.";
+
+  it("never tells the agent the payload is already redacted", async () => {
+    const { host, stub } = setup();
+    stub.getWorkContext.mockResolvedValueOnce({
+      disclosureLevel: "summary",
+      roles: [makeRole({ achievements: [LEAKY_ACHIEVEMENT] })],
+    });
+
+    const text = textOf(await host.call("get_work_context", {}));
+
+    expect(text).not.toContain("already redacted");
+    expect(text).not.toContain("publish only what appears here");
+  });
+
+  it("names the one category LinkHub strips and hands the rest to the agent", async () => {
+    const { host, stub } = setup();
+    stub.getWorkContext.mockResolvedValueOnce({
+      disclosureLevel: "summary",
+      roles: [makeRole({ achievements: [LEAKY_ACHIEVEMENT] })],
+    });
+
+    const text = textOf(await host.call("get_work_context", {}));
+
+    expect(text).toContain(
+      "LinkHub has stripped the employer and client names on the user's " +
+        "denylist from this text — that is the ONLY category it removes.",
+    );
+    expect(text).toContain(
+      "Ticket ids, customer names, internal codenames, unreleased products, " +
+        "architecture details and headcount figures are NOT stripped and may " +
+        "still appear below",
+    );
+    expect(text).toContain(
+      "leaving them out of the post is your job, not LinkHub's",
+    );
+  });
+
+  it("labels the achievements list with what was actually stripped", async () => {
+    const { host, stub } = setup();
+    stub.getWorkContext.mockResolvedValueOnce({
+      disclosureLevel: "summary",
+      roles: [makeRole({ achievements: [LEAKY_ACHIEVEMENT] })],
+    });
+
+    const text = textOf(await host.call("get_work_context", {}));
+
+    expect(text).toContain(
+      `- Achievements (employer and client names stripped; nothing else is):\n  - ${LEAKY_ACHIEVEMENT}`,
+    );
+  });
+
+  it("does not promise full redaction in the tool description either", () => {
+    const { host } = setup();
+
+    const description = host.description("get_work_context");
+
+    expect(description).not.toContain("ALREADY REDACTED");
+    expect(description).toContain(
+      "with the employer and client names on their denylist ALREADY STRIPPED " +
+        "by LinkHub, and nothing else removed",
+    );
+  });
+});
