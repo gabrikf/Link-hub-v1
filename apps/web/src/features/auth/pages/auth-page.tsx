@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useGoogleLogin } from "@react-oauth/google";
+import { useTranslation } from "react-i18next";
 import { FaLinkedinIn } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 import {
@@ -24,6 +25,7 @@ import { RegisterForm } from "../components/register-form";
 import type { AuthTab } from "../types/auth-tab";
 
 export function AuthPage() {
+  const { t } = useTranslation();
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const navigate = useNavigate();
@@ -162,10 +164,10 @@ export function AuthPage() {
         <header className="space-y-1">
           <h1 className="flex items-center gap-2 text-xl font-semibold">
             <BrandLogo className="h-8 w-8 shadow-sm" />
-            LinkHub
+            {t("common.brandName")}
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Access your account or create a new one.
+            {t("auth.tagline")}
           </p>
         </header>
 
@@ -188,7 +190,9 @@ export function AuthPage() {
         <div className="space-y-2">
           {googleClientId && (
             <>
-              <p className="text-xs text-zinc-500">or continue with</p>
+              <p className="text-xs text-zinc-500">
+                {t("auth.orContinueWith")}
+              </p>
 
               {/*
                 Matches the LoginForm/RegisterForm treatment: spinner + a
@@ -201,14 +205,14 @@ export function AuthPage() {
                 variant="outline"
                 fullWidth
                 isLoading={googleSignInMutation.isPending}
-                loadingLabel="Signing in..."
+                loadingLabel={t("auth.signingIn")}
                 onClick={() => googleLogin()}
                 className="relative flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
                 <span className="absolute left-3 inline-flex h-5 w-5 items-center justify-center text-base">
                   <FcGoogle aria-hidden="true" />
                 </span>
-                Sign in with Google
+                {t("auth.signInWithGoogle")}
               </Button>
 
               {googleSignInMutation.error?.message && (
@@ -227,7 +231,7 @@ export function AuthPage() {
             <span className="absolute left-3 inline-flex h-5 w-5 items-center justify-center text-base text-[#0A66C2]">
               <FaLinkedinIn aria-hidden="true" />
             </span>
-            Sign in with LinkedIn
+            {t("auth.signInWithLinkedIn")}
           </a>
 
           {linkedInErrorMessage && (
@@ -237,7 +241,7 @@ export function AuthPage() {
 
         {userInfo && (
           <FeedbackMessage
-            message={`Authenticated as ${userInfo.email}`}
+            message={t("auth.authenticatedAs", { email: userInfo.email })}
             tone="success"
           />
         )}

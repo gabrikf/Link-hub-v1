@@ -21,17 +21,18 @@ import esES from "./locales/es-ES.json";
  * renders in English because a network request lost a race.
  */
 
-/**
- * The `translation` namespace of the source locale. Every key the app can use
- * is declared here, so `t("common.saev")` is a type error rather than a raw
- * key rendered to a user.
+/*
+ * There is deliberately no `CustomTypeOptions` declaration here.
+ *
+ * Typing `resources` as `typeof enUS` does give `t()` autocomplete and turns a
+ * mistyped key into a compile error — but measured on this catalogue it added
+ * 14 seconds to a cold `tsc -b` at 265 keys, and the finished catalogue is four
+ * times that. The gate has a 90-second budget for the whole monorepo.
+ *
+ * `scripts/guardrails/i18n-raw-strings.mjs` checks every `t("…")` in apps/web
+ * against en-US.json instead. Same bug caught, ~0.1s, and it also finds keys
+ * that exist in the locale files but that nothing renders.
  */
-declare module "i18next" {
-  interface CustomTypeOptions {
-    defaultNS: "translation";
-    resources: { translation: typeof enUS };
-  }
-}
 
 void i18next.use(initReactI18next).init({
   resources: {

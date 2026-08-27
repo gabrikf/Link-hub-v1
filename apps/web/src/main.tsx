@@ -4,6 +4,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import "./index.css";
+// Side-effect import: initialises i18next and sets <html lang> before render.
+import "./i18n";
 import { queryClient } from "./lib/query-client";
 import { router } from "./router";
 import { initializeTheme } from "./lib/theme";

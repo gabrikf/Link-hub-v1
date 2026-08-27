@@ -24,12 +24,20 @@
  *   week, so precision beats recall here — parity plus code review covers the
  *   rest.
  *
+ * IT ALSO CHECKS THE KEYS THEMSELVES
+ *   Every `t("…")` and `i18nKey="…"` in apps/web/src must resolve in
+ *   en-US.json, and every key in en-US.json must be reachable from the code.
+ *   This replaces an i18next `CustomTypeOptions` declaration, which caught the
+ *   same mistyped-key bug but added 14 seconds to a cold `tsc -b` at a quarter
+ *   of the catalogue's size. A mistyped key renders as the raw key to a user,
+ *   so it needs a fast check, not an expensive one.
+ *
  * Every finding prints `file:line` and the text. A failure that does not say
  * where it is costs more than the bug.
  *
  * Usage: node scripts/guardrails/i18n-raw-strings.mjs
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -37,6 +45,9 @@ const SRC_DIR = resolve(ROOT, "apps/web/src");
 
 /** Attributes whose literal value is read aloud or shown to a user. */
 const VISIBLE_ATTRIBUTES = ["placeholder", "title", "alt", "aria-label"];
+
+/** The source locale — the catalogue every `t()` call is checked against. */
+const SOURCE_LOCALE = resolve(ROOT, "apps/web/src/i18n/locales/en-US.json");
 
 /**
  * Runs between `}` and `{` in ordinary TypeScript look exactly like JSX text to
@@ -343,6 +354,105 @@ function findInFile(path) {
   return findings;
 }
 
+/** Flattens the locale tree to the dotted paths `t()` actually asks for. */
+function flattenKeys(value, prefix = "", out = new Set()) {
+  for (const [key, child] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (child && typeof child === "object" && !Array.isArray(child)) {
+      flattenKeys(child, path, out);
+    } else {
+      out.add(path);
+    }
+  }
+  return out;
+}
+
+function collectSourceFiles(dir, out = []) {
+  for (const entry of readdirSync(dir)) {
+    const path = resolve(dir, entry);
+    if (statSync(path).isDirectory()) {
+      if (!/[\\/]locales$/.test(path)) collectSourceFiles(path, out);
+    } else if (/\.tsx?$/.test(path)) {
+      out.push(path);
+    }
+  }
+  return out;
+}
+
+/**
+ * Keys referenced from code.
+ *
+ * `\bt\(` and not `t\(`: `expect(`, `.at(` and `format(` all end in a `t`,
+ * and a word boundary is what tells them apart from the translation function.
+ *
+ * Template calls — `` t(`enum.workModel.${value}`) `` — cannot be resolved
+ * statically, so their static prefix is recorded instead and every catalogue
+ * key underneath it counts as reached. Without that, every enum key in the
+ * catalogue reads as dead.
+ */
+function collectUsedKeys(files) {
+  const used = new Map();
+  const prefixes = new Set();
+
+  for (const path of files) {
+    const source = readFileSync(path, "utf8");
+    const lineOf = makeLineLookup(source);
+    const displayPath = relative(ROOT, path);
+
+    for (const re of [
+      /\bt\(\s*(["'])([\w.-]+)\1/g,
+      /i18nKey\s*=\s*(["'])([\w.-]+)\1/g,
+    ]) {
+      let match;
+      while ((match = re.exec(source)) !== null) {
+        if (!used.has(match[2])) {
+          used.set(match[2], { path: displayPath, line: lineOf(match.index) });
+        }
+      }
+    }
+
+    const templateCall = /\bt\(\s*`([\w.-]*)\$\{/g;
+    let match;
+    while ((match = templateCall.exec(source)) !== null) {
+      if (match[1]) prefixes.add(match[1]);
+    }
+  }
+
+  return { used, prefixes };
+}
+
+function checkKeys() {
+  if (!existsSync(SOURCE_LOCALE)) {
+    return { problems: [], skipped: true };
+  }
+
+  const catalogue = flattenKeys(JSON.parse(readFileSync(SOURCE_LOCALE, "utf8")));
+  const files = collectSourceFiles(SRC_DIR);
+  const { used, prefixes } = collectUsedKeys(files);
+  const problems = [];
+
+  for (const [key, where] of used) {
+    // A pluralised key is stored as `key_one` / `key_other`; the call site
+    // asks for the base name and i18next picks the suffix from `count`.
+    const exists =
+      catalogue.has(key) ||
+      catalogue.has(`${key}_one`) ||
+      catalogue.has(`${key}_other`);
+    if (!exists) {
+      problems.push(`${where.path}:${where.line}  t("${key}") — not in en-US.json`);
+    }
+  }
+
+  for (const key of catalogue) {
+    const base = key.replace(/_(one|other)$/, "");
+    if (used.has(base) || used.has(key)) continue;
+    if ([...prefixes].some((prefix) => key.startsWith(prefix))) continue;
+    problems.push(`en-US.json  "${key}" — defined but nothing renders it`);
+  }
+
+  return { problems, skipped: false };
+}
+
 function main() {
   const files = collectTsxFiles(SRC_DIR);
   const findings = files.flatMap(findInFile);
@@ -363,8 +473,17 @@ function main() {
     return 1;
   }
 
+  const { problems, skipped } = checkKeys();
+  if (problems.length > 0) {
+    console.log(`i18n-raw-strings: ${problems.length} key problem(s)\n`);
+    for (const problem of problems.slice(0, 60)) console.log(`  ${problem}`);
+    if (problems.length > 60) console.log(`  … +${problems.length - 60} more`);
+    return 1;
+  }
+
   console.log(
-    `i18n-raw-strings: ${files.length} .tsx file(s) scanned, no raw user-visible text.`,
+    `i18n-raw-strings: ${files.length} .tsx file(s) scanned, no raw user-visible text` +
+      (skipped ? " (no en-US.json yet — key check skipped)." : "; every t() key resolves."),
   );
   return 0;
 }

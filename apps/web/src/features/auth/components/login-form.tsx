@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchemaInput } from "@repo/schemas";
 import type { LoginInput } from "@repo/schemas";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { FiLoader, FiLogIn } from "react-icons/fi";
 import { Input } from "../../../shared-components/input";
 import { Button } from "../../../shared-components/button";
@@ -20,6 +21,7 @@ export function LoginForm({
   errorMessage,
   onSubmit,
 }: LoginFormProps) {
+  const { t } = useTranslation();
   const {
     register,
     handleSubmit,
@@ -51,7 +53,7 @@ export function LoginForm({
       <Input
         id="login-email"
         type="email"
-        label="Email"
+        label={t("common.email")}
         error={errors.email?.message}
         {...register("email")}
       />
@@ -59,7 +61,7 @@ export function LoginForm({
       <Input
         id="login-password"
         type="password"
-        label="Password"
+        label={t("common.password")}
         error={errors.password?.message}
         {...register("password")}
       />
@@ -70,12 +72,12 @@ export function LoginForm({
         {isPending ? (
           <>
             <FiLoader className="h-4 w-4 animate-spin" />
-            Signing in...
+            {t("auth.signingIn")}
           </>
         ) : (
           <>
             <FiLogIn className="h-4 w-4" />
-            Sign in
+            {t("auth.signIn")}
           </>
         )}
       </Button>

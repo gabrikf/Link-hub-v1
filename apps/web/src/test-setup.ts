@@ -1,4 +1,8 @@
 import "@testing-library/jest-dom/vitest";
+// Components call useTranslation(); without the init they render raw keys and
+// every assertion on visible text fails for a reason that has nothing to do
+// with the component under test.
+import "./i18n";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
