@@ -3,8 +3,6 @@ import {
   DEFAULT_THEME_PREFERENCE,
   themePreferenceSchema,
   uiLanguageSchema,
-  type ThemePreference,
-  type UiLanguage,
 } from "@repo/schemas";
 import { UserPreferencesEntity } from "../../../../core/entity/user-preferences/user-preferences-entity.js";
 import { IUserPreferencesRepository } from "../../../../core/repositories/user-preferences/user-preferences-repository.js";
@@ -37,8 +35,8 @@ function toEntity(row: UserPreferencesRow): UserPreferencesEntity {
 
   return new UserPreferencesEntity({
     userId: row.userId,
-    language: language.success ? (language.data as UiLanguage) : null,
-    theme: theme.success ? (theme.data as ThemePreference) : DEFAULT_THEME_PREFERENCE,
+    language: language.success ? language.data : null,
+    theme: theme.success ? theme.data : DEFAULT_THEME_PREFERENCE,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });

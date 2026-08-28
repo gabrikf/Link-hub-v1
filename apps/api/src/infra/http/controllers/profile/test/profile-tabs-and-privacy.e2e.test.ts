@@ -40,53 +40,58 @@ describe("Profile payload: tabsEnabled and preference privacy", () => {
     return { user, auth: { authorization: `Bearer ${token}` } };
   }
 
-  /** Three tabs on `pc` with one block each, plus a block pinned to all tabs. */
+  /**
+   * Three tabs per viewport with one block each, plus a block pinned to all
+   * tabs. BOTH viewports are seeded on purpose: an unseeded viewport is
+   * rendered from an in-memory default layout with fresh ids on every request,
+   * so it could never be compared across two reads.
+   */
   async function seedLayout(user: UserEntity) {
-    const tabs = await Promise.all(
-      ["Work", "Writing", "Contact"].map((title, order) =>
-        ctx.profileTabsRepository.create(
-          ProfileTabEntity.create({
-            userId: user.id,
-            viewport: "pc",
-            title,
-            order,
-          }),
+    for (const viewport of ["pc", "mobile"] as const) {
+      const tabs = await Promise.all(
+        ["Work", "Writing", "Contact"].map((title, order) =>
+          ctx.profileTabsRepository.create(
+            ProfileTabEntity.create({
+              userId: user.id,
+              viewport,
+              title,
+              order,
+            }),
+          ),
         ),
-      ),
-    );
+      );
 
-    for (const [index, tab] of tabs.entries()) {
+      for (const [index, tab] of tabs.entries()) {
+        await ctx.profileBlocksRepository.create(
+          ProfileBlockEntity.create({
+            userId: user.id,
+            viewport,
+            tabId: tab.id,
+            kind: "links",
+            gridX: 0,
+            gridY: index,
+            gridW: 4,
+            gridH: 2,
+          }),
+        );
+      }
+
+      // Pinned: tabId null, visible on every tab. The one most at risk from a
+      // "tabs off" implementation that filters by the first tab's id.
       await ctx.profileBlocksRepository.create(
         ProfileBlockEntity.create({
           userId: user.id,
-          viewport: "pc",
-          tabId: tab.id,
-          kind: "links",
+          viewport,
+          tabId: null,
+          pinnedAllTabs: true,
+          kind: "text",
           gridX: 0,
-          gridY: index,
+          gridY: 9,
           gridW: 4,
           gridH: 2,
         }),
       );
     }
-
-    // Pinned: tabId null, visible on every tab. The one most at risk from a
-    // "tabs off" implementation that filters by the first tab's id.
-    await ctx.profileBlocksRepository.create(
-      ProfileBlockEntity.create({
-        userId: user.id,
-        viewport: "pc",
-        tabId: null,
-        pinnedAllTabs: true,
-        kind: "text",
-        gridX: 0,
-        gridY: 9,
-        gridW: 4,
-        gridH: 2,
-      }),
-    );
-
-    return tabs;
   }
 
   async function publicProfile(username: string) {

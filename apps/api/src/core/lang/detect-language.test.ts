@@ -80,6 +80,21 @@ describe("detectLanguage — Portuguese versus Spanish", () => {
     expect(detectLanguage(SPANISH_RESUME_WITHOUT_ACCENTS)).toBe("es-ES");
   });
 
+  /**
+   * The mirror of the accent-less cases: text whose discriminating words are
+   * ALL accented (`não`, `você`, `também`, `são`, `já`). The word tables are
+   * written unaccented, so without folding none of these would match and the
+   * most Portuguese sentence in the file would come back `null`.
+   */
+  it("keeps Portuguese when the evidence lives entirely in accented words", () => {
+    const accented = `
+      Você não é obrigado a usar acentuação aqui, mas também não é proibido;
+      são apenas hábitos diferentes, e você já está acostumado com os dois.
+    `;
+
+    expect(detectLanguage(accented)).toBe("pt-BR");
+  });
+
   it("keeps Portuguese when the only accented characters are gone", () => {
     const stripped = `
       Nao tenho experiencia com esse framework, mas trabalhei em projetos
@@ -114,6 +129,28 @@ describe("detectLanguage — Portuguese prose full of English technology nouns",
     `;
 
     expect(detectLanguage(mixed)).toBe("pt-BR");
+  });
+
+  /**
+   * The mechanism behind the case above, isolated so it can fail on its own.
+   *
+   * Technology names are harmless because they are not function words at all.
+   * The capitalisation filter earns its keep on the words that ARE — the
+   * English section headings of a resume template (`Experience`, `Skills`,
+   * `Projects`, `Tools`, `Team`) filled in with Portuguese content, which is
+   * an ordinary thing for a Brazilian developer to submit.
+   */
+  it("does not let a capitalised block of English nouns change the verdict", () => {
+    const prose =
+      "trabalho com sistemas de pagamento e escrevo documentacao para os " +
+      "desenvolvedores do time na empresa atual";
+    const withHeadings =
+      prose +
+      "\n\nExperience Skills Projects Tools Team Security Roles Work Systems " +
+      "Development Company Years";
+
+    expect(detectLanguage(prose)).toBe("pt-BR");
+    expect(detectLanguage(withHeadings)).toBe("pt-BR");
   });
 
   it("is not swayed by a long capitalised stack list appended to Portuguese prose", () => {
@@ -165,6 +202,64 @@ describe("detectLanguage — abstains instead of guessing", () => {
     expect(detectLanguage("Eu gosto de café.")).toBeNull();
   });
 
+  /**
+   * This one is unambiguously Portuguese to a human, and it still returns
+   * `null`. That is the minimum-signal rule doing its job: five words is not
+   * enough to override a preference the user actually set, and the caller has
+   * a better answer available than this sentence.
+   */
+  it("returns null for a short sentence that scores well but has almost no signal", () => {
+    expect(detectLanguage("Trabalho com dados e ferramentas.")).toBeNull();
+  });
+
+  /**
+   * A tagline whose words are all Portuguese and all discriminating: it clears
+   * the score bar outright and is still refused, because six words of prose is
+   * not enough to decide what language a person's whole account answers in.
+   */
+  it("returns null for a Portuguese tagline that clears the score bar on too few words", () => {
+    expect(
+      detectLanguage("Meu foco: ferramentas, dados, projetos e equipes."),
+    ).toBeNull();
+  });
+
+  /**
+   * The opposite shortfall: plenty of prose, almost none of it discriminating.
+   * Nearly every word here is one Portuguese and Spanish share, and the
+   * Spanish rendering of the sentence would be near-identical — so there is
+   * volume but no evidence, and the honest answer is `null`.
+   */
+  it("returns null for a sentence built almost entirely from pt/es shared words", () => {
+    const shared = `
+      Durante esse periodo a empresa mudou de area, mas os resultados de cada
+      entrega continuaram bons para todos os clientes.
+    `;
+
+    expect(detectLanguage(shared)).toBeNull();
+  });
+
+  /**
+   * Every `.com` tokenises to `com`, the Portuguese preposition. A links
+   * section is the one input that can manufacture a fluent-looking Portuguese
+   * score out of no prose whatsoever.
+   */
+  it("returns null for a block of links, not pt-BR from a pile of .com", () => {
+    const links = `
+      https://github.com/gabrielk
+      https://linkedin.com/in/gabrielk
+      https://stackoverflow.com/users/1234567
+      https://medium.com/@gabrielk
+      https://twitter.com/gabrielk
+      https://youtube.com/@gabrielk
+      https://instagram.com/gabrielk
+      https://gitlab.com/gabrielk
+      https://dev.to/gabrielk
+      https://gabrielk.dev
+    `;
+
+    expect(detectLanguage(links)).toBeNull();
+  });
+
   it("returns null for prose in a language it does not ship", () => {
     const german = `
       Ich arbeite seit acht Jahren als Softwareentwickler und interessiere mich
@@ -205,6 +300,23 @@ describe("detectLanguage — never throws, whatever arrives", () => {
     expect(elapsedMs).toBeLessThan(250);
   });
 
+  /**
+   * The scan cap is what makes a 200KB resume cheap, and this is its
+   * observable consequence: a document is judged by its opening. Both
+   * directions are asserted, because a detector that read the whole thing
+   * would see two evenly matched halves and abstain.
+   */
+  it("judges a very long document by its opening, because scanning is capped", () => {
+    const portuguese = PORTUGUESE_RESUME.repeat(150);
+    const english = ENGLISH_RESUME.repeat(150);
+
+    expect(portuguese.length).toBeGreaterThan(30_000);
+    expect(english.length).toBeGreaterThan(30_000);
+
+    expect(detectLanguage(portuguese + english)).toBe("pt-BR");
+    expect(detectLanguage(english + portuguese)).toBe("en-US");
+  });
+
   it("gives the same answer every time for the same input", () => {
     const answers = new Set(
       Array.from({ length: 20 }, () => detectLanguage(SPANISH_RESUME)),
@@ -213,9 +325,9 @@ describe("detectLanguage — never throws, whatever arrives", () => {
     expect(answers).toEqual(new Set(["es-ES"]));
   });
 
-  it("does not leak regex state between calls", () => {
-    // The word and noise patterns are module-level and global. A missing
-    // lastIndex reset makes the second call read from halfway through.
+  it("keeps repeated calls with different inputs independent", () => {
+    // The word and noise patterns are module-level and global, so nothing may
+    // carry over between calls — not regex lastIndex, not accumulated scores.
     expect(detectLanguage(ENGLISH_RESUME)).toBe("en-US");
     expect(detectLanguage(ENGLISH_RESUME)).toBe("en-US");
     expect(detectLanguage(PORTUGUESE_RESUME)).toBe("pt-BR");

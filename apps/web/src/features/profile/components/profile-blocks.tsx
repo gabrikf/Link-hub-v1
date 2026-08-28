@@ -47,10 +47,7 @@ import {
   PROFILE_CANVAS_WIDTH,
 } from "../../profile-layout/grid-utils";
 import { Markdown, markdownExcerpt } from "../../posts/lib/markdown";
-import {
-  formatPostDate,
-  SOURCE_META,
-} from "../../posts/lib/post-format";
+import { formatPostDate, SOURCE_META } from "../../posts/lib/post-format";
 import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
 import { WorkHistoryReadOnly } from "../../work-history/components/work-history-read-only";
 import { ProfileLinksSkeleton } from "./public-profile-skeleton";
@@ -145,7 +142,9 @@ export function ProfileBlocks({
       return;
     }
     event.preventDefault();
-    const currentIndex = orderedTabs.findIndex((tab) => tab.id === activeTab?.id);
+    const currentIndex = orderedTabs.findIndex(
+      (tab) => tab.id === activeTab?.id,
+    );
     let nextIndex = currentIndex < 0 ? 0 : currentIndex;
     if (event.key === "ArrowRight") {
       nextIndex = (currentIndex + 1) % orderedTabs.length;
@@ -174,9 +173,7 @@ export function ProfileBlocks({
   const pinned = useMemo(
     () =>
       compactBlocks(
-        layout.blocks.filter(
-          (block) => block.pinnedAllTabs && block.isVisible,
-        ),
+        layout.blocks.filter((block) => block.pinnedAllTabs && block.isVisible),
         cols,
       ),
     [layout.blocks, cols],
@@ -492,7 +489,9 @@ function TextBlock({ config }: { config: TextBlockConfig | null }) {
   }
 
   return (
-    <div className={`accent-card p-4 transition duration-300 ${SURFACE_PROFILE}`}>
+    <div
+      className={`accent-card p-4 transition duration-300 ${SURFACE_PROFILE}`}
+    >
       {config.title ? (
         <h3 className="mb-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {config.title}
@@ -526,7 +525,9 @@ function VideoBlock({ config }: { config: VideoBlockConfig | null }) {
     // `p-3`, not `p-4`: the iframe bleeds to the card edge, and a 4-unit ring
     // around a 16:9 video reads as a frame. The title compensates with `px-1`
     // so its baseline lines up optically with the `p-4` blocks beside it.
-    <div className={`accent-card p-3 transition duration-300 ${SURFACE_PROFILE}`}>
+    <div
+      className={`accent-card p-3 transition duration-300 ${SURFACE_PROFILE}`}
+    >
       {config.title ? (
         <h3 className="mb-2 px-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {config.title}
@@ -566,7 +567,9 @@ function ImageBlock({ config }: { config: ImageBlockConfig | null }) {
 
   return (
     // `p-3` for the same media-bleed reason as the video block; `px-1` title.
-    <div className={`accent-card p-3 transition duration-300 ${SURFACE_PROFILE}`}>
+    <div
+      className={`accent-card p-3 transition duration-300 ${SURFACE_PROFILE}`}
+    >
       {config.title ? (
         <h3 className="mb-2 px-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {config.title}
@@ -696,7 +699,9 @@ function PostsBlock({
     .slice(0, limit);
 
   return (
-    <div className={`accent-card p-4 transition duration-300 ${SURFACE_PROFILE}`}>
+    <div
+      className={`accent-card p-4 transition duration-300 ${SURFACE_PROFILE}`}
+    >
       {config?.title ? (
         <h3 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {config.title}
@@ -709,9 +714,7 @@ function PostsBlock({
           <PostsBlockSkeleton layout={layout} count={Math.min(limit, 3)} />
         </>
       ) : postsQuery.isError ? (
-        <p className="text-sm text-red-600">
-          {t("profile.postsLoadFailed")}
-        </p>
+        <p className="text-sm text-red-600">{t("profile.postsLoadFailed")}</p>
       ) : posts.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {t("profile.noPosts")}
@@ -764,7 +767,10 @@ function PostsBlock({
                         aria-label={t("profile.openExternalLink")}
                         className="accent-text-hover -my-2 -mr-2 ml-auto inline-flex min-h-[40px] min-w-[40px] items-center justify-center p-2 text-zinc-400 transition"
                       >
-                        <FiExternalLink className="h-4 w-4" aria-hidden="true" />
+                        <FiExternalLink
+                          className="h-4 w-4"
+                          aria-hidden="true"
+                        />
                       </a>
                     ) : null}
                   </div>

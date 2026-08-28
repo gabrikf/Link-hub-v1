@@ -10,11 +10,13 @@ import {
   type ImageBlockConfig,
   type PostsBlockConfig,
   type ProfileBlock,
+  type ProfileResponse,
   type ProfileTab,
   type ProfileViewport,
   type TextBlockConfig,
   type VideoBlockConfig,
 } from "@repo/schemas";
+import * as Switch from "@radix-ui/react-switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -32,6 +34,7 @@ import {
   FiChevronRight,
   FiEdit2,
   FiEye,
+  FiInfo,
   FiLoader,
   FiMonitor,
   FiPlus,
@@ -52,6 +55,7 @@ import {
   reorderTabs,
   updateBlock,
   updateBlockPositions,
+  updateProfile,
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyResumeQuery } from "../../../lib/profile-queries";
@@ -62,7 +66,11 @@ import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
 import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
-import { SURFACE } from "../../../shared-components/surface";
+import {
+  FOCUS_RING,
+  SURFACE,
+  SURFACE_INSET,
+} from "../../../shared-components/surface";
 import { PublicProfilePreview } from "../../profile/components/public-profile-preview";
 import { getCustomBlockMeta } from "../block-meta";
 import { ButtonBlockDialog } from "../components/button-block-dialog";
@@ -78,6 +86,7 @@ import {
   blocksToRglLayout,
   buildDefaultLayout,
   computeNextPlacement,
+  countBlocksHiddenWithoutTabs,
   moveBlockBy,
   pinnedBlocks,
   resizeBlockBy,
@@ -92,6 +101,13 @@ type CustomConfig =
   | PostsBlockConfig;
 
 const CUSTOM_KINDS = ["text", "video", "image", "button", "posts"] as const;
+
+/**
+ * Wired with `aria-describedby` rather than a hover tooltip. The explanation is
+ * the whole point of the switch — it names the content-visibility consequence —
+ * and a hover affordance is invisible on touch and to a keyboard user.
+ */
+const TABS_ENABLED_HINT_ID = "layout-tabs-enabled-hint";
 
 /**
  * Placeholder geometry for the two editor zones while the layout loads. It
@@ -389,8 +405,21 @@ export function ProfileLayoutPage() {
     [layout.tabs],
   );
 
-  const activeTab =
-    orderedTabs.find((tab) => tab.id === activeTabId) ?? orderedTabs[0] ?? null;
+  /*
+   * The profile-level "show tabs" switch. Absent (a profile fetched before the
+   * field existed, or a `me` request still in flight) reads as ON, which is the
+   * behaviour every profile had before this switch.
+   */
+  const tabsEnabled = meQuery.data?.tabsEnabled ?? true;
+
+  // With tabs off there is only one editable section, and it is the first tab.
+  // Honouring `activeTabId` here would leave the editor pointed at tab 3 —
+  // editing a grid the public page no longer renders.
+  const activeTab = tabsEnabled
+    ? (orderedTabs.find((tab) => tab.id === activeTabId) ??
+      orderedTabs[0] ??
+      null)
+    : (orderedTabs[0] ?? null);
 
   const cols = GRID_COLUMNS[viewport];
   const pinned = pinnedBlocks(layout);
@@ -403,6 +432,12 @@ export function ProfileLayoutPage() {
   // the fallback and render placeholders in the same boxes instead.
   const isLayoutLoading = layoutQuery.isLoading;
   const visibleTabs = isLayoutLoading ? [] : orderedTabs;
+
+  // Counted off the DEFAULT fallback while the layout is in flight, this would
+  // warn about blocks the user never created — so it waits for the real one.
+  const hiddenBlockCount = isLayoutLoading
+    ? 0
+    : countBlocksHiddenWithoutTabs(layout);
 
   /** Apply an optimistic patch to a single viewport of the cached full layout. */
   const patchLayout = (
@@ -504,6 +539,47 @@ export function ProfileLayoutPage() {
       return rollback(context?.previous);
     },
     onSettled: invalidateLayout,
+  });
+
+  /*
+   * The tabs switch writes to the PROFILE, not the layout — it is one flag for
+   * the whole profile, shared by both viewports, so it cannot live in a
+   * per-viewport layout.
+   *
+   * Optimistic on the `["me"]` cache: the tab chrome and the live preview both
+   * read `tabsEnabled` from there, and making the user watch a round-trip
+   * before the strip disappears is exactly the lag a switch must not have. A
+   * rejected write puts the previous profile back, so the switch springs back
+   * rather than lying.
+   *
+   * NOTHING is deleted or reassigned here — no tab, no block. Off and on are
+   * the same write with a different boolean.
+   */
+  const setTabsEnabledMutation = useMutation({
+    mutationFn: (nextTabsEnabled: boolean) =>
+      updateProfile({
+        // `username` is required by `updateProfileSchemaInput`; the switch is
+        // disabled until `meQuery` has supplied it.
+        username: meQuery.data?.username ?? "",
+        tabsEnabled: nextTabsEnabled,
+      }),
+    onMutate: (nextTabsEnabled: boolean) => {
+      const previous = queryClient.getQueryData<ProfileResponse>(["me"]);
+      queryClient.setQueryData<ProfileResponse>(["me"], (prev) =>
+        prev ? { ...prev, tabsEnabled: nextTabsEnabled } : prev,
+      );
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      reportError(error, { action: "profile-layout.toggle-tabs" });
+      if (context?.previous) {
+        queryClient.setQueryData(["me"], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      invalidatePublicProfileCache();
+    },
   });
 
   /* ---------------------------- Block mutations ---------------------------- */
@@ -774,6 +850,7 @@ export function ProfileLayoutPage() {
     <GridBlockCard
       block={block}
       tabs={orderedTabs}
+      tabsEnabled={tabsEnabled}
       onToggleVisibility={(target, isVisible) =>
         updateBlockMutation.mutate({
           blockId: target.id,
@@ -1027,124 +1104,200 @@ export function ProfileLayoutPage() {
 
           {/* Tab manager */}
           <section className="anim-fade-up space-y-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex flex-wrap items-center gap-2">
-              {isLayoutLoading ? (
-                <>
-                  <LoadingLabel>{t("layout.loadingTabs")}</LoadingLabel>
-                  {TAB_PILL_SKELETON_WIDTHS.map((width) => (
-                    <Skeleton
-                      key={width}
-                      shape="circle"
-                      width={width}
-                      height={34}
-                    />
-                  ))}
-                </>
-              ) : null}
+            {/*
+              The switch lives HERE, directly above the tab strip it governs,
+              rather than with the other profile fields in the dashboard modal.
+              This is the only screen where the tabs are visible, so it is the
+              only place the switch is discoverable and its effect legible: flip
+              it and the strip below disappears under your cursor.
+            */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                {/* A `p`, not an `h2`: this names the control, not the whole
+                    section below it, and an `h2` here would mislabel the tab
+                    manager in the document outline. */}
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {t("layout.tabsEnabled")}
+                </p>
+                <p
+                  id={TABS_ENABLED_HINT_ID}
+                  className="text-xs text-zinc-500 dark:text-zinc-400"
+                >
+                  {t("layout.tabsEnabledHelp")}
+                </p>
+              </div>
+              <Switch.Root
+                checked={tabsEnabled}
+                // `updateProfile` requires the username, which arrives with
+                // `meQuery`. Flipping before then would send an empty one.
+                disabled={!meQuery.data}
+                onCheckedChange={(checked) =>
+                  setTabsEnabledMutation.mutate(checked)
+                }
+                aria-label={t("layout.toggleTabs")}
+                aria-describedby={TABS_ENABLED_HINT_ID}
+                className={[
+                  "relative h-6 w-11 shrink-0 cursor-pointer rounded-full bg-zinc-300 transition disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-700",
+                  "data-[state=checked]:bg-violet-600 dark:data-[state=checked]:bg-violet-500",
+                  FOCUS_RING,
+                ].join(" ")}
+              >
+                <Switch.Thumb className="block h-5 w-5 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform duration-150 data-[state=checked]:translate-x-5 dark:bg-zinc-100" />
+              </Switch.Root>
+            </div>
 
-              {visibleTabs.map((tab, index) => {
-                const isActive = activeTab?.id === tab.id;
-                return (
-                  <div
-                    key={tab.id}
-                    className={[
-                      "inline-flex items-center gap-1 rounded-full border px-2 py-1 transition",
-                      isActive
-                        ? "border-violet-500 bg-violet-50 dark:border-violet-500/60 dark:bg-violet-500/10"
-                        : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
-                    ].join(" ")}
-                  >
-                    <button
-                      type="button"
-                      aria-label={t("layout.moveTabLeft", {
-                        tabTitle: tab.title,
-                      })}
-                      disabled={index === 0}
-                      onClick={() => moveTab(tab.id, -1)}
-                      className="text-zinc-400 hover:text-zinc-700 disabled:opacity-30 dark:hover:text-zinc-200"
-                    >
-                      <FiChevronLeft className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTabId(tab.id)}
+            {tabsEnabled ? null : (
+              <div className={`${SURFACE_INSET} space-y-1.5 p-3`}>
+                <p className="flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <FiInfo
+                    className="mt-px h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
+                    aria-hidden="true"
+                  />
+                  {t("layout.tabsOffNotice")}
+                </p>
+                {/*
+                  The consequence, counted. Turning tabs off does not delete a
+                  thing, but it does take every block on a later tab off the
+                  public page, and "some of your blocks" is not something a user
+                  can act on. i18next `count` picks the plural form — a ternary
+                  between two strings would be wrong in languages with more
+                  than two.
+                */}
+                {hiddenBlockCount > 0 ? (
+                  <p className="flex items-start gap-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+                    <FiAlertCircle
+                      className="mt-px h-3.5 w-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    {t("layout.tabsHiddenBlocks", { count: hiddenBlockCount })}
+                  </p>
+                ) : null}
+              </div>
+            )}
+
+            {tabsEnabled ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {isLayoutLoading ? (
+                  <>
+                    <LoadingLabel>{t("layout.loadingTabs")}</LoadingLabel>
+                    {TAB_PILL_SKELETON_WIDTHS.map((width) => (
+                      <Skeleton
+                        key={width}
+                        shape="circle"
+                        width={width}
+                        height={34}
+                      />
+                    ))}
+                  </>
+                ) : null}
+
+                {visibleTabs.map((tab, index) => {
+                  const isActive = activeTab?.id === tab.id;
+                  return (
+                    <div
+                      key={tab.id}
                       className={[
-                        "px-1 text-sm font-medium",
+                        "inline-flex items-center gap-1 rounded-full border px-2 py-1 transition",
                         isActive
-                          ? "text-violet-700 dark:text-violet-200"
-                          : "text-zinc-600 dark:text-zinc-300",
+                          ? "border-violet-500 bg-violet-50 dark:border-violet-500/60 dark:bg-violet-500/10"
+                          : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
                       ].join(" ")}
                     >
-                      {tab.title}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={t("layout.renameTabNamed", {
-                        tabTitle: tab.title,
-                      })}
-                      onClick={() => {
-                        setRenameTarget(tab);
-                        setRenameValue(tab.title);
-                      }}
-                      className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                    >
-                      <FiEdit2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                    {/*
+                      <button
+                        type="button"
+                        aria-label={t("layout.moveTabLeft", {
+                          tabTitle: tab.title,
+                        })}
+                        disabled={index === 0}
+                        onClick={() => moveTab(tab.id, -1)}
+                        className="text-zinc-400 hover:text-zinc-700 disabled:opacity-30 dark:hover:text-zinc-200"
+                      >
+                        <FiChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTabId(tab.id)}
+                        className={[
+                          "px-1 text-sm font-medium",
+                          isActive
+                            ? "text-violet-700 dark:text-violet-200"
+                            : "text-zinc-600 dark:text-zinc-300",
+                        ].join(" ")}
+                      >
+                        {tab.title}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t("layout.renameTabNamed", {
+                          tabTitle: tab.title,
+                        })}
+                        onClick={() => {
+                          setRenameTarget(tab);
+                          setRenameValue(tab.title);
+                        }}
+                        className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                      >
+                        <FiEdit2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                      {/*
                       Unguarded before, and it sits 3px from the rename pencil:
                       one mis-click destroyed a tab and dumped its blocks into
                       another one. Every other destructive action in the app
                       confirms first.
                     */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      fullWidth={false}
-                      aria-label={t("layout.deleteTabNamed", {
-                        tabTitle: tab.title,
-                      })}
-                      disabled={orderedTabs.length <= 1}
-                      shouldHaveConfirmation
-                      confirmationTitle={t("layout.deleteTabTitle", {
-                        tabTitle: tab.title,
-                      })}
-                      confirmationDescription={t("layout.deleteTabBody")}
-                      onClick={() => handleDeleteTab(tab.id)}
-                      className="h-6 w-6 p-0 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
-                    >
-                      <FiTrash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Button>
-                    <button
-                      type="button"
-                      aria-label={t("layout.moveTabRight", {
-                        tabTitle: tab.title,
-                      })}
-                      disabled={index === orderedTabs.length - 1}
-                      onClick={() => moveTab(tab.id, 1)}
-                      className="text-zinc-400 hover:text-zinc-700 disabled:opacity-30 dark:hover:text-zinc-200"
-                    >
-                      <FiChevronRight className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </div>
-                );
-              })}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        fullWidth={false}
+                        aria-label={t("layout.deleteTabNamed", {
+                          tabTitle: tab.title,
+                        })}
+                        disabled={orderedTabs.length <= 1}
+                        shouldHaveConfirmation
+                        confirmationTitle={t("layout.deleteTabTitle", {
+                          tabTitle: tab.title,
+                        })}
+                        confirmationDescription={t("layout.deleteTabBody")}
+                        onClick={() => handleDeleteTab(tab.id)}
+                        className="h-6 w-6 p-0 text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
+                      >
+                        <FiTrash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                      <button
+                        type="button"
+                        aria-label={t("layout.moveTabRight", {
+                          tabTitle: tab.title,
+                        })}
+                        disabled={index === orderedTabs.length - 1}
+                        onClick={() => moveTab(tab.id, 1)}
+                        className="text-zinc-400 hover:text-zinc-700 disabled:opacity-30 dark:hover:text-zinc-200"
+                      >
+                        <FiChevronRight
+                          className="h-4 w-4"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
 
-              <Button
-                type="button"
-                variant="soft"
-                size="sm"
-                fullWidth={false}
-                className="rounded-full"
-                // Until the layout lands, `activeTab` is a placeholder id from
-                // the default fallback — creating against it would fail.
-                disabled={isLayoutLoading}
-                onClick={handleAddTab}
-              >
-                <FiPlus className="h-4 w-4" aria-hidden="true" />
-                {t("layout.addTab")}
-              </Button>
-            </div>
+                <Button
+                  type="button"
+                  variant="soft"
+                  size="sm"
+                  fullWidth={false}
+                  className="rounded-full"
+                  // Until the layout lands, `activeTab` is a placeholder id from
+                  // the default fallback — creating against it would fail.
+                  disabled={isLayoutLoading}
+                  onClick={handleAddTab}
+                >
+                  <FiPlus className="h-4 w-4" aria-hidden="true" />
+                  {t("layout.addTab")}
+                </Button>
+              </div>
+            ) : null}
 
             {/* Add block menu */}
             <div
@@ -1285,6 +1438,7 @@ export function ProfileLayoutPage() {
               resumeLoading={resumeQuery.isLoading}
               workLoading={workExperiencesQuery.isLoading}
               linksLoading={linksQuery.isLoading}
+              tabsEnabled={tabsEnabled}
             />
           </div>
         </div>

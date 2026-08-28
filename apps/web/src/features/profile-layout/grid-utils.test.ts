@@ -5,6 +5,7 @@ import {
   buildDefaultLayout,
   compactBlocks,
   computeNextPlacement,
+  countBlocksHiddenWithoutTabs,
   moveBlockBy,
   pickViewport,
   PROFILE_CANVAS_WIDTH,
@@ -40,9 +41,9 @@ describe("buildDefaultLayout", () => {
     const layout = buildDefaultLayout("pc");
 
     expect(layout.tabs).toHaveLength(1);
-    expect(layout.blocks.every((block) => block.gridW === GRID_COLUMNS.pc)).toBe(
-      true,
-    );
+    expect(
+      layout.blocks.every((block) => block.gridW === GRID_COLUMNS.pc),
+    ).toBe(true);
 
     const header = layout.blocks.find((block) => block.kind === "header");
     expect(header?.pinnedAllTabs).toBe(true);
@@ -55,9 +56,9 @@ describe("buildDefaultLayout", () => {
 
   it("uses the mobile column count for the mobile viewport", () => {
     const layout = buildDefaultLayout("mobile");
-    expect(layout.blocks.every((block) => block.gridW === GRID_COLUMNS.mobile)).toBe(
-      true,
-    );
+    expect(
+      layout.blocks.every((block) => block.gridW === GRID_COLUMNS.mobile),
+    ).toBe(true);
   });
 });
 
@@ -129,7 +130,13 @@ describe("compactBlocks", () => {
     // editor assigned coordinates, so the middle block leaves a hole.
     const blocks = [
       makeBlock({ id: "a", gridY: 0, gridW: 12, gridH: 2 }),
-      makeBlock({ id: "hidden", gridY: 2, gridW: 12, gridH: 2, isVisible: false }),
+      makeBlock({
+        id: "hidden",
+        gridY: 2,
+        gridW: 12,
+        gridH: 2,
+        isVisible: false,
+      }),
       makeBlock({ id: "c", gridY: 4, gridW: 12, gridH: 2 }),
       makeBlock({ id: "d", gridY: 6, gridW: 12, gridH: 2 }),
     ];
@@ -153,7 +160,9 @@ describe("compactBlocks", () => {
   });
 
   it("pulls out-of-bounds blocks back inside the column count", () => {
-    const blocks = [makeBlock({ id: "wide", gridX: 10, gridY: 5, gridW: 6, gridH: 2 })];
+    const blocks = [
+      makeBlock({ id: "wide", gridX: 10, gridY: 5, gridW: 6, gridH: 2 }),
+    ];
 
     const [packed] = compactBlocks(blocks, GRID_COLUMNS.pc);
     expect(packed.gridX + packed.gridW).toBeLessThanOrEqual(GRID_COLUMNS.pc);
@@ -213,14 +222,18 @@ describe("PROFILE_CANVAS_WIDTH", () => {
 
 describe("moveBlockBy", () => {
   it("moves a block sideways within the grid", () => {
-    const blocks = [makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 })];
+    const blocks = [
+      makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 }),
+    ];
 
     const [moved] = moveBlockBy(blocks, "a", 2, 0, GRID_COLUMNS.pc);
     expect(moved.gridX).toBe(2);
   });
 
   it("clamps at the grid edges instead of pushing a block out of bounds", () => {
-    const blocks = [makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 })];
+    const blocks = [
+      makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 }),
+    ];
 
     expect(moveBlockBy(blocks, "a", -1, 0, GRID_COLUMNS.pc)[0].gridX).toBe(0);
     expect(moveBlockBy(blocks, "a", 0, -1, GRID_COLUMNS.pc)[0].gridY).toBe(0);
@@ -378,5 +391,80 @@ describe("resizeBlockBy", () => {
 
     const [resized] = resizeBlockBy(blocks, "a", 4, 0, GRID_COLUMNS.pc);
     expect(resized.gridX + resized.gridW).toBeLessThanOrEqual(GRID_COLUMNS.pc);
+  });
+});
+
+describe("countBlocksHiddenWithoutTabs", () => {
+  const layout = (blocks: ProfileBlock[]) => ({
+    tabs: [
+      { id: "tab-1", title: "Main", order: 0 },
+      { id: "tab-2", title: "Posts", order: 1 },
+      { id: "tab-3", title: "Talks", order: 2 },
+    ],
+    blocks,
+  });
+
+  it("counts only blocks parked on a tab other than the first", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "a", tabId: "tab-1" }),
+          makeBlock({ id: "b", tabId: "tab-2" }),
+          makeBlock({ id: "c", tabId: "tab-3" }),
+          makeBlock({ id: "d", tabId: "tab-3" }),
+        ]),
+      ),
+    ).toBe(3);
+  });
+
+  it("excludes pinned blocks — they render on every tab, so tabs-off cannot hide them", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "pin", tabId: null, pinnedAllTabs: true }),
+          // A pinned block whose stale tabId still points at a later tab must
+          // NOT be counted: `pinnedAllTabs` is what decides where it renders.
+          makeBlock({ id: "pin-stale", tabId: "tab-2", pinnedAllTabs: true }),
+          makeBlock({ id: "later", tabId: "tab-2" }),
+        ]),
+      ),
+    ).toBe(1);
+  });
+
+  it("is zero when everything already lives on the first tab", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "a", tabId: "tab-1" }),
+          makeBlock({ id: "b", tabId: "tab-1" }),
+        ]),
+      ),
+    ).toBe(0);
+  });
+
+  it("uses tab ORDER, not array position, to decide which tab is first", () => {
+    const shuffled = {
+      tabs: [
+        { id: "tab-late", title: "Late", order: 5 },
+        { id: "tab-early", title: "Early", order: 0 },
+      ],
+      blocks: [
+        makeBlock({ id: "a", tabId: "tab-early" }),
+        makeBlock({ id: "b", tabId: "tab-late" }),
+      ],
+    };
+
+    // Reading `tabs[0]` instead of the lowest order would answer 1 for the
+    // wrong block, warning about the tab that actually stays visible.
+    expect(countBlocksHiddenWithoutTabs(shuffled)).toBe(1);
+  });
+
+  it("counts nothing for a layout with no tabs", () => {
+    expect(
+      countBlocksHiddenWithoutTabs({
+        tabs: [],
+        blocks: [makeBlock({ id: "a", tabId: "ghost" })],
+      }),
+    ).toBe(0);
   });
 });

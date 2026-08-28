@@ -120,7 +120,12 @@ const PORTUGUESE_WORDS = [
   "atuei", "atuo", "liderei", "implementei", "criei", "melhorias", "entrega",
   "entregas", "negocio", "cliente", "clientes", "resultados", "aumentando",
   "reduzindo", "utilizando", "junto", "seguranca", "tempo", "novo", "nova",
-  "novos", "dentro", "mediante",
+  "novos", "dentro", "mediante", "eu", "isto", "nem", "sem", "ainda",
+  "sempre", "entao", "assim", "tenho", "hoje", "ha", "pessoas",
+  // `time` and `data` are Portuguese words (team, date) that happen to be
+  // spelled like common English ones. Listed on both sides so they cancel;
+  // without this, "o time" and "a data" in Portuguese prose vote for English.
+  "time", "data",
 ];
 
 const SPANISH_WORDS = [
@@ -139,7 +144,13 @@ const SPANISH_WORDS = [
   "meses", "area", "formacion", "lidere", "implemente", "mejoras", "entrega",
   "entregas", "negocio", "cliente", "clientes", "resultados", "aumentando",
   "reduciendo", "utilizando", "junto", "seguridad", "tiempo", "nuevo", "nueva",
-  "nuevos", "dentro", "mediante",
+  "nuevos", "dentro", "mediante", "es", "lo", "les", "esto", "yo", "mucho",
+  "mucha", "muchos", "muchas", "sin", "aun", "todavia", "siempre", "entonces",
+  "asi", "tengo", "hoy", "personas",
+  // `he`/`han`/`ha` are the Spanish perfect auxiliary — "he trabajado" is
+  // ordinary prose, and `he` would otherwise be counted as the English pronoun.
+  // `ha` is listed for Portuguese too (`há oito anos`), so it cancels.
+  "he", "han", "ha",
 ];
 
 const ENGLISH_WORDS = [
@@ -156,7 +167,7 @@ const ENGLISH_WORDS = [
   "reduced", "across", "within", "including", "such", "both", "each", "other",
   "new", "current", "currently", "project", "projects", "systems", "tools",
   "data", "area", "skills", "role", "roles", "during", "after", "before",
-  "time", "security",
+  "time", "security", "still", "without", "always", "since", "every", "people",
 ];
 
 interface WordTables {
@@ -252,8 +263,10 @@ const MIN_SCORE_MARGIN = 2;
 const MIN_SCORE_RATIO = 1.5;
 
 const countMatches = (text: string, pattern: RegExp): number => {
-  // The patterns are module-level and global; reset lastIndex so repeated calls
-  // do not resume from wherever the previous one stopped.
+  // The patterns are module-level and global. The loop below runs to
+  // exhaustion, which already leaves lastIndex at 0, so this reset is
+  // belt-and-braces — it is what stops a future early `break` from making the
+  // NEXT call read from halfway through the string.
   pattern.lastIndex = 0;
   let matches = 0;
   while (pattern.exec(text) !== null) {

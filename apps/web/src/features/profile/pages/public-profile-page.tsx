@@ -18,7 +18,10 @@ import {
 } from "../../profile-layout/grid-utils";
 import { ProfileBlocks } from "../components/profile-blocks";
 import { ProfileCover } from "../components/profile-cover";
-import { getProfileThemeProps, safeImageUrl } from "../components/profile-theme";
+import {
+  getProfileThemeProps,
+  safeImageUrl,
+} from "../components/profile-theme";
 import { PublicProfileSkeleton } from "../components/public-profile-skeleton";
 
 const MOBILE_QUERY = "(max-width: 1023px)";
@@ -141,7 +144,9 @@ export function PublicProfilePage() {
   if (!profileQuery.isLoading && !profile) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
-        <p className="text-zinc-700 dark:text-zinc-200">{t("profile.notFound")}</p>
+        <p className="text-zinc-700 dark:text-zinc-200">
+          {t("profile.notFound")}
+        </p>
         <Link
           to="/"
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
@@ -155,7 +160,9 @@ export function PublicProfilePage() {
   const theme = getProfileThemeProps(profile ?? {});
   const backgroundImage = safeImageUrl(profile?.backgroundImageUrl);
   const shareUrl =
-    typeof window !== "undefined" ? window.location.href : `/profile/${username}`;
+    typeof window !== "undefined"
+      ? window.location.href
+      : `/profile/${username}`;
 
   return (
     // The theme (`profile-root` + the `--profile-accent` presets) is applied
