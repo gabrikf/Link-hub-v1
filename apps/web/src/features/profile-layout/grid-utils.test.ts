@@ -88,6 +88,41 @@ describe("resolveViewportLayout", () => {
     const layout = resolveViewportLayout(full, "pc");
     expect(layout.tabs).toHaveLength(1);
   });
+
+  it("does NOT fall back when tabs are off — an empty tab list is the right answer", () => {
+    /*
+     * The reported bug, and it needed two correct changes to appear. The public
+     * payload started omitting tabs for a profile with its tab section off, and
+     * the empty-tabs fallback read that as "legacy profile" and fabricated the
+     * default builtin blocks — so the page rendered a made-up arrangement of
+     * exactly the content the owner had just hidden.
+     */
+    const pinnedOnly = {
+      tabs: [],
+      blocks: [makeBlock({ id: "p", tabId: null, pinnedAllTabs: true })],
+      tabsEnabled: false,
+    };
+    const full = { pc: pinnedOnly, mobile: buildDefaultLayout("mobile") };
+
+    const layout = resolveViewportLayout(full, "pc");
+
+    expect(layout).toBe(pinnedOnly);
+    expect(layout.tabs).toHaveLength(0);
+    // Nothing invented: only the one pinned block the server actually sent.
+    expect(layout.blocks.map((block) => block.id)).toEqual(["p"]);
+  });
+
+  it("still returns a tabs-off viewport that does have tabs, untouched", () => {
+    // The owner's own editor payload keeps its tabs even with the section off.
+    const withTabs = {
+      tabs: [{ id: "t", title: "Main", order: 0 }],
+      blocks: [makeBlock({ id: "x", tabId: "t" })],
+      tabsEnabled: false,
+    };
+    const full = { pc: withTabs, mobile: buildDefaultLayout("mobile") };
+
+    expect(resolveViewportLayout(full, "pc")).toBe(withTabs);
+  });
 });
 
 describe("blocksToRglLayout / rglLayoutToPositions", () => {

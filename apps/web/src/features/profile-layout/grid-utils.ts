@@ -100,13 +100,32 @@ export function buildDefaultLayout(viewport: ProfileViewport): ProfileLayout {
 /**
  * Resolve the layout for one viewport out of a (possibly-undefined) full layout,
  * falling back to the default single-tab layout for legacy responses.
+ *
+ * WHY THE EMPTY-TABS FALLBACK IS CONDITIONAL
+ *
+ * An empty `tabs` array used to be a reliable proxy for "this profile predates
+ * layouts" — nothing else could produce one. That stopped being true once the
+ * public payload started omitting tabs for a profile whose tab section is
+ * switched off: `tabs: []` is now the CORRECT, deliberate answer for that
+ * profile, not the sign of a missing layout.
+ *
+ * Falling back there was actively harmful, because `buildDefaultLayout`
+ * FABRICATES the default builtin blocks — resume, work history and the rest. A
+ * profile with tabs off therefore rendered a made-up arrangement of exactly the
+ * content its owner had just hidden. Two individually-correct changes produced
+ * it together, which is why no test on either side caught it.
+ *
+ * So the fallback now fires only when tabs are supposed to be there and are not.
  */
 export function resolveViewportLayout(
   layout: FullProfileLayout | undefined,
   viewport: ProfileViewport,
 ): ProfileLayout {
   const viewportLayout = layout?.[viewport];
-  if (!viewportLayout || viewportLayout.tabs.length === 0) {
+  if (!viewportLayout) {
+    return buildDefaultLayout(viewport);
+  }
+  if (viewportLayout.tabs.length === 0 && viewportLayout.tabsEnabled) {
     return buildDefaultLayout(viewport);
   }
   return viewportLayout;
