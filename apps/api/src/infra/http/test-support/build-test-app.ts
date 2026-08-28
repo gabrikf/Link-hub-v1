@@ -16,6 +16,9 @@ import { InMemoryWorkExperienceRepository } from "../../../core/repositories/wor
 import { InMemoryGitConnectionRepository } from "../../../core/repositories/git-connection/in-memory-git-connection-repository.js";
 import { InMemoryActivityEventRepository } from "../../../core/repositories/activity-event/in-memory-activity-event-repository.js";
 import { InMemoryLinksRepository } from "../../../core/repositories/link/in-memory-links-repository.js";
+import { InMemoryProfileTabsRepository } from "../../../core/repositories/profile-tab/in-memory-profile-tabs-repository.js";
+import { InMemoryProfileBlocksRepository } from "../../../core/repositories/profile-block/in-memory-profile-block-repository.js";
+import { InMemoryUserPreferencesRepository } from "../../../core/repositories/user-preferences/in-memory-user-preferences-repository.js";
 import { CryptoTokenProvider } from "../../providers/crypto-token-provider.js";
 import { CryptoWebhookSecretProvider } from "../../providers/crypto-webhook-secret-provider.js";
 import { JwtProvider } from "../../providers/jwt-provider.js";
@@ -43,6 +46,11 @@ import { GetConnectionHealthUseCase } from "../../../core/use-case/activity/get-
 import { PreviewActivityDigestUseCase } from "../../../core/use-case/activity/preview-activity-digest-use-case/preview-activity-digest.use-case.js";
 import { CreateLinkUseCase } from "../../../core/use-case/links/create-link-use-case/create-link.use-case.js";
 import { UpdateLinkUseCase } from "../../../core/use-case/links/update-link-use-case/update-link.use-case.js";
+import { GetMeProfileUseCase } from "../../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
+import { GetPublicProfileUseCase } from "../../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
+import { UpdateProfileUseCase } from "../../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
+import { GetUserPreferencesUseCase } from "../../../core/use-case/preferences/get-user-preferences-use-case/get-user-preferences.use-case.js";
+import { UpdateUserPreferencesUseCase } from "../../../core/use-case/preferences/update-user-preferences-use-case/update-user-preferences.use-case.js";
 import { PostsController } from "../controllers/posts/posts-controller.js";
 import { LinksController } from "../controllers/links/links-controller.js";
 import { ApiTokensController } from "../controllers/api-tokens/api-tokens-controller.js";
@@ -50,6 +58,8 @@ import { AgentPolicyController } from "../controllers/agent-policy/agent-policy-
 import { ActivityController } from "../controllers/activity/activity-controller.js";
 import { WorkExperienceController } from "../controllers/work-experience/work-experience-controller.js";
 import { AiImportController } from "../controllers/ai-import/ai-import-controller.js";
+import { ProfileController } from "../controllers/profile/profile-controller.js";
+import { PreferencesController } from "../controllers/preferences/preferences-controller.js";
 import { webhooksRoutes } from "../routes/webhooks.js";
 
 /**
@@ -68,6 +78,9 @@ export interface TestAppHandles {
   gitConnectionRepository: InMemoryGitConnectionRepository;
   activityEventRepository: InMemoryActivityEventRepository;
   linksRepository: InMemoryLinksRepository;
+  profileTabsRepository: InMemoryProfileTabsRepository;
+  profileBlocksRepository: InMemoryProfileBlocksRepository;
+  userPreferencesRepository: InMemoryUserPreferencesRepository;
   tokenProvider: CryptoTokenProvider;
   webhookSecretProvider: CryptoWebhookSecretProvider;
   jwtProvider: JwtProvider;
@@ -84,6 +97,7 @@ interface SeedUserInput {
   password: string;
   agentDisclosureLevel: AgentDisclosureLevel;
   agentBlockedTerms: string[];
+  tabsEnabled: boolean;
 }
 
 let seedCounter = 0;
@@ -108,6 +122,9 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   const gitConnectionRepository = new InMemoryGitConnectionRepository();
   const activityEventRepository = new InMemoryActivityEventRepository();
   const linksRepository = new InMemoryLinksRepository();
+  const profileTabsRepository = new InMemoryProfileTabsRepository();
+  const profileBlocksRepository = new InMemoryProfileBlocksRepository();
+  const userPreferencesRepository = new InMemoryUserPreferencesRepository();
   const tokenProvider = new CryptoTokenProvider();
   const webhookSecretProvider = new CryptoWebhookSecretProvider();
   const jwtProvider = new JwtProvider({
@@ -132,6 +149,18 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     activityEventRepository,
   );
   container.registerInstance(TOKENS.LinksRepository, linksRepository);
+  container.registerInstance(
+    TOKENS.ProfileTabsRepository,
+    profileTabsRepository,
+  );
+  container.registerInstance(
+    TOKENS.ProfileBlocksRepository,
+    profileBlocksRepository,
+  );
+  container.registerInstance(
+    TOKENS.UserPreferencesRepository,
+    userPreferencesRepository,
+  );
   container.registerInstance(TOKENS.TokenProvider, tokenProvider);
   container.registerInstance(
     TOKENS.WebhookSecretProvider,
@@ -261,6 +290,32 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     new UpdateLinkUseCase(linksRepository),
   );
 
+  container.registerInstance(
+    TOKENS.GetMeProfileUseCase,
+    new GetMeProfileUseCase(usersRepository, linksRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetPublicProfileUseCase,
+    new GetPublicProfileUseCase(
+      usersRepository,
+      linksRepository,
+      profileTabsRepository,
+      profileBlocksRepository,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.UpdateProfileUseCase,
+    new UpdateProfileUseCase(usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetUserPreferencesUseCase,
+    new GetUserPreferencesUseCase(userPreferencesRepository),
+  );
+  container.registerInstance(
+    TOKENS.UpdateUserPreferencesUseCase,
+    new UpdateUserPreferencesUseCase(userPreferencesRepository),
+  );
+
   const app = fastify();
 
   app.setErrorHandler(errorHandler);
@@ -284,6 +339,8 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   // routes resolve theirs lazily inside the handler, so they stay unavailable
   // (and unused) here without breaking registration.
   LinksController.handle(app);
+  ProfileController.handle(app);
+  PreferencesController.handle(app);
   // Registered as a real plugin, not called like the controllers above: the
   // raw-body content-type parser it declares is only encapsulated — and the
   // rest of the app only keeps default JSON parsing — because it lives inside
@@ -303,6 +360,9 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     gitConnectionRepository,
     activityEventRepository,
     linksRepository,
+    profileTabsRepository,
+    profileBlocksRepository,
+    userPreferencesRepository,
     tokenProvider,
     webhookSecretProvider,
     jwtProvider,
@@ -316,6 +376,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
         password: overrides?.password ?? "hashed-password",
         agentDisclosureLevel: overrides?.agentDisclosureLevel,
         agentBlockedTerms: overrides?.agentBlockedTerms,
+        tabsEnabled: overrides?.tabsEnabled,
         description: null,
         avatarUrl: null,
         googleId: null,

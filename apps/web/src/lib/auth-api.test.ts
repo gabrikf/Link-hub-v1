@@ -159,6 +159,7 @@ describe("public profile readers encode the handle", () => {
     openToWork: false,
     location: null,
     persona: null,
+    tabsEnabled: true,
     links: [],
   };
 

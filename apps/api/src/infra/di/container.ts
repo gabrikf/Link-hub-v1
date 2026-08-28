@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { container, instanceCachingFactory } from "tsyringe";
 import { IUsersRepository } from "../../core/repositories/user/user-repository.js";
+import { IUserPreferencesRepository } from "../../core/repositories/user-preferences/user-preferences-repository.js";
 import { ILinksRepository } from "../../core/repositories/link/link-repository.js";
 import { IPostRepository } from "../../core/repositories/post/post-repository.js";
 import { IApiTokenRepository } from "../../core/repositories/api-token/api-token-repository.js";
@@ -37,6 +38,7 @@ import { IAiQuotaProvider } from "../../core/providers/ai-quota/ai-quota-provide
 import { InMemoryAiQuotaProvider } from "../../core/providers/ai-quota/in-memory-ai-quota-provider.js";
 import { IUnitOfWork } from "../../core/providers/unit-of-work/unit-of-work.js";
 import { DrizzleUserRepository } from "../database/drizzle/repositories/user.repository.js";
+import { DrizzleUserPreferencesRepository } from "../database/drizzle/repositories/user-preferences.repository.js";
 import { DrizzleLinksRepository } from "../database/drizzle/repositories/link.repository.js";
 import { DrizzlePostsRepository } from "../database/drizzle/repositories/post.repository.js";
 import { DrizzleApiTokenRepository } from "../database/drizzle/repositories/api-token.repository.js";
@@ -103,6 +105,8 @@ import { UpdateBlockPositionsUseCase } from "../../core/use-case/profile-layout/
 import { GetPublicProfileUseCase } from "../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
 import { GetMeProfileUseCase } from "../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
 import { UpdateProfileUseCase } from "../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
+import { GetUserPreferencesUseCase } from "../../core/use-case/preferences/get-user-preferences-use-case/get-user-preferences.use-case.js";
+import { UpdateUserPreferencesUseCase } from "../../core/use-case/preferences/update-user-preferences-use-case/update-user-preferences.use-case.js";
 import { GetMyResumeUseCase } from "../../core/use-case/resumes/get-my-resume-use-case/get-my-resume.use-case.js";
 import { UpsertMyResumeUseCase } from "../../core/use-case/resumes/upsert-my-resume-use-case/upsert-my-resume.use-case.js";
 import { ListSkillsCatalogUseCase } from "../../core/use-case/resumes/list-skills-catalog-use-case/list-skills-catalog.use-case.js";
@@ -155,6 +159,7 @@ import { PreviewActivityDigestUseCase } from "../../core/use-case/activity/previ
 // Tokens for dependency injection
 export const TOKENS = {
   UsersRepository: Symbol.for("UsersRepository"),
+  UserPreferencesRepository: Symbol.for("UserPreferencesRepository"),
   LinksRepository: Symbol.for("LinksRepository"),
   PostsRepository: Symbol.for("PostsRepository"),
   ApiTokenRepository: Symbol.for("ApiTokenRepository"),
@@ -216,6 +221,8 @@ export const TOKENS = {
   GetPublicProfileUseCase: Symbol.for("GetPublicProfileUseCase"),
   GetMeProfileUseCase: Symbol.for("GetMeProfileUseCase"),
   UpdateProfileUseCase: Symbol.for("UpdateProfileUseCase"),
+  GetUserPreferencesUseCase: Symbol.for("GetUserPreferencesUseCase"),
+  UpdateUserPreferencesUseCase: Symbol.for("UpdateUserPreferencesUseCase"),
   GetMyResumeUseCase: Symbol.for("GetMyResumeUseCase"),
   UpsertMyResumeUseCase: Symbol.for("UpsertMyResumeUseCase"),
   ListSkillsCatalogUseCase: Symbol.for("ListSkillsCatalogUseCase"),
@@ -288,6 +295,13 @@ export function setupContainer() {
   container.register<IUsersRepository>(TOKENS.UsersRepository, {
     useClass: DrizzleUserRepository,
   });
+
+  container.register<IUserPreferencesRepository>(
+    TOKENS.UserPreferencesRepository,
+    {
+      useClass: DrizzleUserPreferencesRepository,
+    },
+  );
 
   container.register<ILinksRepository>(TOKENS.LinksRepository, {
     useClass: DrizzleLinksRepository,
@@ -912,6 +926,34 @@ export function setupContainer() {
       return new UpdateProfileUseCase(usersRepository);
     },
   });
+
+  container.register<GetUserPreferencesUseCase>(
+    TOKENS.GetUserPreferencesUseCase,
+    {
+      useFactory: (c) => {
+        const userPreferencesRepository =
+          c.resolve<IUserPreferencesRepository>(
+            TOKENS.UserPreferencesRepository,
+          );
+
+        return new GetUserPreferencesUseCase(userPreferencesRepository);
+      },
+    },
+  );
+
+  container.register<UpdateUserPreferencesUseCase>(
+    TOKENS.UpdateUserPreferencesUseCase,
+    {
+      useFactory: (c) => {
+        const userPreferencesRepository =
+          c.resolve<IUserPreferencesRepository>(
+            TOKENS.UserPreferencesRepository,
+          );
+
+        return new UpdateUserPreferencesUseCase(userPreferencesRepository);
+      },
+    },
+  );
 
   container.register<GetMyResumeUseCase>(TOKENS.GetMyResumeUseCase, {
     useFactory: (c) => {

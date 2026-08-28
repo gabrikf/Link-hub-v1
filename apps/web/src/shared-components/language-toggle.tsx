@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { changeLanguage } from "../i18n";
 import { SUPPORTED_LANGUAGES, type Language } from "../lib/language";
+import { useSavePreferences } from "../lib/preferences-sync";
 import { FOCUS_RING_PAGE } from "./surface";
 
 /**
@@ -25,6 +26,19 @@ const LANGUAGE_LABELS = {
  */
 export function LanguageToggle() {
   const { t, i18n } = useTranslation();
+  const savePreferences = useSavePreferences();
+
+  /*
+   * Switch first, then tell the server. The catalogue is bundled, so the change
+   * is instant and must not be made to wait on a round-trip — and if the save
+   * fails the visible language still matches what was clicked.
+   *
+   * A no-op for a signed-out visitor, who keeps the local-only behaviour.
+   */
+  const handleSelect = (language: Language) => {
+    void changeLanguage(language);
+    savePreferences({ language });
+  };
 
   return (
     <div
@@ -48,7 +62,7 @@ export function LanguageToggle() {
             lang={language}
             aria-label={t(LANGUAGE_LABELS[language].nameKey)}
             aria-pressed={isActive}
-            onClick={() => void changeLanguage(language)}
+            onClick={() => handleSelect(language)}
             className={[
               // Fixed width, not padding: the nav reserves room for this
               // cluster in `pr-*` steps, and a two-letter code sized by its

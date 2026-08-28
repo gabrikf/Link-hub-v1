@@ -29,6 +29,10 @@ import {
   updateLinkSchemaInput,
   updateProfileSchemaInput,
   updateProfileSchemaOutput,
+  userPreferencesSchema,
+  updateUserPreferencesSchemaInput,
+  type UserPreferences,
+  type UpdateUserPreferencesInput,
   createInteractionInputSchema,
   interactionSchema,
   candidateContactSchema,
@@ -163,6 +167,33 @@ const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+/**
+ * Every request announces the language the UI is currently rendered in.
+ *
+ * This is the only channel an ANONYMOUS caller has for saying what language it
+ * wants — a signed-in user's stored preference is read server-side, but a
+ * logged-out visitor has no row to read. It is also the fallback the API uses
+ * when a signed-in user is still on "follow the device".
+ *
+ * A request interceptor rather than a static default header, because the value
+ * changes at runtime when the switcher is used; a header baked in at
+ * `axios.create()` time would pin the whole session to whatever language the
+ * app booted with. It sits here rather than in `fetchWithTokens` so that the
+ * handful of calls made directly through `apiClient` are covered too.
+ */
+apiClient.interceptors.request.use((config) => {
+  // `resolvedLanguage` is the one actually in effect after fallback resolution,
+  // which is what the server should be told — `language` can still hold an
+  // unsupported tag that i18next has already fallen back from.
+  const activeLanguage = i18n.resolvedLanguage ?? i18n.language;
+
+  if (activeLanguage) {
+    config.headers.set("Accept-Language", activeLanguage);
+  }
+
+  return config;
 });
 
 /* ------------------------------------------------------------------ *
@@ -1001,4 +1032,30 @@ export async function updateWorkExperienceDisclosure(
     method: "PATCH",
     data: { disclosureLevel },
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Preferences — the private, cross-device half of the UI settings.
+ *
+ * Deliberately NOT part of the profile endpoints: `profileSchema` is served
+ * publicly at `/profile/:username`, and a person's UI language and dark-mode
+ * choice are nobody else's business.
+ * ------------------------------------------------------------------ */
+
+export async function fetchPreferences(): Promise<UserPreferences> {
+  const response = await fetchWithTokens("/preferences", { method: "GET" });
+  return userPreferencesSchema.parse(response.data);
+}
+
+export async function updatePreferences(
+  patch: UpdateUserPreferencesInput,
+): Promise<UserPreferences> {
+  const body = updateUserPreferencesSchemaInput.parse(patch);
+
+  const response = await fetchWithTokens("/preferences", {
+    method: "PUT",
+    data: body,
+  });
+
+  return userPreferencesSchema.parse(response.data);
 }

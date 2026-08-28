@@ -105,6 +105,7 @@ export class ProfileController {
             themeAccent?: string | null;
             themePreset?: string | null;
             openToWork?: boolean;
+            tabsEnabled?: boolean;
             location?: string | null;
             persona?: string | null;
           };
@@ -126,6 +127,7 @@ export class ProfileController {
           themeAccent: request.body.themeAccent,
           themePreset: request.body.themePreset,
           openToWork: request.body.openToWork,
+          tabsEnabled: request.body.tabsEnabled,
           location: request.body.location,
           persona: request.body.persona,
         });

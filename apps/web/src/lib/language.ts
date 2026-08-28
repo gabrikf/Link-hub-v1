@@ -1,65 +1,46 @@
+import {
+  DEFAULT_UI_LANGUAGE,
+  resolveUiLanguage,
+  SUPPORTED_UI_LANGUAGES,
+  type UiLanguage,
+} from "@repo/schemas";
 import { reportHandled } from "./report-error";
 
 /**
- * The three locales the product ships. Deliberately region-tagged: `pt-BR` is
- * not `pt-PT` and `es-ES` is not `es-419`, and pretending otherwise produces
- * translations that read as foreign to half the audience.
+ * The shipped locales and the tag-widening rules now live in `@repo/schemas`,
+ * because they cross the API boundary in both directions: the preferences
+ * endpoints validate against the same list, and the API resolves an inbound
+ * `Accept-Language` header with the same widening. Two implementations of
+ * "which locale does this tag mean" is how a user ends up with a Portuguese UI
+ * and an English AI response.
+ *
+ * These re-exports keep every existing call site in `apps/web` unchanged.
  */
-export const SUPPORTED_LANGUAGES = ["en-US", "pt-BR", "es-ES"] as const;
+export const SUPPORTED_LANGUAGES = SUPPORTED_UI_LANGUAGES;
 
-export type Language = (typeof SUPPORTED_LANGUAGES)[number];
+export type Language = UiLanguage;
 
 /** English is the source language — every string in the app started as one. */
-export const DEFAULT_LANGUAGE: Language = "en-US";
+export const DEFAULT_LANGUAGE: Language = DEFAULT_UI_LANGUAGE;
 
 const LANGUAGE_STORAGE_KEY = "linkhub-language";
 
+export const resolveLanguage = resolveUiLanguage;
+
 /**
- * Primary subtag → shipped locale.
+ * The stored choice, or `null` for "follow the device".
  *
- * A browser that reports plain `pt`, or `pt-PT`, or `es-419`, is a real user
- * who should get a translated app rather than the English fallback. i18next's
- * own `supportedLngs` check is an exact-match one, so this widening happens
- * here, before i18next ever sees the tag.
+ * `null` is a real state rather than a missing one: it is what an account that
+ * has never touched the switcher has, and it is what makes a fresh sign-in
+ * start from the machine's own language.
  */
-const PRIMARY_SUBTAG_TO_LANGUAGE: Record<string, Language> = {
-  en: "en-US",
-  pt: "pt-BR",
-  es: "es-ES",
-};
-
-const isLanguage = (value: string | null): value is Language =>
-  SUPPORTED_LANGUAGES.includes(value as Language);
-
-/**
- * Maps any BCP-47 tag onto a shipped locale, or `null` when nothing matches.
- * Case-insensitive, because `navigator.language` casing is not guaranteed.
- */
-export const resolveLanguage = (tag: string | null | undefined) => {
-  if (!tag) {
-    return null;
-  }
-
-  const normalised = tag.trim().toLowerCase();
-  const exact = SUPPORTED_LANGUAGES.find(
-    (language) => language.toLowerCase() === normalised,
-  );
-  if (exact) {
-    return exact;
-  }
-
-  const primarySubtag = normalised.split("-")[0] ?? "";
-  return PRIMARY_SUBTAG_TO_LANGUAGE[primarySubtag] ?? null;
-};
-
 export const getStoredLanguage = (): Language | null => {
   if (typeof window === "undefined") {
     return null;
   }
 
   try {
-    const rawValue = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return isLanguage(rawValue) ? rawValue : null;
+    return resolveLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY));
   } catch (error) {
     // Private-mode / blocked storage. The browser language is a fine answer.
     reportHandled(error, { action: "language.read-stored" });
@@ -92,6 +73,13 @@ export const getBrowserLanguage = (): Language => {
   return DEFAULT_LANGUAGE;
 };
 
+/**
+ * What to render before anything has been fetched.
+ *
+ * As with the theme, local storage seeds the first paint and the database is
+ * authoritative once it answers. i18next initialises synchronously off this
+ * value so the first frame already has the right catalogue.
+ */
 export const getInitialLanguage = (): Language =>
   getStoredLanguage() ?? getBrowserLanguage();
 
@@ -118,5 +106,23 @@ export const persistLanguage = (language: Language) => {
   } catch (error) {
     // No-op when storage is unavailable (private mode, quota).
     reportHandled(error, { action: "language.persist" });
+  }
+};
+
+/**
+ * Drops the stored choice, returning the app to "follow the device".
+ *
+ * Used when the server says the account has no explicit language, so a stale
+ * local value cannot outlive the preference it was mirroring.
+ */
+export const clearStoredLanguage = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+  } catch (error) {
+    reportHandled(error, { action: "language.clear-stored" });
   }
 };

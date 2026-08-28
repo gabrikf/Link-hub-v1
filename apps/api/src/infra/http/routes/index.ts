@@ -7,6 +7,7 @@ import { postsRoutes } from "./posts.js";
 import { apiTokensRoutes } from "./api-tokens.js";
 import { profileLayoutRoutes } from "./profile-layout.js";
 import { profileRoutes } from "./profile.js";
+import { preferencesRoutes } from "./preferences.js";
 import { resumeRoutes } from "./resume.js";
 import { interactionsRoutes } from "./interactions.js";
 import { workExperienceRoutes } from "./work-experience.js";
@@ -68,6 +69,7 @@ export async function routes(fastify: FastifyInstance) {
   fastify.register(apiTokensRoutes);
   fastify.register(profileLayoutRoutes);
   fastify.register(profileRoutes);
+  fastify.register(preferencesRoutes);
   fastify.register(resumeRoutes);
   fastify.register(interactionsRoutes);
   fastify.register(workExperienceRoutes);
@@ -92,6 +94,7 @@ export async function routes(fastify: FastifyInstance) {
   fastify.register(apiTokensRoutes, { prefix: "/api/v1" });
   fastify.register(profileLayoutRoutes, { prefix: "/api/v1" });
   fastify.register(profileRoutes, { prefix: "/api/v1" });
+  fastify.register(preferencesRoutes, { prefix: "/api/v1" });
   fastify.register(resumeRoutes, { prefix: "/api/v1" });
   fastify.register(interactionsRoutes, { prefix: "/api/v1" });
   fastify.register(workExperienceRoutes, { prefix: "/api/v1" });
