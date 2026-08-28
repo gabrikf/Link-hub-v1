@@ -77,6 +77,40 @@ describe("SearchResults", () => {
     expect(screen.getByText("Kafka")).toBeInTheDocument();
   });
 
+  it("excerpts a bulleted description instead of printing its list markers", () => {
+    render(
+      <SearchResults
+        results={[
+          makeCandidate({
+            workExperiences: [
+              {
+                title: "Staff Engineer",
+                companyName: "Acme",
+                description:
+                  "- Rebuilt the settlement engine\n- Halved chargebacks",
+                mainStack: [],
+                startDate: "2021-01-01",
+                endDate: null,
+                isCurrent: true,
+                employmentType: null,
+                workModel: null,
+              },
+            ],
+          }),
+        ]}
+        isBusy={false}
+        hasSearched
+        onCopyEmail={noop}
+      />,
+    );
+
+    // The three-line clamp on this card is no place for a list, so the bullets
+    // are flattened into prose — but the markers themselves must not survive.
+    expect(
+      screen.getByText("Rebuilt the settlement engine Halved chargebacks"),
+    ).toBeInTheDocument();
+  });
+
   it("presents one match signal, not a raw cosine similarity", () => {
     render(
       <SearchResults

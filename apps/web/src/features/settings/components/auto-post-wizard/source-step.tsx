@@ -5,6 +5,7 @@ import type { IconType } from "react-icons";
 import {
   FiCpu,
   FiGitPullRequest,
+  FiInfo,
   FiMonitor,
   FiTerminal,
   FiZap,
@@ -39,6 +40,14 @@ type SourceCardDef = {
   description: string;
   /** One line: what we read / what we never read. */
   privacy: string;
+  /**
+   * Whether this source can start a digest by itself. A digest needs a merged
+   * pull request, a submitted review or a release (`hasPublishableEvidence` in
+   * apps/api) — the hook only emits `agent_session` events and the extractor
+   * only emits `commit` events, so neither ever clears that bar alone. They
+   * enrich a digest another source triggered.
+   */
+  postsOnItsOwn: boolean;
   recommended?: boolean;
   /** Setup happens in a terminal or config file on the user's dev machine. */
   needsDevMachine?: boolean;
@@ -53,6 +62,7 @@ function getSourceCards(t: TFunction): SourceCardDef[] {
       description: t("wizard.source.mcpBody"),
       privacy: t("wizard.source.mcpReads"),
       recommended: true,
+      postsOnItsOwn: true,
       needsDevMachine: true,
     },
     {
@@ -61,6 +71,7 @@ function getSourceCards(t: TFunction): SourceCardDef[] {
       title: t("wizard.source.hookTitle"),
       description: t("wizard.source.hookBody"),
       privacy: t("wizard.source.hookReads"),
+      postsOnItsOwn: false,
       needsDevMachine: true,
     },
     {
@@ -69,6 +80,7 @@ function getSourceCards(t: TFunction): SourceCardDef[] {
       title: t("wizard.source.extractorTitle"),
       description: t("wizard.source.extractorBody"),
       privacy: t("wizard.source.extractorReads"),
+      postsOnItsOwn: false,
       needsDevMachine: true,
     },
     {
@@ -77,6 +89,7 @@ function getSourceCards(t: TFunction): SourceCardDef[] {
       title: t("wizard.source.webhookTitle"),
       description: t("wizard.source.webhookBody"),
       privacy: t("wizard.source.webhookReads"),
+      postsOnItsOwn: true,
     },
   ];
 }
@@ -112,6 +125,9 @@ export function SourceStep({
 }: SourceStepProps) {
   const { t } = useTranslation();
   const sourceCards = getSourceCards(t);
+  const selectedCard =
+    sourceCards.find((card) => card.key === sourceKey) ?? null;
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -158,6 +174,17 @@ export function SourceStep({
                     {t("wizard.source.recommended")}
                   </span>
                 ) : null}
+                {/* The honest headline: only two of the four sources can put a
+                    post on your profile without help from another one. */}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    card.postsOnItsOwn ? BADGE.success : BADGE.neutral
+                  }`}
+                >
+                  {card.postsOnItsOwn
+                    ? t("wizard.source.postsOnItsOwn")
+                    : t("wizard.source.addsContext")}
+                </span>
               </span>
               <span className="text-xs text-zinc-600 dark:text-zinc-400">
                 {card.description}
@@ -179,6 +206,20 @@ export function SourceStep({
           );
         })}
       </div>
+
+      {selectedCard && !selectedCard.postsOnItsOwn ? (
+        // Information, not an error: the wizard still lets you finish. A source
+        // that only enriches a digest is useful, just never on its own. The
+        // copy lives in the catalogue under `wizard.source.needsPartnerNotice`,
+        // next to the card bodies that make the same promise.
+        <p className="flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+          <FiInfo
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-500 dark:text-zinc-400"
+            aria-hidden="true"
+          />
+          <span>{t("wizard.source.needsPartnerNotice")}</span>
+        </p>
+      ) : null}
 
       {sourceKey === "forge" ? (
         <div className="flex flex-wrap items-center gap-3">

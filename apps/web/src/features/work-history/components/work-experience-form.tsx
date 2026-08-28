@@ -264,14 +264,29 @@ export function WorkExperienceForm({
         {t("work.currentlyWorkHere")}
       </label>
 
-      <TextArea
-        id="work-description"
-        label={t("work.achievements")}
-        rows={4}
-        placeholder={t("work.achievementsPlaceholder")}
-        value={state.description}
-        onChange={(event) => update("description", event.target.value)}
-      />
+      {/*
+        Eight rows, not four: this field holds a bulleted achievement list, and
+        four rows meant a three-bullet entry was already scrolling while you
+        wrote it. The hint is there because the line breaks used to be thrown
+        away on render, so people had learned not to trust them.
+      */}
+      <div>
+        <TextArea
+          id="work-description"
+          label={t("work.achievements")}
+          rows={8}
+          placeholder={t("work.achievementsPlaceholder")}
+          aria-describedby="work-description-hint"
+          value={state.description}
+          onChange={(event) => update("description", event.target.value)}
+        />
+        <p
+          id="work-description-hint"
+          className="mt-1 text-xs text-zinc-500 dark:text-zinc-400"
+        >
+          {t("work.achievementsHint")}
+        </p>
+      </div>
 
       <Input
         id="work-stack"

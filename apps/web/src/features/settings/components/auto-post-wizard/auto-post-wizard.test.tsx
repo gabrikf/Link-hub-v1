@@ -168,6 +168,32 @@ describe("AutoPostWizard source step", () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
+  it("warns that the hook needs a partner source before anything can post", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    // The hook only emits agent_session events, which never clear the evidence
+    // bar — the card must say so, and so must the step once it is chosen.
+    expect(
+      screen.queryByText(/can't start one by itself/),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Claude Code background hook/ }),
+    );
+
+    expect(
+      screen.getByText(
+        /adds context to your posts — it can't start one by itself/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/combine it with GitHub \/ GitLab webhooks/),
+    ).toBeInTheDocument();
+    // Information, not a block: the wizard still moves forward.
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+  });
+
   it("prefills a sensible display name per source, following the kind selection", async () => {
     const user = userEvent.setup();
     renderWizard();

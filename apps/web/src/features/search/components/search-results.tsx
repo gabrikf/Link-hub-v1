@@ -31,6 +31,7 @@ import {
   SURFACE,
   SURFACE_EMPTY,
 } from "../../../shared-components/surface";
+import { markdownExcerpt } from "../../posts/lib/markdown";
 import { SOURCE_META, formatPostDate } from "../../posts/lib/post-format";
 import type { RankedCandidate } from "../types/advanced-search";
 import {
@@ -134,8 +135,12 @@ function WorkHistory({ experiences }: WorkHistoryProps) {
               ) : null}
 
               {experience.description ? (
+                // Excerpted, not rendered: descriptions are Markdown bullet
+                // lists now, and a three-line clamp is the wrong place for a
+                // list. `markdownExcerpt` drops the `-`/`•` markers so the card
+                // shows prose instead of a row of stray dashes.
                 <p className="mt-1 line-clamp-3 text-sm text-zinc-600 dark:text-zinc-300">
-                  {experience.description}
+                  {markdownExcerpt(experience.description, 300)}
                 </p>
               ) : null}
 

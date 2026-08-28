@@ -394,13 +394,24 @@ export function ResumeImportModal({
                       checked={selection.workIndexes.has(index)}
                       onToggle={() => toggleWork(index)}
                       label={`${entry.title} · ${entry.companyName}`}
+                      // The description rides along on the value line so the
+                      // parsed bullets are reviewable BEFORE they are saved —
+                      // `CheckboxRow` renders it with `whitespace-pre-line`, so
+                      // one bullet per line stays one bullet per line.
                       value={
                         [
-                          entry.startDate,
-                          entry.isCurrent ? t("common.present") : entry.endDate,
+                          [
+                            entry.startDate,
+                            entry.isCurrent
+                              ? t("common.present")
+                              : entry.endDate,
+                          ]
+                            .filter(Boolean)
+                            .join(" — "),
+                          entry.description ?? "",
                         ]
                           .filter(Boolean)
-                          .join(" — ") || ""
+                          .join("\n") || ""
                       }
                     />
                   ))}
