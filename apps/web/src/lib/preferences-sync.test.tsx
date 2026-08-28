@@ -1,7 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, renderHook, waitFor } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { UserPreferences } from "@repo/schemas";
+import type {
+  ThemePreference,
+  UpdateUserPreferencesInput,
+  UserPreferences,
+} from "@repo/schemas";
 
 vi.mock("./auth-api", () => ({
   fetchPreferences: vi.fn(),
@@ -38,45 +42,69 @@ const signIn = () => {
 
 const signOut = () => useUserInfoStore.setState({ userInfo: null });
 
-/**
- * Renders a hook inside a QueryClientProvider without crossing a `ReactNode`
- * boundary.
- *
- * Two copies of `@types/react` resolve in this monorepo — apps/web depends on
- * ^19.2.14, while `packages/ui` pins 19.1.0 exactly and hoists it to the root
- * where `@testing-library/react` resolves it. The two `ReactNode` types are
- * mutually unassignable (19.2's `ReactPortal` requires `children`, 19.1's does
- * not), so `renderHook`'s `wrapper` option — which passes `children` across
- * that boundary — cannot type-check in either direction.
- *
- * `ReactElement` IS compatible, which is why every other test here uses plain
- * `render()` with inline JSX. This helper does the same: the provider and the
- * probe are one JSX tree built entirely with apps/web's own React types, and
- * nothing of type `ReactNode` is ever handed to a differently-typed consumer.
- *
- * (The real fix is deduplicating those two copies, but `packages/ui` is
- * recorded dead scaffolding in AGENTS.md and untangling it is its own task.)
- */
-function renderHookWithClient<TResult>(useHook: () => TResult) {
-  const captured: { current: TResult | null } = { current: null };
-
-  function Probe() {
-    captured.current = useHook();
-    return null;
-  }
-
-  const queryClient = new QueryClient({
+const newQueryClient = () =>
+  new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
 
+/*
+ * These hooks are exercised through real components rather than `renderHook`,
+ * for two independent reasons.
+ *
+ * 1. `renderHook`'s `wrapper` option cannot type-check here. Two copies of
+ *    `@types/react` resolve in this monorepo — apps/web depends on ^19.2.14,
+ *    while `packages/ui` pins 19.1.0 exactly and hoists it to the root, where
+ *    `@testing-library/react` resolves its own. Their `ReactNode` types are
+ *    mutually unassignable (19.2's `ReactPortal` requires `children`, 19.1's
+ *    does not), and `wrapper` exists precisely to pass `children` across that
+ *    boundary. Rendering a JSX tree built entirely from apps/web's own types
+ *    never crosses it.
+ *
+ * 2. Everything worth asserting here is a SIDE EFFECT — what got painted, what
+ *    landed in storage, which request was made. Reaching for a hook's return
+ *    value would have meant writing to a captured variable during render, which
+ *    is impure and which `react-hooks/immutability` correctly rejects.
+ */
+function SyncProbe({
+  themePreference,
+  onThemePreferenceChange,
+}: {
+  themePreference: ThemePreference;
+  onThemePreferenceChange: (preference: ThemePreference) => void;
+}) {
+  usePreferencesSync({ themePreference, onThemePreferenceChange });
+  return null;
+}
+
+const renderSync = (
+  themePreference: ThemePreference,
+  onThemePreferenceChange: (preference: ThemePreference) => void,
+) =>
   render(
-    <QueryClientProvider client={queryClient}>
-      <Probe />
+    <QueryClientProvider client={newQueryClient()}>
+      <SyncProbe
+        themePreference={themePreference}
+        onThemePreferenceChange={onThemePreferenceChange}
+      />
     </QueryClientProvider>,
   );
 
-  return captured;
+/** Clicking is what a real toggle does, so the save path is driven the same way. */
+function SaveProbe({ patch }: { patch: UpdateUserPreferencesInput }) {
+  const savePreferences = useSavePreferences();
+  return (
+    <button type="button" onClick={() => savePreferences(patch)}>
+      save
+    </button>
+  );
 }
+
+const renderSave = (patch: UpdateUserPreferencesInput) =>
+  render(
+    <QueryClientProvider client={newQueryClient()}>
+      <SaveProbe patch={patch} />
+    </QueryClientProvider>,
+  );
 
 const preferences = (overrides: Partial<UserPreferences> = {}) => ({
   language: null,
@@ -105,9 +133,7 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     mockedFetch.mockResolvedValue(preferences({ theme: "light" }));
 
     const onThemePreferenceChange = vi.fn();
-    renderHookWithClient(() =>
-      usePreferencesSync({ themePreference: "dark", onThemePreferenceChange }),
-    );
+    renderSync("dark", onThemePreferenceChange);
 
     await waitFor(() =>
       expect(onThemePreferenceChange).toHaveBeenCalledWith("light"),
@@ -121,9 +147,7 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     mockedFetch.mockResolvedValue(preferences({ theme: "dark" }));
 
     const onThemePreferenceChange = vi.fn();
-    renderHookWithClient(() =>
-      usePreferencesSync({ themePreference: "dark", onThemePreferenceChange }),
-    );
+    renderSync("dark", onThemePreferenceChange);
 
     // Nothing to change on screen, but the next pre-paint read needs the value.
     await waitFor(() =>
@@ -136,12 +160,7 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     signIn();
     mockedFetch.mockResolvedValue(preferences({ language: "pt-BR" }));
 
-    renderHookWithClient(() =>
-      usePreferencesSync({
-        themePreference: "system",
-        onThemePreferenceChange: vi.fn(),
-      }),
-    );
+    renderSync("system", vi.fn());
 
     await waitFor(() => expect(i18n.resolvedLanguage).toBe("pt-BR"));
     expect(window.localStorage.getItem("linkhub-language")).toBe("pt-BR");
@@ -154,12 +173,7 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     signIn();
     mockedFetch.mockResolvedValue(preferences({ language: null }));
 
-    renderHookWithClient(() =>
-      usePreferencesSync({
-        themePreference: "system",
-        onThemePreferenceChange: vi.fn(),
-      }),
-    );
+    renderSync("system", vi.fn());
 
     await waitFor(() =>
       expect(window.localStorage.getItem("linkhub-language")).toBeNull(),
@@ -172,26 +186,19 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     window.localStorage.setItem("linkhub-theme", "dark");
 
     const onThemePreferenceChange = vi.fn();
-    const result = renderHookWithClient(() =>
-      usePreferencesSync({ themePreference: "dark", onThemePreferenceChange }),
-    );
+    renderSync("dark", onThemePreferenceChange);
 
     await waitFor(() => expect(mockedFetch).toHaveBeenCalled());
     // A preference endpoint being down is never allowed to change the UI.
     expect(onThemePreferenceChange).not.toHaveBeenCalled();
     expect(window.localStorage.getItem("linkhub-theme")).toBe("dark");
-    expect(result.current?.preferences).toBeUndefined();
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 });
 
 describe("usePreferencesSync — anonymous visitors", () => {
   it("never requests preferences without a session", async () => {
-    renderHookWithClient(() =>
-      usePreferencesSync({
-        themePreference: "light",
-        onThemePreferenceChange: vi.fn(),
-      }),
-    );
+    renderSync("light", vi.fn());
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mockedFetch).not.toHaveBeenCalled();
@@ -203,20 +210,20 @@ describe("useSavePreferences — outbound (app → server)", () => {
     signIn();
     mockedUpdate.mockResolvedValue(preferences({ theme: "dark" }));
 
-    const result = renderHookWithClient(() => useSavePreferences());
-    result.current?.({ theme: "dark" });
+    renderSave({ theme: "dark" });
+    fireEvent.click(screen.getByRole("button"));
 
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
     // Asserted on the first argument only: TanStack Query v5 hands `mutationFn`
     // a second context argument, which `updatePreferences` ignores.
-    await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
     expect(mockedUpdate.mock.calls[0]?.[0]).toEqual({ theme: "dark" });
   });
 
   it("makes NO request for a logged-out visitor", async () => {
     // A public profile carries both toggles. An anonymous toggle must not fire
     // a request that 401s — not even one that gets swallowed.
-    const result = renderHookWithClient(() => useSavePreferences());
-    result.current?.({ theme: "dark" });
+    renderSave({ theme: "dark" });
+    fireEvent.click(screen.getByRole("button"));
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mockedUpdate).not.toHaveBeenCalled();
@@ -226,8 +233,8 @@ describe("useSavePreferences — outbound (app → server)", () => {
     signIn();
     mockedUpdate.mockRejectedValue(new Error("nope"));
 
-    const result = renderHookWithClient(() => useSavePreferences());
-    expect(() => result.current?.({ theme: "dark" })).not.toThrow();
+    renderSave({ theme: "dark" });
+    expect(() => fireEvent.click(screen.getByRole("button"))).not.toThrow();
 
     await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
   });
@@ -270,6 +277,8 @@ describe("useSystemThemeFollow", () => {
     const emit = installMatchMedia(false);
     const onResolved = vi.fn();
 
+    // No provider needed, so `renderHook` is fine here — nothing crosses the
+    // `ReactNode` boundary described above.
     renderHook(() => useSystemThemeFollow("system", onResolved));
     emit(true);
 
