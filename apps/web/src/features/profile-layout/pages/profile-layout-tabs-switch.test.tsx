@@ -88,11 +88,26 @@ const block = (overrides: Partial<ProfileBlock>): ProfileBlock => ({
   ...overrides,
 });
 
-/** `blocksOnLaterTabs` controls how many blocks the tabs-off warning counts. */
+/**
+ * `blocksOnFirstTab` + `blocksOnLaterTabs` control how many blocks the tabs-off
+ * warning counts. Under the tabs-v3 rule BOTH count: tabs off publishes the
+ * always-visible zone alone, so a block on tab 1 is hidden exactly like one on
+ * tab 2. The first tab's count is a knob for that reason — the old fixture
+ * hard-coded one block there and could not express "nothing to hide".
+ */
 function makeLayout(
+  blocksOnFirstTab: number,
   blocksOnLaterTabs: number,
   tabsEnabled: boolean,
 ): ProfileLayout {
+  const first = Array.from({ length: blocksOnFirstTab }, (_, index) =>
+    block({
+      id: `first-${index}`,
+      tabId: "tab-1",
+      gridY: index * 2,
+      config: { body: `First body ${index}` },
+    }),
+  );
   const later = Array.from({ length: blocksOnLaterTabs }, (_, index) =>
     block({
       id: `later-${index}`,
@@ -115,7 +130,7 @@ function makeLayout(
         pinnedAllTabs: true,
         config: null,
       }),
-      block({ id: "first", tabId: "tab-1", config: { body: "First body" } }),
+      ...first,
       ...later,
     ],
     tabsEnabled,
@@ -128,15 +143,25 @@ function makeLayout(
  * the OTHER viewport's stored value never moved — the exact bug this round
  * fixes, and one a static mock cannot express.
  */
-const server: { pc: boolean; mobile: boolean; blocksOnLaterTabs: number } = {
+const server: {
+  pc: boolean;
+  mobile: boolean;
+  blocksOnFirstTab: number;
+  blocksOnLaterTabs: number;
+} = {
   pc: true,
   mobile: true,
+  blocksOnFirstTab: 1,
   blocksOnLaterTabs: 1,
 };
 
 const currentLayout = (): FullProfileLayout => ({
-  pc: makeLayout(server.blocksOnLaterTabs, server.pc),
-  mobile: makeLayout(server.blocksOnLaterTabs, server.mobile),
+  pc: makeLayout(server.blocksOnFirstTab, server.blocksOnLaterTabs, server.pc),
+  mobile: makeLayout(
+    server.blocksOnFirstTab,
+    server.blocksOnLaterTabs,
+    server.mobile,
+  ),
 });
 
 function renderPage() {
@@ -190,6 +215,7 @@ describe("ProfileLayoutPage — the per-viewport tabs switch", () => {
   beforeEach(() => {
     server.pc = true;
     server.mobile = true;
+    server.blocksOnFirstTab = 1;
     server.blocksOnLaterTabs = 1;
 
     // Reset every write mock, not just the ones a given test drives: react-grid
@@ -481,8 +507,17 @@ describe("ProfileLayoutPage — the per-viewport tabs switch", () => {
       screen.queryByRole("button", { name: /Move Main/ }),
     ).not.toBeInTheDocument();
 
-    // The user still edits the first tab's grid.
+    // UPDATED for the tabs-v3 rule. This used to end with "The user still
+    // edits the first tab's grid" — they do not: with tabs off the editor shows
+    // the always-visible zone alone, matching what the profile publishes. The
+    // resize hint is still on the page because the always-visible grid is still
+    // editable; it simply moved above both grids.
     expect(container.textContent ?? "").toContain("Tip: drag any edge");
+    // No tab grid: the pinned header is the only card left.
+    expect(
+      screen.queryAllByRole("switch", { name: "Toggle Text visibility" }),
+    ).toHaveLength(0);
+    expect(container.textContent ?? "").not.toContain("This tab has no blocks");
   });
 
   it("hides the per-block tab selector when tabs are off", async () => {
@@ -503,9 +538,13 @@ describe("ProfileLayoutPage — the per-viewport tabs switch", () => {
     ).toBeGreaterThan(0);
   });
 
+  // UPDATED for the tabs-v3 rule: one block on a LATER tab used to be the only
+  // thing counted. Now the first tab's block counts too, so "1" is expressed as
+  // a single block on the first tab and nothing beyond it.
   it("names the singular count of blocks that stay hidden", async () => {
     server.pc = false;
-    server.blocksOnLaterTabs = 1;
+    server.blocksOnFirstTab = 1;
+    server.blocksOnLaterTabs = 0;
 
     const { container } = renderPage();
     await settle(container);
@@ -517,8 +556,11 @@ describe("ProfileLayoutPage — the per-viewport tabs switch", () => {
     });
   });
 
+  // UPDATED for the tabs-v3 rule: same fixture, and the answer went from 3 to
+  // 4 because the block on the first tab is hidden now as well.
   it("names the plural count of blocks that stay hidden", async () => {
     server.pc = false;
+    server.blocksOnFirstTab = 1;
     server.blocksOnLaterTabs = 3;
 
     const { container } = renderPage();
@@ -526,13 +568,16 @@ describe("ProfileLayoutPage — the per-viewport tabs switch", () => {
 
     await waitFor(() => {
       expect(container.textContent ?? "").toContain(
-        "3 blocks in the tabs section are only hidden, not deleted. Switch tabs back on to show them again.",
+        "4 blocks in the tabs section are only hidden, not deleted. Switch tabs back on to show them again.",
       );
     });
   });
 
+  // UPDATED for the tabs-v3 rule: "nothing to hide" now means no tab blocks at
+  // all, on any tab — the first tab included.
   it("says nothing about hidden blocks when there are none to hide", async () => {
     server.pc = false;
+    server.blocksOnFirstTab = 0;
     server.blocksOnLaterTabs = 0;
 
     const { container } = renderPage();
@@ -635,5 +680,286 @@ describe("ProfileLayoutPage — the per-viewport tabs switch", () => {
     });
     const payload = createBlock.mock.calls[0]?.[0];
     expect(payload).toMatchObject({ viewport: "pc", tabId: null });
+  });
+});
+
+/* ------------------------------------------------------------------------- *
+ * v3 — tabs off is the always-visible zone and nothing else, and each add
+ * button lives in the section it fills.
+ * ------------------------------------------------------------------------- */
+
+/** The always-visible `<section>`, located by the heading that names it. */
+const alwaysVisibleSection = () => {
+  const section = screen
+    .getByRole("heading", { name: "Always visible" })
+    .closest("section");
+  if (!section) {
+    throw new Error("the always-visible section is not in the document");
+  }
+  return section;
+};
+
+/** The tab-manager `<section>`, located by the switch that governs it. */
+const tabManagerSection = () => {
+  const section = tabsSwitch().closest("section");
+  if (!section) {
+    throw new Error("the tab-manager section is not in the document");
+  }
+  return section;
+};
+
+describe("ProfileLayoutPage — the editor grid with tabs off", () => {
+  beforeEach(() => {
+    server.pc = true;
+    server.mobile = true;
+    server.blocksOnFirstTab = 1;
+    server.blocksOnLaterTabs = 1;
+
+    [
+      fetchLayout,
+      fetchMyProfile,
+      setTabsEnabled,
+      createBlock,
+      createTab,
+      deleteBlock,
+      deleteTab,
+      renameTab,
+      reorderTabs,
+      updateBlock,
+      updateBlockPositions,
+    ].forEach((mock) => mock.mockReset());
+    updateBlockPositions.mockResolvedValue({ success: true });
+
+    fetchLayout.mockImplementation(() => Promise.resolve(currentLayout()));
+    fetchMyProfile.mockResolvedValue(profile);
+    setTabsEnabled.mockImplementation(
+      ({
+        viewport,
+        tabsEnabled,
+      }: {
+        viewport: ProfileViewport;
+        tabsEnabled: boolean;
+      }) => {
+        server[viewport] = tabsEnabled;
+        return Promise.resolve();
+      },
+    );
+    createBlock.mockResolvedValue(block({ id: "created" }));
+  });
+
+  /**
+   * THE REPORTED BUG, editor half. The tab grid used to keep rendering the
+   * first tab with tabs off, so the owner edited a section their visitors could
+   * not see.
+   */
+  it("renders no tab grid at all when tabs are off", async () => {
+    server.pc = false;
+
+    const { container } = renderPage();
+    await settle(container);
+
+    await waitFor(() => {
+      expect(container.textContent ?? "").toContain("Tabs are off");
+    });
+
+    // Editor cards are labelled by block KIND, so the two text blocks (one on
+    // tab 1, one on tab 2) are gone and the tab grid's empty state with them.
+    expect(
+      screen.queryAllByRole("switch", { name: "Toggle Text visibility" }),
+    ).toHaveLength(0);
+    expect(container.textContent ?? "").not.toContain("This tab has no blocks");
+
+    // The pinned header is the only card left, so it is the only visibility
+    // switch — a positive control that the grid itself still renders.
+    const visibilitySwitches = screen.getAllByRole("switch", {
+      name: /Toggle .* visibility/,
+    });
+    expect(visibilitySwitches).toHaveLength(1);
+    expect(
+      screen.getByRole("switch", { name: "Toggle Profile header visibility" }),
+    ).toBeInTheDocument();
+  });
+
+  it("brings the tab grid straight back when tabs go on again", async () => {
+    server.pc = false;
+
+    const { container } = renderPage();
+    await settle(container);
+    await waitFor(() => {
+      expect(container.textContent ?? "").toContain("Tabs are off");
+    });
+
+    await userEvent.click(tabsSwitch());
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("switch", { name: "Toggle Text visibility" }),
+      ).toBeInTheDocument();
+    });
+    // Off -> on is a clean undo: no block was ever rewritten to hide them.
+    expect(updateBlock).not.toHaveBeenCalled();
+    expect(deleteBlock).not.toHaveBeenCalled();
+    expect(createBlock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the tab grid while tabs are on", async () => {
+    const { container } = renderPage();
+    await settle(container);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("switch", { name: "Toggle Text visibility" }),
+      ).toBeInTheDocument();
+    });
+    expect(container.textContent ?? "").toContain("Tip: drag any edge");
+  });
+});
+
+describe("ProfileLayoutPage — each add button sits in the section it fills", () => {
+  beforeEach(() => {
+    server.pc = true;
+    server.mobile = true;
+    server.blocksOnFirstTab = 1;
+    server.blocksOnLaterTabs = 1;
+
+    [
+      fetchLayout,
+      fetchMyProfile,
+      setTabsEnabled,
+      createBlock,
+      createTab,
+      deleteBlock,
+      deleteTab,
+      renameTab,
+      reorderTabs,
+      updateBlock,
+      updateBlockPositions,
+    ].forEach((mock) => mock.mockReset());
+    updateBlockPositions.mockResolvedValue({ success: true });
+
+    fetchLayout.mockImplementation(() => Promise.resolve(currentLayout()));
+    fetchMyProfile.mockResolvedValue(profile);
+    setTabsEnabled.mockImplementation(
+      ({
+        viewport,
+        tabsEnabled,
+      }: {
+        viewport: ProfileViewport;
+        tabsEnabled: boolean;
+      }) => {
+        server[viewport] = tabsEnabled;
+        return Promise.resolve();
+      },
+    );
+    createBlock.mockResolvedValue(block({ id: "created" }));
+  });
+
+  /**
+   * CONTAINMENT, not presence. Both buttons used to sit together in the tab
+   * manager, which is exactly why nobody could tell which zone each one filled;
+   * "it exists somewhere on the page" would have passed against that build.
+   */
+  it("puts 'Add to always-visible' inside the always-visible section", async () => {
+    const { container } = renderPage();
+    await settle(container);
+    await screen.findByRole("button", { name: "Add tab" });
+
+    expect(
+      within(alwaysVisibleSection()).getByRole("button", {
+        name: "Add to always-visible",
+      }),
+    ).toBeInTheDocument();
+
+    expect(
+      within(tabManagerSection()).queryByRole("button", {
+        name: "Add to always-visible",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("puts 'Add to tabs section' inside the tab-manager section", async () => {
+    const { container } = renderPage();
+    await settle(container);
+    await screen.findByRole("button", { name: "Add tab" });
+
+    expect(
+      within(tabManagerSection()).getByRole("button", {
+        name: "Add to tabs section",
+      }),
+    ).toBeInTheDocument();
+
+    expect(
+      within(alwaysVisibleSection()).queryByRole("button", {
+        name: "Add to tabs section",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps 'Add to always-visible' in its own section with tabs off", async () => {
+    server.pc = false;
+
+    const { container } = renderPage();
+    await settle(container);
+    await waitFor(() => {
+      expect(container.textContent ?? "").toContain("Tabs are off");
+    });
+
+    expect(
+      within(alwaysVisibleSection()).getByRole("button", {
+        name: "Add to always-visible",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add to tabs section" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still files a block from the relocated button into the pinned zone", async () => {
+    const { container } = renderPage();
+    await settle(container);
+    await screen.findByRole("button", { name: "Add tab" });
+
+    // The menu now opens from inside the always-visible section; the payload
+    // must be unchanged.
+    await userEvent.click(
+      within(alwaysVisibleSection()).getByRole("button", {
+        name: "Add to always-visible",
+      }),
+    );
+    const menu = await screen.findByRole("menu", {
+      name: "Add a custom block",
+    });
+    await userEvent.click(within(menu).getByText("Text"));
+    await userEvent.type(await screen.findByLabelText("Body"), "Fresh body");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(createBlock).toHaveBeenCalledTimes(1);
+    });
+    expect(createBlock.mock.calls[0]?.[0]).toMatchObject({
+      viewport: "pc",
+      tabId: null,
+    });
+  });
+
+  it("opens only one block-kind menu at a time", async () => {
+    const { container } = renderPage();
+    await settle(container);
+    await screen.findByRole("button", { name: "Add tab" });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add to always-visible" }),
+    );
+    expect(
+      await screen.findByRole("menu", { name: "Add a custom block" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add to tabs section" }),
+    );
+    // One menu in the document, owned by the tabs row now.
+    const menus = screen.getAllByRole("menu", { name: "Add a custom block" });
+    expect(menus).toHaveLength(1);
+    expect(tabManagerSection().contains(menus[0]!)).toBe(true);
   });
 });

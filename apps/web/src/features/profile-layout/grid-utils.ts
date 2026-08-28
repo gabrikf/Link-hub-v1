@@ -120,10 +120,12 @@ export function pinnedBlocks(layout: ProfileLayout): ProfileBlock[] {
 /**
  * How many blocks stop being reachable once the tabs section is switched off.
  *
- * With tabs off the public profile renders the FIRST tab plus the pinned zone,
- * so anything parked on a later tab is still stored, still editable, and simply
- * not on the page. That is a content-visibility consequence the user has to be
- * told about before it surprises them — hence the count, not a vague warning.
+ * With tabs off the public profile renders the pinned zone AND NOTHING ELSE, so
+ * every block on every tab — the first one included — is still stored, still
+ * editable, and simply not on the page. That is a content-visibility
+ * consequence the user has to be told about before it surprises them — hence
+ * the count, not a vague warning. Counting only the tabs past the first (the
+ * rule this used to encode) now under-reports what the switch actually hides.
  *
  * Pinned blocks are excluded on purpose: they render on every tab, so turning
  * tabs off cannot hide them.
@@ -134,15 +136,15 @@ export function pinnedBlocks(layout: ProfileLayout): ProfileBlock[] {
  * exaggerated number is not a harmless rounding error here: this count is the
  * only safeguard against silently hiding someone's content, and a warning that
  * overstates itself is one people learn to dismiss.
+ *
+ * A layout with no tabs has no tabs section to switch off, so it counts zero.
  */
 export function countBlocksHiddenWithoutTabs(layout: ProfileLayout): number {
-  const firstTabId = [...layout.tabs].sort((a, b) => a.order - b.order)[0]?.id;
-  if (firstTabId === undefined) {
+  if (layout.tabs.length === 0) {
     return 0;
   }
   return layout.blocks.filter(
-    (block) =>
-      block.isVisible && !block.pinnedAllTabs && block.tabId !== firstTabId,
+    (block) => block.isVisible && !block.pinnedAllTabs,
   ).length;
 }
 

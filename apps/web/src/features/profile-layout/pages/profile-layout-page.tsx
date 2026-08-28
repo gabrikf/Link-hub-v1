@@ -328,7 +328,11 @@ export function ProfileLayoutPage() {
   const positionsTimersRef = useRef<
     Map<string, { timer: ReturnType<typeof setTimeout>; run: () => void }>
   >(new Map());
-  const addMenuRef = useRef<HTMLDivElement | null>(null);
+  // One ref per add-block row: each button now lives in the section it fills,
+  // so the two rows are in different parts of the tree and a single ref could
+  // only ever guard one of them.
+  const addPinnedMenuRef = useRef<HTMLDivElement | null>(null);
+  const addTabsMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Dismiss the "Add to…" menu on outside-click or Escape.
   useEffect(() => {
@@ -337,10 +341,11 @@ export function ProfileLayoutPage() {
     }
 
     const handlePointer = (event: MouseEvent) => {
-      if (
-        addMenuRef.current &&
-        !addMenuRef.current.contains(event.target as Node)
-      ) {
+      const container =
+        addMenuZone === "pinned"
+          ? addPinnedMenuRef.current
+          : addTabsMenuRef.current;
+      if (container && !container.contains(event.target as Node)) {
         setAddMenuZone(null);
       }
     };
@@ -427,14 +432,15 @@ export function ProfileLayoutPage() {
    */
   const tabsEnabled = layout.tabsEnabled;
 
-  // With tabs off there is only one editable section, and it is the first tab.
-  // Honouring `activeTabId` here would leave the editor pointed at tab 3 —
-  // editing a grid the public page no longer renders.
+  // With tabs off there is NO active tab: the published page is the
+  // always-visible zone and nothing else, so the editor must not offer a tab
+  // grid either — editing a grid the public page does not render is exactly the
+  // mismatch that made people believe hidden content was still live.
   const activeTab = tabsEnabled
     ? (orderedTabs.find((tab) => tab.id === activeTabId) ??
       orderedTabs[0] ??
       null)
-    : (orderedTabs[0] ?? null);
+    : null;
 
   const cols = GRID_COLUMNS[viewport];
   const pinned = pinnedBlocks(layout);
@@ -907,6 +913,44 @@ export function ProfileLayoutPage() {
       : addKind;
   const customBlockMeta = getCustomBlockMeta(t);
 
+  /*
+   * The block-kind menu is ONE element rendered by whichever add row currently
+   * owns `addMenuZone`. Both buttons open the same list and the zone frozen in
+   * `handleAddCustomBlock` is what decides `tabId`, so the two rows stay two
+   * doors into one flow rather than two forks of it.
+   */
+  const addBlockMenu = (
+    <div
+      role="menu"
+      aria-label={t("layout.addCustomBlock")}
+      className="absolute left-0 top-12 z-20 w-64 space-y-1 rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+    >
+      {(Object.keys(customBlockMeta) as CustomBlockKind[]).map((kind) => {
+        const meta = customBlockMeta[kind];
+        return (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => handleAddCustomBlock(kind)}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
+              <meta.Icon className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span>
+              <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {meta.label}
+              </span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                {meta.description}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   // NOTE: the "Show links" / "Show resume" pills that used to live in the
   // add-block row are gone. They competed with the in-card Visible switch for
   // the same job, and `hiddenBuiltins` filtered across the WHOLE viewport, so a
@@ -1086,6 +1130,16 @@ export function ProfileLayoutPage() {
             </Button>
           </div>
 
+          {/*
+            The resize hint is page-level, above BOTH grids. It used to sit only
+            above the tab grid, which is no longer rendered when tabs are off —
+            and the always-visible grid, which is then the only editable one,
+            would have lost the only explanation of how to resize a block.
+          */}
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            {t("layout.resizeTip")}
+          </p>
+
           {/* Pinned zone */}
           <section className="anim-fade-up space-y-3 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-500/30 dark:bg-violet-500/5">
             <div>
@@ -1113,6 +1167,38 @@ export function ProfileLayoutPage() {
                 emptyMessage={t("layout.noPinnedBlocks")}
               />
             )}
+
+            {/*
+              The button that fills THIS zone lives in it. Both add buttons used
+              to sit together in the tab manager, so neither one said which grid
+              it filled — the reported confusion. It is offered with tabs on and
+              off alike: the always-visible zone is the one section that is
+              always published.
+            */}
+            <div
+              ref={addPinnedMenuRef}
+              className="relative flex flex-wrap items-center gap-2 border-t border-violet-200 pt-3 dark:border-violet-500/30"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                fullWidth={false}
+                size="sm"
+                className="rounded-full"
+                disabled={isLayoutLoading}
+                aria-expanded={addMenuZone === "pinned"}
+                onClick={() =>
+                  setAddMenuZone((zone) =>
+                    zone === "pinned" ? null : "pinned",
+                  )
+                }
+              >
+                <FiPlus className="h-4 w-4" aria-hidden="true" />
+                {t("layout.addToAlwaysVisible")}
+              </Button>
+
+              {addMenuZone === "pinned" ? addBlockMenu : null}
+            </div>
           </section>
 
           {/* Tab manager */}
@@ -1313,118 +1399,65 @@ export function ProfileLayoutPage() {
               </div>
             ) : null}
 
-            {/* Add block menu */}
-            <div
-              ref={addMenuRef}
-              className="relative flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800"
-            >
-              {/*
-                Two buttons, because where a block is created is the ONLY way it
-                becomes always-visible now. The per-block "All tabs" switch is
-                gone: it read as a property of the block when it was really a
-                property of which grid the block sat in, and flipping it moved
-                the block out from under the cursor.
-
-                Neither is `primary` — the page's one primary is the toolbar's,
-                and these are two peers, not a choice with a default.
-              */}
-              <Button
-                type="button"
-                variant="outline"
-                fullWidth={false}
-                size="sm"
-                className="rounded-full"
-                disabled={isLayoutLoading}
-                aria-expanded={addMenuZone === "pinned"}
-                onClick={() =>
-                  setAddMenuZone((zone) =>
-                    zone === "pinned" ? null : "pinned",
-                  )
-                }
-              >
-                <FiPlus className="h-4 w-4" aria-hidden="true" />
-                {t("layout.addToAlwaysVisible")}
-              </Button>
-
-              {/* With tabs off the tabs grid is not published at all, so the
-                  button that files a block into it is not offered — adding
-                  into a section nobody can see is a trap, not a shortcut. */}
-              {tabsEnabled ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  fullWidth={false}
-                  size="sm"
-                  className="rounded-full"
-                  disabled={isLayoutLoading}
-                  aria-expanded={addMenuZone === "tabs"}
-                  onClick={() =>
-                    setAddMenuZone((zone) => (zone === "tabs" ? null : "tabs"))
-                  }
-                >
-                  <FiPlus className="h-4 w-4" aria-hidden="true" />
-                  {t("layout.addToTabs")}
-                </Button>
-              ) : null}
-
-              {addMenuZone ? (
+            {/*
+              Add block menu — and the active tab's grid. With tabs off NEITHER
+              is rendered: the published page is the always-visible zone alone,
+              so an editable tab grid here would be a section the visitor never
+              sees, and a button filing blocks into it a trap rather than a
+              shortcut. Nothing is written to achieve that — flip the switch
+              back and every block returns exactly where it was.
+            */}
+            {tabsEnabled ? (
+              <>
                 <div
-                  role="menu"
-                  aria-label={t("layout.addCustomBlock")}
-                  className="absolute left-0 top-12 z-20 w-64 space-y-1 rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+                  ref={addTabsMenuRef}
+                  className="relative flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800"
                 >
-                  {(Object.keys(customBlockMeta) as CustomBlockKind[]).map(
-                    (kind) => {
-                      const meta = customBlockMeta[kind];
-                      return (
-                        <button
-                          key={kind}
-                          type="button"
-                          onClick={() => handleAddCustomBlock(kind)}
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                        >
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                            <meta.Icon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <span>
-                            <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                              {meta.label}
-                            </span>
-                            <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-                              {meta.description}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    },
-                  )}
-                </div>
-              ) : null}
-            </div>
+                  {/*
+                    Not `primary` — the page's one primary is the toolbar's, and
+                    this is a peer of the always-visible button that now sits in
+                    its own section, not a choice with a default.
+                  */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    fullWidth={false}
+                    size="sm"
+                    className="rounded-full"
+                    disabled={isLayoutLoading}
+                    aria-expanded={addMenuZone === "tabs"}
+                    onClick={() =>
+                      setAddMenuZone((zone) => (zone === "tabs" ? null : "tabs"))
+                    }
+                  >
+                    <FiPlus className="h-4 w-4" aria-hidden="true" />
+                    {t("layout.addToTabs")}
+                  </Button>
 
-            {/* Active tab grid */}
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t("layout.resizeTip")}
-            </p>
-            {isLayoutLoading ? (
-              <EditorGridSkeleton
-                cols={cols}
-                viewport={viewport}
-                spans={TAB_SKELETON_SPANS(cols)}
-                label={t("layout.loadingBlocks")}
-              />
-            ) : (
-              <EditorGrid
-                blocks={tabBlocks}
-                cols={cols}
-                viewport={viewport}
-                onChange={(items) =>
-                  persistPositions(items, `tab:${activeTab?.id ?? "none"}`)
-                }
-                renderCard={renderCard}
-                emptyMessage={t("layout.tabEmpty")}
-              />
-            )}
+                  {addMenuZone === "tabs" ? addBlockMenu : null}
+                </div>
+
+                {isLayoutLoading ? (
+                  <EditorGridSkeleton
+                    cols={cols}
+                    viewport={viewport}
+                    spans={TAB_SKELETON_SPANS(cols)}
+                    label={t("layout.loadingBlocks")}
+                  />
+                ) : (
+                  <EditorGrid
+                    blocks={tabBlocks}
+                    cols={cols}
+                    viewport={viewport}
+                    onChange={(items) =>
+                      persistPositions(items, `tab:${activeTab?.id ?? "none"}`)
+                    }
+                    renderCard={renderCard}
+                    emptyMessage={t("layout.tabEmpty")}
+                  />
+                )}
+              </>
+            ) : null}
           </section>
         </div>
       )}

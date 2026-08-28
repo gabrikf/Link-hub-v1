@@ -71,9 +71,13 @@ type ProfileBlocksProps = {
   linksLoading?: boolean;
   variant?: "full" | "preview";
   /**
-   * Profile-level "show tabs" switch. When false the page renders no tab strip
-   * and only the FIRST tab's blocks — plus the pinned zone, which is shared
-   * across every tab and therefore cannot be hidden by turning tabs off.
+   * Profile-level "show tabs" switch. When false the page IS the always-visible
+   * zone and nothing else: no tab strip, and no tab's blocks — not even the
+   * first tab's. Only the pinned zone renders, because it is shared across
+   * every tab and is what the owner asked to keep.
+   *
+   * Nothing is written or deleted to achieve that; the blocks are simply not
+   * rendered, so switching tabs back on restores them instantly.
    *
    * Defaults to `true` so callers that predate the flag (and every existing
    * test) keep the tabbed behaviour they had.
@@ -122,15 +126,16 @@ export function ProfileBlocks({
     orderedTabs[0]?.id ?? null,
   );
 
-  // With tabs off the selection is not the visitor's to make: the page is a
-  // single section, so it is always the first tab. Reading `activeTabId` here
-  // would leave a stale selection behind after the owner flips the switch in
-  // the editor's live preview, showing tab 3 with no way back to tab 1.
+  // With tabs off there is NO active tab: the page is the always-visible zone
+  // and nothing else, so no tab's blocks render. Falling back to the first tab
+  // here is what used to leak content the owner believed was hidden onto the
+  // public page, and it would also leave a stale selection behind after the
+  // owner flips the switch in the editor's live preview.
   const activeTab = tabsEnabled
     ? (orderedTabs.find((tab) => tab.id === activeTabId) ??
       orderedTabs[0] ??
       null)
-    : (orderedTabs[0] ?? null);
+    : null;
 
   /** The tab strip is chrome for choosing between tabs — pointless for one. */
   const showTabs = tabsEnabled && orderedTabs.length > 1;

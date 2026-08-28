@@ -73,10 +73,16 @@ describe("ProfileBlocks — tabs switched off", () => {
     expect(screen.queryByText("Talks")).not.toBeInTheDocument();
   });
 
-  it("shows only the first tab's blocks", () => {
+  /**
+   * THE REPORTED BUG. This case used to assert the opposite — that the FIRST
+   * tab's blocks still showed — which is what let a visitor read content the
+   * owner had switched off. With tabs off the page is the always-visible zone
+   * and nothing else, so no tab's blocks render, the first tab's included.
+   */
+  it("shows no tab blocks at all, not even the first tab's", () => {
     renderBlocks(threeTabLayout, false);
 
-    expect(screen.getByText("First tab body")).toBeInTheDocument();
+    expect(screen.queryByText("First tab body")).not.toBeInTheDocument();
     expect(screen.queryByText("Second tab body")).not.toBeInTheDocument();
     expect(screen.queryByText("Third tab body")).not.toBeInTheDocument();
   });
@@ -93,7 +99,10 @@ describe("ProfileBlocks — tabs switched off", () => {
     expect(screen.getByText("Pinned everywhere")).toBeInTheDocument();
   });
 
-  it("uses the FIRST tab by order, not the first in array order", () => {
+  // UPDATED for the tabs-v3 rule. Tab order used to decide which single tab
+  // survived the switch; no tab survives it now, so the case is kept as proof
+  // that no ordering quirk can smuggle a tab's blocks back onto the page.
+  it("hides every tab's blocks whatever order the tabs are stored in", () => {
     const shuffled: ProfileLayout = {
       tabsEnabled: true,
       tabs: [
@@ -108,18 +117,30 @@ describe("ProfileBlocks — tabs switched off", () => {
 
     renderBlocks(shuffled, false);
 
-    expect(screen.getByText("Early body")).toBeInTheDocument();
+    expect(screen.queryByText("Early body")).not.toBeInTheDocument();
     expect(screen.queryByText("Late body")).not.toBeInTheDocument();
   });
 
-  it("still hides blocks the owner marked invisible", () => {
+  /**
+   * The pinned zone is the ONLY zone tabs-off publishes, so `isVisible` on a
+   * pinned block still has to be honoured there. Asserting it on a tab block
+   * would prove nothing now — every tab block is absent either way.
+   */
+  it("still hides pinned blocks the owner marked invisible", () => {
     const layout: ProfileLayout = {
       tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "Main", order: 0 }],
       blocks: [
-        block({ id: "shown", config: { body: "Shown body" } }),
+        block({
+          id: "shown",
+          tabId: null,
+          pinnedAllTabs: true,
+          config: { body: "Shown body" },
+        }),
         block({
           id: "gone",
+          tabId: null,
+          pinnedAllTabs: true,
           isVisible: false,
           config: { body: "Hidden body" },
         }),
@@ -130,6 +151,36 @@ describe("ProfileBlocks — tabs switched off", () => {
 
     expect(screen.getByText("Shown body")).toBeInTheDocument();
     expect(screen.queryByText("Hidden body")).not.toBeInTheDocument();
+  });
+
+  /**
+   * The live preview in the editor renders this very component with the same
+   * flag, so "the preview disagrees with the public page" can only happen if
+   * the two are handed different props — never because the component decides
+   * differently. Pinning that here keeps the preview honest for free.
+   */
+  it("renders the same single zone whether it is the full page or the preview", () => {
+    const { unmount } = renderBlocks(threeTabLayout, false);
+    expect(screen.getByText("Pinned everywhere")).toBeInTheDocument();
+    expect(screen.queryByText("First tab body")).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <ProfileBlocks
+        layout={threeTabLayout}
+        viewport="pc"
+        profile={profile}
+        links={links}
+        resume={null}
+        workExperiences={[]}
+        variant="preview"
+        tabsEnabled={false}
+      />,
+    );
+
+    expect(screen.getByText("Pinned everywhere")).toBeInTheDocument();
+    expect(screen.queryByText("First tab body")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 });
 
@@ -150,6 +201,14 @@ describe("ProfileBlocks — tabs switched on (no regression)", () => {
 
     expect(screen.getByRole("tablist")).toBeInTheDocument();
     expect(screen.getAllByRole("tab")).toHaveLength(3);
+  });
+
+  it("renders the active tab's blocks and the pinned zone", () => {
+    renderBlocks(threeTabLayout, true);
+
+    expect(screen.getByText("Pinned everywhere")).toBeInTheDocument();
+    expect(screen.getByText("First tab body")).toBeInTheDocument();
+    expect(screen.queryByText("Second tab body")).not.toBeInTheDocument();
   });
 
   it("still renders NO tablist for a single tab", () => {

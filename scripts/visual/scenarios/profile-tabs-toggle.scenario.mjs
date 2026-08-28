@@ -36,6 +36,19 @@ const PROFILE = `/profile/${USERNAME}`;
 /** "on" = tabs expected; "off" = simple mode expected. */
 const EXPECT_TABS = (process.env.VISUAL_EXPECT_TABS || "on") === "on";
 
+/*
+ * Text that appears ONLY inside a tab block, never in the always-visible zone.
+ *
+ * This is the assertion that actually caught the reported defect. Checking that
+ * the tab STRIP is gone is not enough — the build that shipped it had no strip
+ * and still rendered the first tab's blocks, so a strip-only check passed while
+ * a visitor was looking at content the owner believed was hidden.
+ *
+ * Default suits the `gabrielkochf` fixture: pinned = header + links, Main tab =
+ * resume + work history, Posts tab = posts. Override for another profile.
+ */
+const TAB_ONLY_TEXT = process.env.VISUAL_TAB_ONLY_TEXT || "Resume";
+
 export default async function profileTabsToggle({
   goto,
   shot,
@@ -91,6 +104,13 @@ export default async function profileTabsToggle({
         `${theme}: the fixture profile has more than one tab (found ${tabCount}) — ` +
           "otherwise the tabs-off assertions prove nothing",
       );
+      // Positive control for the tabs-off content check: if this text were not
+      // on the page even with tabs ON, its absence later would prove nothing.
+      assert(
+        (await page.getByText(TAB_ONLY_TEXT, { exact: false }).count()) > 0,
+        `${theme}: "${TAB_ONLY_TEXT}" renders while tabs are on — ` +
+          "the tabs-off content assertion depends on it",
+      );
     } else {
       assert(
         tablistCount === 0,
@@ -99,6 +119,12 @@ export default async function profileTabsToggle({
       assert(
         (await page.getByRole("tab").count()) === 0,
         `${theme}: no orphan tab buttons survive with the strip removed`,
+      );
+      // The one that matters: tab CONTENT is gone, not just the chrome.
+      assert(
+        (await page.getByText(TAB_ONLY_TEXT, { exact: false }).count()) === 0,
+        `${theme}: no tab-section content renders when tabs are off ` +
+          `(found "${TAB_ONLY_TEXT}", which lives on a tab)`,
       );
     }
 

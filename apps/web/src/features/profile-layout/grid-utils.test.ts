@@ -420,7 +420,7 @@ describe("countBlocksHiddenWithoutTabs", () => {
     ).toBe(1);
   });
 
-  it("counts nothing when every off-tab block is already hidden", () => {
+  it("counts nothing when every tab block is already hidden", () => {
     expect(
       countBlocksHiddenWithoutTabs(
         layout([
@@ -431,7 +431,12 @@ describe("countBlocksHiddenWithoutTabs", () => {
     ).toBe(0);
   });
 
-  it("counts only blocks parked on a tab other than the first", () => {
+  // UPDATED for the tabs-v3 rule. This used to expect 3, excluding the block
+  // on the first tab, because tabs-off still published that tab. It does not
+  // any more: with tabs off the page is the always-visible zone alone, so every
+  // tab block is hidden and a count that skipped the first tab under-reported
+  // exactly the surprise this warning exists to prevent.
+  it("counts every block on every tab, the first one included", () => {
     expect(
       countBlocksHiddenWithoutTabs(
         layout([
@@ -441,7 +446,17 @@ describe("countBlocksHiddenWithoutTabs", () => {
           makeBlock({ id: "d", tabId: "tab-3" }),
         ]),
       ),
-    ).toBe(3);
+    ).toBe(4);
+  });
+
+  it("counts a block that sits on the FIRST tab", () => {
+    // The single case the old rule got wrong: one block, on tab 1, visible.
+    // Tabs off hides it, so the warning has to say so.
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([makeBlock({ id: "only", tabId: "tab-1" })]),
+      ),
+    ).toBe(1);
   });
 
   it("excludes pinned blocks — they render on every tab, so tabs-off cannot hide them", () => {
@@ -458,7 +473,9 @@ describe("countBlocksHiddenWithoutTabs", () => {
     ).toBe(1);
   });
 
-  it("is zero when everything already lives on the first tab", () => {
+  // UPDATED for the tabs-v3 rule: this used to expect 0 on the grounds that
+  // the first tab kept rendering. It no longer does, so both blocks count.
+  it("counts blocks that all live on the first tab", () => {
     expect(
       countBlocksHiddenWithoutTabs(
         layout([
@@ -466,10 +483,21 @@ describe("countBlocksHiddenWithoutTabs", () => {
           makeBlock({ id: "b", tabId: "tab-1" }),
         ]),
       ),
+    ).toBe(2);
+  });
+
+  it("is zero when the layout has no tab blocks at all", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([makeBlock({ id: "pin", tabId: null, pinnedAllTabs: true })]),
+      ),
     ).toBe(0);
   });
 
-  it("uses tab ORDER, not array position, to decide which tab is first", () => {
+  // UPDATED for the tabs-v3 rule. Tab order used to decide which blocks were
+  // spared; now nothing is spared, so the answer must be the same whatever
+  // order the tabs are stored in — the case kept, its meaning inverted.
+  it("is independent of tab order — every tab's blocks count", () => {
     const shuffled = {
       tabs: [
         { id: "tab-late", title: "Late", order: 5 },
@@ -482,9 +510,7 @@ describe("countBlocksHiddenWithoutTabs", () => {
       tabsEnabled: true,
     };
 
-    // Reading `tabs[0]` instead of the lowest order would answer 1 for the
-    // wrong block, warning about the tab that actually stays visible.
-    expect(countBlocksHiddenWithoutTabs(shuffled)).toBe(1);
+    expect(countBlocksHiddenWithoutTabs(shuffled)).toBe(2);
   });
 
   it("counts nothing for a layout with no tabs", () => {
