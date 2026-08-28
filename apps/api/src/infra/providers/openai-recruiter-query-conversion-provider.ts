@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { UiLanguage } from "@repo/schemas";
 import {
   BuildRecruiterSemanticQueryInput,
   IRecruiterQueryConversionProvider,
@@ -74,6 +75,27 @@ Example output format:
 {
   "semanticQuery": "Role: Full Stack Engineer\nSeniority: Mid, 6+ years\nCore Skills: TypeScript, JavaScript, Node.js, React, GraphQL\nSecondary Skills: .NET, Java\nTitles: Full Stack Engineer, Software Engineer\nDomain: Healthcare SaaS\nResponsibilities: maintain responsive apps, migrate legacy services, collaborate with UX/UI\nConstraints: HIPAA, GDPR, SOC2, PCI-DSS\nWork Model: Remote"
 }`;
+
+/**
+ * The language rule for this prompt, appended at call time.
+ *
+ * Note what it does NOT do: it never calls `languageInstruction`. That helper
+ * tells a model to write its prose in the user's language, and this provider's
+ * output is not prose — it is a retrieval DSL whose labels are embedded and
+ * matched against a pgvector index built from English-labelled text. Answering
+ * a Brazilian recruiter with `Cargo:` instead of `Role:` would move every one
+ * of their queries away from the index and quietly degrade their results, so
+ * D6 in the feature's DEFINITION-OF-DONE pins the labels to English on
+ * purpose.
+ *
+ * The language is still stated rather than ignored: naming it and then
+ * excluding the labels is a much stronger instruction than silence, which a
+ * model is free to interpret either way when the whole input is Portuguese.
+ * Values keep the language of the source input, exactly as they always have.
+ */
+function labelPinningRule(language: UiLanguage): string {
+  return `The recruiter's language is ${language}. The labels above ("Role", "Seniority", "Core Skills", "Secondary Skills", "Titles", "Domain", "Responsibilities", "Constraints", "Work Model") are index keys, not prose: write every label in English, spelled exactly as listed, even when the input is written in another language. Do NOT translate them. The values after each label keep the wording and language of the source input.`;
+}
 
 function buildUserPrompt(input: BuildRecruiterSemanticQueryInput): string {
   const parts: string[] = [];
@@ -162,7 +184,7 @@ export class OpenAiRecruiterQueryConversionProvider
         messages: [
           {
             role: "system",
-            content: QUERY_CONVERSION_SYSTEM_PROMPT,
+            content: `${QUERY_CONVERSION_SYSTEM_PROMPT}\n\n${labelPinningRule(input.language)}`,
           },
           {
             role: "user",

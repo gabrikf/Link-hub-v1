@@ -26,6 +26,7 @@ import {
 import { TOKENS } from "../../../../di/container.js";
 import { InMemorySkillCatalogRepository } from "../../../../../core/repositories/skill-catalog/in-memory-skill-catalog-repository.js";
 import { InMemoryTitleCatalogRepository } from "../../../../../core/repositories/title-catalog/in-memory-title-catalog-repository.js";
+import { InMemoryUserPreferencesRepository } from "../../../../../core/repositories/user-preferences/in-memory-user-preferences-repository.js";
 import { ParseResumeUseCase } from "../../../../../core/use-case/ai-import/parse-resume-use-case/parse-resume.use-case.js";
 import type {
   IResumeParsingProvider,
@@ -86,6 +87,7 @@ describe("AI import E2E — resume text length", () => {
         new InMemorySkillCatalogRepository(),
         new InMemoryTitleCatalogRepository(),
         parsingProvider,
+        new InMemoryUserPreferencesRepository(),
       ),
     );
   });

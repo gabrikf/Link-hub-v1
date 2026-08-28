@@ -1,10 +1,12 @@
 import OpenAI from "openai";
+import type { UiLanguage } from "@repo/schemas";
 import {
   IResumeParsingProvider,
   ParsedResume,
   ParsedWorkExperience,
   ResumeParsingInput,
 } from "../../core/providers/resume-parsing/resume-parsing-provider.js";
+import { languageInstruction } from "../../core/lang/resolve-response-language.js";
 import {
   recordOpenAiRequest,
   recordOpenAiUsage,
@@ -109,7 +111,22 @@ Rules:
 - Order workExperiences from most recent to oldest.
 - Prefer skill/title names from the provided known lists when they clearly match, otherwise keep the resume's wording.
 - Keep skills concise (technology names, not sentences).
-- Markdown for work-experience "description": PRESERVE the resume's bullet structure. When the resume lists responsibilities/achievements as bullets (•, -, *, or numbered), output them as a Markdown bulleted list with each item on its own line starting with "- " (use a real newline "\\n" between items, never merge bullets into one paragraph). You may use **bold** for emphasis. If the entry is genuinely a single prose paragraph, keep it as a paragraph. Keep each bullet concise; do not invent bullets that aren't in the resume.`;
+- Markdown for work-experience "description": PRESERVE the resume's bullet structure. When the resume lists responsibilities/achievements as bullets (•, -, *, or numbered), output them as a Markdown bulleted list with each item on its own line starting with "- " (use a real newline "\\n" between items, never merge bullets into one paragraph). You may use **bold** for emphasis. If the entry is genuinely a single prose paragraph, keep it as a paragraph. Keep each bullet concise; do not invent bullets that aren't in the resume.
+- Wire values, never translated: every JSON key above, every value of "seniorityLevel", "workModel", "contractType" and "employmentType", and every date. Emit them in the exact lowercase English spelling listed above ("full-time", "on-site", "senior", ...) whatever language the prose is written in. A translated enum value fails validation and the whole import is rejected.`;
+
+/**
+ * The language rule, appended to the system prompt at call time.
+ *
+ * Two sentences rather than one: `languageInstruction` states the rule for
+ * every prompt in the codebase, and this names the four fields it actually
+ * applies to here and the fields it must not touch. Without the second half a
+ * model reading "answer in Brazilian Portuguese" will happily return
+ * "tempo integral" for `contractType`, which fails `parsedResumeDataSchema`
+ * and turns a language preference into a broken resume import.
+ */
+function languageRule(language: UiLanguage): string {
+  return `${languageInstruction(language)} Here that means "headlineTitle", "summary", "profileDescription" and every work-experience "description" are written in that language. It does NOT mean translating JSON keys, the enum values listed above, dates, technology names in "skills"/"mainStack", company names or the candidate's name — those are copied or emitted exactly as specified.`;
+}
 
 function asString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -283,7 +300,10 @@ export class OpenAiResumeParsingProvider implements IResumeParsingProvider {
         model,
         temperature: 0.1,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "system",
+            content: `${SYSTEM_PROMPT}\n\n${languageRule(input.language)}`,
+          },
           { role: "user", content: userPrompt },
         ],
         response_format: { type: "json_object" },

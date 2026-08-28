@@ -80,6 +80,10 @@ export class AiImportController {
         const parsed = await parseResumeUseCase.execute({
           userId: request.user!.id,
           resumeText,
+          // Raw, not parsed: `resolveResponseLanguage` owns the Accept-Language
+          // grammar, and a controller that pre-parsed it would be a second
+          // place where quality values could be read differently.
+          acceptLanguage: request.headers["accept-language"] ?? null,
         });
 
         // After the parse succeeds: a resume rejected for being too short never

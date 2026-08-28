@@ -1258,9 +1258,15 @@ export function setupContainer() {
             TOKENS.SearchResumesByRecruiterQueryUseCase,
           );
 
+        const userPreferencesRepository =
+          c.resolve<IUserPreferencesRepository>(
+            TOKENS.UserPreferencesRepository,
+          );
+
         return new TransformRecruiterSearchInputUseCase(
           queryConversionProvider,
           searchResumesByRecruiterQueryUseCase,
+          userPreferencesRepository,
         );
       },
     },
@@ -1464,11 +1470,16 @@ export function setupContainer() {
         TOKENS.ResumeParsingProvider,
       );
 
+      const userPreferencesRepository = c.resolve<IUserPreferencesRepository>(
+        TOKENS.UserPreferencesRepository,
+      );
+
       return new ParseResumeUseCase(
         usersRepository,
         skillCatalogRepository,
         titleCatalogRepository,
         resumeParsingProvider,
+        userPreferencesRepository,
       );
     },
   });
