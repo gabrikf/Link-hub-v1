@@ -1,8 +1,4 @@
-import type {
-  LinkResponse,
-  ProfileBlock,
-  ProfileLayout,
-} from "@repo/schemas";
+import type { LinkResponse, ProfileBlock, ProfileLayout } from "@repo/schemas";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PROFILE_CANVAS_WIDTH } from "../../profile-layout/grid-utils";
@@ -59,6 +55,7 @@ const renderLayout = (layout: ProfileLayout) =>
 describe("ProfileBlocks", () => {
   it("renders a pinned block above every tab and its grid placement style", () => {
     const layout: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [
         { id: "tab-1", title: "One", order: 0 },
         { id: "tab-2", title: "Two", order: 1 },
@@ -100,6 +97,7 @@ describe("ProfileBlocks", () => {
 
   it("shows the tab bar only when there is more than one tab", () => {
     const single: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "Only", order: 0 }],
       blocks: [block({ id: "t", config: { body: "solo" } })],
     };
@@ -109,6 +107,7 @@ describe("ProfileBlocks", () => {
     unmount();
 
     const multi: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [
         { id: "tab-1", title: "First", order: 0 },
         { id: "tab-2", title: "Second", order: 1 },
@@ -123,6 +122,7 @@ describe("ProfileBlocks", () => {
 
   it("renders custom text and button blocks and switches tab content", () => {
     const layout: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [
         { id: "tab-1", title: "First", order: 0 },
         { id: "tab-2", title: "Second", order: 1 },
@@ -163,6 +163,7 @@ describe("ProfileBlocks", () => {
 
   it("omits hidden blocks", () => {
     const layout: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "One", order: 0 }],
       blocks: [
         block({
@@ -189,6 +190,7 @@ describe("ProfileBlocks", () => {
     // compaction the hidden middle block would leave a two-row gap on the live
     // profile that the editor cannot see, let alone fix.
     const layout: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "One", order: 0 }],
       blocks: [
         block({ id: "first", gridY: 0, gridW: 12, config: { body: "First" } }),
@@ -224,6 +226,7 @@ describe("ProfileBlocks", () => {
    */
   it("sizes rows as a minimum so tall content is never clipped", () => {
     const layout: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "One", order: 0 }],
       blocks: [block({ id: "t", gridW: 12, config: { body: "body" } })],
     };
@@ -245,6 +248,7 @@ describe("ProfileBlocks", () => {
    */
   it("clamps the grid to the shared canvas width for the viewport", () => {
     const layout: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "One", order: 0 }],
       blocks: [block({ id: "t", gridW: 12, config: { body: "body" } })],
     };
@@ -256,6 +260,7 @@ describe("ProfileBlocks", () => {
 
   it("compacts the pinned zone independently of the tab zone", () => {
     const layout: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "One", order: 0 }],
       blocks: [
         block({

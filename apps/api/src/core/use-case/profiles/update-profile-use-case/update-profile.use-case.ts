@@ -15,7 +15,6 @@ export interface IUpdateProfileInput {
   themeAccent?: string | null;
   themePreset?: string | null;
   openToWork?: boolean;
-  tabsEnabled?: boolean;
   location?: string | null;
   persona?: string | null;
 }
@@ -74,17 +73,6 @@ export class UpdateProfileUseCase {
       user.updateOpenToWork(input.openToWork);
     }
 
-    /*
-     * Presentation only. Nothing here touches `profile_tabs` or
-     * `profile_blocks`: turning tabs off must be reversible, and a user who
-     * flips it back on has to get the exact layout they had. Deleting or
-     * reassigning blocks here would make the switch a destructive action
-     * disguised as a toggle.
-     */
-    if (typeof input.tabsEnabled !== "undefined") {
-      user.updateTabsEnabled(input.tabsEnabled);
-    }
-
     if (typeof input.location !== "undefined") {
       user.updateLocation(input.location ?? null);
     }
@@ -108,7 +96,6 @@ export class UpdateProfileUseCase {
       themeAccent: updatedUser.themeAccent,
       themePreset: updatedUser.themePreset,
       openToWork: updatedUser.openToWork,
-      tabsEnabled: updatedUser.tabsEnabled,
       location: updatedUser.location,
       persona: updatedUser.persona,
       email: updatedUser.email,

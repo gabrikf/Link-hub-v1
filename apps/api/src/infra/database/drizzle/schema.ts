@@ -53,13 +53,19 @@ export const users = pgTable("users", {
    * "Simple mode" switch for the public profile: false renders no tab strip,
    * only the first tab's blocks plus pinned ones.
    *
-   * This one lives on `users` ON PURPOSE, unlike `user_preferences` below: the
-   * public renderer cannot decide whether to draw the tab strip without it, so
-   * it has to travel in the public payload beside `openToWork` and
-   * `themePreset`. Defaults to true so every account that existed before this
-   * column keeps exactly the behaviour it had.
+   * TWO columns, one per viewport, because `profile_tabs.viewport` already
+   * makes tabs per-viewport and the real use case is asymmetric: tabs on a wide
+   * desktop layout, one scrolling list on a phone. A single flag could not
+   * express that, and flipping it in one viewport silently flipped the other.
+   *
+   * These live on `users` ON PURPOSE, unlike `user_preferences` below: the
+   * public renderer cannot decide whether to draw the tab strip without them,
+   * so they travel in the public payload (inside `layout.pc` / `layout.mobile`)
+   * rather than staying private. Both default to true so every account that
+   * existed before these columns keeps exactly the behaviour it had.
    */
-  tabsEnabled: boolean("tabs_enabled").notNull().default(true),
+  tabsEnabledPc: boolean("tabs_enabled_pc").notNull().default(true),
+  tabsEnabledMobile: boolean("tabs_enabled_mobile").notNull().default(true),
   location: text("location"),
   persona: text("persona"),
   // How much an agent acting for this user may reveal about their work history.

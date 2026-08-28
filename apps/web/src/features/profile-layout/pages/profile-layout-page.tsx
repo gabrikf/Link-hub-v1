@@ -10,7 +10,6 @@ import {
   type ImageBlockConfig,
   type PostsBlockConfig,
   type ProfileBlock,
-  type ProfileResponse,
   type ProfileTab,
   type ProfileViewport,
   type TextBlockConfig,
@@ -53,9 +52,9 @@ import {
   fetchMyWorkExperiences,
   renameTab,
   reorderTabs,
+  setTabsEnabled,
   updateBlock,
   updateBlockPositions,
-  updateProfile,
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyResumeQuery } from "../../../lib/profile-queries";
@@ -101,6 +100,15 @@ type CustomConfig =
   | PostsBlockConfig;
 
 const CUSTOM_KINDS = ["text", "video", "image", "button", "posts"] as const;
+
+/**
+ * Which of the editor's two zones a new block is created in. There is no
+ * per-block "All tabs" switch any more — the button you press decides, and the
+ * decision is expressed as the create payload's `tabId` (null = always
+ * visible). Moving an existing block between the zones is deliberately not
+ * offered: it was a switch nobody could reason about.
+ */
+type BlockZone = "pinned" | "tabs";
 
 /**
  * Wired with `aria-describedby` rather than a hover tooltip. The explanation is
@@ -283,7 +291,12 @@ export function ProfileLayoutPage() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<ProfileTab | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  // Which "Add to…" button has its block-kind menu open, and which zone the
+  // block being created belongs to. Two states rather than one: the menu closes
+  // as soon as a kind is picked, but the zone has to survive until the block
+  // dialog is submitted.
+  const [addMenuZone, setAddMenuZone] = useState<BlockZone | null>(null);
+  const [addZone, setAddZone] = useState<BlockZone>("tabs");
   const [addKind, setAddKind] = useState<CustomBlockKind | null>(null);
   const [editingBlock, setEditingBlock] = useState<ProfileBlock | null>(null);
 
@@ -317,9 +330,9 @@ export function ProfileLayoutPage() {
   >(new Map());
   const addMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // Dismiss the "Add block" menu on outside-click or Escape.
+  // Dismiss the "Add to…" menu on outside-click or Escape.
   useEffect(() => {
-    if (!addMenuOpen) {
+    if (!addMenuZone) {
       return;
     }
 
@@ -328,12 +341,12 @@ export function ProfileLayoutPage() {
         addMenuRef.current &&
         !addMenuRef.current.contains(event.target as Node)
       ) {
-        setAddMenuOpen(false);
+        setAddMenuZone(null);
       }
     };
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setAddMenuOpen(false);
+        setAddMenuZone(null);
       }
     };
 
@@ -343,7 +356,7 @@ export function ProfileLayoutPage() {
       document.removeEventListener("mousedown", handlePointer);
       document.removeEventListener("keydown", handleKey);
     };
-  }, [addMenuOpen]);
+  }, [addMenuZone]);
 
   useEffect(() => {
     if (!hasSession) {
@@ -406,11 +419,13 @@ export function ProfileLayoutPage() {
   );
 
   /*
-   * The profile-level "show tabs" switch. Absent (a profile fetched before the
-   * field existed, or a `me` request still in flight) reads as ON, which is the
-   * behaviour every profile had before this switch.
+   * The "show tabs" switch for THE VIEWPORT BEING EDITED. It lives in the
+   * layout, one per viewport, because the tabs it governs are per-viewport too:
+   * a wide desktop layout can keep its strip while the phone renders one
+   * scrolling list. While the layout is in flight this reads the default
+   * fallback, i.e. ON — the behaviour every profile had before the switch.
    */
-  const tabsEnabled = meQuery.data?.tabsEnabled ?? true;
+  const tabsEnabled = layout.tabsEnabled;
 
   // With tabs off there is only one editable section, and it is the first tab.
   // Honouring `activeTabId` here would leave the editor pointed at tab 3 —
@@ -500,6 +515,7 @@ export function ProfileLayoutPage() {
           [...remaining].sort((a, b) => a.order - b.order)[0]?.id ?? null;
 
         return {
+          ...current,
           tabs: remaining,
           blocks: current.blocks.map((block) =>
             block.pinnedAllTabs || block.tabId !== tabId
@@ -542,44 +558,39 @@ export function ProfileLayoutPage() {
   });
 
   /*
-   * The tabs switch writes to the PROFILE, not the layout — it is one flag for
-   * the whole profile, shared by both viewports, so it cannot live in a
-   * per-viewport layout.
+   * The tabs switch writes ONE VIEWPORT of the layout, and its optimistic patch
+   * goes to the same `["layout"]` cache every other editor mutation patches —
+   * the switch, the tab chrome and the preview all read from there, so the
+   * strip disappears under the cursor instead of after a round-trip.
    *
-   * Optimistic on the `["me"]` cache: the tab chrome and the live preview both
-   * read `tabsEnabled` from there, and making the user watch a round-trip
-   * before the strip disappears is exactly the lag a switch must not have. A
-   * rejected write puts the previous profile back, so the switch springs back
-   * rather than lying.
+   * `cancelQueries` first, and that line is the bug fix. The switch used to
+   * patch the `["me"]` cache while a `GET /me` was already in flight — started
+   * by the previous toggle's own `onSettled` invalidation, by a refocus, or by
+   * any other screen invalidating the profile. That request had left before the
+   * click, so it answered with the PRE-click value and stamped it straight back
+   * over the optimistic one: the click looked ignored, and clicking again
+   * merely started another request to be swallowed by. Cancelling any in-flight
+   * read of the key being patched is what makes the FIRST click stick.
    *
    * NOTHING is deleted or reassigned here — no tab, no block. Off and on are
    * the same write with a different boolean.
    */
   const setTabsEnabledMutation = useMutation({
     mutationFn: (nextTabsEnabled: boolean) =>
-      updateProfile({
-        // `username` is required by `updateProfileSchemaInput`; the switch is
-        // disabled until `meQuery` has supplied it.
-        username: meQuery.data?.username ?? "",
+      setTabsEnabled({ viewport, tabsEnabled: nextTabsEnabled }),
+    onMutate: async (nextTabsEnabled: boolean) => {
+      await queryClient.cancelQueries({ queryKey: ["layout"] });
+      const previous = patchLayout(viewport, (current) => ({
+        ...current,
         tabsEnabled: nextTabsEnabled,
-      }),
-    onMutate: (nextTabsEnabled: boolean) => {
-      const previous = queryClient.getQueryData<ProfileResponse>(["me"]);
-      queryClient.setQueryData<ProfileResponse>(["me"], (prev) =>
-        prev ? { ...prev, tabsEnabled: nextTabsEnabled } : prev,
-      );
+      }));
       return { previous };
     },
     onError: (error, _vars, context) => {
       reportError(error, { action: "profile-layout.toggle-tabs" });
-      if (context?.previous) {
-        queryClient.setQueryData(["me"], context.previous);
-      }
+      return rollback(context?.previous);
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["me"] });
-      invalidatePublicProfileCache();
-    },
+    onSettled: invalidateLayout,
   });
 
   /* ---------------------------- Block mutations ---------------------------- */
@@ -790,7 +801,11 @@ export function ProfileLayoutPage() {
   };
 
   const handleAddCustomBlock = (kind: CustomBlockKind) => {
-    setAddMenuOpen(false);
+    // Freeze the zone the open menu belongs to before closing it: the create
+    // payload is only built when the block dialog is submitted, which can be
+    // several seconds and one changed mind later.
+    setAddZone(addMenuZone ?? "tabs");
+    setAddMenuZone(null);
     setAddKind(kind);
   };
 
@@ -807,11 +822,18 @@ export function ProfileLayoutPage() {
       return;
     }
 
-    const placement = computeNextPlacement(tabBlocks, viewport);
+    // The zone decides everything: `tabId: null` is what the api reads as
+    // "always visible on every tab", and the new block is placed under the
+    // blocks of the zone it is joining, not under whatever the active tab holds.
+    const intoPinned = addZone === "pinned" || !tabsEnabled;
+    const placement = computeNextPlacement(
+      intoPinned ? pinned : tabBlocks,
+      viewport,
+    );
     const payload = {
       kind,
       viewport,
-      tabId: activeTab?.id ?? null,
+      tabId: intoPinned ? null : (activeTab?.id ?? null),
       config,
       placement,
     } as CreateBlockInput;
@@ -855,15 +877,6 @@ export function ProfileLayoutPage() {
         updateBlockMutation.mutate({
           blockId: target.id,
           patch: { isVisible },
-        })
-      }
-      onTogglePin={(target, pinnedAllTabs) =>
-        updateBlockMutation.mutate({
-          blockId: target.id,
-          patch: {
-            pinnedAllTabs,
-            tabId: pinnedAllTabs ? null : (activeTab?.id ?? null),
-          },
         })
       }
       onMoveToTab={(target, tabId) =>
@@ -1077,7 +1090,7 @@ export function ProfileLayoutPage() {
           <section className="anim-fade-up space-y-3 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-500/30 dark:bg-violet-500/5">
             <div>
               <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                {t("layout.shownOnAllTabs")}
+                {t("layout.alwaysVisibleSection")}
               </h2>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 {t("layout.pinnedHelp")}
@@ -1128,9 +1141,10 @@ export function ProfileLayoutPage() {
               </div>
               <Switch.Root
                 checked={tabsEnabled}
-                // `updateProfile` requires the username, which arrives with
-                // `meQuery`. Flipping before then would send an empty one.
-                disabled={!meQuery.data}
+                // Until the layout lands, `tabsEnabled` is the default
+                // fallback's, not this profile's — flipping it would write a
+                // value the user never saw.
+                disabled={isLayoutLoading}
                 onCheckedChange={(checked) =>
                   setTabsEnabledMutation.mutate(checked)
                 }
@@ -1304,19 +1318,56 @@ export function ProfileLayoutPage() {
               ref={addMenuRef}
               className="relative flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800"
             >
+              {/*
+                Two buttons, because where a block is created is the ONLY way it
+                becomes always-visible now. The per-block "All tabs" switch is
+                gone: it read as a property of the block when it was really a
+                property of which grid the block sat in, and flipping it moved
+                the block out from under the cursor.
+
+                Neither is `primary` — the page's one primary is the toolbar's,
+                and these are two peers, not a choice with a default.
+              */}
               <Button
                 type="button"
+                variant="outline"
                 fullWidth={false}
                 size="sm"
                 className="rounded-full"
                 disabled={isLayoutLoading}
-                onClick={() => setAddMenuOpen((open) => !open)}
+                aria-expanded={addMenuZone === "pinned"}
+                onClick={() =>
+                  setAddMenuZone((zone) =>
+                    zone === "pinned" ? null : "pinned",
+                  )
+                }
               >
                 <FiPlus className="h-4 w-4" aria-hidden="true" />
-                {t("layout.addBlock")}
+                {t("layout.addToAlwaysVisible")}
               </Button>
 
-              {addMenuOpen ? (
+              {/* With tabs off the tabs grid is not published at all, so the
+                  button that files a block into it is not offered — adding
+                  into a section nobody can see is a trap, not a shortcut. */}
+              {tabsEnabled ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  fullWidth={false}
+                  size="sm"
+                  className="rounded-full"
+                  disabled={isLayoutLoading}
+                  aria-expanded={addMenuZone === "tabs"}
+                  onClick={() =>
+                    setAddMenuZone((zone) => (zone === "tabs" ? null : "tabs"))
+                  }
+                >
+                  <FiPlus className="h-4 w-4" aria-hidden="true" />
+                  {t("layout.addToTabs")}
+                </Button>
+              ) : null}
+
+              {addMenuZone ? (
                 <div
                   role="menu"
                   aria-label={t("layout.addCustomBlock")}
@@ -1438,7 +1489,9 @@ export function ProfileLayoutPage() {
               resumeLoading={resumeQuery.isLoading}
               workLoading={workExperiencesQuery.isLoading}
               linksLoading={linksQuery.isLoading}
-              tabsEnabled={tabsEnabled}
+              // The modal previews whichever device its own toggle names, so
+              // it reads THAT viewport's flag — not the one being edited.
+              tabsEnabled={full ? full[previewDevice].tabsEnabled : tabsEnabled}
             />
           </div>
         </div>

@@ -1,9 +1,10 @@
 /**
  * E2E tests for the two profile-payload guarantees this change introduces:
  *
- *  1. `tabsEnabled` really travels — through `PUT /profile`, back out of `/me`
- *     and out of the fully public `/profile/:username`, which is the only place
- *     the public renderer can learn whether to draw the tab strip.
+ *  1. `tabsEnabled` really travels — PER VIEWPORT, through
+ *     `PATCH /me/layout/tabs-enabled` and back out inside `layout.pc` /
+ *     `layout.mobile` on the fully public `/profile/:username`, which is the
+ *     only place the public renderer can learn whether to draw the tab strip.
  *  2. The private preferences do NOT travel. `profileSchema` feeds both `/me`
  *     and an anonymous `/profile/:username`, so the day someone adds `language`
  *     and `theme` next to `themePreset` a person's UI settings become public.
@@ -23,7 +24,7 @@ import {
 
 const JSON_HEADERS = { "content-type": "application/json" };
 
-describe("Profile payload: tabsEnabled and preference privacy", () => {
+describe("Profile payload: per-viewport tabsEnabled and preference privacy", () => {
   let ctx: TestAppHandles;
 
   beforeEach(async () => {
@@ -159,63 +160,70 @@ describe("Profile payload: tabsEnabled and preference privacy", () => {
     });
   });
 
-  describe("tabsEnabled (D2)", () => {
-    it("defaults to true for an account that never set it", async () => {
-      const { user, auth } = await authed();
-
-      const me = await ctx.app.inject({
-        method: "GET",
-        url: "/me",
-        headers: auth,
+  describe("tabsEnabled per viewport (D8, D10)", () => {
+    async function setTabsEnabled(
+      auth: Record<string, string>,
+      viewport: "pc" | "mobile",
+      tabsEnabled: boolean,
+    ) {
+      return ctx.app.inject({
+        method: "PATCH",
+        url: "/me/layout/tabs-enabled",
+        headers: { ...JSON_HEADERS, ...auth },
+        body: JSON.stringify({ viewport, tabsEnabled }),
       });
+    }
 
-      expect(me.json().tabsEnabled).toBe(true);
-      expect((await publicProfile(user.login)).tabsEnabled).toBe(true);
+    it("defaults both viewports to true for an account that never set them", async () => {
+      const { user } = await authed();
+
+      const { layout } = await publicProfile(user.login);
+
+      expect(layout.pc.tabsEnabled).toBe(true);
+      expect(layout.mobile.tabsEnabled).toBe(true);
     });
 
-    it("round-trips through PUT /profile into /me and the public profile", async () => {
+    it("turning pc off leaves mobile on", async () => {
       const { user, auth } = await authed();
+      await seedLayout(user);
 
-      const update = await ctx.app.inject({
-        method: "PUT",
-        url: "/profile",
-        headers: { ...JSON_HEADERS, ...auth },
-        body: JSON.stringify({ username: user.login, tabsEnabled: false }),
-      });
+      const response = await setTabsEnabled(auth, "pc", false);
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ viewport: "pc", tabsEnabled: false });
 
-      expect(update.statusCode).toBe(200);
-      expect(update.json().tabsEnabled).toBe(false);
-
-      const me = await ctx.app.inject({
-        method: "GET",
-        url: "/me",
-        headers: auth,
-      });
-      expect(me.json().tabsEnabled).toBe(false);
-
-      // The public renderer is the only consumer that matters here: without
-      // this key it cannot know whether to draw the tab strip at all.
-      expect((await publicProfile(user.login)).tabsEnabled).toBe(false);
+      // The reported bug: one shared flag made this assertion fail on the
+      // second line, because writing pc also wrote mobile.
+      const { layout } = await publicProfile(user.login);
+      expect(layout.pc.tabsEnabled).toBe(false);
+      expect(layout.mobile.tabsEnabled).toBe(true);
     });
 
-    it("leaves tabsEnabled alone when a PUT does not mention it", async () => {
+    it("turning mobile off leaves pc on", async () => {
       const { user, auth } = await authed();
+      await seedLayout(user);
 
-      await ctx.app.inject({
-        method: "PUT",
-        url: "/profile",
-        headers: { ...JSON_HEADERS, ...auth },
-        body: JSON.stringify({ username: user.login, tabsEnabled: false }),
-      });
+      const response = await setTabsEnabled(auth, "mobile", false);
+      expect(response.statusCode).toBe(200);
+
+      const { layout } = await publicProfile(user.login);
+      expect(layout.pc.tabsEnabled).toBe(true);
+      expect(layout.mobile.tabsEnabled).toBe(false);
+    });
+
+    it("serves each viewport its own flag on the editor layout read too", async () => {
+      const { auth } = await authed();
+
+      await setTabsEnabled(auth, "mobile", false);
 
       const response = await ctx.app.inject({
-        method: "PUT",
-        url: "/profile",
-        headers: { ...JSON_HEADERS, ...auth },
-        body: JSON.stringify({ username: user.login, name: "Renamed" }),
+        method: "GET",
+        url: "/me/layout",
+        headers: auth,
       });
 
-      expect(response.json().tabsEnabled).toBe(false);
+      expect(response.statusCode).toBe(200);
+      expect(response.json().pc.tabsEnabled).toBe(true);
+      expect(response.json().mobile.tabsEnabled).toBe(false);
     });
 
     it("destroys no tab or block data when toggled off and back on", async () => {
@@ -226,41 +234,94 @@ describe("Profile payload: tabsEnabled and preference privacy", () => {
       expect(before.pc.tabs).toHaveLength(3);
       expect(before.pc.blocks).toHaveLength(4);
 
-      await ctx.app.inject({
-        method: "PUT",
-        url: "/profile",
-        headers: { ...JSON_HEADERS, ...auth },
-        body: JSON.stringify({ username: user.login, tabsEnabled: false }),
-      });
+      await setTabsEnabled(auth, "pc", false);
 
-      // Off: the layout is still fully present. Hiding tabs is a rendering
-      // decision the client makes; the API must keep serving the data or the
-      // toggle becomes a delete with a friendly label.
+      // Off: the layout is still fully present, only the flag moved. Hiding
+      // tabs is a rendering decision the client makes; the API must keep
+      // serving the data or the toggle becomes a delete with a friendly label.
       const whileOff = (await publicProfile(user.login)).layout;
-      expect(whileOff).toEqual(before);
-
-      await ctx.app.inject({
-        method: "PUT",
-        url: "/profile",
-        headers: { ...JSON_HEADERS, ...auth },
-        body: JSON.stringify({ username: user.login, tabsEnabled: true }),
+      expect(whileOff).toEqual({
+        ...before,
+        pc: { ...before.pc, tabsEnabled: false },
       });
 
+      await setTabsEnabled(auth, "pc", true);
+
+      // Byte-identical to the starting layout: no block, no tab and no
+      // `isVisible` was written along the way (D10).
       const after = (await publicProfile(user.login)).layout;
       expect(after).toEqual(before);
     });
 
-    it("rejects a non-boolean tabsEnabled with 400", async () => {
+    it("writes nothing but the one flag — no block or tab row is touched", async () => {
       const { user, auth } = await authed();
+      await seedLayout(user);
+
+      const tabsBefore = structuredClone(ctx.profileTabsRepository.getAll());
+      const blocksBefore = structuredClone(
+        ctx.profileBlocksRepository.getAll(),
+      );
+
+      await setTabsEnabled(auth, "pc", false);
+      await setTabsEnabled(auth, "mobile", false);
+
+      // Asserted on the STORE, not on the response: a use case that quietly
+      // set `isVisible` on every tabbed block would still return 200.
+      expect(ctx.profileTabsRepository.getAll()).toEqual(tabsBefore);
+      expect(ctx.profileBlocksRepository.getAll()).toEqual(blocksBefore);
+    });
+
+    it("rejects an anonymous caller with 401", async () => {
+      const response = await ctx.app.inject({
+        method: "PATCH",
+        url: "/me/layout/tabs-enabled",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ viewport: "pc", tabsEnabled: false }),
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("rejects an unknown viewport with 400", async () => {
+      const { auth } = await authed();
 
       const response = await ctx.app.inject({
-        method: "PUT",
-        url: "/profile",
+        method: "PATCH",
+        url: "/me/layout/tabs-enabled",
         headers: { ...JSON_HEADERS, ...auth },
-        body: JSON.stringify({ username: user.login, tabsEnabled: "no" }),
+        body: JSON.stringify({ viewport: "tablet", tabsEnabled: false }),
       });
 
       expect(response.statusCode).toBe(400);
+    });
+
+    it("rejects a non-boolean tabsEnabled with 400", async () => {
+      const { auth } = await authed();
+
+      const response = await ctx.app.inject({
+        method: "PATCH",
+        url: "/me/layout/tabs-enabled",
+        headers: { ...JSON_HEADERS, ...auth },
+        body: JSON.stringify({ viewport: "pc", tabsEnabled: "no" }),
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it("is reachable under /api/v1 as well", async () => {
+      const { user, auth } = await authed();
+
+      const response = await ctx.app.inject({
+        method: "PATCH",
+        url: "/api/v1/me/layout/tabs-enabled",
+        headers: { ...JSON_HEADERS, ...auth },
+        body: JSON.stringify({ viewport: "mobile", tabsEnabled: false }),
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect((await publicProfile(user.login)).layout.mobile.tabsEnabled).toBe(
+        false,
+      );
     });
   });
 });

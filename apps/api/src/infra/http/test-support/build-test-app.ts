@@ -46,6 +46,9 @@ import { GetConnectionHealthUseCase } from "../../../core/use-case/activity/get-
 import { PreviewActivityDigestUseCase } from "../../../core/use-case/activity/preview-activity-digest-use-case/preview-activity-digest.use-case.js";
 import { CreateLinkUseCase } from "../../../core/use-case/links/create-link-use-case/create-link.use-case.js";
 import { UpdateLinkUseCase } from "../../../core/use-case/links/update-link-use-case/update-link.use-case.js";
+import { GetLayoutUseCase } from "../../../core/use-case/profile-layout/get-layout-use-case/get-layout.use-case.js";
+import { SetTabsEnabledUseCase } from "../../../core/use-case/profile-layout/set-tabs-enabled-use-case/set-tabs-enabled.use-case.js";
+import { InMemoryUnitOfWork } from "../../../core/providers/unit-of-work/in-memory-unit-of-work.js";
 import { GetMeProfileUseCase } from "../../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
 import { GetPublicProfileUseCase } from "../../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
 import { UpdateProfileUseCase } from "../../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
@@ -59,6 +62,7 @@ import { ActivityController } from "../controllers/activity/activity-controller.
 import { WorkExperienceController } from "../controllers/work-experience/work-experience-controller.js";
 import { AiImportController } from "../controllers/ai-import/ai-import-controller.js";
 import { ProfileController } from "../controllers/profile/profile-controller.js";
+import { profileLayoutRoutes } from "../routes/profile-layout.js";
 import { PreferencesController } from "../controllers/preferences/preferences-controller.js";
 import { webhooksRoutes } from "../routes/webhooks.js";
 
@@ -97,7 +101,8 @@ interface SeedUserInput {
   password: string;
   agentDisclosureLevel: AgentDisclosureLevel;
   agentBlockedTerms: string[];
-  tabsEnabled: boolean;
+  tabsEnabledPc: boolean;
+  tabsEnabledMobile: boolean;
 }
 
 let seedCounter = 0;
@@ -308,6 +313,19 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     new UpdateProfileUseCase(usersRepository),
   );
   container.registerInstance(
+    TOKENS.GetLayoutUseCase,
+    new GetLayoutUseCase(
+      profileTabsRepository,
+      profileBlocksRepository,
+      new InMemoryUnitOfWork(),
+      usersRepository,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.SetTabsEnabledUseCase,
+    new SetTabsEnabledUseCase(usersRepository),
+  );
+  container.registerInstance(
     TOKENS.GetUserPreferencesUseCase,
     new GetUserPreferencesUseCase(userPreferencesRepository),
   );
@@ -340,6 +358,16 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   // (and unused) here without breaking registration.
   LinksController.handle(app);
   ProfileController.handle(app);
+  // Only the layout read and the per-viewport tabs switch have use-cases
+  // registered above: the tab/block mutation routes resolve theirs lazily
+  // inside the handler, so they stay unavailable (and unused) here without
+  // breaking registration.
+  //
+  // Mounted twice, bare and under `/api/v1`, the way `routes/index.ts` mounts
+  // every module in production — so an e2e test can assert both paths really
+  // answer instead of taking the dual mount on trust.
+  await app.register(profileLayoutRoutes);
+  await app.register(profileLayoutRoutes, { prefix: "/api/v1" });
   PreferencesController.handle(app);
   // Registered as a real plugin, not called like the controllers above: the
   // raw-body content-type parser it declares is only encapsulated — and the
@@ -376,7 +404,8 @@ export async function buildTestApp(): Promise<TestAppHandles> {
         password: overrides?.password ?? "hashed-password",
         agentDisclosureLevel: overrides?.agentDisclosureLevel,
         agentBlockedTerms: overrides?.agentBlockedTerms,
-        tabsEnabled: overrides?.tabsEnabled,
+        tabsEnabledPc: overrides?.tabsEnabledPc,
+        tabsEnabledMobile: overrides?.tabsEnabledMobile,
         description: null,
         avatarUrl: null,
         googleId: null,

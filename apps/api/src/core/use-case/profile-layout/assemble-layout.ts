@@ -26,16 +26,25 @@ export function toBlockDTO(block: ProfileBlockEntity): ProfileBlock {
   };
 }
 
-/** Full layout (includes hidden blocks) for the authenticated editor. */
+/**
+ * Full layout (includes hidden blocks) for the authenticated editor.
+ *
+ * `tabsEnabled` is passed in rather than derived: it belongs to the USER row,
+ * per viewport, and the caller is the only one holding it. Making it a required
+ * parameter is deliberate — a default would let a caller quietly ship `true` to
+ * someone who had turned tabs off.
+ */
 export function assembleLayout(
   tabs: ProfileTabEntity[],
   blocks: ProfileBlockEntity[],
+  tabsEnabled: boolean,
 ): ProfileLayout {
   const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
 
   return {
     tabs: sortedTabs.map(toTabDTO),
     blocks: blocks.map(toBlockDTO),
+    tabsEnabled,
   };
 }
 
@@ -46,6 +55,7 @@ export function assembleLayout(
 export function toPublicLayout(
   tabs: ProfileTabEntity[],
   blocks: ProfileBlockEntity[],
+  tabsEnabled: boolean,
 ): ProfileLayout {
   const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
   const visibleBlocks = blocks.filter((block) => block.isVisible);
@@ -53,5 +63,6 @@ export function toPublicLayout(
   return {
     tabs: sortedTabs.map(toTabDTO),
     blocks: visibleBlocks.map(toBlockDTO),
+    tabsEnabled,
   };
 }

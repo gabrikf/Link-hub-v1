@@ -91,6 +91,9 @@ export function buildDefaultLayout(viewport: ProfileViewport): ProfileLayout {
   return {
     tabs: [{ id: tabId, title: DEFAULT_TAB_TITLE, order: 0 }],
     blocks,
+    // The fallback stands in for a profile that has never been arranged, and
+    // every profile starts with its tab strip on.
+    tabsEnabled: true,
   };
 }
 

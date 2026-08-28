@@ -29,6 +29,7 @@ const block = (overrides: Partial<ProfileBlock>): ProfileBlock => ({
 
 /** Three tabs, one block on each, plus a block pinned across all of them. */
 const threeTabLayout: ProfileLayout = {
+  tabsEnabled: true,
   tabs: [
     { id: "tab-1", title: "Main", order: 0 },
     { id: "tab-2", title: "Posts", order: 1 },
@@ -94,6 +95,7 @@ describe("ProfileBlocks — tabs switched off", () => {
 
   it("uses the FIRST tab by order, not the first in array order", () => {
     const shuffled: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [
         { id: "tab-late", title: "Late", order: 5 },
         { id: "tab-early", title: "Early", order: 0 },
@@ -112,6 +114,7 @@ describe("ProfileBlocks — tabs switched off", () => {
 
   it("still hides blocks the owner marked invisible", () => {
     const layout: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "Main", order: 0 }],
       blocks: [
         block({ id: "shown", config: { body: "Shown body" } }),
@@ -151,6 +154,7 @@ describe("ProfileBlocks — tabs switched on (no regression)", () => {
 
   it("still renders NO tablist for a single tab", () => {
     const single: ProfileLayout = {
+      tabsEnabled: true,
       tabs: [{ id: "tab-1", title: "Only", order: 0 }],
       blocks: [block({ id: "b", config: { body: "Solo body" } })],
     };

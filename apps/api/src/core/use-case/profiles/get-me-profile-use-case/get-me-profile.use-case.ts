@@ -31,7 +31,6 @@ export class GetMeProfileUseCase {
       themeAccent: user.themeAccent,
       themePreset: user.themePreset,
       openToWork: user.openToWork,
-      tabsEnabled: user.tabsEnabled,
       location: user.location,
       persona: user.persona,
       links,

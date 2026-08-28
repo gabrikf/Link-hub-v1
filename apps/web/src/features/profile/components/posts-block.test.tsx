@@ -38,6 +38,7 @@ const makePost = (overrides: Partial<Post>): Post =>
   }) as Post;
 
 const postsLayout = (limit?: number): ProfileLayout => ({
+  tabsEnabled: true,
   tabs: [{ id: "tab-1", title: "One", order: 0 }],
   blocks: [
     {
@@ -128,9 +129,7 @@ describe("PostsBlock", () => {
 
     renderPostsBlock();
 
-    expect(
-      screen.getByText(/could not load posts/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/could not load posts/i)).toBeInTheDocument();
     expect(
       screen.queryByText(/no posts published yet/i),
     ).not.toBeInTheDocument();

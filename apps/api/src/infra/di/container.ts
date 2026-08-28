@@ -96,6 +96,7 @@ import { ToggleLinkVisibilityUseCase } from "../../core/use-case/links/toggle-li
 import { GetLayoutUseCase } from "../../core/use-case/profile-layout/get-layout-use-case/get-layout.use-case.js";
 import { CreateTabUseCase } from "../../core/use-case/profile-layout/create-tab-use-case/create-tab.use-case.js";
 import { RenameTabUseCase } from "../../core/use-case/profile-layout/rename-tab-use-case/rename-tab.use-case.js";
+import { SetTabsEnabledUseCase } from "../../core/use-case/profile-layout/set-tabs-enabled-use-case/set-tabs-enabled.use-case.js";
 import { DeleteTabUseCase } from "../../core/use-case/profile-layout/delete-tab-use-case/delete-tab.use-case.js";
 import { ReorderTabsUseCase } from "../../core/use-case/profile-layout/reorder-tabs-use-case/reorder-tabs.use-case.js";
 import { CreateBlockUseCase } from "../../core/use-case/profile-layout/create-block-use-case/create-block.use-case.js";
@@ -214,6 +215,7 @@ export const TOKENS = {
   RenameTabUseCase: Symbol.for("RenameTabUseCase"),
   DeleteTabUseCase: Symbol.for("DeleteTabUseCase"),
   ReorderTabsUseCase: Symbol.for("ReorderTabsUseCase"),
+  SetTabsEnabledUseCase: Symbol.for("SetTabsEnabledUseCase"),
   CreateBlockUseCase: Symbol.for("CreateBlockUseCase"),
   UpdateBlockUseCase: Symbol.for("UpdateBlockUseCase"),
   DeleteBlockUseCase: Symbol.for("DeleteBlockUseCase"),
@@ -763,11 +765,26 @@ export function setupContainer() {
       );
       const unitOfWork = c.resolve<IUnitOfWork>(TOKENS.UnitOfWork);
 
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+
       return new GetLayoutUseCase(
         profileTabsRepository,
         profileBlocksRepository,
         unitOfWork,
+        usersRepository,
       );
+    },
+  });
+
+  container.register<SetTabsEnabledUseCase>(TOKENS.SetTabsEnabledUseCase, {
+    useFactory: (c) => {
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+
+      return new SetTabsEnabledUseCase(usersRepository);
     },
   });
 

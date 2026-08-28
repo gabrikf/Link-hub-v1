@@ -51,6 +51,7 @@ import {
   createTabSchemaInput,
   renameTabSchemaInput,
   reorderTabsSchemaInput,
+  setTabsEnabledSchemaInput,
   createBlockSchemaInput,
   updateBlockSchemaInput,
   updateBlockPositionsSchemaInput,
@@ -62,6 +63,7 @@ import {
   type CreateTabInput,
   type RenameTabInput,
   type ReorderTabsInput,
+  type SetTabsEnabledInput,
   type CreateBlockInput,
   type UpdateBlockInput,
   type UpdateBlockPositionsInput,
@@ -528,9 +530,7 @@ export async function renameTab(
   return profileTabSchema.parse(response.data);
 }
 
-export async function deleteTab(
-  tabId: string,
-): Promise<{ success: boolean }> {
+export async function deleteTab(tabId: string): Promise<{ success: boolean }> {
   const response = await fetchWithTokens(`/me/layout/tabs/${tabId}`, {
     method: "DELETE",
   });
@@ -548,6 +548,25 @@ export async function reorderTabs(
   });
 
   return response.data as { success: boolean };
+}
+
+/**
+ * Flip the tab strip for ONE viewport. Sits with the other layout writes
+ * because that is where the flag lives now — it used to ride along on
+ * `PUT /profile`, which made it one setting for both viewports.
+ *
+ * Returns nothing: the caller patches its cached layout optimistically and
+ * refetches the layout afterwards, so the response body is never read. That
+ * also keeps this client honest about a shape it does not own.
+ */
+export async function setTabsEnabled(
+  payload: SetTabsEnabledInput,
+): Promise<void> {
+  const body = setTabsEnabledSchemaInput.parse(payload);
+  await fetchWithTokens("/me/layout/tabs-enabled", {
+    method: "PATCH",
+    data: body,
+  });
 }
 
 export async function createBlock(

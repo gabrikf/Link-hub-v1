@@ -282,7 +282,10 @@ export function PublicProfilePage() {
                 workExperiences={workExperiencesQuery.data ?? []}
                 resumeLoading={resumeQuery.isLoading}
                 workLoading={workExperiencesQuery.isLoading}
-                tabsEnabled={profile.tabsEnabled}
+                // Per viewport, and read off the layout that is actually being
+                // rendered: a profile can keep its tab strip on desktop and
+                // publish one scrolling list on a phone.
+                tabsEnabled={chosenLayout.tabsEnabled}
               />
             </div>
           </>

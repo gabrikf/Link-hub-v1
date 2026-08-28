@@ -73,6 +73,7 @@ describe("resolveViewportLayout", () => {
     const custom = {
       tabs: [{ id: "t", title: "Custom", order: 0 }],
       blocks: [makeBlock({ id: "x", tabId: "t" })],
+      tabsEnabled: true,
     };
     const full = { pc: custom, mobile: buildDefaultLayout("mobile") };
 
@@ -81,7 +82,7 @@ describe("resolveViewportLayout", () => {
 
   it("falls back when the viewport has no tabs", () => {
     const full = {
-      pc: { tabs: [], blocks: [] },
+      pc: { tabs: [], blocks: [], tabsEnabled: true },
       mobile: buildDefaultLayout("mobile"),
     };
     const layout = resolveViewportLayout(full, "pc");
@@ -402,6 +403,7 @@ describe("countBlocksHiddenWithoutTabs", () => {
       { id: "tab-3", title: "Talks", order: 2 },
     ],
     blocks,
+    tabsEnabled: true,
   });
 
   it("ignores blocks the owner had already hidden", () => {
@@ -477,6 +479,7 @@ describe("countBlocksHiddenWithoutTabs", () => {
         makeBlock({ id: "a", tabId: "tab-early" }),
         makeBlock({ id: "b", tabId: "tab-late" }),
       ],
+      tabsEnabled: true,
     };
 
     // Reading `tabs[0]` instead of the lowest order would answer 1 for the
@@ -489,6 +492,7 @@ describe("countBlocksHiddenWithoutTabs", () => {
       countBlocksHiddenWithoutTabs({
         tabs: [],
         blocks: [makeBlock({ id: "a", tabId: "ghost" })],
+        tabsEnabled: true,
       }),
     ).toBe(0);
   });

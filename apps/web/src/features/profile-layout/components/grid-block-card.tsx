@@ -15,7 +15,6 @@ import { getBlockMeta } from "../block-meta";
 type GridBlockCardProps = {
   block: ProfileBlock;
   onToggleVisibility: (block: ProfileBlock, isVisible: boolean) => void;
-  onTogglePin: (block: ProfileBlock, pinned: boolean) => void;
   onEdit: (block: ProfileBlock) => void;
   onDelete: (block: ProfileBlock) => void;
   /** Arrow keys move the block; Shift+arrows resize it. Deltas are grid cells. */
@@ -25,10 +24,10 @@ type GridBlockCardProps = {
   tabs?: ProfileTab[];
   onMoveToTab?: (block: ProfileBlock, tabId: string) => void;
   /**
-   * Profile-level "show tabs" switch. With tabs off, "pin to all tabs" and
-   * "move to tab" are controls for a concept the profile no longer has, so they
-   * are hidden rather than left to configure something invisible. Nothing is
-   * reassigned — turning tabs back on brings both controls back unchanged.
+   * This viewport's "show tabs" switch. With tabs off, "move to tab" is a
+   * control for a concept this viewport no longer has, so it is hidden rather
+   * than left to configure something invisible. Nothing is reassigned —
+   * turning tabs back on brings the selector back unchanged.
    */
   tabsEnabled?: boolean;
 };
@@ -46,7 +45,6 @@ const ARROW_DELTAS: Record<string, [number, number]> = {
 export function GridBlockCard({
   block,
   onToggleVisibility,
-  onTogglePin,
   onEdit,
   onDelete,
   onMove,
@@ -171,19 +169,12 @@ export function GridBlockCard({
           {block.isVisible ? t("common.visible") : t("common.hidden")}
         </label>
 
-        {tabsEnabled ? (
-          <label className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
-            <Switch.Root
-              checked={block.pinnedAllTabs}
-              onCheckedChange={(checked) => onTogglePin(block, checked)}
-              aria-label={t("layout.pinToAllTabs", { label: meta.label })}
-              className="h-4 w-7 cursor-pointer rounded-full bg-zinc-300 transition data-[state=checked]:bg-violet-600 dark:bg-zinc-700 dark:data-[state=checked]:bg-violet-500"
-            >
-              <Switch.Thumb className="block h-3 w-3 translate-x-0.5 rounded-full bg-white transition-transform duration-150 data-[state=checked]:translate-x-3.5 dark:bg-zinc-900" />
-            </Switch.Root>
-            {t("layout.allTabs")}
-          </label>
-        ) : null}
+        {/*
+          No "All tabs" pin switch. Which zone a block lives in is decided by
+          the button it was created with; flipping it here silently moved the
+          block into a different grid, which is not something a switch inside
+          the block should be able to do.
+        */}
 
         {/*
           Moving a block between tabs previously required a three-step dance —

@@ -1,6 +1,7 @@
 import {
   DEFAULT_AGENT_DISCLOSURE_LEVEL,
   type AgentDisclosureLevel,
+  type ProfileViewport,
 } from "@repo/schemas";
 import { BaseEntity, BaseEntityProps } from "../index.js";
 
@@ -17,12 +18,17 @@ export interface UserEntityProps extends BaseEntityProps {
   themePreset?: string | null; // Optional; normalized to null in ctor
   openToWork?: boolean; // Optional; normalized to false in ctor
   /**
-   * Public "simple mode" switch: false means the profile renders no tab strip.
+   * Public "simple mode" switch, one per viewport: false means that viewport
+   * renders no tab strip. Two fields rather than one because tabs themselves
+   * are per-viewport, and a single flag made switching one viewport silently
+   * switch the other.
+   *
    * Optional here and normalized to TRUE in the ctor — the opposite of the
-   * usual `?? false`, because every account that predates the column had tabs
+   * usual `?? false`, because every account that predates the columns had tabs
    * and must keep them.
    */
-  tabsEnabled?: boolean; // Optional; normalized to true in ctor
+  tabsEnabledPc?: boolean; // Optional; normalized to true in ctor
+  tabsEnabledMobile?: boolean; // Optional; normalized to true in ctor
   location?: string | null; // Optional; normalized to null in ctor
   persona?: string | null; // Optional; normalized to null in ctor
   /**
@@ -47,7 +53,8 @@ export interface CreateUserEntityProps {
   themeAccent?: string | null; // Optional at creation, but will be normalized to null
   themePreset?: string | null; // Optional at creation, but will be normalized to null
   openToWork?: boolean; // Optional at creation, but will be normalized to false
-  tabsEnabled?: boolean; // Optional at creation, but will be normalized to true
+  tabsEnabledPc?: boolean; // Optional at creation, but will be normalized to true
+  tabsEnabledMobile?: boolean; // Optional at creation, but will be normalized to true
   location?: string | null; // Optional at creation, but will be normalized to null
   persona?: string | null; // Optional at creation, but will be normalized to null
   agentDisclosureLevel?: AgentDisclosureLevel; // Optional at creation; defaults to the strictest level
@@ -70,7 +77,8 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
   public themeAccent: string | null; // Always null, never undefined
   public themePreset: string | null; // Always null, never undefined
   public openToWork: boolean; // Always boolean, never undefined
-  public tabsEnabled: boolean; // Always boolean, never undefined
+  public tabsEnabledPc: boolean; // Always boolean, never undefined
+  public tabsEnabledMobile: boolean; // Always boolean, never undefined
   public location: string | null; // Always null, never undefined
   public persona: string | null; // Always null, never undefined
   public agentDisclosureLevel: AgentDisclosureLevel; // Always a level, never undefined
@@ -92,8 +100,9 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     this.themePreset = props.themePreset ?? null;
     this.openToWork = props.openToWork ?? false;
     // Defaults to true, not false: an absent value means "this account was made
-    // before the column existed", and those profiles had a tab strip.
-    this.tabsEnabled = props.tabsEnabled ?? true;
+    // before the columns existed", and those profiles had a tab strip.
+    this.tabsEnabledPc = props.tabsEnabledPc ?? true;
+    this.tabsEnabledMobile = props.tabsEnabledMobile ?? true;
     this.location = props.location ?? null;
     this.persona = props.persona ?? null;
     // A user who never opens the settings screen must not leak an employer, so
@@ -151,13 +160,24 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     this.updateTimestamp();
   }
 
+  /** This viewport's tab-strip switch. The read-side pair of `updateTabsEnabled`. */
+  tabsEnabledFor(viewport: ProfileViewport): boolean {
+    return viewport === "pc" ? this.tabsEnabledPc : this.tabsEnabledMobile;
+  }
+
   /**
-   * Flips the tab strip on the public profile. It only changes what is
-   * RENDERED: tabs and their block assignments are untouched, so turning this
-   * off and back on restores the exact layout the user had.
+   * Flips the tab strip on the public profile for ONE viewport. It only changes
+   * what is RENDERED: tabs and their block assignments are untouched, so
+   * turning this off and back on restores the exact layout the user had.
+   *
+   * The other viewport is deliberately left alone — that coupling was the bug.
    */
-  updateTabsEnabled(tabsEnabled: boolean) {
-    this.tabsEnabled = tabsEnabled;
+  updateTabsEnabled(viewport: ProfileViewport, tabsEnabled: boolean) {
+    if (viewport === "pc") {
+      this.tabsEnabledPc = tabsEnabled;
+    } else {
+      this.tabsEnabledMobile = tabsEnabled;
+    }
     this.updateTimestamp();
   }
 
@@ -194,7 +214,8 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
       themeAccent: this.themeAccent,
       themePreset: this.themePreset,
       openToWork: this.openToWork,
-      tabsEnabled: this.tabsEnabled,
+      tabsEnabledPc: this.tabsEnabledPc,
+      tabsEnabledMobile: this.tabsEnabledMobile,
       location: this.location,
       persona: this.persona,
       googleId: this.googleId,
