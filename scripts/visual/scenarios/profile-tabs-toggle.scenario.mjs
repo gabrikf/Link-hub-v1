@@ -54,6 +54,19 @@ export default async function profileTabsToggle({
   for (const theme of ["light", "dark"]) {
     await setTheme(theme);
     await page.getByRole("heading").first().waitFor({ timeout: 15_000 });
+    /*
+     * The profile blocks enter with `.anim-blur-in` and a staggered
+     * `animationDelay`, so a shot taken the instant the heading appears is a
+     * picture of the animation, not of the page. The assertions still pass
+     * against it — the DOM is there — which is exactly what makes it dangerous:
+     * a blurred screenshot looks like evidence and shows nothing.
+     *
+     * A fixed settle rather than waiting for `getAnimations()` to drain: the
+     * page also carries AMBIENT animations (`.anim-float`, `.anim-glow-pulse`)
+     * which never finish by design, so that wait can only ever time out. Same
+     * approach, and the same reason, as `settings-i18n.scenario.mjs`.
+     */
+    await page.waitForTimeout(1500);
     await shot(`${state}-${theme}`);
 
     const tablist = page.getByRole("tablist");
