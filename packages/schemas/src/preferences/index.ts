@@ -16,8 +16,9 @@ import { z } from "zod/v4";
  * Keeping them in a separate module backed by a separate table makes that leak
  * require deliberate effort rather than being the path of least resistance.
  *
- * Note the deliberate asymmetry with `tabsEnabled` in `../profile`: that one IS
- * public, because the public renderer has to know whether to draw the tab strip.
+ * Note the deliberate asymmetry with `tabsEnabled`, which lives in
+ * `../profile-blocks`'s `layoutSchema` — one per viewport — and IS public,
+ * because the public renderer has to know whether to draw the tab strip.
  */
 
 /**

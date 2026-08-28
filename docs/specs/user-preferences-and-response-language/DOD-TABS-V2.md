@@ -118,7 +118,7 @@ The reported symptom: on the mobile view the switch needed **three clicks**.
 ## 5. Gates — non-negotiable
 
 - [ ] `node scripts/guardrails/pre-push.mjs` prints `guardrails PASS`.
-- [ ] `npm run i18n:check` passes; catalogue already at 1139 keys, full parity.
+- [ ] `npm run i18n:check` passes; catalogue at 1135 keys, full parity.
 - [ ] api and web suites both green, and **no lower** than the pre-change
       baselines: api 116 files / 1081 tests, web 57 files / 532 tests.
 - [ ] No new `any`, `eslint-disable`, `.skip`, type assertion, widened schema, or

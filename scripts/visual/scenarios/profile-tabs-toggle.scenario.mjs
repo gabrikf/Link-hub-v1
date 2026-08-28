@@ -10,10 +10,16 @@
  * survives the database, the API response and the schema parse on the way to a
  * logged-out visitor.
  *
- * The two runs are driven from outside, by flipping `users.tabs_enabled` between
- * them, so both directions are exercised against one real profile:
+ * The two runs are driven from outside, by flipping the viewport's own column
+ * between them, so both directions are exercised against one real profile.
+ * `tabs_enabled` is per-viewport — `users.tabs_enabled` no longer exists — and
+ * this scenario drives the DESKTOP viewport, so it is the pc column that counts:
  *
- *   psql -c "UPDATE users SET tabs_enabled=false WHERE login='gabrielkochf'"
+ *   psql -c "UPDATE users SET tabs_enabled_pc=false WHERE login='gabrielkochf'"
+ *
+ * Setting only `tabs_enabled_pc` is deliberate: leaving `tabs_enabled_mobile`
+ * true means a passing tabs-off run also proves the two viewports are genuinely
+ * independent, all the way through the API and the schema parse.
  *
  * PREREQUISITES: `npm run dev` (web 5173, api 3333) and a seeded database. The
  * profile must have MORE THAN ONE tab, or the assertions are vacuous — the tab

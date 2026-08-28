@@ -102,7 +102,7 @@ function App() {
           <span className="pointer-events-none absolute left-3 text-amber-500 dark:text-zinc-500">
             <FiSun className="h-4 w-4" />
           </span>
-          <span className="pointer-events-none absolute right-3 text-zinc-500 dark:text-indigo-300">
+          <span className="pointer-events-none absolute right-3 text-zinc-500 dark:text-violet-300">
             <FiMoon className="h-4 w-4" />
           </span>
           <span
