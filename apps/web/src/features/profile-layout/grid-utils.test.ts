@@ -404,6 +404,31 @@ describe("countBlocksHiddenWithoutTabs", () => {
     blocks,
   });
 
+  it("ignores blocks the owner had already hidden", () => {
+    // The public profile only renders `isVisible` blocks, so one that was
+    // already off was never on the page — counting it would inflate the very
+    // warning people rely on to trust the switch.
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "a", tabId: "tab-2", isVisible: false }),
+          makeBlock({ id: "b", tabId: "tab-3", isVisible: true }),
+        ]),
+      ),
+    ).toBe(1);
+  });
+
+  it("counts nothing when every off-tab block is already hidden", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "a", tabId: "tab-2", isVisible: false }),
+          makeBlock({ id: "b", tabId: "tab-3", isVisible: false }),
+        ]),
+      ),
+    ).toBe(0);
+  });
+
   it("counts only blocks parked on a tab other than the first", () => {
     expect(
       countBlocksHiddenWithoutTabs(

@@ -124,6 +124,13 @@ export function pinnedBlocks(layout: ProfileLayout): ProfileBlock[] {
  *
  * Pinned blocks are excluded on purpose: they render on every tab, so turning
  * tabs off cannot hide them.
+ *
+ * Blocks the owner has ALREADY hidden are excluded too. The public profile only
+ * ever renders `isVisible` blocks, so one that was already off was never on the
+ * page and losing it costs nothing — counting it would inflate the warning. An
+ * exaggerated number is not a harmless rounding error here: this count is the
+ * only safeguard against silently hiding someone's content, and a warning that
+ * overstates itself is one people learn to dismiss.
  */
 export function countBlocksHiddenWithoutTabs(layout: ProfileLayout): number {
   const firstTabId = [...layout.tabs].sort((a, b) => a.order - b.order)[0]?.id;
@@ -131,7 +138,8 @@ export function countBlocksHiddenWithoutTabs(layout: ProfileLayout): number {
     return 0;
   }
   return layout.blocks.filter(
-    (block) => !block.pinnedAllTabs && block.tabId !== firstTabId,
+    (block) =>
+      block.isVisible && !block.pinnedAllTabs && block.tabId !== firstTabId,
   ).length;
 }
 

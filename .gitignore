@@ -65,6 +65,11 @@ scripts/visual/scenarios/*.scenario.mjs
 # The i18n check is not scratch: it is the only thing that proves the three
 # locales still render, and the `i18n` skill points at it by name.
 !scripts/visual/scenarios/i18n-locales.scenario.mjs
+# Nor is the tabs toggle: every other check of "simple mode" is a unit test
+# rendering ProfileBlocks with a prop. This is the only one that proves the flag
+# survives the database, the API response and the schema parse on its way to a
+# logged-out stranger — which is the whole point of the feature.
+!scripts/visual/scenarios/profile-tabs-toggle.scenario.mjs
 
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.
