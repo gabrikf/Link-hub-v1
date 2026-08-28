@@ -275,6 +275,7 @@ export function PublicProfilePage() {
                 workExperiences={workExperiencesQuery.data ?? []}
                 resumeLoading={resumeQuery.isLoading}
                 workLoading={workExperiencesQuery.isLoading}
+                tabsEnabled={profile.tabsEnabled}
               />
             </div>
           </>

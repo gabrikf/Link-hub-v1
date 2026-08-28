@@ -73,6 +73,15 @@ type ProfileBlocksProps = {
   workLoading?: boolean;
   linksLoading?: boolean;
   variant?: "full" | "preview";
+  /**
+   * Profile-level "show tabs" switch. When false the page renders no tab strip
+   * and only the FIRST tab's blocks — plus the pinned zone, which is shared
+   * across every tab and therefore cannot be hidden by turning tabs off.
+   *
+   * Defaults to `true` so callers that predate the flag (and every existing
+   * test) keep the tabbed behaviour they had.
+   */
+  tabsEnabled?: boolean;
 };
 
 /** Extract a YouTube video id from common URL shapes. */
@@ -100,6 +109,7 @@ export function ProfileBlocks({
   workLoading = false,
   linksLoading = false,
   variant = "full",
+  tabsEnabled = true,
 }: ProfileBlocksProps) {
   const { t } = useTranslation();
   const isPreview = variant === "preview";
@@ -115,8 +125,18 @@ export function ProfileBlocks({
     orderedTabs[0]?.id ?? null,
   );
 
-  const activeTab =
-    orderedTabs.find((tab) => tab.id === activeTabId) ?? orderedTabs[0] ?? null;
+  // With tabs off the selection is not the visitor's to make: the page is a
+  // single section, so it is always the first tab. Reading `activeTabId` here
+  // would leave a stale selection behind after the owner flips the switch in
+  // the editor's live preview, showing tab 3 with no way back to tab 1.
+  const activeTab = tabsEnabled
+    ? (orderedTabs.find((tab) => tab.id === activeTabId) ??
+      orderedTabs[0] ??
+      null)
+    : (orderedTabs[0] ?? null);
+
+  /** The tab strip is chrome for choosing between tabs — pointless for one. */
+  const showTabs = tabsEnabled && orderedTabs.length > 1;
 
   // Roving arrow-key navigation for the tablist (ArrowLeft/Right + Home/End).
   const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -393,7 +413,7 @@ export function ProfileBlocks({
         </div>
       ) : null}
 
-      {orderedTabs.length > 1 ? (
+      {showTabs ? (
         <div
           role="tablist"
           aria-label={t("profile.sections")}
@@ -437,8 +457,9 @@ export function ProfileBlocks({
       {tabBlocks.length > 0 && activeTab ? (
         <div
           // Only expose tab semantics when a tablist is actually rendered
-          // (more than one tab); a lone panel would dangle its aria reference.
-          {...(orderedTabs.length > 1
+          // (more than one tab, tabs on); a lone panel would dangle its aria
+          // reference.
+          {...(showTabs
             ? {
                 role: "tabpanel",
                 id: `profile-tabpanel-${activeTab.id}`,

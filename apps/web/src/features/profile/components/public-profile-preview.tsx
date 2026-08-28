@@ -49,6 +49,13 @@ type PublicProfilePreviewProps = {
    * callers keep working unchanged.
    */
   frameWidth?: number;
+  /**
+   * Profile-level "show tabs" switch, forwarded straight to `ProfileBlocks` so
+   * the editor's live preview loses its tab strip the moment the owner flips
+   * the switch — the preview is the only place they can see the consequence
+   * before publishing.
+   */
+  tabsEnabled?: boolean;
 };
 
 export function PublicProfilePreview({
@@ -62,6 +69,7 @@ export function PublicProfilePreview({
   workLoading = false,
   linksLoading = false,
   frameWidth,
+  tabsEnabled = true,
 }: PublicProfilePreviewProps) {
   const { t } = useTranslation();
   const theme = getProfileThemeProps(profile);
@@ -95,6 +103,7 @@ export function PublicProfilePreview({
           resumeLoading={resumeLoading}
           workLoading={workLoading}
           linksLoading={linksLoading}
+          tabsEnabled={tabsEnabled}
         />
       </div>
     </>
