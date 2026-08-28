@@ -1,12 +1,13 @@
 import { buttonBlockConfigSchema, type ButtonBlockConfig } from "@repo/schemas";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
 import {
-  BUTTON_ACCENTS,
-  BUTTON_ICON_OPTIONS,
+  getButtonAccents,
   getButtonIcon,
+  getButtonIconOptions,
   resolveAccentColor,
 } from "../button-icons";
 
@@ -25,6 +26,7 @@ export function ButtonBlockDialog({
   isSubmitting = false,
   onSubmit,
 }: ButtonBlockDialogProps) {
+  const { t } = useTranslation();
   const [label, setLabel] = useState("");
   const [url, setUrl] = useState("");
   const [accent, setAccent] = useState("violet");
@@ -50,7 +52,7 @@ export function ButtonBlockDialog({
     });
 
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Invalid button block.");
+      setError(parsed.error.issues[0]?.message ?? t("layout.buttonBlock.invalid"));
       return;
     }
 
@@ -59,35 +61,41 @@ export function ButtonBlockDialog({
   };
 
   const PreviewIcon = getButtonIcon(icon);
+  const buttonAccents = getButtonAccents(t);
+  const buttonIconOptions = getButtonIconOptions(t);
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={initialConfig ? "Edit button block" : "Add button block"}
+      title={
+        initialConfig
+          ? t("layout.buttonBlock.edit")
+          : t("layout.buttonBlock.add")
+      }
     >
       <div className="space-y-4">
         <Input
           id="button-block-label"
-          label="Label"
+          label={t("common.label")}
           value={label}
           maxLength={80}
           onChange={(event) => setLabel(event.target.value)}
         />
         <Input
           id="button-block-url"
-          label="URL"
+          label={t("common.url")}
           value={url}
-          placeholder="https://..."
+          placeholder={t("common.urlPlaceholder")}
           onChange={(event) => setUrl(event.target.value)}
         />
 
         <div>
           <span className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300">
-            Accent
+            {t("common.accent")}
           </span>
           <div className="flex flex-wrap gap-2">
-            {BUTTON_ACCENTS.map((option) => (
+            {buttonAccents.map((option) => (
               <button
                 key={option.value}
                 type="button"
@@ -111,7 +119,7 @@ export function ButtonBlockDialog({
             className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300"
             htmlFor="button-block-icon"
           >
-            Icon (optional)
+            {t("common.iconOptional")}
           </label>
           <select
             id="button-block-icon"
@@ -119,8 +127,8 @@ export function ButtonBlockDialog({
             onChange={(event) => setIcon(event.target.value)}
             className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           >
-            <option value="">No icon</option>
-            {BUTTON_ICON_OPTIONS.map((option) => (
+            <option value="">{t("enum.icon.none")}</option>
+            {buttonIconOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -130,7 +138,7 @@ export function ButtonBlockDialog({
 
         <div className="rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
           <span className="mb-2 block text-xs text-zinc-500 dark:text-zinc-400">
-            Preview
+            {t("common.preview")}
           </span>
           <span
             style={{ backgroundColor: resolveAccentColor(accent) }}
@@ -139,7 +147,7 @@ export function ButtonBlockDialog({
             {PreviewIcon ? (
               <PreviewIcon className="h-4 w-4" aria-hidden="true" />
             ) : null}
-            {label || "Button label"}
+            {label || t("layout.buttonBlock.labelPlaceholder")}
           </span>
         </div>
 
@@ -151,16 +159,16 @@ export function ButtonBlockDialog({
             fullWidth={false}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             isLoading={isSubmitting}
-            loadingLabel="Saving"
+            loadingLabel={t("common.saving")}
             onClick={handleSave}
           >
-            Save
+            {t("common.save")}
           </Button>
         </div>
       </div>

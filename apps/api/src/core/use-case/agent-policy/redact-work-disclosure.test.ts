@@ -4,14 +4,22 @@ import {
   buildBlockedTerms,
   findDisclosureViolations,
   redactText,
+  resolveDisclosureCompanies,
   resolveEffectiveLevel,
 } from "./redact-work-disclosure.js";
+
+/** Every employer on one level — the shape the old scalar-level API implied. */
+function companiesAt(
+  level: "summary" | "detailed" | "full",
+  names: string[],
+): { name: string; level: "summary" | "detailed" | "full" }[] {
+  return names.map((name) => ({ name, level }));
+}
 
 describe("buildBlockedTerms", () => {
   it("blocks every employer name plus the user's terms at summary level", () => {
     const terms = buildBlockedTerms({
-      level: "summary",
-      companyNames: ["Acme Corp", "Nubank"],
+      companies: companiesAt("summary", ["Acme Corp", "Nubank"]),
       userBlockedTerms: ["Project Falcon"],
     });
 
@@ -20,8 +28,7 @@ describe("buildBlockedTerms", () => {
 
   it("drops employer names at detailed level — naming the employer IS the level", () => {
     const terms = buildBlockedTerms({
-      level: "detailed",
-      companyNames: ["Acme Corp", "Nubank"],
+      companies: companiesAt("detailed", ["Acme Corp", "Nubank"]),
       userBlockedTerms: ["Project Falcon"],
     });
 
@@ -31,25 +38,34 @@ describe("buildBlockedTerms", () => {
   it("blocks nothing but the user's own terms at full level", () => {
     expect(
       buildBlockedTerms({
-        level: "full",
-        companyNames: ["Acme Corp"],
+        companies: companiesAt("full", ["Acme Corp"]),
         userBlockedTerms: ["Project Falcon"],
       }),
     ).toEqual(["Project Falcon"]);
 
     expect(
       buildBlockedTerms({
-        level: "full",
-        companyNames: ["Acme Corp"],
+        companies: companiesAt("full", ["Acme Corp"]),
         userBlockedTerms: [],
       }),
     ).toEqual([]);
   });
 
+  it("keeps a summary employer blocked while a full one beside it is not", () => {
+    const terms = buildBlockedTerms({
+      companies: [
+        { name: "VTEX", level: "full" },
+        { name: "PagBank", level: "summary" },
+      ],
+      userBlockedTerms: [],
+    });
+
+    expect(terms).toEqual(["PagBank"]);
+  });
+
   it("ignores empty, whitespace-only and single-character terms", () => {
     const terms = buildBlockedTerms({
-      level: "summary",
-      companyNames: ["", "   ", "X"],
+      companies: companiesAt("summary", ["", "   ", "X"]),
       userBlockedTerms: ["A", "ok"],
     });
 
@@ -58,8 +74,7 @@ describe("buildBlockedTerms", () => {
 
   it("de-duplicates case-insensitively, keeping the first spelling", () => {
     const terms = buildBlockedTerms({
-      level: "summary",
-      companyNames: ["Acme", "ACME", "acme"],
+      companies: companiesAt("summary", ["Acme", "ACME", "acme"]),
       userBlockedTerms: ["AcMe"],
     });
 
@@ -69,11 +84,30 @@ describe("buildBlockedTerms", () => {
   it("trims surrounding whitespace so ' Acme ' and 'Acme' are one rule", () => {
     expect(
       buildBlockedTerms({
-        level: "summary",
-        companyNames: [" Acme "],
+        companies: companiesAt("summary", [" Acme "]),
         userBlockedTerms: ["Acme"],
       }),
     ).toEqual(["Acme"]);
+  });
+});
+
+describe("resolveDisclosureCompanies", () => {
+  it("gives each employer the level of its OWN role, not one shared level", () => {
+    expect(
+      resolveDisclosureCompanies("summary", [
+        { companyName: "VTEX", disclosureLevel: "full" },
+        { companyName: "PagBank", disclosureLevel: null },
+      ]),
+    ).toEqual([
+      { name: "VTEX", level: "full" },
+      { name: "PagBank", level: "summary" },
+    ]);
+  });
+
+  it("falls back to the strictest level when nothing is set at all", () => {
+    expect(
+      resolveDisclosureCompanies(null, [{ companyName: "Acme Corp" }]),
+    ).toEqual([{ name: "Acme Corp", level: "summary" }]);
   });
 });
 
@@ -83,9 +117,14 @@ describe("findDisclosureViolations", () => {
     expect(findDisclosureViolations("The sun is out", ["sun"])).toEqual(["sun"]);
   });
 
-  it("does not match a term glued to another word by a digit or underscore", () => {
+  it("does not match a term glued to another word by a digit, but does match one separated by an underscore", () => {
+    // A digit is part of a word token, so "sun" is genuinely absent from
+    // "sun4life". An underscore is punctuation between tokens — it is how a URL
+    // spells a space — so `my_sun_service` discloses "sun" exactly as
+    // `my-sun-service` does. This assertion used to expect [] on both, which is
+    // the leak in BUG-20260827-disclosure-underscore-slug written down as a test.
     expect(findDisclosureViolations("sun4life", ["sun"])).toEqual([]);
-    expect(findDisclosureViolations("my_sun_service", ["sun"])).toEqual([]);
+    expect(findDisclosureViolations("my_sun_service", ["sun"])).toEqual(["sun"]);
   });
 
   it("matches case-insensitively but reports the canonical spelling", () => {
@@ -147,6 +186,137 @@ describe("findDisclosureViolations", () => {
     ).toEqual(["Acme Corp", "Acme"]);
   });
 
+  /**
+   * A URL cannot contain a space, so an agent that wants to link its work
+   * writes the employer as a slug: `acme-corp`, `acme_corp`, `Acme%20Corp` or
+   * just `acmecorp`. Every one of those reaches the same anonymous reader as
+   * the prose does — `externalUrl` is the post's `<a href>`.
+   *
+   * The paired negatives are the real risk of matching these: a term that
+   * matches too widely turns a legitimate post into a 400.
+   */
+  describe("a multi-word employer written as a URL slug", () => {
+    it("matches the hyphenated slug inside a link", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/acme-corp-internal/ledger/pull/42",
+          ["Acme Corp"],
+        ),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("matches the percent-encoded space", () => {
+      expect(
+        findDisclosureViolations("https://example.com/Acme%20Corp/report", [
+          "Acme Corp",
+        ]),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("matches the underscored slug", () => {
+      expect(
+        findDisclosureViolations("https://git.example.com/acme_corp/ledger", [
+          "Acme Corp",
+        ]),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("matches a domain that drops the separator entirely", () => {
+      expect(
+        findDisclosureViolations("https://acmecorp.com/blog/ledger", [
+          "Acme Corp",
+        ]),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("matches a three-word employer slug", () => {
+      expect(
+        findDisclosureViolations(
+          "https://git.example.com/banco-do-brasil/repo",
+          ["Banco do Brasil"],
+        ),
+      ).toEqual(["Banco do Brasil"]);
+    });
+
+    it("matches a name whose own punctuation is flattened into the slug", () => {
+      expect(
+        findDisclosureViolations("https://vale-s-a.example.com/x", [
+          "Vale S.A.",
+        ]),
+      ).toEqual(["Vale S.A."]);
+    });
+
+    it("still reports the canonical settings spelling, not the slug", () => {
+      expect(
+        findDisclosureViolations("https://github.com/wildlife-studios/engine", [
+          "Wildlife Studios",
+        ]),
+      ).toEqual(["Wildlife Studios"]);
+    });
+
+    it("still matches a name whose own punctuation is not a slug separator", () => {
+      // "CI&T" is a real seeded employer. Tolerating slug separators must not
+      // cost the spelling the user actually typed.
+      expect(
+        findDisclosureViolations("Worked as Elixir Developer at CI&T.", [
+          "CI&T",
+        ]),
+      ).toEqual(["CI&T"]);
+      expect(
+        findDisclosureViolations("https://github.com/ci-t/ledger", ["CI&T"]),
+      ).toEqual(["CI&T"]);
+    });
+
+    it("matches a single-word employer glued to the next slug word by an underscore", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/nubank_core/ledger/pull/42",
+          ["Nubank"],
+        ),
+      ).toEqual(["Nubank"]);
+      expect(
+        findDisclosureViolations(
+          "https://jira.nubank_internal.com/browse/LED-1",
+          ["Nubank"],
+        ),
+      ).toEqual(["Nubank"]);
+    });
+
+    it("matches a multi-word employer slug trailed by an underscored word", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/acme_corp_internal/ledger",
+          ["Acme Corp"],
+        ),
+      ).toEqual(["Acme Corp"]);
+    });
+
+    it("does not match a URL that merely contains one of the words", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/corporate-ledger/pull/42",
+          ["Acme Corp"],
+        ),
+      ).toEqual([]);
+    });
+
+    it("does not match the words separated by other words", () => {
+      expect(
+        findDisclosureViolations("mercado for livre software", [
+          "Mercado Livre",
+        ]),
+      ).toEqual([]);
+    });
+
+    it("does not match a slug glued to a longer word", () => {
+      expect(
+        findDisclosureViolations("https://example.com/acmecorporate/ledger", [
+          "Acme Corp",
+        ]),
+      ).toEqual([]);
+    });
+  });
+
   it("skips terms shorter than 2 characters even if handed one directly", () => {
     expect(findDisclosureViolations("a b c", ["a", "b"])).toEqual([]);
   });
@@ -191,6 +361,16 @@ describe("redactText", () => {
     expect(redactText("Acme Corp shipped", ["Acme Corp", "Acme"])).toBe(
       `${DISCLOSURE_PLACEHOLDER} shipped`,
     );
+  });
+
+  it("redacts the employer written as a URL slug on the read side", () => {
+    // GET /me/work-context hands the agent back prose it may reuse; leaving the
+    // slug in there is handing it the leak ready-made.
+    expect(
+      redactText("Notes: https://github.com/acme-corp-internal/ledger", [
+        "Acme Corp",
+      ]),
+    ).toBe(`Notes: https://github.com/${DISCLOSURE_PLACEHOLDER}-internal/ledger`);
   });
 
   it("returns an empty string for empty, null or undefined input", () => {

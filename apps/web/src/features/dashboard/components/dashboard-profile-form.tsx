@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { FiRotateCcw, FiSave } from "react-icons/fi";
 import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
@@ -12,7 +13,7 @@ import { ProfileCover } from "../../profile/components/profile-cover";
 import {
   accentForPreset,
   getProfileThemeProps,
-  PERSONA_OPTIONS,
+  PERSONA_VALUES,
   THEME_PRESETS,
   type Persona,
   type ThemePreset,
@@ -57,6 +58,7 @@ export function DashboardProfileForm({
   isSaving = false,
   onDirtyChange,
 }: DashboardProfileFormProps) {
+  const { t } = useTranslation();
   const {
     register,
     handleSubmit,
@@ -95,20 +97,24 @@ export function DashboardProfileForm({
       {/* Avatars are the only always-circular surface, so they're the only
           upload that previews as a circle and goes through the crop dialog. */}
       <FileUpload
-        label="Profile picture"
+        label={t("dashboard.profilePicture")}
         variant="avatar"
         cropToCircle
         value={watched.userPhoto.trim() || null}
         onChange={(url) =>
           setValue("userPhoto", url ?? "", { shouldDirty: true })
         }
-        helperText="Your avatar. Defaults to your sign-in photo when empty."
+        helperText={t("dashboard.avatarHelp")}
       />
-      <Input id="profile-username" label="Username" {...register("username")} />
-      <Input id="profile-name" label="Name" {...register("name")} />
+      <Input
+        id="profile-username"
+        label={t("common.username")}
+        {...register("username")}
+      />
+      <Input id="profile-name" label={t("common.name")} {...register("name")} />
       <TextArea
         id="profile-description"
-        label="Description"
+        label={t("common.description")}
         rows={5}
         {...register("description")}
       />
@@ -119,10 +125,10 @@ export function DashboardProfileForm({
       <div className={`space-y-4 p-4 ${SURFACE_INSET}`}>
         <div>
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            Appearance
+            {t("common.appearance")}
           </h3>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Cover, colors and status shown on your public profile.
+            {t("dashboard.appearanceSubtitle")}
           </p>
         </div>
 
@@ -154,37 +160,42 @@ export function DashboardProfileForm({
               />
             </span>
             <p className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              {watched.name || initialValues.name || "Your name"}
+              {watched.name ||
+                initialValues.name ||
+                t("dashboard.namePlaceholder")}
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              @{watched.username || initialValues.username || "username"}
+              @
+              {watched.username ||
+                initialValues.username ||
+                t("dashboard.usernamePlaceholder")}
             </p>
           </div>
         </div>
 
         <FileUpload
-          label="Banner / cover image"
+          label={t("dashboard.bannerLabel")}
           aspect="banner"
           value={watched.bannerImageUrl.trim() || null}
           onChange={(url) =>
             setValue("bannerImageUrl", url ?? "", { shouldDirty: true })
           }
-          helperText="Shown across the top of your public profile."
+          helperText={t("dashboard.bannerHelp")}
         />
         <FileUpload
-          label="Background image"
+          label={t("dashboard.backgroundLabel")}
           aspect="cover"
           value={watched.backgroundImageUrl.trim() || null}
           onChange={(url) =>
             setValue("backgroundImageUrl", url ?? "", { shouldDirty: true })
           }
-          helperText="Optional full-page background behind your profile."
+          helperText={t("dashboard.backgroundHelp")}
         />
 
         {/* Theme picker */}
         <div>
           <span className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300">
-            Theme
+            {t("common.theme")}
           </span>
           <div className="flex flex-wrap items-center gap-2">
             {THEME_PRESETS.map((preset) => {
@@ -197,7 +208,7 @@ export function DashboardProfileForm({
                   type="button"
                   onClick={() => selectPreset(preset.value)}
                   aria-pressed={isActive}
-                  title={preset.label}
+                  title={t(`enum.themePreset.${preset.value}`)}
                   className={[
                     "h-8 w-8 rounded-full border-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900",
                     isActive
@@ -209,7 +220,9 @@ export function DashboardProfileForm({
                     ["--tw-ring-color" as string]: preset.accent,
                   }}
                 >
-                  <span className="sr-only">{preset.label}</span>
+                  <span className="sr-only">
+                    {t(`enum.themePreset.${preset.value}`)}
+                  </span>
                 </button>
               );
             })}
@@ -218,7 +231,7 @@ export function DashboardProfileForm({
 
             <label
               className="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300"
-              title="Custom accent color"
+              title={t("dashboard.customAccentColor")}
             >
               <span
                 className="inline-block h-8 w-8 overflow-hidden rounded-full border-2"
@@ -238,10 +251,10 @@ export function DashboardProfileForm({
                     })
                   }
                   className="h-full w-full cursor-pointer opacity-0"
-                  aria-label="Custom accent color"
+                  aria-label={t("dashboard.customAccentColor")}
                 />
               </span>
-              Custom
+              {t("common.custom")}
             </label>
 
             {watched.themeAccent.trim() ? (
@@ -253,7 +266,7 @@ export function DashboardProfileForm({
                 className="inline-flex items-center gap-1 text-xs text-zinc-500 transition hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
               >
                 <FiRotateCcw className="h-3 w-3" aria-hidden="true" />
-                Reset
+                {t("common.reset")}
               </button>
             ) : null}
           </div>
@@ -262,17 +275,25 @@ export function DashboardProfileForm({
         {/* Open to work */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
-              Open to work
+            <p
+              id="profile-open-to-work-label"
+              className="text-sm text-zinc-700 dark:text-zinc-300"
+            >
+              {t("common.openToWork")}
             </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Show a recruiter-friendly badge on your profile.
+            <p
+              id="profile-open-to-work-hint"
+              className="text-xs text-zinc-500 dark:text-zinc-400"
+            >
+              {t("dashboard.openToWorkHelp")}
             </p>
           </div>
           <button
             type="button"
             role="switch"
             aria-checked={watched.openToWork}
+            aria-labelledby="profile-open-to-work-label"
+            aria-describedby="profile-open-to-work-hint"
             onClick={() =>
               setValue("openToWork", !watched.openToWork, {
                 shouldDirty: true,
@@ -296,8 +317,8 @@ export function DashboardProfileForm({
 
         <Input
           id="profile-location"
-          label="Location"
-          placeholder="City, Country"
+          label={t("common.location")}
+          placeholder={t("dashboard.locationPlaceholder")}
           maxLength={120}
           {...register("location")}
         />
@@ -308,17 +329,17 @@ export function DashboardProfileForm({
             className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300"
             htmlFor="profile-persona"
           >
-            Role
+            {t("common.role")}
           </label>
           <select
             id="profile-persona"
             className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             {...register("persona")}
           >
-            <option value="">No role</option>
-            {PERSONA_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            <option value="">{t("dashboard.noRole")}</option>
+            {PERSONA_VALUES.map((value) => (
+              <option key={value} value={value}>
+                {t(`enum.persona.${value}`)}
               </option>
             ))}
           </select>
@@ -333,10 +354,10 @@ export function DashboardProfileForm({
         className="w-auto"
         type="submit"
         isLoading={isSaving}
-        loadingLabel="Saving profile..."
+        loadingLabel={t("dashboard.savingProfile")}
       >
         <FiSave className="h-4 w-4" aria-hidden="true" />
-        Save profile
+        {t("dashboard.saveProfile")}
       </Button>
     </form>
   );

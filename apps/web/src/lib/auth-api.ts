@@ -29,6 +29,10 @@ import {
   updateLinkSchemaInput,
   updateProfileSchemaInput,
   updateProfileSchemaOutput,
+  userPreferencesSchema,
+  updateUserPreferencesSchemaInput,
+  type UserPreferences,
+  type UpdateUserPreferencesInput,
   createInteractionInputSchema,
   interactionSchema,
   candidateContactSchema,
@@ -47,6 +51,7 @@ import {
   createTabSchemaInput,
   renameTabSchemaInput,
   reorderTabsSchemaInput,
+  setTabsEnabledSchemaInput,
   createBlockSchemaInput,
   updateBlockSchemaInput,
   updateBlockPositionsSchemaInput,
@@ -58,6 +63,7 @@ import {
   type CreateTabInput,
   type RenameTabInput,
   type ReorderTabsInput,
+  type SetTabsEnabledInput,
   type CreateBlockInput,
   type UpdateBlockInput,
   type UpdateBlockPositionsInput,
@@ -97,6 +103,7 @@ import axios, {
   type AxiosResponse,
 } from "axios";
 import { z } from "zod";
+import i18n from "../i18n";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
 import { reportError, reportHandled } from "./report-error";
 import {
@@ -162,6 +169,33 @@ const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+/**
+ * Every request announces the language the UI is currently rendered in.
+ *
+ * This is the only channel an ANONYMOUS caller has for saying what language it
+ * wants — a signed-in user's stored preference is read server-side, but a
+ * logged-out visitor has no row to read. It is also the fallback the API uses
+ * when a signed-in user is still on "follow the device".
+ *
+ * A request interceptor rather than a static default header, because the value
+ * changes at runtime when the switcher is used; a header baked in at
+ * `axios.create()` time would pin the whole session to whatever language the
+ * app booted with. It sits here rather than in `fetchWithTokens` so that the
+ * handful of calls made directly through `apiClient` are covered too.
+ */
+apiClient.interceptors.request.use((config) => {
+  // `resolvedLanguage` is the one actually in effect after fallback resolution,
+  // which is what the server should be told — `language` can still hold an
+  // unsupported tag that i18next has already fallen back from.
+  const activeLanguage = i18n.resolvedLanguage ?? i18n.language;
+
+  if (activeLanguage) {
+    config.headers.set("Accept-Language", activeLanguage);
+  }
+
+  return config;
 });
 
 /* ------------------------------------------------------------------ *
@@ -281,11 +315,11 @@ const readErrorMessage = (error: unknown): string => {
     }
 
     return error.response?.status === 401
-      ? "Invalid email or password."
-      : "Request failed. Please try again.";
+      ? i18n.t("errors.invalidCredentials")
+      : i18n.t("common.requestFailed");
   }
 
-  return "Request failed. Please try again.";
+  return i18n.t("common.requestFailed");
 };
 
 export async function loginRequest(
@@ -365,10 +399,23 @@ export async function fetchMyProfile(): Promise<ProfileResponse> {
   return profileSchema.parse(response.data);
 }
 
+/**
+ * The public readers below receive the handle already decoded — it comes off
+ * the router param — so it has to be re-encoded before it goes back into a URL
+ * path. A handle holding `/`, `?` or `#` otherwise reshapes the request and the
+ * api answers 404 for a profile it serves fine at the encoded path.
+ *
+ * Only the places that *build* a URL from a raw handle need this. The router
+ * (`to="/profile/$username"` with params) and the Share link (read off
+ * `window.location.href`) already hand out encoded values; encoding those again
+ * would double-encode them.
+ */
 export async function fetchPublicProfile(
   username: string,
 ): Promise<ProfileResponse> {
-  const response = await apiClient.get(`/profile/${username}`);
+  const response = await apiClient.get(
+    `/profile/${encodeURIComponent(username)}`,
+  );
   return profileSchema.parse(response.data);
 }
 
@@ -483,9 +530,7 @@ export async function renameTab(
   return profileTabSchema.parse(response.data);
 }
 
-export async function deleteTab(
-  tabId: string,
-): Promise<{ success: boolean }> {
+export async function deleteTab(tabId: string): Promise<{ success: boolean }> {
   const response = await fetchWithTokens(`/me/layout/tabs/${tabId}`, {
     method: "DELETE",
   });
@@ -503,6 +548,25 @@ export async function reorderTabs(
   });
 
   return response.data as { success: boolean };
+}
+
+/**
+ * Flip the tab strip for ONE viewport. Sits with the other layout writes
+ * because that is where the flag lives now — it used to ride along on
+ * `PUT /profile`, which made it one setting for both viewports.
+ *
+ * Returns nothing: the caller patches its cached layout optimistically and
+ * refetches the layout afterwards, so the response body is never read. That
+ * also keeps this client honest about a shape it does not own.
+ */
+export async function setTabsEnabled(
+  payload: SetTabsEnabledInput,
+): Promise<void> {
+  const body = setTabsEnabledSchemaInput.parse(payload);
+  await fetchWithTokens("/me/layout/tabs-enabled", {
+    method: "PATCH",
+    data: body,
+  });
 }
 
 export async function createBlock(
@@ -672,7 +736,9 @@ export async function saveResumeTitlesBulk(
 export async function fetchPublicResume(
   username: string,
 ): Promise<PublicResumeResponse> {
-  const response = await apiClient.get(`/profile/${username}/resume`);
+  const response = await apiClient.get(
+    `/profile/${encodeURIComponent(username)}/resume`,
+  );
   return publicResumeSchema.parse(response.data);
 }
 
@@ -754,7 +820,7 @@ export async function searchRecruiterResumes(
       throw new Error((data as { message: string }).message);
     }
 
-    throw new Error("Search failed. Try again.");
+    throw new Error(i18n.t("errors.searchFailed"));
   }
 
   if (Array.isArray(data)) {
@@ -871,7 +937,7 @@ export async function fetchPublicWorkExperiences(
   username: string,
 ): Promise<PublicWorkExperienceResponse[]> {
   const response = await apiClient.get(
-    `/profile/${username}/work-experiences`,
+    `/profile/${encodeURIComponent(username)}/work-experiences`,
   );
 
   return publicWorkExperienceSchema.array().parse(response.data);
@@ -919,7 +985,7 @@ export async function parseResumeImport(input: {
       throw new Error((data as { message: string }).message);
     }
 
-    throw new Error("Could not parse the resume. Try again.");
+    throw new Error(i18n.t("errors.resumeParseFailed"));
   }
 
   return aiResumeImportParseResponseSchema.parse(data);
@@ -985,4 +1051,30 @@ export async function updateWorkExperienceDisclosure(
     method: "PATCH",
     data: { disclosureLevel },
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Preferences — the private, cross-device half of the UI settings.
+ *
+ * Deliberately NOT part of the profile endpoints: `profileSchema` is served
+ * publicly at `/profile/:username`, and a person's UI language and dark-mode
+ * choice are nobody else's business.
+ * ------------------------------------------------------------------ */
+
+export async function fetchPreferences(): Promise<UserPreferences> {
+  const response = await fetchWithTokens("/preferences", { method: "GET" });
+  return userPreferencesSchema.parse(response.data);
+}
+
+export async function updatePreferences(
+  patch: UpdateUserPreferencesInput,
+): Promise<UserPreferences> {
+  const body = updateUserPreferencesSchemaInput.parse(patch);
+
+  const response = await fetchWithTokens("/preferences", {
+    method: "PUT",
+    data: body,
+  });
+
+  return userPreferencesSchema.parse(response.data);
 }

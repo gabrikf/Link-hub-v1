@@ -1,27 +1,28 @@
 import type { CreateApiTokenOutput } from "@repo/schemas";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiChevronDown } from "react-icons/fi";
 import { FOCUS_RING } from "../../../../shared-components/surface";
 import {
   buildExtractorConfig,
   buildTokenExport,
-  CLAUDE_HOOK_NOTES,
+  claudeHookNotes,
   CLAUDE_HOOK_SNIPPET,
-  CLAUDE_HOOK_SUMMARY,
+  claudeHookSummary,
   CLAUDE_HOOK_TARGET,
   EXTRACTOR_CONFIG_TARGET,
-  EXTRACTOR_CRON_CAUTION,
+  extractorCronCaution,
   EXTRACTOR_CRON_SNIPPET,
-  EXTRACTOR_REPOS_CONSEQUENCE,
-  EXTRACTOR_REPOS_TARGET,
+  extractorReposConsequence,
+  extractorReposTarget,
   EXTRACTOR_RUN_COMMAND,
   EXTRACTOR_UPLOAD_COMMAND,
   REPOS_CONFIG_SNIPPET,
   REPOS_LIST_COMMAND,
   REPOS_CONFIG_TARGET,
-  REPOS_COVERAGE_CONSEQUENCE,
+  reposCoverageConsequence,
   REPOS_DISCOVERY_COMMAND,
-  REPOS_DISCOVERY_NOTE,
+  reposDiscoveryNote,
 } from "../../lib/connection-format";
 import { resolveApiUrl } from "../../lib/mcp-config";
 import { buildTabs, TOKEN_PLACEHOLDER } from "../../lib/mcp-tool-tabs";
@@ -36,7 +37,11 @@ import type { WizardSourceKey } from "./wizard-shared";
 
 /** Scopes per source. MCP posts; hook/extractor only append activity. */
 export const ACTIVITY_SCOPES = ["activity:write"] as const;
-export const MCP_SCOPES = ["posts:read", "posts:write", "profile:read"] as const;
+export const MCP_SCOPES = [
+  "posts:read",
+  "posts:write",
+  "profile:read",
+] as const;
 
 function NumberedFlow({
   steps,
@@ -68,18 +73,15 @@ function NumberedFlow({
  * directory. That last fallback works, which is exactly why this is easy to
  * miss: a week spent across four projects silently posts as one.
  */
-function ReposCoverageBlock({
-  variant,
-}: {
-  variant: "mcp" | "extractor";
-}) {
+function ReposCoverageBlock({ variant }: { variant: "mcp" | "extractor" }) {
+  const { t } = useTranslation();
   const isMcp = variant === "mcp";
   return (
     <details className="group rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/60">
       <summary
         className={`flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
       >
-        Cover every project, not just the one you&apos;re in
+        {t("wizard.connect.coverEveryProject")}
         <FiChevronDown
           className="ml-auto h-3.5 w-3.5 shrink-0 transition group-open:rotate-180"
           aria-hidden="true"
@@ -87,11 +89,11 @@ function ReposCoverageBlock({
       </summary>
       <div className="mt-2 space-y-2">
         <p className="text-xs text-zinc-600 dark:text-zinc-400">
-          {isMcp ? REPOS_COVERAGE_CONSEQUENCE : EXTRACTOR_REPOS_CONSEQUENCE}
+          {isMcp ? reposCoverageConsequence() : extractorReposConsequence()}
         </p>
         <SnippetBlock
           snippet={{
-            target: isMcp ? REPOS_CONFIG_TARGET : EXTRACTOR_REPOS_TARGET,
+            target: isMcp ? REPOS_CONFIG_TARGET : extractorReposTarget(),
             language: "json",
             code: REPOS_CONFIG_SNIPPET,
           }}
@@ -99,14 +101,14 @@ function ReposCoverageBlock({
         <SnippetBlock
           snippet={{
             target: isMcp
-              ? "Terminal — build it from a projects folder"
-              : "Terminal — list your repos to paste",
+              ? t("wizard.connect.terminalBuildFolder")
+              : t("wizard.connect.terminalListRepos"),
             language: "bash",
             code: isMcp ? REPOS_DISCOVERY_COMMAND : REPOS_LIST_COMMAND,
           }}
         />
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {REPOS_DISCOVERY_NOTE}
+          {reposDiscoveryNote()}
         </p>
       </div>
     </details>
@@ -138,6 +140,7 @@ export function ConnectStep({
   toolKey = null,
   onToolKeyChange,
 }: ConnectStepProps) {
+  const { t } = useTranslation();
   const apiUrl = useMemo(() => resolveApiUrl(), []);
   const plaintextToken = token?.token ?? null;
 
@@ -145,9 +148,7 @@ export function ConnectStep({
     return (
       <div className="space-y-4">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Two things: a token your agent authenticates with, and a config block
-          for whichever tool you use. The snippets fill in with the token the
-          moment you create it.
+          {t("wizard.connect.mcpIntro")}
         </p>
         <WizardTokenBlock
           scopes={[...MCP_SCOPES]}
@@ -156,7 +157,7 @@ export function ConnectStep({
           onCreated={onTokenCreated}
         />
         <ToolTabs
-          tabs={buildTabs(apiUrl, plaintextToken ?? TOKEN_PLACEHOLDER)}
+          tabs={buildTabs(t, apiUrl, plaintextToken ?? TOKEN_PLACEHOLDER)}
           idPrefix="wizard-mcp"
           activeKey={toolKey ?? undefined}
           onActiveKeyChange={onToolKeyChange}
@@ -176,8 +177,7 @@ export function ConnectStep({
     return (
       <div className="space-y-4">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          The connection exists on LinkHub's side. Point your forge at it —
-          everything below is prefilled with this connection's real values.
+          {t("wizard.connect.webhookIntro")}
         </p>
         {/* The exact amber shown-once treatment from the connections panel —
             same component, not a lookalike. */}
@@ -190,7 +190,7 @@ export function ConnectStep({
     return (
       <div className="space-y-4">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {CLAUDE_HOOK_SUMMARY}
+          {claudeHookSummary()}
         </p>
         <WizardTokenBlock
           scopes={[...ACTIVITY_SCOPES]}
@@ -215,7 +215,7 @@ export function ConnectStep({
           }}
         />
         <ol className="list-decimal space-y-1 pl-5 text-xs text-zinc-600 dark:text-zinc-400">
-          {CLAUDE_HOOK_NOTES.map((note) => (
+          {claudeHookNotes().map((note) => (
             <li key={note}>{note}</li>
           ))}
         </ol>
@@ -227,8 +227,7 @@ export function ConnectStep({
   return (
     <div className="space-y-4">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        The extractor reads git metadata locally, writes a file, and stops for
-        your review. Nothing uploads until you say so.
+        {t("wizard.connect.extractorIntro")}
       </p>
       <WizardTokenBlock
         scopes={[...ACTIVITY_SCOPES]}
@@ -239,7 +238,7 @@ export function ConnectStep({
       <NumberedFlow
         steps={[
           {
-            label: "Point the CLI at this connection",
+            label: t("wizard.connect.pointCli"),
             body: (
               <SnippetBlock
                 snippet={{
@@ -251,11 +250,11 @@ export function ConnectStep({
             ),
           },
           {
-            label: "Give it your token",
+            label: t("wizard.connect.giveToken"),
             body: (
               <SnippetBlock
                 snippet={{
-                  target: "Terminal",
+                  target: t("common.terminal"),
                   language: "bash",
                   code: buildTokenExport(plaintextToken),
                 }}
@@ -263,11 +262,11 @@ export function ConnectStep({
             ),
           },
           {
-            label: "Extract — reads git metadata, writes linkhub-activity.json, STOPS for your review",
+            label: t("wizard.connect.extractCommand"),
             body: (
               <SnippetBlock
                 snippet={{
-                  target: "Terminal",
+                  target: t("common.terminal"),
                   language: "bash",
                   code: EXTRACTOR_RUN_COMMAND,
                 }}
@@ -275,11 +274,11 @@ export function ConnectStep({
             ),
           },
           {
-            label: "Upload the file you just read",
+            label: t("wizard.connect.uploadCommand"),
             body: (
               <SnippetBlock
                 snippet={{
-                  target: "Terminal",
+                  target: t("common.terminal"),
                   language: "bash",
                   code: EXTRACTOR_UPLOAD_COMMAND,
                 }}
@@ -293,7 +292,7 @@ export function ConnectStep({
         <summary
           className={`flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
         >
-          Automate weekly (optional)
+          {t("wizard.connect.automateOptional")}
           <FiChevronDown
             className="ml-auto h-3.5 w-3.5 shrink-0 transition group-open:rotate-180"
             aria-hidden="true"
@@ -302,7 +301,7 @@ export function ConnectStep({
         <div className="mt-2 space-y-2">
           <SnippetBlock
             snippet={{
-              target: "crontab — Fridays at 18:00",
+              target: t("wizard.connect.crontabFridays"),
               language: "bash",
               code: EXTRACTOR_CRON_SNIPPET,
             }}
@@ -312,7 +311,7 @@ export function ConnectStep({
               className="mt-0.5 h-3.5 w-3.5 shrink-0"
               aria-hidden="true"
             />
-            {EXTRACTOR_CRON_CAUTION}
+            {extractorCronCaution()}
           </p>
         </div>
       </details>

@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FiArrowLeft, FiInbox, FiLock } from "react-icons/fi";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import {
@@ -16,10 +17,7 @@ import {
 } from "../../../shared-components/surface";
 import { ReviewQueueItem } from "../components/review-queue-item";
 import { ReviewQueueSkeleton } from "../components/review-queue-skeleton";
-import {
-  IMMUTABLE_POST_REASON,
-  selectPendingReview,
-} from "../lib/post-format";
+import { selectPendingReview } from "../lib/post-format";
 
 /**
  * The review queue for software-written posts.
@@ -34,6 +32,7 @@ import {
  * count, only when something is actually waiting.
  */
 export function ReviewQueuePage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
@@ -55,11 +54,11 @@ export function ReviewQueuePage() {
   const mutationError = approvePost.isError
     ? approvePost.error instanceof Error && approvePost.error.message
       ? approvePost.error.message
-      : "Could not publish that post. It is still waiting for review."
+      : t("posts.approveFailed")
     : deletePost.isError
       ? deletePost.error instanceof Error && deletePost.error.message
         ? deletePost.error.message
-        : "Could not delete that post. It is still here."
+        : t("posts.deleteFailed")
       : null;
 
   return (
@@ -75,11 +74,10 @@ export function ReviewQueuePage() {
       <header className="anim-fade-up flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">
-            Review queue
+            {t("posts.reviewQueue")}
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Posts your tools wrote for you. Nothing here is public until you
-            approve it.
+            {t("posts.reviewQueueSubtitle")}
           </p>
         </div>
         <Link to="/dashboard/posts">
@@ -90,7 +88,7 @@ export function ReviewQueuePage() {
             className="rounded-full"
           >
             <FiArrowLeft className="h-4 w-4" aria-hidden="true" />
-            All posts
+            {t("posts.allPosts")}
           </Button>
         </Link>
       </header>
@@ -103,7 +101,7 @@ export function ReviewQueuePage() {
           className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400"
           aria-hidden="true"
         />
-        <span>{IMMUTABLE_POST_REASON}</span>
+        <span>{t("posts.lockedBody")}</span>
       </p>
 
       {mutationError ? (
@@ -114,7 +112,7 @@ export function ReviewQueuePage() {
         <ReviewQueueSkeleton />
       ) : postsQuery.isError ? (
         <p className="text-sm text-red-600 dark:text-red-400">
-          Could not load your review queue. Please try again.
+          {t("posts.reviewQueueLoadFailed")}
         </p>
       ) : pending.length === 0 ? (
         <div className={`anim-fade-up p-10 text-center ${SURFACE_EMPTY}`}>
@@ -123,10 +121,10 @@ export function ReviewQueuePage() {
             aria-hidden="true"
           />
           <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-            Nothing is waiting for review.
+            {t("posts.nothingWaiting")}
           </p>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            When a connected tool writes a post unattended it lands here first.
+            {t("posts.nothingWaitingHelp")}
           </p>
         </div>
       ) : (

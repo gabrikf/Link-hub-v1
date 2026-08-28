@@ -1,5 +1,6 @@
 import type { Post } from "@repo/schemas";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiCheck, FiLink, FiX } from "react-icons/fi";
 import { useUpdatePost } from "../../../lib/post-queries";
 import { reportError } from "../../../lib/report-error";
@@ -17,6 +18,7 @@ import { isSafeHttpUrl } from "../lib/markdown";
  * an inline URL field, never an editor.
  */
 export function AttachLinkControl({ post }: { post: Post }) {
+  const { t } = useTranslation();
   const updatePost = useUpdatePost();
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState("");
@@ -25,7 +27,7 @@ export function AttachLinkControl({ post }: { post: Post }) {
   const handleSave = async () => {
     const trimmed = url.trim();
     if (!isSafeHttpUrl(trimmed)) {
-      setError("Enter a full http(s) URL.");
+      setError(t("posts.invalidUrl"));
       return;
     }
     setError(null);
@@ -41,7 +43,7 @@ export function AttachLinkControl({ post }: { post: Post }) {
         action: "posts.attach-link",
         extra: { postId: post.id },
       });
-      setError("Could not attach the link. Please try again.");
+      setError(t("posts.attachLinkFailed"));
     }
   };
 
@@ -61,7 +63,7 @@ export function AttachLinkControl({ post }: { post: Post }) {
         onClick={() => setEditing(true)}
       >
         <FiLink className="h-3.5 w-3.5" aria-hidden="true" />
-        Add link
+        {t("posts.addLink")}
       </Button>
     );
   }
@@ -69,12 +71,12 @@ export function AttachLinkControl({ post }: { post: Post }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <label htmlFor={`attach-link-${post.id}`} className="sr-only">
-        Link URL
+        {t("posts.linkUrl")}
       </label>
       <input
         id={`attach-link-${post.id}`}
         type="url"
-        placeholder="https://github.com/you/repo/pull/42"
+        placeholder={t("posts.linkUrlPlaceholder")}
         value={url}
         autoFocus
         onChange={(event) => {
@@ -94,18 +96,18 @@ export function AttachLinkControl({ post }: { post: Post }) {
         size="sm"
         fullWidth={false}
         isLoading={updatePost.isPending}
-        loadingLabel="Saving..."
+        loadingLabel={t("common.saving")}
         onClick={handleSave}
       >
         <FiCheck className="h-3.5 w-3.5" aria-hidden="true" />
-        Save
+        {t("common.save")}
       </Button>
       <Button
         type="button"
         variant="ghost"
         size="sm"
         fullWidth={false}
-        aria-label="Cancel adding link"
+        aria-label={t("posts.cancelAddingLink")}
         onClick={cancel}
       >
         <FiX className="h-3.5 w-3.5" aria-hidden="true" />

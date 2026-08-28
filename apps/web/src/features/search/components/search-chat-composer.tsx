@@ -1,5 +1,6 @@
 import { FiPaperclip, FiSearch, FiX } from "react-icons/fi";
 import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared-components/button";
 import { FOCUS_RING } from "../../../shared-components/surface";
 import { SelectField } from "../../../shared-components/select";
@@ -26,19 +27,21 @@ export function SearchChatComposer({
   onPickFile,
   onRemoveFile,
 }: SearchChatComposerProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
       <TextArea
         id="advanced-search-chat-prompt"
-        label="Who are you looking for?"
-        placeholder="Paste the job description, upload a file, or describe the ideal candidate in your own words."
+        label={t("search.prompt")}
+        placeholder={t("search.promptHelp")}
         rows={7}
         className="resize-y rounded-xl border-zinc-300 bg-white/90 px-4 py-3 leading-relaxed shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
         {...register("chatPrompt")}
       />
 
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-        Tip: you can search with only the text, only the uploaded file, or both.
+        {t("search.promptTip")}
       </p>
 
       <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -50,7 +53,7 @@ export function SearchChatComposer({
             onClick={onPickFile}
           >
             <FiPaperclip className="h-4 w-4" aria-hidden="true" />
-            Attach JD file
+            {t("search.attachJd")}
           </Button>
 
           {attachmentFile ? (
@@ -63,7 +66,7 @@ export function SearchChatComposer({
               <span className="truncate">{attachmentFile.name}</span>
               <button
                 type="button"
-                aria-label="Remove attached file"
+                aria-label={t("search.removeAttachment")}
                 className={`shrink-0 rounded p-0.5 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 ${FOCUS_RING}`}
                 onClick={onRemoveFile}
               >
@@ -80,33 +83,33 @@ export function SearchChatComposer({
           disabled={isBusy}
         >
           <FiSearch className="h-4 w-4" aria-hidden="true" />
-          {isBusy ? "Processing..." : "Search Top 50"}
+          {isBusy ? t("common.processing") : t("search.searchTop50")}
         </Button>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <SelectField
           id="semantic-skills"
-          label="Semantic skills (optional)"
+          label={t("search.semanticSkills")}
           name="semanticSkills"
           control={control}
           options={SKILL_OPTIONS}
           isMulti
           isCreatable
           closeMenuOnSelect={false}
-          helperText="Used only to improve semantic understanding"
+          helperText={t("search.semanticHelp")}
         />
 
         <SelectField
           id="semantic-titles"
-          label="Semantic titles (optional)"
+          label={t("search.semanticTitles")}
           name="semanticTitles"
           control={control}
           options={TITLE_OPTIONS}
           isMulti
           isCreatable
           closeMenuOnSelect={false}
-          helperText="Used only to improve semantic understanding"
+          helperText={t("search.semanticHelp")}
         />
       </div>
 

@@ -1,5 +1,6 @@
+import { useTranslation } from "react-i18next";
 import { FiCheck } from "react-icons/fi";
-import { WIZARD_STEPS, type WizardStepKey } from "./wizard-shared";
+import { getWizardSteps, type WizardStepKey } from "./wizard-shared";
 
 const cx = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
@@ -19,11 +20,16 @@ export function WizardStepper({
   /** The success screen: every step reads as completed. */
   done?: boolean;
 }) {
-  const currentIndex = WIZARD_STEPS.findIndex((step) => step.key === current);
+  const { t } = useTranslation();
+  const wizardSteps = getWizardSteps(t);
+  const currentIndex = wizardSteps.findIndex((step) => step.key === current);
 
   return (
-    <ol aria-label="Setup steps" className="flex flex-wrap items-center gap-1.5">
-      {WIZARD_STEPS.map((step, index) => {
+    <ol
+      aria-label={t("wizard.setupSteps")}
+      className="flex flex-wrap items-center gap-1.5"
+    >
+      {wizardSteps.map((step, index) => {
         const isComplete = done || index < currentIndex;
         const isCurrent = !done && index === currentIndex;
 

@@ -11,6 +11,7 @@ import {
 } from "@repo/schemas";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiShield } from "react-icons/fi";
 import { reportError } from "../../../lib/report-error";
 import { Button } from "../../../shared-components/button";
@@ -22,14 +23,14 @@ import {
   useWorkExperiencesForPolicy,
 } from "../lib/agent-policy-queries";
 import {
-  CADENCE_LABELS,
   CADENCE_OPTIONS,
   disclosureConsequence,
   disclosureLevelLabel,
   disclosureSourceLabel,
+  getCadenceLabels,
+  getProviderDescriptions,
   kindInheritsWorkRules,
-  MIXED_KIND_RULE,
-  PROVIDER_DESCRIPTIONS,
+  mixedKindRule,
   PROVIDER_LABELS,
   resolveEffectiveDisclosure,
 } from "../lib/connection-format";
@@ -144,6 +145,7 @@ function ConnectionForm({
   isSaving,
   onSubmit,
 }: ConnectionFormProps) {
+  const { t } = useTranslation();
   const isEditing = connection !== null;
 
   const [displayName, setDisplayName] = useState(connection?.displayName ?? "");
@@ -203,7 +205,7 @@ function ConnectionForm({
     const trimmedName = displayName.trim();
 
     if (trimmedName.length === 0) {
-      setNameError("Give this source a name so you can recognize it later.");
+      setNameError(t("settings.connectionDialog.nameHelp"));
       document.getElementById(NAME_FIELD_ID)?.focus();
       return;
     }
@@ -229,8 +231,8 @@ function ConnectionForm({
       });
       setError(
         isEditing
-          ? "Could not save that change. Your previous settings are still in force."
-          : "Could not connect that source. Please try again.",
+          ? t("settings.connectionDialog.saveFailed")
+          : t("settings.connectionDialog.connectFailed"),
       );
     }
   };
@@ -239,8 +241,8 @@ function ConnectionForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <Input
         id={NAME_FIELD_ID}
-        label="Display name"
-        placeholder="e.g. Work GitHub, personal laptop"
+        label={t("resumeImport.displayName")}
+        placeholder={t("settings.connectionDialog.namePlaceholder")}
         value={displayName}
         error={nameError ?? undefined}
         onChange={(event) => {
@@ -252,14 +254,14 @@ function ConnectionForm({
 
       <FieldSelect
         id="connection-provider"
-        label="Source"
+        label={t("common.source")}
         value={provider}
         disabled={isEditing}
         onChange={(value) => setProvider(value as GitConnectionProvider)}
         helperText={
           isEditing
-            ? "The source type can't be changed — disconnect and add a new one instead."
-            : PROVIDER_DESCRIPTIONS[provider]
+            ? t("settings.connectionDialog.typeLocked")
+            : getProviderDescriptions(t)[provider]
         }
       >
         {PROVIDER_OPTIONS.map((option) => (
@@ -272,8 +274,8 @@ function ConnectionForm({
       {!isEditing ? (
         <Input
           id="connection-account"
-          label="Account or username on that source (optional)"
-          placeholder="e.g. your GitHub login"
+          label={t("settings.connectionDialog.accountLabel")}
+          placeholder={t("settings.connectionDialog.accountPlaceholder")}
           value={externalAccountId}
           onChange={(event) => setExternalAccountId(event.target.value)}
         />
@@ -281,59 +283,68 @@ function ConnectionForm({
 
       <FieldSelect
         id="connection-kind"
-        label="This activity is"
+        label={t("settings.connectionDialog.thisActivityIs")}
         value={kind}
         onChange={handleKindChange}
         helperText={
           kind === "work"
-            ? "Work activity belongs to an employer, so it inherits a disclosure level."
+            ? t("settings.connectionDialog.workExplainer")
             : kind === "mixed"
-              ? MIXED_KIND_RULE
-              : "Personal activity is yours to publish, with no employer to protect."
+              ? mixedKindRule()
+              : t("settings.connectionDialog.personalExplainer")
         }
       >
-        <option value="personal">Personal</option>
-        <option value="work">Work</option>
+        <option value="personal">{t("common.personal")}</option>
+        <option value="work">{t("common.work")}</option>
         {/* One machine holding both. Not a softer "work": the employer block
             below applies to it unchanged. */}
-        <option value="mixed">Both — personal side projects and work repos</option>
+        <option value="mixed">
+          {t("settings.connectionDialog.bothOption")}
+        </option>
       </FieldSelect>
 
       {kindInheritsWorkRules(kind) ? (
         <div className={`space-y-3 p-4 ${SURFACE_INSET}`}>
           <FieldSelect
             id="connection-role"
-            label="Employer"
+            label={t("settings.connectionDialog.employer")}
             value={workExperienceId ?? NO_ROLE}
             onChange={(value) =>
               setWorkExperienceId(value === NO_ROLE ? null : value)
             }
             helperText={
               roles.length === 0
-                ? "Add work experience to your profile to link this source to an employer."
-                : "Linking a role makes that role's own disclosure level apply."
+                ? t("settings.connectionDialog.noRolesYet")
+                : t("settings.connectionDialog.roleInherits")
             }
           >
-            <option value={NO_ROLE}>Not linked to a role</option>
+            <option value={NO_ROLE}>
+              {t("settings.connectionDialog.notLinked")}
+            </option>
             {roles.map((role) => (
               <option key={role.id} value={role.id}>
-                {role.companyName} — {role.title}
+                {t("settings.connectionDialog.roleOption", {
+                  companyName: role.companyName,
+                  title: role.title,
+                })}
               </option>
             ))}
           </FieldSelect>
 
           <FieldSelect
             id="connection-disclosure"
-            label="Disclosure level for this source"
+            label={t("settings.connectionDialog.levelForSource")}
             value={disclosureLevelOverride ?? INHERIT}
             onChange={(value) =>
               setDisclosureLevelOverride(
                 value === INHERIT ? null : (value as AgentDisclosureLevel),
               )
             }
-            helperText="Used only when the linked role has no level of its own."
+            helperText={t("settings.connectionDialog.levelFallback")}
           >
-            <option value={INHERIT}>Account default</option>
+            <option value={INHERIT}>
+              {t("settings.connectionDialog.accountDefault")}
+            </option>
             {AGENT_DISCLOSURE_LEVELS.map((level) => (
               <option key={level.value} value={level.value}>
                 {level.label}
@@ -347,7 +358,9 @@ function ConnectionForm({
             <FiShield className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
               <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                In force: {disclosureLevelLabel(effective.level)}
+                {t("settings.connectionDialog.inForce", {
+                  level: disclosureLevelLabel(effective.level),
+                })}
               </span>{" "}
               <span className="text-zinc-600 dark:text-zinc-400">
                 (
@@ -370,14 +383,14 @@ function ConnectionForm({
 
       <FieldSelect
         id="connection-cadence"
-        label="Digest cadence"
+        label={t("wizard.schedule.cadence")}
         value={cadence}
         onChange={(value) => setCadence(value as DigestCadence)}
-        helperText="How often this source is allowed to turn activity into one post."
+        helperText={t("settings.connectionDialog.cadenceHelp")}
       >
         {CADENCE_OPTIONS.map((option) => (
           <option key={option} value={option}>
-            {CADENCE_LABELS[option]}
+            {getCadenceLabels(t)[option]}
           </option>
         ))}
       </FieldSelect>
@@ -391,11 +404,10 @@ function ConnectionForm({
         />
         <span className="min-w-0">
           <span className="text-sm text-zinc-900 dark:text-zinc-100">
-            Post digests automatically
+            {t("settings.connectionDialog.autoPost")}
           </span>
           <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-            Off means digests are still generated on this cadence, but wait for
-            you to approve them.
+            {t("settings.connectionDialog.autoPostHelp")}
           </span>
         </span>
       </label>
@@ -413,13 +425,10 @@ function ConnectionForm({
         />
         <span className="min-w-0">
           <span className="text-sm text-zinc-900 dark:text-zinc-100">
-            Send the coding agent&apos;s own description of each task
+            {t("settings.connectionDialog.agentSummaryToggle")}
           </span>
           <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-            Off by default. That text is prose a model wrote about what you were
-            working on, and on a work machine it can describe systems, decisions
-            and problems that are your employer&apos;s to describe, not yours.
-            Without it, only hashed, aggregated metadata is sent.
+            {t("settings.connectionDialog.agentSummaryHelp")}
           </span>
         </span>
       </label>
@@ -440,16 +449,18 @@ function ConnectionForm({
       <div className="flex justify-end gap-2 pt-1">
         <RadixDialog.Close asChild>
           <Button type="button" variant="outline" fullWidth={false}>
-            Cancel
+            {t("common.cancel")}
           </Button>
         </RadixDialog.Close>
         <Button
           type="submit"
           fullWidth={false}
           isLoading={isSaving}
-          loadingLabel={isEditing ? "Saving..." : "Connecting..."}
+          loadingLabel={isEditing ? t("common.saving") : t("common.connecting")}
         >
-          {isEditing ? "Save changes" : "Connect source"}
+          {isEditing
+            ? t("common.saveChanges")
+            : t("settings.connectionDialog.connectSource")}
         </Button>
       </div>
     </form>
@@ -471,6 +482,7 @@ export function ConnectionDialog({
   connection,
   onCreated,
 }: ConnectionDialogProps) {
+  const { t } = useTranslation();
   const isEditing = connection !== null;
 
   const policyQuery = useAgentPolicy(open);
@@ -510,12 +522,12 @@ export function ConnectionDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isEditing ? "Edit activity source" : "Connect an activity source"}
-      description={
+      title={
         isEditing
-          ? undefined
-          : "LinkHub turns the activity from a connected source into a periodic digest post."
+          ? t("settings.connectionDialog.editTitle")
+          : t("settings.connectionDialog.addTitle")
       }
+      description={isEditing ? undefined : t("settings.connectionDialog.intro")}
       contentClassName="max-w-lg"
     >
       <ConnectionForm

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
 
 /**
@@ -8,9 +9,11 @@ import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
  * its two 64px image thumbs and the meta chip row.
  */
 export function DashboardProfileDisplaySkeleton() {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-4">
-      <LoadingLabel>Loading profile</LoadingLabel>
+      <LoadingLabel>{t("dashboard.loadingProfile")}</LoadingLabel>
 
       <div className="flex items-start gap-3">
         <Skeleton shape="circle" width={56} height={56} />

@@ -130,18 +130,35 @@ invisible to anyone working in light mode.
 
 ---
 
-## i18n — does not exist yet
+## i18n — react-i18next, three locales, enforced by the gate
 
-There is no i18next, no `t()`, no locale files. Every user-visible string is
-hardcoded English and `<html lang="en">`.
+`apps/web` is internationalised. **Every user-visible string goes through
+`t()`.** The catalogue lives in `apps/web/src/i18n/locales/` as `pt-BR.json`,
+`en-US.json` and `es-ES.json`; `en-US` is the source language and the fallback.
+`apps/web/src/lib/language.ts` persists the choice next to `linkhub-theme` and
+keeps `<html lang>` in step — it is the same shape as `lib/theme.ts`.
 
-**Do not invent `t()` calls or add an i18n library on your own initiative.** Write
-plain English strings, and keep them out of deeply nested logic so the eventual
-extraction is mechanical. The planned setup — react-i18next, `pt-BR` / `en-US` /
-`es-ES` under `apps/web/src/i18n/locales/` — is documented in the `i18n` skill,
-which is the migration guide for when the user asks for it.
-`scripts/guardrails/i18n-parity.mjs` already runs in the gate as a no-op and
-starts enforcing locale parity the day the first locale file lands.
+Adding a string:
+
+1. **Search the locale files for the TEXT before adding a key.** `common.save`
+   already exists; `saveButton` is how a 200-key file becomes a 2000-key one.
+2. Name by meaning, never by location. `common.*` when the text is reusable on
+   a screen that does not exist yet, `<feature>.*` only when it is
+   domain-specific and ambiguous alone.
+3. Add it to **all three** files in the same commit. English as a placeholder
+   beats a raw key on screen.
+4. Never build a sentence from fragments. Word order and plural agreement move
+   between languages — write the whole sentence with the variable interpolated,
+   and use i18next's `count` plurals rather than a ternary.
+5. Enum leaves are named by the **wire value** (`enum.contractType["full-time"]`),
+   so a call site can write ``t(`enum.contractType.${value}`)``. Translate the
+   label, never the value — values go to the API.
+
+Two checks run in the gate and behind `npm run i18n:check`:
+`scripts/guardrails/i18n-parity.mjs` (same key set in all three locales, no
+empty values) and `scripts/guardrails/i18n-raw-strings.mjs` (no visible text
+outside `t()`, and every `t("…")` resolves in `en-US.json`). Both are
+sub-second. The `i18n` skill carries the deeper reasoning.
 
 ---
 

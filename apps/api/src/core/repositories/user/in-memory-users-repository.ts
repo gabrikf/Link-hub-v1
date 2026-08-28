@@ -1,14 +1,19 @@
 import { UserEntity } from "../../entity/user/user-entity.js";
+import { normalizeEmail } from "../../entity/user/normalize-email.js";
+import { selectMatchingAccount } from "../../entity/user/select-matching-account.js";
 import { IUsersRepository } from "./user-repository.js";
 
 export class InMemoryUsersRepository implements IUsersRepository {
   private users: UserEntity[] = [];
 
   async findByEmailOrLogin(emailOrLogin: string): Promise<UserEntity | null> {
-    const user = this.users.find(
-      (user) => user.email === emailOrLogin || user.login === emailOrLogin,
+    const normalized = normalizeEmail(emailOrLogin);
+    const matches = this.users.filter(
+      (user) =>
+        normalizeEmail(user.email) === normalized ||
+        user.login === emailOrLogin,
     );
-    return user || null;
+    return selectMatchingAccount(matches, emailOrLogin);
   }
 
   async create(user: UserEntity): Promise<UserEntity> {
@@ -17,8 +22,11 @@ export class InMemoryUsersRepository implements IUsersRepository {
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
-    const user = this.users.find((candidate) => candidate.email === email);
-    return user || null;
+    const normalized = normalizeEmail(email);
+    const matches = this.users.filter(
+      (candidate) => normalizeEmail(candidate.email) === normalized,
+    );
+    return selectMatchingAccount(matches, email);
   }
 
   async findByLogin(login: string): Promise<UserEntity | null> {

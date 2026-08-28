@@ -15,6 +15,10 @@ import { InMemoryApiTokenRepository } from "../../../core/repositories/api-token
 import { InMemoryWorkExperienceRepository } from "../../../core/repositories/work-experience/in-memory-work-experience-repository.js";
 import { InMemoryGitConnectionRepository } from "../../../core/repositories/git-connection/in-memory-git-connection-repository.js";
 import { InMemoryActivityEventRepository } from "../../../core/repositories/activity-event/in-memory-activity-event-repository.js";
+import { InMemoryLinksRepository } from "../../../core/repositories/link/in-memory-links-repository.js";
+import { InMemoryProfileTabsRepository } from "../../../core/repositories/profile-tab/in-memory-profile-tabs-repository.js";
+import { InMemoryProfileBlocksRepository } from "../../../core/repositories/profile-block/in-memory-profile-block-repository.js";
+import { InMemoryUserPreferencesRepository } from "../../../core/repositories/user-preferences/in-memory-user-preferences-repository.js";
 import { CryptoTokenProvider } from "../../providers/crypto-token-provider.js";
 import { CryptoWebhookSecretProvider } from "../../providers/crypto-webhook-secret-provider.js";
 import { JwtProvider } from "../../providers/jwt-provider.js";
@@ -40,11 +44,26 @@ import { IngestActivityUseCase } from "../../../core/use-case/activity/ingest-ac
 import { BuildCandidateEvidenceUseCase } from "../../../core/use-case/activity/build-candidate-evidence-use-case/build-candidate-evidence.use-case.js";
 import { GetConnectionHealthUseCase } from "../../../core/use-case/activity/get-connection-health-use-case/get-connection-health.use-case.js";
 import { PreviewActivityDigestUseCase } from "../../../core/use-case/activity/preview-activity-digest-use-case/preview-activity-digest.use-case.js";
+import { CreateLinkUseCase } from "../../../core/use-case/links/create-link-use-case/create-link.use-case.js";
+import { UpdateLinkUseCase } from "../../../core/use-case/links/update-link-use-case/update-link.use-case.js";
+import { GetLayoutUseCase } from "../../../core/use-case/profile-layout/get-layout-use-case/get-layout.use-case.js";
+import { SetTabsEnabledUseCase } from "../../../core/use-case/profile-layout/set-tabs-enabled-use-case/set-tabs-enabled.use-case.js";
+import { InMemoryUnitOfWork } from "../../../core/providers/unit-of-work/in-memory-unit-of-work.js";
+import { GetMeProfileUseCase } from "../../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
+import { GetPublicProfileUseCase } from "../../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
+import { UpdateProfileUseCase } from "../../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
+import { GetUserPreferencesUseCase } from "../../../core/use-case/preferences/get-user-preferences-use-case/get-user-preferences.use-case.js";
+import { UpdateUserPreferencesUseCase } from "../../../core/use-case/preferences/update-user-preferences-use-case/update-user-preferences.use-case.js";
 import { PostsController } from "../controllers/posts/posts-controller.js";
+import { LinksController } from "../controllers/links/links-controller.js";
 import { ApiTokensController } from "../controllers/api-tokens/api-tokens-controller.js";
 import { AgentPolicyController } from "../controllers/agent-policy/agent-policy-controller.js";
 import { ActivityController } from "../controllers/activity/activity-controller.js";
 import { WorkExperienceController } from "../controllers/work-experience/work-experience-controller.js";
+import { AiImportController } from "../controllers/ai-import/ai-import-controller.js";
+import { ProfileController } from "../controllers/profile/profile-controller.js";
+import { profileLayoutRoutes } from "../routes/profile-layout.js";
+import { PreferencesController } from "../controllers/preferences/preferences-controller.js";
 import { webhooksRoutes } from "../routes/webhooks.js";
 
 /**
@@ -62,6 +81,10 @@ export interface TestAppHandles {
   workExperienceRepository: InMemoryWorkExperienceRepository;
   gitConnectionRepository: InMemoryGitConnectionRepository;
   activityEventRepository: InMemoryActivityEventRepository;
+  linksRepository: InMemoryLinksRepository;
+  profileTabsRepository: InMemoryProfileTabsRepository;
+  profileBlocksRepository: InMemoryProfileBlocksRepository;
+  userPreferencesRepository: InMemoryUserPreferencesRepository;
   tokenProvider: CryptoTokenProvider;
   webhookSecretProvider: CryptoWebhookSecretProvider;
   jwtProvider: JwtProvider;
@@ -78,6 +101,8 @@ interface SeedUserInput {
   password: string;
   agentDisclosureLevel: AgentDisclosureLevel;
   agentBlockedTerms: string[];
+  tabsEnabledPc: boolean;
+  tabsEnabledMobile: boolean;
 }
 
 let seedCounter = 0;
@@ -101,6 +126,10 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   const workExperienceRepository = new InMemoryWorkExperienceRepository();
   const gitConnectionRepository = new InMemoryGitConnectionRepository();
   const activityEventRepository = new InMemoryActivityEventRepository();
+  const linksRepository = new InMemoryLinksRepository();
+  const profileTabsRepository = new InMemoryProfileTabsRepository();
+  const profileBlocksRepository = new InMemoryProfileBlocksRepository();
+  const userPreferencesRepository = new InMemoryUserPreferencesRepository();
   const tokenProvider = new CryptoTokenProvider();
   const webhookSecretProvider = new CryptoWebhookSecretProvider();
   const jwtProvider = new JwtProvider({
@@ -123,6 +152,19 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   container.registerInstance(
     TOKENS.ActivityEventRepository,
     activityEventRepository,
+  );
+  container.registerInstance(TOKENS.LinksRepository, linksRepository);
+  container.registerInstance(
+    TOKENS.ProfileTabsRepository,
+    profileTabsRepository,
+  );
+  container.registerInstance(
+    TOKENS.ProfileBlocksRepository,
+    profileBlocksRepository,
+  );
+  container.registerInstance(
+    TOKENS.UserPreferencesRepository,
+    userPreferencesRepository,
   );
   container.registerInstance(TOKENS.TokenProvider, tokenProvider);
   container.registerInstance(
@@ -244,6 +286,54 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     ),
   );
 
+  container.registerInstance(
+    TOKENS.CreateLinkUseCase,
+    new CreateLinkUseCase(linksRepository, usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.UpdateLinkUseCase,
+    new UpdateLinkUseCase(linksRepository),
+  );
+
+  container.registerInstance(
+    TOKENS.GetMeProfileUseCase,
+    new GetMeProfileUseCase(usersRepository, linksRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetPublicProfileUseCase,
+    new GetPublicProfileUseCase(
+      usersRepository,
+      linksRepository,
+      profileTabsRepository,
+      profileBlocksRepository,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.UpdateProfileUseCase,
+    new UpdateProfileUseCase(usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetLayoutUseCase,
+    new GetLayoutUseCase(
+      profileTabsRepository,
+      profileBlocksRepository,
+      new InMemoryUnitOfWork(),
+      usersRepository,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.SetTabsEnabledUseCase,
+    new SetTabsEnabledUseCase(usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetUserPreferencesUseCase,
+    new GetUserPreferencesUseCase(userPreferencesRepository),
+  );
+  container.registerInstance(
+    TOKENS.UpdateUserPreferencesUseCase,
+    new UpdateUserPreferencesUseCase(userPreferencesRepository),
+  );
+
   const app = fastify();
 
   app.setErrorHandler(errorHandler);
@@ -258,6 +348,27 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   // here without breaking registration.
   WorkExperienceController.handle(app);
   ActivityController.handle(app);
+  // Registered for the resume-parse length gate. Its use-case is resolved
+  // lazily inside the handler, so a test that wants the parse to succeed
+  // registers its own (hermetic) ParseResumeUseCase; the rejection paths never
+  // resolve one at all.
+  AiImportController.handle(app);
+  // Only the create/update use-cases are registered above: the other link
+  // routes resolve theirs lazily inside the handler, so they stay unavailable
+  // (and unused) here without breaking registration.
+  LinksController.handle(app);
+  ProfileController.handle(app);
+  // Only the layout read and the per-viewport tabs switch have use-cases
+  // registered above: the tab/block mutation routes resolve theirs lazily
+  // inside the handler, so they stay unavailable (and unused) here without
+  // breaking registration.
+  //
+  // Mounted twice, bare and under `/api/v1`, the way `routes/index.ts` mounts
+  // every module in production — so an e2e test can assert both paths really
+  // answer instead of taking the dual mount on trust.
+  await app.register(profileLayoutRoutes);
+  await app.register(profileLayoutRoutes, { prefix: "/api/v1" });
+  PreferencesController.handle(app);
   // Registered as a real plugin, not called like the controllers above: the
   // raw-body content-type parser it declares is only encapsulated — and the
   // rest of the app only keeps default JSON parsing — because it lives inside
@@ -276,6 +387,10 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     workExperienceRepository,
     gitConnectionRepository,
     activityEventRepository,
+    linksRepository,
+    profileTabsRepository,
+    profileBlocksRepository,
+    userPreferencesRepository,
     tokenProvider,
     webhookSecretProvider,
     jwtProvider,
@@ -289,6 +404,8 @@ export async function buildTestApp(): Promise<TestAppHandles> {
         password: overrides?.password ?? "hashed-password",
         agentDisclosureLevel: overrides?.agentDisclosureLevel,
         agentBlockedTerms: overrides?.agentBlockedTerms,
+        tabsEnabledPc: overrides?.tabsEnabledPc,
+        tabsEnabledMobile: overrides?.tabsEnabledMobile,
         description: null,
         avatarUrl: null,
         googleId: null,

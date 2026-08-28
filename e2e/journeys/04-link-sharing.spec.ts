@@ -284,6 +284,17 @@ function failedRequests(
     .filter((entry) => !options.allow?.test(entry));
 }
 
+/**
+ * What dnd-kit is telling a screen reader right now. It renders one hidden
+ * `role="status"` live region per DndContext; the dashboard mounts exactly one.
+ */
+function dragAnnouncement(page: Page): Promise<string | null> {
+  return page.evaluate(
+    () =>
+      document.querySelector("[role='status'][aria-live]")?.textContent ?? null,
+  );
+}
+
 function requireBox(box: { x: number; y: number; width: number; height: number } | null) {
   if (!box) {
     throw new Error("element has no bounding box — it is not rendered");
@@ -631,6 +642,95 @@ test("reordering links reorders them for the visitor", async ({
   }
 });
 
+test("links can be reordered with the keyboard alone", async ({ page }) => {
+  const first = e2eTitle("kbd-first");
+  const second = e2eTitle("kbd-second");
+
+  const accessToken = await openDashboard(page);
+
+  // The write path is the same one the mouse test proves, so the ONLY thing
+  // that can make this test red is dnd-kit never handing `handleDragEnd` a
+  // neighbour as `over`. Recording the request separates "the keyboard never
+  // started a reorder" from "the reorder was sent and the server refused it".
+  const reorderRequests: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "PATCH" &&
+      request.url().includes("/links/reorder")
+    ) {
+      reorderRequests.push(request.url());
+    }
+  });
+
+  try {
+    await createLinkViaUi(page, first, externalUrl("kbd-first"));
+    await createLinkViaUi(page, second, externalUrl("kbd-second"));
+
+    // Only this spec's own rows: the nightly database is never reset, so the
+    // list also holds whatever other links the account already had.
+    const rows = page.getByRole("listitem").filter({ hasText: E2E_PREFIX });
+    await expect(rows).toHaveCount(2);
+    expect((await rows.allInnerTexts())[0]).toContain(first);
+
+    const grip = linkRow(page, first).getByRole("button", {
+      name: "Drag to reorder",
+    });
+    await grip.waitFor({ state: "visible" });
+    await grip.focus();
+    await expect(grip).toBeFocused();
+
+    // The documented dnd-kit sortable keyboard path: Space lifts, an arrow key
+    // moves the item past its neighbour, Space drops. No pointer is involved.
+    //
+    // Each step waits for what dnd-kit ANNOUNCES to assistive tech rather than
+    // for a delay, which is both the deterministic wait and the thing a
+    // screen-reader user actually hears:
+    //   "Draggable item <active> was moved over droppable area <over>."
+    await page.keyboard.press("Space");
+    await expect
+      .poll(() => dragAnnouncement(page), { timeout: 5_000 })
+      .toMatch(/was moved over droppable area/);
+
+    await page.keyboard.press("ArrowDown");
+    await expect
+      .poll(
+        async () => {
+          const [, active, over] =
+            /item (\S+) was moved over droppable area ([^.]+)\./.exec(
+              (await dragAnnouncement(page)) ?? "",
+            ) ?? [];
+          return active && over && active !== over ? "travelled" : "stuck";
+        },
+        {
+          timeout: 5_000,
+          message:
+            "ArrowDown never moved the lifted link over its neighbour — it is still its own droppable",
+        },
+      )
+      .toBe("travelled");
+
+    await page.keyboard.press("Space");
+
+    await expect
+      .poll(async () => (await rows.allInnerTexts())[0], { timeout: 10_000 })
+      .toContain(second);
+
+    expect(
+      reorderRequests,
+      "the keyboard drop never sent PATCH /links/reorder",
+    ).toHaveLength(1);
+
+    // Persistence, read back from the api rather than from the optimistic
+    // cache the drop just wrote.
+    const persisted = (await listOwnerLinks(accessToken))
+      .filter((link) => link.title.startsWith(E2E_PREFIX))
+      .map((link) => link.title);
+    expect(persisted).toEqual([second, first]);
+  } finally {
+    await sweepE2eLinks(accessToken);
+  }
+});
+
 test("a malformed URL is rejected with a message the user can see", async ({
   page,
 }) => {
@@ -836,3 +936,127 @@ test("@responsive a username nobody owns shows a not-found state", async ({
     await stranger.close();
   }
 });
+
+/**
+ * BUG-20260823-profile-login-tap-eaten.
+ *
+ * The theme toggle is `fixed right-4 top-3` and is anchored to the VIEWPORT
+ * (apps/web/src/App.tsx); the signed-out Login pill is `self-end` in normal flow
+ * inside the profile's centred `max-w-md | max-w-6xl` container
+ * (public-profile-page.tsx). They overlap at every width where the container's
+ * right edge reaches the viewport gutter — which is NOT phones-only:
+ * `MOBILE_QUERY` flips the two max-widths at 1024, so 1024-1152 laptops sit in
+ * the band too. A 390-only assertion passes against a still-broken laptop, so
+ * both widths are pinned here.
+ *
+ * These viewports are set explicitly rather than inherited, so the check is not
+ * tagged `@responsive` — it would only re-run the same two widths on the mobile
+ * project.
+ */
+const LOGIN_PILL_VIEWPORTS = [
+  { label: "phone", width: 390, height: 844 },
+  { label: "laptop", width: 1024, height: 768 },
+] as const;
+
+type PillHit = { x: number; y: number; where: string; owner: string };
+
+/**
+ * Who actually receives a tap at each edge and corner of the Login pill.
+ * `boundingBox()` only says where the pill IS; `elementFromPoint` says who gets
+ * the click, which is the thing the visitor experiences.
+ */
+async function loginPillHits(page: Page): Promise<PillHit[]> {
+  const login = page.getByRole("link", { name: "Login" });
+  await expect(login).toBeVisible();
+  const box = requireBox(await login.boundingBox());
+
+  // The pill is `rounded-full`, and `elementFromPoint` honours border-radius, so
+  // its literal bounding-box corners belong to nobody even when nothing covers
+  // it. Inset the columns by the corner radius (= half the height): that is
+  // exactly the span of the pill's flat top and bottom edges, which is the part
+  // a visitor can actually aim at.
+  const radius = box.height / 2;
+
+  const columns = [
+    ["left", box.x + radius],
+    ["centre", box.x + box.width / 2],
+    ["right", box.x + box.width - radius],
+  ] as const;
+  const rows = [
+    ["top", box.y + 1],
+    ["middle", box.y + box.height / 2],
+    ["bottom", box.y + box.height - 1],
+  ] as const;
+
+  const points = columns.flatMap(([column, x]) =>
+    rows.map(([row, y]) => ({ x, y, where: `${row}-${column}` })),
+  );
+
+  return page.evaluate(
+    (probe) =>
+      probe.map((point) => {
+        const element = document.elementFromPoint(point.x, point.y);
+        const owner = element?.closest("a, button");
+        const label = owner
+          ? `${owner.tagName.toLowerCase()}:${(
+              owner.getAttribute("aria-label") ??
+              owner.textContent ??
+              ""
+            ).trim()}`
+          : `bare:${element?.tagName.toLowerCase() ?? "none"}`;
+        return { ...point, owner: label };
+      }),
+    points,
+  );
+}
+
+for (const viewport of LOGIN_PILL_VIEWPORTS) {
+  test(`the whole Login pill is tappable on a public profile at ${viewport.width}px`, async ({
+    browser,
+  }) => {
+    // Two contexts, two navigations and a real click — comfortably past the
+    // 60s default on a cold dev server.
+    test.slow();
+
+    for (const theme of ["light", "dark"] as const) {
+      const stranger = await openStranger(browser, { theme });
+
+      try {
+        await stranger.page.setViewportSize({
+          width: viewport.width,
+          height: viewport.height,
+        });
+        await gotoSettled(stranger.page, PUBLIC_PATH);
+
+        const hits = await loginPillHits(stranger.page);
+        const stolen = hits.filter((hit) => hit.owner !== "a:Login");
+
+        expect(
+          stolen,
+          `${viewport.label} ${viewport.width}px ${theme}: part of the Login pill is covered by another control`,
+        ).toEqual([]);
+
+        // Geometry is the cause; this is the symptom the visitor reports —
+        // aiming at the sign-in CTA flips the colour theme instead, and the
+        // flip is persisted, so it outlives the page.
+        if (theme === "light") {
+          const login = stranger.page.getByRole("link", { name: "Login" });
+          const box = requireBox(await login.boundingBox());
+
+          await stranger.page.mouse.click(box.x + box.width / 2, box.y + 3);
+
+          await expect(stranger.page).toHaveURL(/\/$/);
+          expect(
+            await stranger.page.evaluate(
+              (key) => window.localStorage.getItem(key),
+              THEME_KEY,
+            ),
+            "tapping the Login pill changed the visitor's saved theme",
+          ).toBe("light");
+        }
+      } finally {
+        await stranger.close();
+      }
+    }
+  });
+}

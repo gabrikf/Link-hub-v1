@@ -1,4 +1,5 @@
 import type { Post } from "@repo/schemas";
+import { useTranslation } from "react-i18next";
 import { FiCheck, FiExternalLink, FiLock, FiTrash2 } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 import { SURFACE, SURFACE_INSET } from "../../../shared-components/surface";
@@ -27,7 +28,7 @@ type ReviewQueueItemProps = {
  * Deliberately renders the FULL body rather than an excerpt: approving is
  * consent to the exact text, and the content is frozen from then on, so there
  * is no "publish now, fix the wording later". There is no Edit control here by
- * design — see `IMMUTABLE_POST_REASON`, surfaced once at the top of the queue.
+ * design — see `posts.lockedBody`, surfaced once at the top of the queue.
  */
 export function ReviewQueueItem({
   post,
@@ -36,6 +37,7 @@ export function ReviewQueueItem({
   onApprove,
   onDelete,
 }: ReviewQueueItemProps) {
+  const { t } = useTranslation();
   const status = STATUS_META[post.status];
   const source = SOURCE_META[post.source];
   const facts = postMetadataFacts(post.metadata);
@@ -55,7 +57,7 @@ export function ReviewQueueItem({
             {source.label}
           </span>
           <span className="ml-auto text-xs text-zinc-400">
-            Created {formatPostDate(post.createdAt)}
+            {t("posts.createdOn", { date: formatPostDate(post.createdAt) })}
           </span>
         </div>
 
@@ -106,11 +108,11 @@ export function ReviewQueueItem({
             size="sm"
             fullWidth={false}
             isLoading={isApproving}
-            loadingLabel="Publishing..."
+            loadingLabel={t("common.publishing")}
             onClick={() => onApprove(post.id)}
           >
             <FiCheck className="h-4 w-4" aria-hidden="true" />
-            Approve &amp; publish
+            {t("posts.approveAndPublish")}
           </Button>
           <Button
             type="button"
@@ -118,14 +120,14 @@ export function ReviewQueueItem({
             size="sm"
             fullWidth={false}
             isLoading={isDeleting}
-            loadingLabel="Deleting..."
+            loadingLabel={t("common.deleting")}
             shouldHaveConfirmation
-            confirmationTitle="Delete this post?"
-            confirmationDescription="It is removed permanently and never becomes public. The tool that wrote it can generate a new one."
+            confirmationTitle={t("posts.deleteThisPost")}
+            confirmationDescription={t("posts.deleteMachineWritten")}
             onClick={() => onDelete(post.id)}
           >
             <FiTrash2 className="h-4 w-4" aria-hidden="true" />
-            Delete
+            {t("common.delete")}
           </Button>
           {post.externalUrl ? (
             <a
@@ -135,7 +137,7 @@ export function ReviewQueueItem({
               className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-violet-600 dark:hover:text-violet-300"
             >
               <FiExternalLink className="h-4 w-4" aria-hidden="true" />
-              Link
+              {t("common.link")}
             </a>
           ) : isMachineAuthored(post.source) ? (
             // The single mutable field on a generated post: the body stays

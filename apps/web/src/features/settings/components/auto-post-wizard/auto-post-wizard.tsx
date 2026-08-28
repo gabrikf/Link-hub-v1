@@ -8,6 +8,7 @@ import type {
 } from "@repo/schemas";
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiCheckCircle, FiCircle, FiPlus } from "react-icons/fi";
 import { useMyPosts } from "../../../../lib/post-queries";
 import { reportError } from "../../../../lib/report-error";
@@ -39,7 +40,7 @@ import { SourceStep } from "./source-step";
 import { ConnectionVerifyBody, McpVerifyBody } from "./verify-step";
 import {
   defaultLocalDisplayName,
-  DEFAULT_FORGE_DISPLAY_NAMES,
+  getDefaultForgeDisplayNames,
   type ForgeProvider,
   type WizardSourceKey,
   type WizardStepKey,
@@ -52,7 +53,9 @@ const VERIFY_POLL_MS = 5_000;
 const cx = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
 
-function sourceKeyForProvider(provider: GitConnectionProvider): WizardSourceKey {
+function sourceKeyForProvider(
+  provider: GitConnectionProvider,
+): WizardSourceKey {
   if (provider === "github" || provider === "gitlab") {
     return "forge";
   }
@@ -75,6 +78,7 @@ export function AutoPostWizard({
   onOpenChange,
   resumeConnection = null,
 }: AutoPostWizardProps) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<WizardStepKey | "done">("source");
   const [sourceKey, setSourceKey] = useState<WizardSourceKey | null>(null);
   const [forgeProvider, setForgeProvider] = useState<ForgeProvider>("github");
@@ -299,8 +303,8 @@ export function AutoPostWizard({
     }
     setDisplayName(
       key === "forge"
-        ? DEFAULT_FORGE_DISPLAY_NAMES[forgeProvider]
-        : defaultLocalDisplayName(key, nextKind),
+        ? getDefaultForgeDisplayNames(t)[forgeProvider]
+        : defaultLocalDisplayName(key, nextKind, t),
     );
   };
 
@@ -315,7 +319,7 @@ export function AutoPostWizard({
   const handleForgeProviderChange = (provider: ForgeProvider) => {
     setForgeProvider(provider);
     if (!nameEdited) {
-      setDisplayName(DEFAULT_FORGE_DISPLAY_NAMES[provider]);
+      setDisplayName(getDefaultForgeDisplayNames(t)[provider]);
     }
   };
 
@@ -342,7 +346,7 @@ export function AutoPostWizard({
 
     const trimmedName = displayName.trim();
     if (trimmedName.length === 0) {
-      setNameError("Give this source a name so you can recognize it later.");
+      setNameError(t("settings.connectionDialog.nameHelp"));
       return;
     }
 
@@ -387,7 +391,7 @@ export function AutoPostWizard({
             action: "settings.wizard-update-connection",
             extra: { kind },
           });
-          setCreateError("Could not update that source. Please try again.");
+          setCreateError(t("wizard.updateSourceFailed"));
           return;
         }
       }
@@ -443,13 +447,14 @@ export function AutoPostWizard({
         effectiveProvider
       ) {
         setCreateError(
-          `You already have a ${PROVIDER_LABELS[effectiveProvider]} ` +
-            `(${KIND_LABELS[kind]}) source. Use Finish setup on that row ` +
-            "instead, or disconnect it first.",
+          t("wizard.duplicateSource", {
+            providerLabel: PROVIDER_LABELS[effectiveProvider],
+            kindLabel: KIND_LABELS[kind],
+          }),
         );
         return;
       }
-      setCreateError("Could not connect that source. Please try again.");
+      setCreateError(t("settings.connectionDialog.connectFailed"));
     }
   };
 
@@ -480,9 +485,7 @@ export function AutoPostWizard({
         action: "settings.wizard-save-schedule",
         extra: { cadence, autoPostEnabled },
       });
-      setSaveError(
-        "Could not save the schedule. Your source stays connected — try again.",
-      );
+      setSaveError(t("wizard.scheduleSaveFailed"));
     }
   };
 
@@ -492,10 +495,14 @@ export function AutoPostWizard({
     : previewQuery.data?.status === "ready";
 
   const tokenNameHint = isMcp
-    ? "Coding agent (MCP)"
-    : `${displayName.trim() || "Work laptop"} ${
-        sourceKey === "extractor" ? "extractor" : "uploads"
-      }`;
+    ? t("wizard.namePreset.codingAgent")
+    : sourceKey === "extractor"
+      ? t("wizard.token.nameHintExtractor", {
+          displayName: displayName.trim() || t("wizard.namePreset.workLaptop"),
+        })
+      : t("wizard.token.nameHintUploads", {
+          displayName: displayName.trim() || t("wizard.namePreset.workLaptop"),
+        });
 
   /* ------------------------------------------------------------------ *
    * Footer buttons per step
@@ -511,7 +518,7 @@ export function AutoPostWizard({
             fullWidth={false}
             onClick={resetAndClose}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
@@ -524,10 +531,10 @@ export function AutoPostWizard({
               updateConnection.isPending ||
               deleteConnection.isPending
             }
-            loadingLabel="Connecting..."
+            loadingLabel={t("common.connecting")}
             onClick={handleSourceNext}
           >
-            Next
+            {t("common.next")}
           </Button>
         </>
       );
@@ -541,14 +548,14 @@ export function AutoPostWizard({
             fullWidth={false}
             onClick={() => setStep("source")}
           >
-            Back
+            {t("common.back")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             onClick={() => setStep("verify")}
           >
-            Next
+            {t("common.next")}
           </Button>
         </>
       );
@@ -562,7 +569,7 @@ export function AutoPostWizard({
             fullWidth={false}
             onClick={() => setStep("connect")}
           >
-            Back
+            {t("common.back")}
           </Button>
           {verified ? (
             <Button
@@ -570,7 +577,7 @@ export function AutoPostWizard({
               fullWidth={false}
               onClick={() => setStep("preview")}
             >
-              Continue
+              {t("common.continue")}
             </Button>
           ) : (
             <Button
@@ -579,7 +586,7 @@ export function AutoPostWizard({
               fullWidth={false}
               onClick={() => setStep("preview")}
             >
-              Skip for now
+              {t("resumeImport.skipForNow")}
             </Button>
           )}
         </>
@@ -594,14 +601,14 @@ export function AutoPostWizard({
             fullWidth={false}
             onClick={() => setStep("verify")}
           >
-            Back
+            {t("common.back")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             onClick={() => setStep("schedule")}
           >
-            Next
+            {t("common.next")}
           </Button>
         </>
       );
@@ -615,16 +622,16 @@ export function AutoPostWizard({
             fullWidth={false}
             onClick={() => setStep("preview")}
           >
-            Back
+            {t("common.back")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             isLoading={updateConnection.isPending}
-            loadingLabel="Saving..."
+            loadingLabel={t("common.saving")}
             onClick={handleFinish}
           >
-            Finish
+            {t("common.finish")}
           </Button>
         </>
       );
@@ -639,10 +646,10 @@ export function AutoPostWizard({
           onClick={resetState}
         >
           <FiPlus className="h-4 w-4" aria-hidden="true" />
-          Add another source
+          {t("wizard.addAnotherSource")}
         </Button>
         <Button type="button" fullWidth={false} onClick={resetAndClose}>
-          Done
+          {t("common.done")}
         </Button>
       </>
     );
@@ -653,15 +660,15 @@ export function AutoPostWizard({
    * ------------------------------------------------------------------ */
 
   const checklist: Array<{ label: string; done: boolean }> = [
-    { label: "Source connected", done: isMcp || created !== null },
-    { label: "First data received", done: verified },
-    { label: "Preview seen", done: Boolean(previewSeen) },
+    { label: t("wizard.stepSourceConnected"), done: isMcp || created !== null },
+    { label: t("wizard.stepFirstData"), done: verified },
+    { label: t("wizard.stepPreviewSeen"), done: Boolean(previewSeen) },
     isMcp
       ? {
-          label: "Weekly rhythm — run weekly_update once a week",
+          label: t("wizard.stepWeeklyRhythm"),
           done: false,
         }
-      : { label: "Schedule set", done: scheduleSaved },
+      : { label: t("wizard.stepScheduleSet"), done: scheduleSaved },
   ];
 
   return (
@@ -674,8 +681,8 @@ export function AutoPostWizard({
           onOpenChange(true);
         }
       }}
-      title="Add an activity source"
-      description="Five short steps: pick a source, connect it, watch the first data arrive, read a real preview post, set the rhythm."
+      title={t("wizard.title")}
+      description={t("wizard.subtitle")}
       contentClassName="max-w-2xl"
     >
       <div className="space-y-4">
@@ -783,8 +790,11 @@ export function AutoPostWizard({
             <div className="anim-scale-in space-y-3">
               <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                 {isMcp
-                  ? "Your agent is wired up."
-                  : `${created?.displayName ?? "Your source"} is connected.`}
+                  ? t("wizard.agentWiredUp")
+                  : t("wizard.displayNameConnected", {
+                      displayName:
+                        created?.displayName ?? t("wizard.yourSource"),
+                    })}
               </p>
               <ul className="space-y-1.5">
                 {checklist.map((item) => (
@@ -817,9 +827,7 @@ export function AutoPostWizard({
               </ul>
               {!verified ? (
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  No data yet is fine — the source keeps listening, and the
-                  connection row grows a Finish setup button that reopens this
-                  check.
+                  {t("wizard.noDataYetFine")}
                 </p>
               ) : null}
             </div>

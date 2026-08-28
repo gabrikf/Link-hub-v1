@@ -98,6 +98,53 @@ describe("ApprovePostUseCase", () => {
       sut.execute({ userId: "owner", postId: "missing" }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
+
+  // BUG-20260822-agent-self-publish: approving is the human's act of consent to
+  // machine-written text. A PAT is software, so it may not perform it — even
+  // though the PAT belongs to the same user and holds `posts:write`.
+  describe("only a real session may release a post from review", () => {
+    it("throws ForbiddenError when a PAT approves a pending_review post", async () => {
+      const post = await seedPendingReview();
+
+      await expect(
+        sut.execute({ userId: "owner", postId: post.id, authType: "pat" }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+
+      const stored = await postsRepository.findById(post.id);
+      expect(stored!.status).toBe("pending_review");
+    });
+
+    it("still lets the owner's real session approve (authType 'jwt')", async () => {
+      const post = await seedPendingReview();
+
+      const result = await sut.execute({
+        userId: "owner",
+        postId: post.id,
+        authType: "jwt",
+      });
+
+      expect(result.status).toBe("published");
+    });
+
+    it("still lets a PAT publish a draft — a draft was never awaiting consent", async () => {
+      const draft = makePost({
+        userId: "owner",
+        source: "mcp",
+        body: "draft",
+        status: "draft",
+        publishedAt: null,
+      });
+      await postsRepository.create(draft);
+
+      const result = await sut.execute({
+        userId: "owner",
+        postId: draft.id,
+        authType: "pat",
+      });
+
+      expect(result.status).toBe("published");
+    });
+  });
 });
 
 describe("ApprovePostUseCase — search freshness", () => {

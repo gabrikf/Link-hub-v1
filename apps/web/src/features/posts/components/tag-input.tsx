@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { FiX } from "react-icons/fi";
 
 type TagInputProps = {
@@ -15,9 +16,11 @@ export function TagInput({
   label,
   value,
   onChange,
-  placeholder = "Add a tag and press Enter",
+  placeholder,
   max = 12,
 }: TagInputProps) {
+  const { t } = useTranslation();
+  const effectivePlaceholder = placeholder ?? t("posts.addTagPlaceholder");
   const [draft, setDraft] = useState("");
 
   const commit = (raw: string) => {
@@ -61,7 +64,7 @@ export function TagInput({
             #{tag}
             <button
               type="button"
-              aria-label={`Remove ${tag}`}
+              aria-label={t("posts.removeTag", { tag })}
               onClick={() => removeAt(index)}
               className="text-violet-500 hover:text-violet-800 dark:hover:text-violet-100"
             >
@@ -72,7 +75,9 @@ export function TagInput({
         <input
           id={id}
           value={draft}
-          placeholder={value.length >= max ? "Tag limit reached" : placeholder}
+          placeholder={
+            value.length >= max ? t("posts.tagLimitReached") : effectivePlaceholder
+          }
           disabled={value.length >= max}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}

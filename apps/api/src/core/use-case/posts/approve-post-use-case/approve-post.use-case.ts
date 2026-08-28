@@ -5,12 +5,21 @@ import {
 import { IPostRepository } from "../../../repositories/post/post-repository.js";
 import { IResumesRepository } from "../../../repositories/resume/resume-repository.js";
 import { EnqueueResumeEmbeddingUseCase } from "../../resumes/enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
-import { assertPostStatusTransition } from "../shared/post-status-rules.js";
+import {
+  assertPostStatusTransition,
+  assertReviewReleaseIsHumanConsent,
+} from "../shared/post-status-rules.js";
 import { reembedResumeAfterPost } from "../shared/reembed-resume-after-post.js";
 
 export interface IApprovePostInput {
   userId: string;
   postId: string;
+  /**
+   * Which credential the caller used. Approving is the human half of the loop,
+   * so it has to be refused for a PAT — the token belongs to the same user,
+   * but the software holding it is not the user.
+   */
+  authType?: "jwt" | "pat";
 }
 
 /**
@@ -47,6 +56,7 @@ export class ApprovePostUseCase {
     }
 
     assertPostStatusTransition(post.status, "published");
+    assertReviewReleaseIsHumanConsent(post.status, "published", input.authType);
 
     post.updateContent({
       status: "published",

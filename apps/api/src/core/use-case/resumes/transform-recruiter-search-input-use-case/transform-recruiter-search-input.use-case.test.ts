@@ -7,6 +7,7 @@ import {
   RecruiterQueryConversionOutput,
 } from "../../../providers/query-conversion/recruiter-query-conversion-provider.js";
 import { InMemoryResumeSearchRepository } from "../../../repositories/resume-search/in-memory-resume-search-repository.js";
+import { InMemoryUserPreferencesRepository } from "../../../repositories/user-preferences/in-memory-user-preferences-repository.js";
 import { searchTestEmbedder, seedCorpus } from "../search-testing/search-corpus.js";
 import { SearchResumesByRecruiterQueryUseCase } from "../search-resumes-by-recruiter-query-use-case/search-resumes-by-recruiter-query.use-case.js";
 import { TransformRecruiterSearchInputUseCase } from "./transform-recruiter-search-input.use-case.js";
@@ -47,11 +48,20 @@ function build(conversion: IRecruiterQueryConversionProvider) {
     repository,
   );
 
+  const preferences = new InMemoryUserPreferencesRepository();
+
   return {
     embedding,
-    sut: new TransformRecruiterSearchInputUseCase(conversion, search),
+    preferences,
+    sut: new TransformRecruiterSearchInputUseCase(
+      conversion,
+      search,
+      preferences,
+    ),
   };
 }
+
+const RECRUITER_ID = "recruiter-1";
 
 describe("TransformRecruiterSearchInputUseCase", () => {
   let conversion: EchoConversionProvider;
@@ -64,6 +74,7 @@ describe("TransformRecruiterSearchInputUseCase", () => {
     const { sut } = build(conversion);
 
     const result = await sut.execute({
+      userId: RECRUITER_ID,
       chatPrompt: "react node.js engineer",
       sources: ["posts"],
     });
@@ -85,6 +96,7 @@ describe("TransformRecruiterSearchInputUseCase", () => {
     const hugeAttachment = "job description ".repeat(10_000);
 
     const result = await sut.execute({
+      userId: RECRUITER_ID,
       chatPrompt: "senior react engineer",
       attachmentText: hugeAttachment,
     });
@@ -104,6 +116,7 @@ describe("TransformRecruiterSearchInputUseCase", () => {
     const { sut } = build(new FailingConversionProvider());
 
     const result = await sut.execute({
+      userId: RECRUITER_ID,
       chatPrompt: "senior react engineer",
       attachmentText: "x".repeat(50_000),
     });
@@ -112,5 +125,102 @@ describe("TransformRecruiterSearchInputUseCase", () => {
     expect(result.input.semanticQuery.startsWith("senior react engineer")).toBe(
       true,
     );
+  });
+
+  /**
+   * The recruiter half of the language plumbing. What matters here is only
+   * that a language reaches the provider — what the provider then does with it
+   * is D6, asserted in
+   * `apps/api/src/infra/providers/openai-recruiter-query-conversion-provider.test.ts`.
+   */
+  describe("response language", () => {
+    it("resolves from the recruiter's own prompt when detection is confident", async () => {
+      const { sut } = build(conversion);
+
+      await sut.execute({
+        userId: RECRUITER_ID,
+        chatPrompt: `
+          Preciso contratar uma pessoa desenvolvedora back-end com bastante
+          experiência em sistemas distribuídos e em bancos de dados relacionais.
+          O time trabalha de forma remota e a vaga é para atuar junto com o
+          time de produto na construção de uma plataforma de pagamentos.
+        `,
+      });
+
+      expect(conversion.lastInput?.language).toBe("pt-BR");
+    });
+
+    it("falls back to the recruiter's stored preference, then to Accept-Language, then to en-US", async () => {
+      const { sut, preferences } = build(conversion);
+
+      // Nothing to detect ("sre" is three characters), no preference row, no
+      // header: the product's source language.
+      await sut.execute({ userId: RECRUITER_ID, chatPrompt: "sre" });
+      expect(conversion.lastInput?.language).toBe("en-US");
+
+      // Still nothing to detect, but the device said Spanish.
+      await sut.execute({
+        userId: RECRUITER_ID,
+        chatPrompt: "sre",
+        acceptLanguage: "es-ES,es;q=0.9",
+      });
+      expect(conversion.lastInput?.language).toBe("es-ES");
+
+      // An explicit preference beats the device.
+      const stored = await preferences.provisionDefaults(RECRUITER_ID);
+      stored.applyUpdate({ language: "pt-BR" });
+      await preferences.save(stored);
+
+      await sut.execute({
+        userId: RECRUITER_ID,
+        chatPrompt: "sre",
+        acceptLanguage: "es-ES,es;q=0.9",
+      });
+      expect(conversion.lastInput?.language).toBe("pt-BR");
+    });
+
+    it("does not let an uploaded job description decide the recruiter's language", async () => {
+      const { sut, preferences } = build(conversion);
+
+      const stored = await preferences.provisionDefaults(RECRUITER_ID);
+      stored.applyUpdate({ language: "pt-BR" });
+      await preferences.save(stored);
+
+      await sut.execute({
+        userId: RECRUITER_ID,
+        // A JD is somebody else's prose. A Brazilian recruiter pasting an
+        // English job spec has not switched languages.
+        attachmentText: `
+          We are looking for a senior backend engineer with experience in
+          distributed systems and relational databases. You will work closely
+          with the product team on a payments platform used by thousands of
+          customers every day.
+        `,
+      });
+
+      expect(conversion.lastInput?.language).toBe("pt-BR");
+    });
+
+    it("never throws on a malformed Accept-Language", async () => {
+      const { sut } = build(conversion);
+
+      await expect(
+        sut.execute({
+          userId: RECRUITER_ID,
+          chatPrompt: "sre",
+          acceptLanguage: "!!!;;;q=;;;",
+        }),
+      ).resolves.toBeDefined();
+
+      expect(conversion.lastInput?.language).toBe("en-US");
+    });
+
+    it("does not write a preferences row as a side effect of searching", async () => {
+      const { sut, preferences } = build(conversion);
+
+      await sut.execute({ userId: RECRUITER_ID, chatPrompt: "sre" });
+
+      expect(preferences.count()).toBe(0);
+    });
   });
 });

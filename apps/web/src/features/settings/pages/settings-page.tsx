@@ -1,6 +1,7 @@
 import type { ApiToken, CreateApiTokenOutput, GitConnection } from "@repo/schemas";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiChevronDown,
   FiHelpCircle,
@@ -44,6 +45,7 @@ import {
 import { readStashedToken, stashToken } from "../lib/token-stash";
 
 function StatusBadge({ token }: { token: ApiToken }) {
+  const { t } = useTranslation();
   const status = getTokenStatus(token);
   // Shared `BADGE` tones — these were a third private definition of
   // success/warning/neutral, so "Active" here and "Current" on a work-history
@@ -54,9 +56,9 @@ function StatusBadge({ token }: { token: ApiToken }) {
     expired: BADGE.warning,
   };
   const label: Record<typeof status, string> = {
-    active: "Active",
-    revoked: "Revoked",
-    expired: "Expired",
+    active: t("settings.token.active"),
+    revoked: t("settings.token.revoked"),
+    expired: t("settings.token.expired"),
   };
   return (
     <span
@@ -76,6 +78,7 @@ function TokenRow({
   onRevoke: (id: string) => void;
   isRevoking: boolean;
 }) {
+  const { t } = useTranslation();
   const isInactive = Boolean(token.revokedAt);
   return (
     <li
@@ -107,19 +110,19 @@ function TokenRow({
           </div>
           <dl className="flex flex-wrap gap-x-5 gap-y-1 pt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
             <div className="flex gap-1">
-              <dt>Created</dt>
+              <dt>{t("settings.token.created")}</dt>
               <dd className="text-zinc-700 dark:text-zinc-300">
                 {formatDate(token.createdAt)}
               </dd>
             </div>
             <div className="flex gap-1">
-              <dt>Last used</dt>
+              <dt>{t("settings.token.lastUsed")}</dt>
               <dd className="text-zinc-700 dark:text-zinc-300">
-                {formatLastUsed(token.lastUsedAt)}
+                {formatLastUsed(token.lastUsedAt, t)}
               </dd>
             </div>
             <div className="flex gap-1">
-              <dt>Expires</dt>
+              <dt>{t("settings.token.expires")}</dt>
               <dd className="text-zinc-700 dark:text-zinc-300">
                 {formatDate(token.expiresAt)}
               </dd>
@@ -135,14 +138,14 @@ function TokenRow({
             fullWidth={false}
             className="shrink-0"
             isLoading={isRevoking}
-            loadingLabel="Revoking..."
+            loadingLabel={t("settings.token.revoking")}
             shouldHaveConfirmation
-            confirmationTitle="Revoke this token?"
-            confirmationDescription="Any tool using this token will immediately lose access. This cannot be undone."
+            confirmationTitle={t("settings.token.revokeTitle")}
+            confirmationDescription={t("settings.token.revokeBody")}
             onClick={() => onRevoke(token.id)}
           >
             <FiTrash2 className="h-4 w-4" aria-hidden="true" />
-            Revoke
+            {t("settings.token.revoke")}
           </Button>
         ) : null}
       </div>
@@ -197,9 +200,10 @@ function TokenRowSkeleton() {
 }
 
 function TokenListSkeleton() {
+  const { t } = useTranslation();
   return (
     <>
-      <LoadingLabel>Loading tokens</LoadingLabel>
+      <LoadingLabel>{t("settings.token.loading")}</LoadingLabel>
       <ul className="space-y-3">
         {Array.from({ length: 2 }, (_, index) => (
           <TokenRowSkeleton key={index} />
@@ -212,17 +216,8 @@ function TokenListSkeleton() {
 /** Scroll/anchor target for the collapsed advanced area. */
 export const ADVANCED_SETTINGS_ID = "advanced-settings";
 
-/**
- * Why these controls exist, said once, where they now live.
- *
- * The disclosure level is not decoration: the server rejects a post that
- * violates it. Demoting it behind a disclosure without saying that would read
- * as "we hid the useless stuff".
- */
-const ADVANCED_INTRO =
-  "These control what a post is allowed to contain, and the credentials your tools authenticate with. The wizard sets sane defaults — you only need these to change them.";
-
 export function SettingsPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
@@ -302,10 +297,10 @@ export function SettingsPage() {
 
       <header className="anim-fade-up space-y-1">
         <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">
-          Settings
+          {t("nav.settings")}
         </h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Connect your AI coding tools to LinkHub and let them post for you.
+          {t("settings.connectSubtitle")}
         </p>
       </header>
 
@@ -321,11 +316,10 @@ export function SettingsPage() {
             </span>
             <div className="space-y-1">
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                Automatic posts
+                {t("settings.automaticPosts")}
               </h2>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Your work becomes a weekly post. Metadata only — never code,
-                never names.
+                {t("settings.automaticPostsSubtitle")}
               </p>
             </div>
           </div>
@@ -338,7 +332,7 @@ export function SettingsPage() {
               onClick={() => setHowItWorksOpen(true)}
             >
               <FiHelpCircle className="h-4 w-4" aria-hidden="true" />
-              How this works
+              {t("settings.howThisWorks")}
             </Button>
             <Button
               type="button"
@@ -347,7 +341,7 @@ export function SettingsPage() {
               onClick={openWizard}
             >
               <FiPlus className="h-4 w-4" aria-hidden="true" />
-              Add source
+              {t("settings.addSource")}
             </Button>
           </div>
         </div>
@@ -369,7 +363,7 @@ export function SettingsPage() {
           <summary
             className={`flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
           >
-            Manual agent setup &amp; snippets
+            {t("settings.manualSetup")}
             <FiChevronDown
               className="ml-auto h-4 w-4 shrink-0 transition group-open:rotate-180"
               aria-hidden="true"
@@ -394,10 +388,10 @@ export function SettingsPage() {
           className={`flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
         >
           <FiSliders className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Advanced settings
+          {t("settings.advanced")}
           {/* Named contents, or a collapsed disclosure is just a mystery box. */}
           <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
-            Disclosure rules and access tokens
+            {t("settings.advancedSubtitle")}
           </span>
           <FiChevronDown
             className="ml-auto h-4 w-4 shrink-0 transition group-open:rotate-180"
@@ -406,8 +400,15 @@ export function SettingsPage() {
         </summary>
 
         <div className="mt-4 space-y-6">
+          {/*
+           * Why these controls exist, said once, where they now live.
+           *
+           * The disclosure level is not decoration: the server rejects a post
+           * that violates it. Demoting it behind a disclosure without saying
+           * that would read as "we hid the useless stuff".
+           */}
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {ADVANCED_INTRO}
+            {t("settings.advancedHelp")}
           </p>
 
           <DisclosurePanel enabled={hasSession} />
@@ -420,7 +421,7 @@ export function SettingsPage() {
                   aria-hidden="true"
                 />
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Personal access tokens
+                  {t("settings.token.sectionTitle")}
                 </h2>
               </div>
               {/* Moved off the page header: the wizard mints the token each
@@ -435,7 +436,7 @@ export function SettingsPage() {
                 onClick={() => setDialogOpen(true)}
               >
                 <FiPlus className="h-4 w-4" aria-hidden="true" />
-                Create token
+                {t("settings.token.create")}
               </Button>
             </div>
 
@@ -443,7 +444,7 @@ export function SettingsPage() {
               <TokenListSkeleton />
             ) : tokensQuery.isError ? (
               <p className="text-sm text-red-600 dark:text-red-400">
-                Could not load your tokens. Please try again.
+                {t("settings.token.loadFailed")}
               </p>
             ) : (
               <>
@@ -456,8 +457,8 @@ export function SettingsPage() {
                         ? // Saying "no tokens yet" here would be a lie the
                           // user can disprove — they created every one of
                           // these and revoked them.
-                          "No active tokens. Every token on this account has been revoked."
-                        : "You don't have any tokens yet. Create one to let your AI tools post to LinkHub."}
+                          t("settings.token.allRevoked")
+                        : t("settings.token.empty")}
                     </p>
                     <Button
                       type="button"
@@ -468,8 +469,8 @@ export function SettingsPage() {
                     >
                       <FiPlus className="h-4 w-4" aria-hidden="true" />
                       {revokedTokens.length > 0
-                        ? "Create a token"
-                        : "Create your first token"}
+                        ? t("settings.token.createArticle")
+                        : t("settings.token.createFirst")}
                     </Button>
                   </div>
                 ) : null}
@@ -503,8 +504,10 @@ export function SettingsPage() {
                     onClick={() => setShowRevoked((value) => !value)}
                   >
                     {showRevoked
-                      ? "Hide revoked"
-                      : `Show ${revokedTokens.length} revoked`}
+                      ? t("settings.token.hideRevoked")
+                      : t("settings.token.showRevoked", {
+                          count: revokedTokens.length,
+                        })}
                   </Button>
                 ) : null}
               </>

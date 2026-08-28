@@ -1,5 +1,6 @@
 import type { ProfileBlock, ProfileViewport } from "@repo/schemas";
 import { useCallback, useMemo, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   GridLayout,
   useContainerWidth,
@@ -291,8 +292,11 @@ export function EditorGrid({
   rowHeight = GRID_ROW_HEIGHT,
   onChange,
   renderCard,
-  emptyMessage = "No blocks here yet.",
+  emptyMessage,
 }: EditorGridProps) {
+  const { t } = useTranslation();
+  const resolvedEmptyMessage = emptyMessage ?? t("layout.noBlocksHere");
+
   // `mounted` gates the grid until the container width has actually been
   // measured, avoiding the first-paint overflow flash from the 1280px default.
   const { width, containerRef, mounted } = useContainerWidth();
@@ -380,7 +384,7 @@ export function EditorGrid({
         <div
           className={`px-4 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400 ${SURFACE_EMPTY}`}
         >
-          {emptyMessage}
+          {resolvedEmptyMessage}
         </div>
       ) : mounted ? (
         <GridLayout

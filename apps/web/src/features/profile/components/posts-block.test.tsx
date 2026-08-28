@@ -38,6 +38,7 @@ const makePost = (overrides: Partial<Post>): Post =>
   }) as Post;
 
 const postsLayout = (limit?: number): ProfileLayout => ({
+  tabsEnabled: true,
   tabs: [{ id: "tab-1", title: "One", order: 0 }],
   blocks: [
     {
@@ -67,6 +68,19 @@ const renderPostsBlock = (limit?: number) =>
       workExperiences={[]}
     />,
   );
+
+// The public Posts block renders an excerpt instead of the full body when the
+// owner sets its layout to "grid".
+const gridPostsLayout = (): ProfileLayout => {
+  const layout = postsLayout();
+  return {
+    ...layout,
+    blocks: layout.blocks.map((block) => ({
+      ...block,
+      config: { layout: "grid" as const },
+    })),
+  };
+};
 
 afterEach(() => usePublicPosts.mockReset());
 
@@ -115,9 +129,7 @@ describe("PostsBlock", () => {
 
     renderPostsBlock();
 
-    expect(
-      screen.getByText(/could not load posts/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/could not load posts/i)).toBeInTheDocument();
     expect(
       screen.queryByText(/no posts published yet/i),
     ).not.toBeInTheDocument();
@@ -133,6 +145,37 @@ describe("PostsBlock", () => {
     renderPostsBlock();
 
     expect(screen.getByText(/no posts published yet/i)).toBeInTheDocument();
+  });
+
+  it("shows the grid excerpt with the author's hyphens intact", () => {
+    usePublicPosts.mockReturnValue({
+      data: [
+        makePost({
+          id: "a",
+          title: "Checkout rewrite",
+          body: "Rebuilt the front-end of our checkout between 2023-2024.",
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+    });
+
+    render(
+      <ProfileBlocks
+        layout={gridPostsLayout()}
+        viewport="pc"
+        profile={profile}
+        links={[]}
+        resume={null}
+        workExperiences={[]}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Rebuilt the front-end of our checkout between 2023-2024.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("respects the configured limit and only renders that many cards", () => {

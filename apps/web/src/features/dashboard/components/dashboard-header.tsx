@@ -1,6 +1,9 @@
+import { useTranslation } from "react-i18next";
 import { FiLayout } from "react-icons/fi";
 
 export function DashboardHeader() {
+  const { t } = useTranslation();
+
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex gap-2 items-center">
@@ -9,10 +12,10 @@ export function DashboardHeader() {
         </span>
         <div className="flex flex-col">
           <h1 className="flex items-center gap-1 text-lg font-semibold">
-            Dashboard
+            {t("nav.dashboard")}
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Manage your link collection.
+            {t("dashboard.subtitle")}
           </p>
         </div>
       </div>

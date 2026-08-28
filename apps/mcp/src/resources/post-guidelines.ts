@@ -153,8 +153,9 @@ capability, and none of them identify an employer:
 - **Anything inferred from the working tree.** Do not read the employer off a
   git remote, an npm scope (\`@acme/ui\`), a directory path
   (\`~/work/acme/api\`), a code comment, a \`CODEOWNERS\` file or a commit
-  trailer. Use \`get_work_context\` — it returns the history already redacted to
-  the user's level, and it is the only sanctioned source.
+  trailer. Use \`get_work_context\` — the only sanctioned source, and the one
+  place the user's blocked employer and client names have already been stripped.
+  Nothing else on this list is stripped anywhere; keeping it out is your job.
 
 **Rewriting, not deleting.** A blocked term is not a dead post. "Rebuilt Acme
 Corp's checkout" becomes "Rebuilt a high-traffic e-commerce checkout flow" —

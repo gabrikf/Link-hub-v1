@@ -22,6 +22,7 @@ import {
   FaYoutube,
 } from "react-icons/fa6";
 import { FiGlobe, FiLink2 } from "react-icons/fi";
+import i18n from "../i18n";
 
 export type LinkIconOption = {
   value: LinkIcon;
@@ -34,140 +35,180 @@ export type LinkIconOption = {
 export const LINK_ICON_OPTIONS: LinkIconOption[] = [
   {
     value: "youtube",
-    label: "YouTube",
+    get label() {
+      return i18n.t("enum.platform.youtube");
+    },
     Icon: FaYoutube,
     color: "#FF0000",
     backgroundColor: "#FF000020",
   },
   {
     value: "instagram",
-    label: "Instagram",
+    get label() {
+      return i18n.t("enum.platform.instagram");
+    },
     Icon: FaInstagram,
     color: "#E4405F",
     backgroundColor: "#E4405F20",
   },
   {
     value: "x-twitter",
-    label: "X (Twitter)",
+    get label() {
+      return i18n.t("enum.platform.x");
+    },
     Icon: FaXTwitter,
     color: "var(--link-icon-x-twitter-fg)",
     backgroundColor: "var(--link-icon-x-twitter-bg)",
   },
   {
     value: "linkedin",
-    label: "LinkedIn",
+    get label() {
+      return i18n.t("enum.platform.linkedin");
+    },
     Icon: FaLinkedin,
     color: "#0A66C2",
     backgroundColor: "#0A66C220",
   },
   {
     value: "github",
-    label: "GitHub",
+    get label() {
+      return i18n.t("enum.platform.github");
+    },
     Icon: FaGithub,
     color: "var(--link-icon-github-fg)",
     backgroundColor: "var(--link-icon-github-bg)",
   },
   {
     value: "tiktok",
-    label: "TikTok",
+    get label() {
+      return i18n.t("enum.platform.tiktok");
+    },
     Icon: FaTiktok,
     color: "var(--link-icon-tiktok-fg)",
     backgroundColor: "var(--link-icon-tiktok-bg)",
   },
   {
     value: "facebook",
-    label: "Facebook",
+    get label() {
+      return i18n.t("enum.platform.facebook");
+    },
     Icon: FaFacebook,
     color: "#1877F2",
     backgroundColor: "#1877F220",
   },
   {
     value: "discord",
-    label: "Discord",
+    get label() {
+      return i18n.t("enum.platform.discord");
+    },
     Icon: FaDiscord,
     color: "#5865F2",
     backgroundColor: "#5865F220",
   },
   {
     value: "twitch",
-    label: "Twitch",
+    get label() {
+      return i18n.t("enum.platform.twitch");
+    },
     Icon: FaTwitch,
     color: "#9146FF",
     backgroundColor: "#9146FF20",
   },
   {
     value: "pinterest",
-    label: "Pinterest",
+    get label() {
+      return i18n.t("enum.platform.pinterest");
+    },
     Icon: FaPinterest,
     color: "#E60023",
     backgroundColor: "#E6002320",
   },
   {
     value: "reddit",
-    label: "Reddit",
+    get label() {
+      return i18n.t("enum.platform.reddit");
+    },
     Icon: FaReddit,
     color: "#FF4500",
     backgroundColor: "#FF450020",
   },
   {
     value: "snapchat",
-    label: "Snapchat",
+    get label() {
+      return i18n.t("enum.platform.snapchat");
+    },
     Icon: FaSnapchat,
     color: "#FFF200",
     backgroundColor: "var(--link-icon-snapchat-bg)",
   },
   {
     value: "telegram",
-    label: "Telegram",
+    get label() {
+      return i18n.t("enum.platform.telegram");
+    },
     Icon: FaTelegram,
     color: "#26A5E4",
     backgroundColor: "#26A5E420",
   },
   {
     value: "whatsapp",
-    label: "WhatsApp",
+    get label() {
+      return i18n.t("enum.platform.whatsapp");
+    },
     Icon: FaWhatsapp,
     color: "#25D366",
     backgroundColor: "#25D36620",
   },
   {
     value: "spotify",
-    label: "Spotify",
+    get label() {
+      return i18n.t("enum.platform.spotify");
+    },
     Icon: FaSpotify,
     color: "#1DB954",
     backgroundColor: "#1DB95420",
   },
   {
     value: "soundcloud",
-    label: "SoundCloud",
+    get label() {
+      return i18n.t("enum.platform.soundcloud");
+    },
     Icon: FaSoundcloud,
     color: "#FF5500",
     backgroundColor: "#FF550020",
   },
   {
     value: "medium",
-    label: "Medium",
+    get label() {
+      return i18n.t("enum.platform.medium");
+    },
     Icon: FaMedium,
     color: "var(--link-icon-medium-fg)",
     backgroundColor: "var(--link-icon-medium-bg)",
   },
   {
     value: "behance",
-    label: "Behance",
+    get label() {
+      return i18n.t("enum.platform.behance");
+    },
     Icon: FaBehance,
     color: "#1769FF",
     backgroundColor: "#1769FF20",
   },
   {
     value: "dribbble",
-    label: "Dribbble",
+    get label() {
+      return i18n.t("enum.platform.dribbble");
+    },
     Icon: FaDribbble,
     color: "#EA4C89",
     backgroundColor: "#EA4C8920",
   },
   {
     value: "website",
-    label: "Website",
+    get label() {
+      return i18n.t("enum.platform.website");
+    },
     Icon: FiGlobe,
     color: "#0EA5E9",
     backgroundColor: "#0EA5E920",
@@ -179,11 +220,13 @@ const ICON_OPTIONS_BY_VALUE = new Map<LinkIcon, LinkIconOption>(
 );
 
 export const DEFAULT_LINK_ICON = {
-  label: "Link",
+  get label() {
+    return i18n.t("common.link");
+  },
   Icon: FiLink2,
   color: "#FFFFFF",
   backgroundColor: "linear-gradient(135deg, #0EA5E9, #14B8A6)",
-} as const;
+};
 
 export const getLinkIconOption = (
   icon: LinkIcon | null | undefined,

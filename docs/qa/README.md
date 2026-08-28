@@ -71,6 +71,25 @@ The two are not yet cross-linked in an automated way. Until they are: a bug conf
 
 Gitignored by default (see the gitignore block appended to the repo root). Screenshots stay on disk; reports reference them by path, and the report is the durable record. Screenshots are checkpoints and failures only, theme named in the filename. A disclosure finding's evidence is always a set — the policy screen, the agent's exact tool call and response, the rendered post on the logged-out public profile, and the raw API payload — never a single screenshot.
 
+## Registered bugs
+
+Registered from `.nightly/QUEUE.json` on 2026-08-22 (run `2026-08-22T18:58:46.702Z`, iterations 4 and 7 — TRIAGE) and on 2026-08-23 (same run, iteration 55 — TRIAGE, the two `responsive-dark` findings). Ids are stable forever; status lives in each file.
+
+| Bug | Severity | Area | One line |
+|---|---|---|---|
+| [BUG-20260822-disclosure-external-url](bugs/BUG-20260822-disclosure-external-url.md) | Critical / P0 | posts | `externalUrl` is never disclosure-scanned, so an agent publishes the employer's name in a public clickable link at `summary` |
+| [BUG-20260822-disclosure-cross-role](bugs/BUG-20260822-disclosure-cross-role.md) | Critical / P0 | posts | Marking one job `full` un-blocks **every** other employer's name for agent-authored posts |
+| [BUG-20260822-public-posts-contract](bugs/BUG-20260822-public-posts-contract.md) | Critical / P0 | profile | Every public profile that has a published post shows "Could not load posts" to its visitors — the api is fine, the client's schema rejects the payload |
+| [BUG-20260822-links-url-scheme](bugs/BUG-20260822-links-url-scheme.md) | High / P1 | profile | A profile link can be saved as `javascript:` or `data:` and is served to strangers unchecked — latent stored XSS |
+| [BUG-20260822-disclosure-url-slug-variant](bugs/BUG-20260822-disclosure-url-slug-variant.md) | High / P1 | posts | An employer whose name has a space still leaks through a URL, because the denylist only knows `Acme Corp` and the URL says `acme-corp` |
+| [BUG-20260822-links-keyboard-reorder](bugs/BUG-20260822-links-keyboard-reorder.md) | High / P1 | dashboard | Profile links cannot be reordered by keyboard — the drag lifts and announces itself, then arrows do nothing |
+| [BUG-20260822-layout-vertical-keyboard](bugs/BUG-20260822-layout-vertical-keyboard.md) | High / P2 | layout | Blocks cannot be reordered vertically without a mouse — `ArrowUp`/`ArrowDown` are permanent no-ops that still write eight times |
+| [BUG-20260822-open-to-work-switch-name](bugs/BUG-20260822-open-to-work-switch-name.md) | Low / P3 | dashboard | The "Open to work" switch has no accessible name |
+| [BUG-20260823-mobile-search-no-feedback](bugs/BUG-20260823-mobile-search-no-feedback.md) | High / P2 | search | On a phone, a successful recruiter search changes nothing inside the viewport — 50 results land 1069px below the fold, the page never scrolls, and the live region says nothing |
+| [BUG-20260823-profile-login-tap-eaten](bugs/BUG-20260823-profile-login-tap-eaten.md) | Low / P3 | profile | On a phone the fixed theme toggle covers the top 8px of the public profile's Login pill and eats the tap |
+
 ## Adopted from
 
-Nothing yet — this is a fresh bootstrap, not a migration. `.nightly/QUEUE.json`'s `confirmed[]` array (7 bugs as of 2026-08-22) is pre-existing durable knowledge from a prior hand-off; it is indexed here by reference (see "Relationship to `.nightly/`" above) rather than copied, until a QA cycle formally registers each one into `bugs/`.
+Nothing yet — this is a fresh bootstrap, not a migration. The bugs above are the first entries the loop registered here.
+
+`.nightly/QUEUE.json` entries that are still indexed here by reference only (see "Relationship to `.nightly/`" above): `agent-self-publish`, `auth-unhandled-rejection`, `layout-error-fabricated`, `dashboard-error-state`. All four came in from a prior hand-off and have **not** been re-reproduced by any triage in this run, so copying them in would present hand-off knowledge as this cycle's verified work — they have since been fixed, and each one's red commit is the evidence that stands for it. `layout-vertical-keyboard` moved into the table above at iteration 39, once TRIAGE reproduced it from scratch at both layers — a fresh unit probe and the journey-05 assertion driven against the running app — and read the resulting no-op writes back out of Postgres. Two of the original seven hand-off bugs — `public-posts-contract` and `links-url-scheme` — moved into the table above once iteration 7 reproduced them from scratch against the running api and the built schemas.

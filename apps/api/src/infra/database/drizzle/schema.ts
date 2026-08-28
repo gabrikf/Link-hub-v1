@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   customType,
   date,
   index,
@@ -48,6 +49,23 @@ export const users = pgTable("users", {
   themeAccent: text("theme_accent"),
   themePreset: text("theme_preset"),
   openToWork: boolean("open_to_work").notNull().default(false),
+  /*
+   * "Simple mode" switch for the public profile: false renders no tab strip,
+   * only the first tab's blocks plus pinned ones.
+   *
+   * TWO columns, one per viewport, because `profile_tabs.viewport` already
+   * makes tabs per-viewport and the real use case is asymmetric: tabs on a wide
+   * desktop layout, one scrolling list on a phone. A single flag could not
+   * express that, and flipping it in one viewport silently flipped the other.
+   *
+   * These live on `users` ON PURPOSE, unlike `user_preferences` below: the
+   * public renderer cannot decide whether to draw the tab strip without them,
+   * so they travel in the public payload (inside `layout.pc` / `layout.mobile`)
+   * rather than staying private. Both default to true so every account that
+   * existed before these columns keeps exactly the behaviour it had.
+   */
+  tabsEnabledPc: boolean("tabs_enabled_pc").notNull().default(true),
+  tabsEnabledMobile: boolean("tabs_enabled_mobile").notNull().default(true),
   location: text("location"),
   persona: text("persona"),
   // How much an agent acting for this user may reveal about their work history.
@@ -746,6 +764,67 @@ export const activityEvents = pgTable(
   ],
 );
 
+/**
+ * Private per-user interface preferences: rendering language and light/dark.
+ *
+ * WHY THIS IS A SEPARATE TABLE AND NOT TWO MORE COLUMNS ON `users`
+ *
+ * `profileSchema` in @repo/schemas is the response shape for BOTH `GET /me`
+ * and the fully public `GET /profile/:username`, and it is fed straight from a
+ * `users` row. Put `language` and `theme` on `users` and the natural next edit
+ * — adding them beside `themePreset`, which is already in that schema —
+ * silently publishes a person's UI language and dark-mode setting to every
+ * anonymous visitor of their profile. A separate table makes that leak require
+ * deliberate effort instead of being the path of least resistance, and gives
+ * the preference set somewhere to grow (notifications, email cadence) without
+ * widening the row that gets serialised publicly.
+ *
+ * `user_id` is the primary key AND the foreign key: 1:1 is enforced by the
+ * schema rather than by convention, the index comes free, and ON DELETE
+ * CASCADE means deleting a user cannot orphan a preference row.
+ *
+ * Both "follow the device" states are real stored values, not absences:
+ * `language IS NULL` and `theme = 'system'`. The rejected alternative — freeze
+ * the detected device value into the row on first login — reads as "saved" but
+ * strands a user who later flips their OS to dark mode in permanent light.
+ */
+export const userPreferences = pgTable(
+  "user_preferences",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** NULL = follow the device. See `uiLanguageSchema` in @repo/schemas. */
+    language: text("language"),
+    /** See `themePreferenceSchema` in @repo/schemas. */
+    theme: text("theme").notNull().default("system"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    /*
+     * The zod schemas at the HTTP edge already reject these values, but a
+     * migration, a seed script or a psql session does not go through zod. A
+     * stored `theme = 'sepia'` would be read back as a valid `ThemePreference`
+     * by every consumer and break at render time instead of at write time.
+     *
+     * Written as literal IN lists rather than a pg enum: adding a fourth locale
+     * is then an ALTER on one constraint, not a type migration.
+     */
+    check(
+      "user_preferences_language_check",
+      sql`${table.language} IS NULL OR ${table.language} IN ('en-US', 'pt-BR', 'es-ES')`,
+    ),
+    check(
+      "user_preferences_theme_check",
+      sql`${table.theme} IN ('light', 'dark', 'system')`,
+    ),
+  ],
+);
+
 export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   user: one(users, {
     fields: [refreshTokens.userId],
@@ -753,7 +832,8 @@ export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   }),
 }));
 
-export const userRelations = relations(users, ({ many }) => ({
+export const userRelations = relations(users, ({ one, many }) => ({
+  preferences: one(userPreferences),
   refreshTokens: many(refreshTokens),
   oauthAccounts: many(oauthAccounts),
   links: many(links),
@@ -944,3 +1024,10 @@ export const candidateInteractionsRelations = relations(
     }),
   }),
 );
+
+export const userPreferencesRelations = relations(userPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [userPreferences.userId],
+    references: [users.id],
+  }),
+}));

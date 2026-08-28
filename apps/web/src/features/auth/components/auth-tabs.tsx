@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { AUTH_TABS } from "../constants/auth-tabs";
 import type { AuthTab } from "../types/auth-tab";
 import { Button } from "../../../shared-components/button";
@@ -8,6 +9,8 @@ type AuthTabsProps = {
 };
 
 export function AuthTabs({ activeTab, onTabChange }: AuthTabsProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="grid grid-cols-2 rounded-lg border border-zinc-200 p-1 text-sm dark:border-zinc-700">
       {AUTH_TABS.map((tab) => {
@@ -27,7 +30,7 @@ export function AuthTabs({ activeTab, onTabChange }: AuthTabsProps) {
                 : "rounded-md text-zinc-600 dark:text-zinc-300"
             }
           >
-            {tab === "login" ? "Login" : "Register"}
+            {tab === "login" ? t("auth.loginTab") : t("auth.registerTab")}
           </Button>
         );
       })}

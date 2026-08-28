@@ -1,6 +1,7 @@
+import { useTranslation } from "react-i18next";
 import { FiBriefcase, FiMapPin } from "react-icons/fi";
 import { ProfileShareButton } from "./profile-share-button";
-import { PERSONA_LABELS, safeImageUrl, type Persona } from "./profile-theme";
+import { safeImageUrl, type Persona } from "./profile-theme";
 
 type ProfileCoverProps = {
   bannerImageUrl: string | null;
@@ -96,18 +97,20 @@ export function ProfileCover({
 }
 
 export function OpenToWorkBadge() {
+  const { t } = useTranslation();
   return (
     <span className="anim-fade-in inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-500/95 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur">
       <span className="relative flex h-1.5 w-1.5">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
       </span>
-      Open to work
+      {t("common.openToWork")}
     </span>
   );
 }
 
 export function PersonaChip({ persona }: { persona: Persona }) {
+  const { t } = useTranslation();
   return (
     <span
       className="anim-fade-in inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur"
@@ -117,7 +120,7 @@ export function PersonaChip({ persona }: { persona: Persona }) {
       }}
     >
       <FiBriefcase className="h-3 w-3" aria-hidden="true" />
-      {PERSONA_LABELS[persona]}
+      {t(`enum.persona.${persona}`)}
     </span>
   );
 }

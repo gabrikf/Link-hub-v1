@@ -6,10 +6,16 @@ import {
   BuildRecruiterSemanticQueryInput,
   IRecruiterQueryConversionProvider,
 } from "../../../providers/query-conversion/recruiter-query-conversion-provider.js";
+import { resolveResponseLanguage } from "../../../lang/resolve-response-language.js";
 import { RecruiterSearchFilters } from "../../../repositories/resume-search/resume-search-repository.js";
+import { IUserPreferencesRepository } from "../../../repositories/user-preferences/user-preferences-repository.js";
 import { SearchResumesByRecruiterQueryUseCase } from "../search-resumes-by-recruiter-query-use-case/search-resumes-by-recruiter-query.use-case.js";
 
 export interface TransformRecruiterSearchInput {
+  /** The authenticated recruiter. The route is auth-guarded, so it is never absent. */
+  userId: string;
+  /** The raw inbound `Accept-Language` header, passed through untouched. */
+  acceptLanguage?: string | null;
   query?: string;
   chatPrompt?: string;
   attachmentText?: string;
@@ -29,15 +35,39 @@ export class TransformRecruiterSearchInputUseCase {
   constructor(
     private queryConversionProvider: IRecruiterQueryConversionProvider,
     private searchResumesByRecruiterQueryUseCase: SearchResumesByRecruiterQueryUseCase,
+    private userPreferencesRepository: IUserPreferencesRepository,
   ) {}
 
   async execute(input: TransformRecruiterSearchInput) {
+    // `findByUserId`, not `provisionDefaults`: a search is a read and must not
+    // write a preferences row as a side effect.
+    const preferences = await this.userPreferencesRepository.findByUserId(
+      input.userId,
+    );
+
+    /**
+     * Detection runs on what the recruiter themselves wrote, not on
+     * `attachmentText` — an uploaded job description is somebody else's prose,
+     * and a JD drafted in English by a Brazilian recruiter should not decide
+     * the recruiter's language.
+     *
+     * What this language does and does not do is D6 territory: it is stated to
+     * the provider so it can pin its retrieval labels to English against it.
+     * It never translates the query.
+     */
+    const language = resolveResponseLanguage({
+      userText: input.chatPrompt ?? input.query,
+      preference: preferences?.language ?? null,
+      acceptLanguage: input.acceptLanguage,
+    });
+
     const conversionInput: BuildRecruiterSemanticQueryInput = {
       legacyQuery: input.query,
       chatPrompt: input.chatPrompt,
       attachmentText: input.attachmentText,
       semanticSkills: input.semanticSkills,
       semanticTitles: input.semanticTitles,
+      language,
     };
 
     const hasTextInput = Boolean(

@@ -66,9 +66,18 @@ export const applyAiResumeImportInputSchema = z.object({
   profileDescription: z.string().trim().max(800).nullable().optional(),
 });
 
+/**
+ * Upper bound on the resume text sent to the extraction model, in characters.
+ *
+ * Exported because the parse route also accepts multipart and therefore cannot
+ * validate through the object schema below — it resolves the text by hand and
+ * checks this number, so both paths enforce one declared cap instead of two.
+ */
+export const RESUME_TEXT_MAX_LENGTH = 100_000;
+
 // Sent as raw text when the user pastes their resume instead of uploading a file.
 export const aiResumeImportTextInputSchema = z.object({
-  resumeText: z.string().trim().min(20).max(100_000),
+  resumeText: z.string().trim().min(20).max(RESUME_TEXT_MAX_LENGTH),
 });
 
 export type ParsedResumeData = z.infer<typeof parsedResumeDataSchema>;

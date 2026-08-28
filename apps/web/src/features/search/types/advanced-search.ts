@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import i18n from "../../../i18n";
 import type { RecruiterSearchResponse } from "../../../lib/auth-api";
 
 export const DEFAULT_TOP_K = 50;
@@ -122,8 +123,10 @@ export const selectOptionSchema = z.object({
 export const optionalNumericStringSchema = z
   .string()
   .trim()
+  // `error` as a FUNCTION, not `message` as a string: this schema is built at
+  // module scope, so a string would freeze whichever language loaded first.
   .refine((value) => value === "" || /^\d+$/.test(value), {
-    message: "Use only non-negative whole numbers",
+    error: () => i18n.t("search.numbersOnly"),
   });
 
 export const advancedSearchFormSchema = z
@@ -159,7 +162,7 @@ export const advancedSearchFormSchema = z
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Min years must be lower or equal to max years",
+        message: i18n.t("search.yearsRangeInvalid"),
         path: ["maxYearsExperience"],
       });
     }
@@ -170,7 +173,7 @@ export const advancedSearchFormSchema = z
     if (value.minSalary && value.maxSalary && minSalary > maxSalary) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Min salary must be lower or equal to max salary",
+        message: i18n.t("search.salaryRangeInvalid"),
         path: ["maxSalary"],
       });
     }

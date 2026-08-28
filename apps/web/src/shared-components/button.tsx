@@ -5,6 +5,7 @@ import {
   useState,
 } from "react";
 import * as RadixAlertDialog from "@radix-ui/react-alert-dialog";
+import { useTranslation } from "react-i18next";
 import { FiLoader } from "react-icons/fi";
 import { FOCUS_RING } from "./surface";
 
@@ -22,7 +23,9 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: ButtonSize;
   fullWidth?: boolean;
   shouldHaveConfirmation?: boolean;
+  /** Defaults to a translated "Are you sure?" when not provided. */
   confirmationTitle?: string;
+  /** Defaults to a translated "This action can't be undone." when not provided. */
   confirmationDescription?: string;
   /** Shows a spinner and blocks interaction while a mutation is in flight. */
   isLoading?: boolean;
@@ -60,15 +63,19 @@ export function Button({
   size = "md",
   fullWidth = true,
   shouldHaveConfirmation = false,
-  confirmationTitle = "Are you sure?",
-  confirmationDescription = "This action can't be undone.",
+  confirmationTitle,
+  confirmationDescription,
   isLoading = false,
   loadingLabel,
   disabled,
   onClick,
   ...buttonProps
 }: ButtonProps) {
+  const { t } = useTranslation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const resolvedConfirmationTitle = confirmationTitle ?? t("common.areYouSure");
+  const resolvedConfirmationDescription =
+    confirmationDescription ?? t("common.cannotBeUndone");
 
   const buttonClassName = cx(
     "inline-flex cursor-pointer items-center justify-center gap-2 rounded-md transition disabled:cursor-not-allowed disabled:opacity-60",
@@ -139,15 +146,15 @@ export function Button({
           <RadixAlertDialog.Overlay className="fixed inset-0 z-50 bg-zinc-950/60" />
           <RadixAlertDialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[92svh] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
             <RadixAlertDialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              {confirmationTitle}
+              {resolvedConfirmationTitle}
             </RadixAlertDialog.Title>
             <RadixAlertDialog.Description className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-              {confirmationDescription}
+              {resolvedConfirmationDescription}
             </RadixAlertDialog.Description>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <RadixAlertDialog.Cancel asChild>
                 <Button type="button" variant="outline" fullWidth={false}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
               </RadixAlertDialog.Cancel>
               <RadixAlertDialog.Action asChild>
@@ -157,7 +164,7 @@ export function Button({
                   fullWidth={false}
                   onClick={handleConfirm}
                 >
-                  Confirm
+                  {t("common.confirm")}
                 </Button>
               </RadixAlertDialog.Action>
             </div>

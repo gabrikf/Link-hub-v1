@@ -6,6 +6,7 @@ import type {
   ResumeResponse,
   WorkExperienceResponse,
 } from "@repo/schemas";
+import { useTranslation } from "react-i18next";
 import { FiEye } from "react-icons/fi";
 import type { PublicResumeResponse } from "../../../lib/auth-api";
 import { ProfileBlocks } from "./profile-blocks";
@@ -48,6 +49,13 @@ type PublicProfilePreviewProps = {
    * callers keep working unchanged.
    */
   frameWidth?: number;
+  /**
+   * Profile-level "show tabs" switch, forwarded straight to `ProfileBlocks` so
+   * the editor's live preview loses its tab strip the moment the owner flips
+   * the switch — the preview is the only place they can see the consequence
+   * before publishing.
+   */
+  tabsEnabled?: boolean;
 };
 
 export function PublicProfilePreview({
@@ -61,7 +69,9 @@ export function PublicProfilePreview({
   workLoading = false,
   linksLoading = false,
   frameWidth,
+  tabsEnabled = true,
 }: PublicProfilePreviewProps) {
+  const { t } = useTranslation();
   const theme = getProfileThemeProps(profile);
   const framed = frameWidth !== undefined;
   // A realistic phone mock is only used when the caller explicitly frames a
@@ -93,6 +103,7 @@ export function PublicProfilePreview({
           resumeLoading={resumeLoading}
           workLoading={workLoading}
           linksLoading={linksLoading}
+          tabsEnabled={tabsEnabled}
         />
       </div>
     </>
@@ -137,7 +148,7 @@ export function PublicProfilePreview({
       {framed ? null : (
         <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200">
           <FiEye className="h-3.5 w-3.5" aria-hidden="true" />
-          Live preview
+          {t("common.livePreview")}
         </span>
       )}
 

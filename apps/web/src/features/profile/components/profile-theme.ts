@@ -12,35 +12,38 @@ export type Persona = NonNullable<ProfileResponse["persona"]>;
  */
 export const THEME_PRESETS: ReadonlyArray<{
   value: ThemePreset;
-  label: string;
   accent: string;
 }> = [
-  { value: "violet", label: "Violet", accent: "#8b5cf6" },
-  { value: "ocean", label: "Ocean", accent: "#0ea5e9" },
-  { value: "sunset", label: "Sunset", accent: "#f97316" },
-  { value: "forest", label: "Forest", accent: "#16a34a" },
-  { value: "mono", label: "Mono", accent: "#52525b" },
+  { value: "violet", accent: "#8b5cf6" },
+  { value: "ocean", accent: "#0ea5e9" },
+  { value: "sunset", accent: "#f97316" },
+  { value: "forest", accent: "#16a34a" },
+  { value: "mono", accent: "#52525b" },
 ];
 
 export const DEFAULT_THEME_PRESET: ThemePreset = "violet";
 
-/** Human-readable labels for each persona value from `personaSchema`. */
-export const PERSONA_LABELS: Record<Persona, string> = {
-  developer: "Developer",
-  designer: "Designer",
-  "product-manager": "Product Manager",
-  "product-owner": "Product Owner",
-  "qa-engineer": "QA Engineer",
-  data: "Data",
-  devops: "DevOps",
-  other: "Other",
-};
-
-export const PERSONA_OPTIONS: ReadonlyArray<{ value: Persona; label: string }> =
-  (Object.keys(PERSONA_LABELS) as Persona[]).map((value) => ({
-    value,
-    label: PERSONA_LABELS[value],
-  }));
+/**
+ * Persona values from `personaSchema`, in the order they are offered.
+ *
+ * The labels used to live here as an English `Record`. They moved into the
+ * locale catalogue under `enum.persona.<value>` — leaf names are the wire
+ * values on purpose, so a call site writes ``t(`enum.persona.${value}`)`` with
+ * no lookup table, and this module stays free of user-visible text. It is
+ * imported by both the public profile and the dashboard, which is exactly why
+ * a hardcoded English label here would have leaked English into a translated
+ * screen.
+ */
+export const PERSONA_VALUES: ReadonlyArray<Persona> = [
+  "developer",
+  "designer",
+  "product-manager",
+  "product-owner",
+  "qa-engineer",
+  "data",
+  "devops",
+  "other",
+];
 
 export function accentForPreset(preset: ThemePreset | null): string {
   const match = THEME_PRESETS.find((p) => p.value === preset);

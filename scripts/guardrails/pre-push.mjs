@@ -305,6 +305,17 @@ function i18nParity() {
     .status === 0;
 }
 
+/**
+ * The other half of parity: parity proves every key exists in all three
+ * locales, this proves the string became a key at all. Both are sub-second, so
+ * they run unconditionally rather than only on affected packages.
+ */
+function i18nRawStrings() {
+  return run(process.execPath, [
+    resolve(ROOT, "scripts/guardrails/i18n-raw-strings.mjs"),
+  ]).status === 0;
+}
+
 /* ──────────────────────────────── the run ──────────────────────────────── */
 
 function main() {
@@ -349,6 +360,7 @@ function main() {
   }
 
   if (ok) ok = step("i18n locale parity", i18nParity);
+  if (ok) ok = step("i18n raw strings", i18nRawStrings);
 
   const elapsed = (Date.now() - startedAt) / 1000;
   say("");

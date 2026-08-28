@@ -87,6 +87,24 @@ export const updatePostSchemaInput = z.object({
   metadata: postMetadataSchema.nullable().optional(),
 });
 
+/**
+ * A post as the UNAUTHENTICATED profile feed serves it: the same post minus
+ * `metadata`.
+ *
+ * `metadata` is provenance the owner needs — the review queue renders repo,
+ * commit count and period from it — and it is the one field on a post that can
+ * still hold a repository name, because a coding agent supplies it rather than
+ * the deterministic template. The public projection therefore drops the whole
+ * bag instead of trusting each writer to have filled it in safely.
+ *
+ * It lives here, in the shared contract, rather than being re-derived on each
+ * side: the api once omitted the field while the web still parsed the response
+ * with `postSchema` (where `metadata` is nullable but not optional, therefore
+ * required), so every public feed with a published post failed to parse and
+ * rendered an error. Both sides now read the same declaration.
+ */
+export const publicPostSchema = postSchema.omit({ metadata: true });
+
 export const listPostsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
@@ -97,6 +115,7 @@ export const postParamsSchema = z.object({
 });
 
 export type Post = z.infer<typeof postSchema>;
+export type PublicPost = z.infer<typeof publicPostSchema>;
 export type PostSource = z.infer<typeof postSourceSchema>;
 export type PostStatus = z.infer<typeof postStatusSchema>;
 export type CreatePostInput = z.infer<typeof createPostSchemaInput>;

@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { TOKENS_KEY, uniqueSuffix } from "../support/accounts";
+import { API_URL, TOKENS_KEY, uniqueSuffix } from "../support/accounts";
 import { expect, test } from "../support/fixtures";
 
 /**
@@ -58,7 +58,13 @@ const EXPECTED_AUTH_REPORTS = /^\[auth\.(login|register)\]/;
  */
 const BROWSER_RESOURCE_LOG = /^Failed to load resource:/;
 
-const DOCUMENTED_EMPTY_RESUME_404 = "GET http://localhost:3333/me/resume — HTTP 404";
+/**
+ * Hardcoding the port here made this allowlist silently stop matching the moment
+ * the api ran anywhere but 3333 — which it does whenever another project owns
+ * that port. The 404 then read as an unexpected failing request and took four
+ * otherwise-passing tests down with it. Derive it from the configured api URL.
+ */
+const DOCUMENTED_EMPTY_RESUME_404 = `GET ${API_URL}/me/resume — HTTP 404`;
 
 function unexpectedErrors(errors: string[]): string[] {
   return errors.filter(

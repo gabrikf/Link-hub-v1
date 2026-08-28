@@ -1,9 +1,16 @@
+import type { TFunction } from "i18next";
 import type { Snippet } from "../components/snippet-block";
 
 /**
  * The per-host MCP setup snippets, extracted from `connect-panel.tsx` when the
  * auto-post wizard needed the same tabs. One definition, two surfaces — a fork
  * would have drifted the first time a host changed its config shape.
+ *
+ * `buildTabs` takes `t` because `connect-step.tsx` in the (out-of-scope,
+ * separately in-flight) `auto-post-wizard/` directory already calls it as
+ * `buildTabs(t, apiUrl, token)` — its own i18n pass got here first for this
+ * one function. `PLAIN_LANGUAGE_ASK` is converted alongside it since nothing
+ * outside this file imports it directly.
  */
 
 // The MCP server is NOT published to npm — it is run locally from the built
@@ -31,8 +38,9 @@ export const TOKEN_PLACEHOLDER = "lh_pat_xxxxxxxxxxxxxxxxxxxxxxxx";
 export const PROMPT_NAME = "weekly_update";
 
 /** Works in any host, even one that doesn't surface MCP prompts in its UI. */
-export const PLAIN_LANGUAGE_ASK =
-  "Use the LinkHub weekly_update prompt to turn this week's commits into a post.";
+export function getPlainLanguageAsk(t: TFunction): string {
+  return t("settings.mcp.plainAsk");
+}
 
 export type ToolTab = {
   key: string;
@@ -48,7 +56,11 @@ export type ToolTab = {
   invokeNote?: string;
 };
 
-export function buildTabs(apiUrl: string, token: string): ToolTab[] {
+export function buildTabs(
+  t: TFunction,
+  apiUrl: string,
+  token: string,
+): ToolTab[] {
   // Shared stdio server block: `node <absolute path to built entry>` with the
   // API URL + token in env. Mirrors apps/mcp/README.md exactly.
   const mcpServerBlock = {
@@ -121,7 +133,7 @@ export function buildTabs(apiUrl: string, token: string): ToolTab[] {
   return [
     {
       key: "claude-desktop",
-      label: "Claude Desktop",
+      label: t("settings.mcp.claudeDesktop"),
       snippets: [
         {
           target: "claude_desktop_config.json",
@@ -130,47 +142,46 @@ export function buildTabs(apiUrl: string, token: string): ToolTab[] {
         },
       ],
       verify: [
-        "Fully quit and reopen Claude Desktop — it only reads the config at startup.",
-        'Open the tools menu in the composer: "linkhub" should be listed with 7 tools.',
-        'Ask "list my LinkHub posts" — a token problem shows up here as an "Invalid or expired LinkHub token" error.',
+        t("settings.mcp.claudeDesktopRestart"),
+        t("settings.mcp.claudeDesktopTools"),
+        t("settings.mcp.claudeDesktopAsk"),
       ],
-      invokeLabel: "Composer → attachments (+) → linkhub",
+      invokeLabel: t("settings.mcp.claudeDesktopComposer"),
       // NOT a slash command. Claude Desktop has no /-prefixed MCP prompts, and
       // showing one in a copy box sends people to type `/weekly_update` and
       // get "Unknown command" — the single most common support question this
-      // panel caused.
+      // panel caused. Left as a literal: not in the canonical string map, and
+      // it mixes navigation copy with the technical PROMPT_NAME identifier.
       invokeCommand: `+ menu → linkhub → ${PROMPT_NAME}`,
-      invokeNote:
-        "Claude Desktop lists MCP prompts under the + button in the composer, not as slash commands — typing /weekly_update there does nothing. Pick weekly_update, optionally set period / repo / status, and send. Asking in plain language (\"write my LinkHub weekly update\") works too.",
+      invokeNote: t("settings.mcp.claudeDesktopPrompts"),
     },
     {
       key: "claude-code",
-      label: "Claude Code",
+      label: t("settings.provider.claudeCode"),
       snippets: [
         {
-          target: "Terminal (claude mcp add)",
+          target: t("settings.mcp.claudeCodeTerminal"),
           language: "bash",
           code: claudeCodeCli,
         },
         {
-          target: ".mcp.json (project scope)",
+          target: t("settings.mcp.claudeCodeProject"),
           language: "json",
           code: mcpJson,
         },
       ],
       verify: [
-        "Run /mcp inside Claude Code — linkhub should read “connected”.",
-        "From a shell, claude mcp list prints the same status without opening a session.",
-        'Ask "list my LinkHub posts" to prove the token works end to end.',
+        t("settings.mcp.claudeCodeVerify"),
+        t("settings.mcp.claudeCodeList"),
+        t("settings.mcp.claudeCodeAsk"),
       ],
-      invokeLabel: "Slash command",
+      invokeLabel: t("settings.mcp.slashCommand"),
       invokeCommand: `/mcp__linkhub__${PROMPT_NAME}`,
-      invokeNote:
-        "MCP prompts appear as /mcp__server__prompt — plain /weekly_update will not exist. Add arguments space-separated, e.g. /mcp__linkhub__weekly_update monthly. There is also /mcp__linkhub__since_last_post, which only covers work done since your last LinkHub update.",
+      invokeNote: t("settings.mcp.claudeCodePrompts"),
     },
     {
       key: "cursor",
-      label: "Cursor",
+      label: t("settings.mcp.cursor"),
       snippets: [
         {
           target: ".cursor/mcp.json",
@@ -179,18 +190,17 @@ export function buildTabs(apiUrl: string, token: string): ToolTab[] {
         },
       ],
       verify: [
-        "Open Settings → MCP: linkhub should show a green dot and its tool list.",
-        'If it stays red, the args path is wrong — re-run the path command under "Running LinkHub locally?".',
-        'Ask "list my LinkHub posts" in chat to confirm the token.',
+        t("settings.mcp.cursorVerify"),
+        t("settings.mcp.cursorRed"),
+        t("settings.mcp.cursorAsk"),
       ],
-      invokeLabel: "Chat",
-      invokeCommand: PLAIN_LANGUAGE_ASK,
-      invokeNote:
-        "Cursor surfaces MCP prompts in the chat / menu on recent versions. If yours doesn't, just ask in plain language — the tool descriptions and the linkhub://guides/post-quality resource carry the same instructions.",
+      invokeLabel: t("settings.mcp.chat"),
+      invokeCommand: getPlainLanguageAsk(t),
+      invokeNote: t("settings.mcp.cursorPrompts"),
     },
     {
       key: "vscode",
-      label: "VS Code",
+      label: t("settings.mcp.vscode"),
       snippets: [
         {
           target: ".vscode/mcp.json",
@@ -199,34 +209,32 @@ export function buildTabs(apiUrl: string, token: string): ToolTab[] {
         },
       ],
       verify: [
-        "Run the MCP: List Servers command — linkhub should be Running.",
-        "VS Code asks for confirmation before starting a server the first time; accept it.",
-        'Ask "list my LinkHub posts" in Chat to confirm the token.',
+        t("settings.mcp.vscodeVerify"),
+        t("settings.mcp.vscodeConfirm"),
+        t("settings.mcp.vscodeAsk"),
       ],
-      invokeLabel: "Slash command in Chat",
+      invokeLabel: t("settings.mcp.vscodeSlash"),
       invokeCommand: `/mcp.linkhub.${PROMPT_NAME}`,
-      invokeNote:
-        "VS Code exposes MCP prompts as /mcp.<server>.<prompt> in the Chat view. It will ask you for period, repo and status.",
+      invokeNote: t("settings.mcp.vscodePrompts"),
     },
     {
       key: "generic",
-      label: "Windsurf / Kiro / Codex",
+      label: t("settings.mcp.others"),
       snippets: [
         {
-          target: "mcpServers (your tool's MCP config file)",
+          target: t("settings.mcp.othersConfig"),
           language: "json",
           code: claudeDesktopConfig,
         },
       ],
       verify: [
-        "Any MCP-capable agent accepts this shape — put it in the tool's MCP config file (Windsurf: mcp_config.json, Kiro: .kiro/settings/mcp.json, Codex CLI: config.toml's equivalent block).",
-        "Restart the tool, then check its MCP/server list for linkhub.",
-        'Ask "list my LinkHub posts" to prove the token works end to end.',
+        t("settings.mcp.othersShape"),
+        t("settings.mcp.othersRestart"),
+        t("settings.mcp.claudeCodeAsk"),
       ],
-      invokeLabel: "Chat",
-      invokeCommand: PLAIN_LANGUAGE_ASK,
-      invokeNote:
-        "If your tool surfaces MCP prompts, run weekly_update from its prompt picker; if not, the plain-language ask above triggers the same workflow.",
+      invokeLabel: t("settings.mcp.chat"),
+      invokeCommand: getPlainLanguageAsk(t),
+      invokeNote: t("settings.mcp.othersPrompts"),
     },
   ];
 }

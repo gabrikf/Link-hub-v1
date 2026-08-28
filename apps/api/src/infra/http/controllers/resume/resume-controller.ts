@@ -675,6 +675,10 @@ export class ResumeController {
         const parsedInput = recruiterSearchInputSchema.parse(rawBody);
 
         const result = await transformRecruiterSearchInputUseCase.execute({
+          userId: request.user!.id,
+          // Raw, not parsed: `resolveResponseLanguage` owns the
+          // Accept-Language grammar.
+          acceptLanguage: request.headers["accept-language"] ?? null,
           query: parsedInput.query,
           chatPrompt: parsedInput.chatPrompt,
           attachmentText: parsedInput.attachmentText,

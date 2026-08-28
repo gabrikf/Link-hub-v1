@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useTranslation } from "react-i18next";
 import { FiEdit2, FiLink2, FiTrash } from "react-icons/fi";
 import { FaGripLinesVertical } from "react-icons/fa6";
 import type { LinkResponse } from "@repo/schemas";
@@ -20,6 +21,7 @@ export function SortableLinkItem({
   onEdit,
   onDelete,
 }: SortableLinkItemProps) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: link.id });
 
@@ -42,7 +44,7 @@ export function SortableLinkItem({
           variant="soft"
           size="icon"
           fullWidth={false}
-          aria-label="Drag to reorder"
+          aria-label={t("links.dragToReorder")}
           className="mt-0.5 cursor-grab rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-500 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400"
           {...attributes}
           {...listeners}
@@ -78,7 +80,7 @@ export function SortableLinkItem({
             {link.url}
           </a>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            {link.isPublic ? "Public" : "Private"}
+            {link.isPublic ? t("common.public") : t("common.private")}
           </p>
         </div>
       </div>
@@ -88,12 +90,12 @@ export function SortableLinkItem({
           <Switch.Root
             checked={link.isPublic}
             onCheckedChange={(checked) => onToggleVisibility(link.id, checked)}
-            aria-label="Toggle link visibility"
+            aria-label={t("links.toggleVisibility")}
             className="h-5 w-9 cursor-pointer rounded-full bg-zinc-300 transition data-[state=checked]:bg-teal-600 dark:bg-zinc-700 dark:data-[state=checked]:bg-teal-500"
           >
             <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white transition-transform duration-150 data-[state=checked]:translate-x-4.5 dark:bg-zinc-900" />
           </Switch.Root>
-          <span>{link.isPublic ? "Visible" : "Hidden"}</span>
+          <span>{link.isPublic ? t("common.visible") : t("common.hidden")}</span>
         </label>
 
         <Button
@@ -102,7 +104,7 @@ export function SortableLinkItem({
           size="icon"
           fullWidth={false}
           onClick={() => onEdit(link)}
-          aria-label="Edit link"
+          aria-label={t("links.editLink")}
         >
           <FiEdit2 />
         </Button>
@@ -113,10 +115,12 @@ export function SortableLinkItem({
           size="icon"
           fullWidth={false}
           shouldHaveConfirmation
-          confirmationTitle={`Delete “${link.title}”?`}
-          confirmationDescription={`${link.url} will be removed from your profile. This can't be undone.`}
+          confirmationTitle={t("links.deleteConfirmTitle", { title: link.title })}
+          confirmationDescription={t("links.deleteConfirmBody", {
+            url: link.url,
+          })}
           onClick={() => onDelete(link.id)}
-          aria-label={`Delete link ${link.title}`}
+          aria-label={t("links.deleteTitled", { title: link.title })}
         >
           <FiTrash />
         </Button>
