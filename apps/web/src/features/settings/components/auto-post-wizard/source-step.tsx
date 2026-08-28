@@ -3,6 +3,7 @@ import type { IconType } from "react-icons";
 import {
   FiCpu,
   FiGitPullRequest,
+  FiInfo,
   FiMonitor,
   FiTerminal,
   FiZap,
@@ -34,6 +35,14 @@ type SourceCardDef = {
   description: string;
   /** One line: what we read / what we never read. */
   privacy: string;
+  /**
+   * Whether this source can start a digest by itself. A digest needs a merged
+   * pull request, a submitted review or a release (`hasPublishableEvidence` in
+   * apps/api) — the hook only emits `agent_session` events and the extractor
+   * only emits `commit` events, so neither ever clears that bar alone. They
+   * enrich a digest another source triggered.
+   */
+  postsOnItsOwn: boolean;
   recommended?: boolean;
   /** Setup happens in a terminal or config file on the user's dev machine. */
   needsDevMachine?: boolean;
@@ -49,6 +58,7 @@ const SOURCE_CARDS: SourceCardDef[] = [
     privacy:
       "Reads: your git history, locally, through your own agent. Never reads: anything server-side — LinkHub only receives the finished post.",
     recommended: true,
+    postsOnItsOwn: true,
     needsDevMachine: true,
   },
   {
@@ -56,9 +66,10 @@ const SOURCE_CARDS: SourceCardDef[] = [
     icon: FiCpu,
     title: "Claude Code background hook",
     description:
-      "Zero-touch: posts happen automatically from your sessions, metadata only.",
+      "Adds the story of your sessions to your posts, metadata only. It never starts a post on its own — a post needs a merged pull request, a review or a release, so pair it with webhooks or the MCP agent.",
     privacy:
       "Reads: session metadata when a session ends. Never reads: code, commit messages, file paths.",
+    postsOnItsOwn: false,
     needsDevMachine: true,
   },
   {
@@ -66,9 +77,10 @@ const SOURCE_CARDS: SourceCardDef[] = [
     icon: FiTerminal,
     title: "Local extractor CLI",
     description:
-      "For any machine or repo without an agent; you review a JSON file before anything uploads.",
+      "For any machine or repo without an agent; you review a JSON file before anything uploads. It fills in your posts rather than starting them — a post still needs a merged pull request, a review or a release from webhooks or the MCP agent.",
     privacy:
       "Reads: local git metadata, hashed on your machine. Never reads: code, branch names, commit messages.",
+    postsOnItsOwn: false,
     needsDevMachine: true,
   },
   {
@@ -79,8 +91,16 @@ const SOURCE_CARDS: SourceCardDef[] = [
       "Personal repos you own; server-side, no local install.",
     privacy:
       "Reads: pushed commits, merged PRs, reviews and releases via webhook. Never reads: your code or the repository contents.",
+    postsOnItsOwn: true,
   },
 ];
+
+/**
+ * Shown when the chosen source cannot trigger a digest by itself. Kept next to
+ * `SOURCE_CARDS` so the copy and the `postsOnItsOwn` flag stay in step.
+ */
+const SELECTED_NEEDS_PARTNER_NOTICE =
+  "This source adds context to your posts — it can't start one by itself. A post needs a merged pull request, a submitted review or a release, so combine it with GitHub / GitLab webhooks or the coding agent (MCP).";
 
 export type SourceStepProps = {
   sourceKey: WizardSourceKey | null;
@@ -111,6 +131,9 @@ export function SourceStep({
   onDisplayNameChange,
   displayNameError,
 }: SourceStepProps) {
+  const selectedCard =
+    SOURCE_CARDS.find((card) => card.key === sourceKey) ?? null;
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -158,6 +181,15 @@ export function SourceStep({
                     Recommended
                   </span>
                 ) : null}
+                {/* The honest headline: only two of the four sources can put a
+                    post on your profile without help from another one. */}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    card.postsOnItsOwn ? BADGE.success : BADGE.neutral
+                  }`}
+                >
+                  {card.postsOnItsOwn ? "Posts on its own" : "Adds context"}
+                </span>
               </span>
               <span className="text-xs text-zinc-600 dark:text-zinc-400">
                 {card.description}
@@ -179,6 +211,18 @@ export function SourceStep({
           );
         })}
       </div>
+
+      {selectedCard && !selectedCard.postsOnItsOwn ? (
+        // Information, not an error: the wizard still lets you finish. A source
+        // that only enriches a digest is useful, just never on its own.
+        <p className="flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+          <FiInfo
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-500 dark:text-zinc-400"
+            aria-hidden="true"
+          />
+          <span>{SELECTED_NEEDS_PARTNER_NOTICE}</span>
+        </p>
+      ) : null}
 
       {sourceKey === "forge" ? (
         <div className="flex flex-wrap items-center gap-3">
