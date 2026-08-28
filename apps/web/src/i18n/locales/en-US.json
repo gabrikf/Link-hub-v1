@@ -1246,15 +1246,15 @@
     "deleteTabBody": "The tab is removed from this layout only — the other viewport keeps its own tabs. Blocks inside it move to the first tab of this layout, and pinned blocks are untouched.",
     "loadingTabs": "Loading tabs",
     "tabsEnabled": "Show tabs on my profile",
-    "tabsEnabledHelp": "Tabs let visitors switch between sections of your profile. Turn this off to keep everything on a single page — only this first section stays visible, and nothing you built is deleted.",
+    "tabsEnabledHelp": "Tabs let visitors switch between sections of your profile. Turn this off for a single-page profile — only the always-visible section stays on the page. This setting is per view, so you can keep tabs on desktop and turn them off on mobile.",
     "toggleTabs": "Show tabs on my profile",
-    "tabsOffNotice": "Tabs are off — visitors see only this section.",
-    "tabsHiddenBlocks_one": "{{count}} block lives on another tab and stays hidden while tabs are off.",
-    "tabsHiddenBlocks_other": "{{count}} blocks live on other tabs and stay hidden while tabs are off.",
+    "tabsOffNotice": "Tabs are off for this view — visitors see only the always-visible section.",
+    "tabsHiddenBlocks_one": "{{count}} block in the tabs section is only hidden, not deleted. Switch tabs back on to show it again.",
+    "tabsHiddenBlocks_other": "{{count}} blocks in the tabs section are only hidden, not deleted. Switch tabs back on to show them again.",
     "shownOnAllTabs": "Shown on all tabs",
     "pinnedHelp": "Pinned blocks render above the tab content on every tab.",
     "loadingPinned": "Loading pinned blocks",
-    "noPinnedBlocks": "No pinned blocks. Toggle a block's “All tabs” switch to pin it here.",
+    "noPinnedBlocks": "No always-visible blocks yet. Use “Add to always-visible” to place one here.",
     "saveFailedRetry": "Couldn't save — retry",
     "allChangesSaved": "All changes saved",
     "autosaveNotice": "Changes save automatically",
@@ -1271,6 +1271,9 @@
     "mobileLayout": "Mobile layout",
     "pageSubtitle": "Design independent layouts for desktop and mobile. Arrange blocks in a freeform grid, group them into content tabs — each viewport has its own — and pin blocks so they show everywhere.",
     "needsWiderScreen": "Open the layout studio on a larger screen",
-    "needsWiderScreenBody": "Arranging blocks needs a canvas at least 1024px wide — on this screen a grid column would be about 15px across. Your published profile is unaffected, and you can still design the mobile layout from a desktop browser."
+    "needsWiderScreenBody": "Arranging blocks needs a canvas at least 1024px wide — on this screen a grid column would be about 15px across. Your published profile is unaffected, and you can still design the mobile layout from a desktop browser.",
+    "addToAlwaysVisible": "Add to always-visible",
+    "addToTabs": "Add to tabs section",
+    "alwaysVisibleSection": "Always visible"
   }
 }

@@ -1246,15 +1246,15 @@
     "deleteTabBody": "La pestaña se quita solo de este diseño — el otro formato de pantalla conserva las suyas. Los bloques que contiene pasan a la primera pestaña de este diseño, y los bloques fijados no se tocan.",
     "loadingTabs": "Cargando las pestañas",
     "tabsEnabled": "Mostrar pestañas en mi perfil",
-    "tabsEnabledHelp": "Las pestañas permiten que los visitantes cambien entre secciones de tu perfil. Desactívalas para mantenerlo todo en una sola página: solo esta primera sección sigue visible, y no se borra nada de lo que hayas creado.",
+    "tabsEnabledHelp": "Las pestañas permiten que los visitantes cambien entre secciones de tu perfil. Desactívalas para un perfil de una sola página: solo la sección siempre visible permanece en la página. Esta opción es por vista, así que puedes mantener las pestañas en el ordenador y desactivarlas en el móvil.",
     "toggleTabs": "Mostrar pestañas en mi perfil",
-    "tabsOffNotice": "Pestañas desactivadas: los visitantes solo ven esta sección.",
-    "tabsHiddenBlocks_one": "{{count}} bloque está en otra pestaña y permanece oculto mientras las pestañas estén desactivadas.",
-    "tabsHiddenBlocks_other": "{{count}} bloques están en otras pestañas y permanecen ocultos mientras las pestañas estén desactivadas.",
+    "tabsOffNotice": "Pestañas desactivadas en esta vista: los visitantes solo ven la sección siempre visible.",
+    "tabsHiddenBlocks_one": "{{count}} bloque de la sección de pestañas solo está oculto, no eliminado. Vuelve a activar las pestañas para mostrarlo.",
+    "tabsHiddenBlocks_other": "{{count}} bloques de la sección de pestañas solo están ocultos, no eliminados. Vuelve a activar las pestañas para mostrarlos.",
     "shownOnAllTabs": "Se muestra en todas las pestañas",
     "pinnedHelp": "Los bloques fijados aparecen encima del contenido en todas las pestañas.",
     "loadingPinned": "Cargando los bloques fijados",
-    "noPinnedBlocks": "No hay bloques fijados. Activa el interruptor “Todas las pestañas” de un bloque para fijarlo aquí.",
+    "noPinnedBlocks": "Aún no hay bloques siempre visibles. Usa “Añadir a siempre visible” para colocar uno aquí.",
     "saveFailedRetry": "No se pudo guardar — reintentar",
     "allChangesSaved": "Todos los cambios guardados",
     "autosaveNotice": "Los cambios se guardan automáticamente",
@@ -1271,6 +1271,9 @@
     "mobileLayout": "Diseño móvil",
     "pageSubtitle": "Diseña maquetas independientes para escritorio y móvil. Organiza los bloques en una cuadrícula libre, agrúpalos en pestañas de contenido — cada formato de pantalla tiene las suyas — y fija bloques para que aparezcan en todas.",
     "needsWiderScreen": "Abre el estudio de diseño en una pantalla más grande",
-    "needsWiderScreenBody": "Organizar bloques necesita un lienzo de al menos 1024px de ancho — en esta pantalla una columna de la cuadrícula mediría unos 15px. Tu perfil publicado no se ve afectado, y aún puedes diseñar el diseño móvil desde un navegador de escritorio."
+    "needsWiderScreenBody": "Organizar bloques necesita un lienzo de al menos 1024px de ancho — en esta pantalla una columna de la cuadrícula mediría unos 15px. Tu perfil publicado no se ve afectado, y aún puedes diseñar el diseño móvil desde un navegador de escritorio.",
+    "addToAlwaysVisible": "Añadir a siempre visible",
+    "addToTabs": "Añadir a la sección de pestañas",
+    "alwaysVisibleSection": "Siempre visible"
   }
 }

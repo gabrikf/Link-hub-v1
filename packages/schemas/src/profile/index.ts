@@ -40,16 +40,6 @@ export const profileSchema = z.object({
   openToWork: z.boolean(),
   location: z.string().nullable(),
   persona: personaSchema.nullable(),
-  /*
-   * "Simple mode" switch: when false the public profile renders no tab strip
-   * and shows only the first tab's blocks (plus pinned ones), turning the page
-   * into a plain link-in-bio.
-   *
-   * This one IS public, unlike the preferences in `../preferences` — the public
-   * renderer cannot decide whether to draw the tab strip without it. Tabs
-   * themselves stay per-viewport; this flag is profile-level and covers both.
-   */
-  tabsEnabled: z.boolean(),
   links: z.array(linkSchema),
   // Per-viewport public layout (tabs + grid-placed, visible-only blocks; pinned
   // blocks resolved). Optional so the authenticated `/me` endpoint (same schema)
@@ -72,7 +62,6 @@ export const updateProfileSchemaInput = z.object({
   openToWork: z.boolean().optional(),
   location: z.string().max(120).nullable().optional(),
   persona: personaSchema.nullable().optional(),
-  tabsEnabled: z.boolean().optional(),
 });
 
 export const updateProfileSchemaOutput = z.object({
@@ -88,7 +77,6 @@ export const updateProfileSchemaOutput = z.object({
   openToWork: z.boolean(),
   location: z.string().nullable(),
   persona: personaSchema.nullable(),
-  tabsEnabled: z.boolean(),
   email: z.string().email(),
 });
 

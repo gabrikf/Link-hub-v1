@@ -1246,15 +1246,15 @@
     "deleteTabBody": "A aba é removida apenas deste layout — o outro formato de tela mantém as suas. Os blocos dentro dela vão para a primeira aba deste layout, e os blocos fixados não são afetados.",
     "loadingTabs": "Carregando as abas",
     "tabsEnabled": "Mostrar abas no meu perfil",
-    "tabsEnabledHelp": "As abas permitem que visitantes alternem entre seções do seu perfil. Desative para manter tudo em uma página só — apenas esta primeira seção continua visível, e nada do que você criou é apagado.",
+    "tabsEnabledHelp": "As abas permitem que visitantes alternem entre seções do seu perfil. Desative para um perfil de página única — apenas a seção sempre visível continua na página. Esta opção é por visualização, então você pode manter as abas no computador e desativá-las no celular.",
     "toggleTabs": "Mostrar abas no meu perfil",
-    "tabsOffNotice": "Abas desativadas — visitantes veem apenas esta seção.",
-    "tabsHiddenBlocks_one": "{{count}} bloco está em outra aba e fica oculto enquanto as abas estiverem desativadas.",
-    "tabsHiddenBlocks_other": "{{count}} blocos estão em outras abas e ficam ocultos enquanto as abas estiverem desativadas.",
+    "tabsOffNotice": "Abas desativadas nesta visualização — visitantes veem apenas a seção sempre visível.",
+    "tabsHiddenBlocks_one": "{{count}} bloco da seção de abas está apenas oculto, não excluído. Reative as abas para mostrá-lo de novo.",
+    "tabsHiddenBlocks_other": "{{count}} blocos da seção de abas estão apenas ocultos, não excluídos. Reative as abas para mostrá-los de novo.",
     "shownOnAllTabs": "Exibido em todas as abas",
     "pinnedHelp": "Blocos fixados aparecem acima do conteúdo em todas as abas.",
     "loadingPinned": "Carregando os blocos fixados",
-    "noPinnedBlocks": "Nenhum bloco fixado. Ative a chave “Todas as abas” de um bloco para fixá-lo aqui.",
+    "noPinnedBlocks": "Nenhum bloco sempre visível ainda. Use “Adicionar em sempre visível” para colocar um aqui.",
     "saveFailedRetry": "Não foi possível salvar — tentar de novo",
     "allChangesSaved": "Todas as alterações salvas",
     "autosaveNotice": "As alterações são salvas automaticamente",
@@ -1271,6 +1271,9 @@
     "mobileLayout": "Layout de celular",
     "pageSubtitle": "Crie layouts independentes para desktop e celular. Organize os blocos em uma grade livre, agrupe-os em abas de conteúdo — cada formato de tela tem as suas — e fixe blocos para que apareçam em todas.",
     "needsWiderScreen": "Abra o estúdio de layout em uma tela maior",
-    "needsWiderScreenBody": "Organizar blocos exige uma área de pelo menos 1024px de largura — nesta tela, uma coluna da grade teria cerca de 15px. Seu perfil publicado não é afetado, e você ainda pode desenhar o layout de celular a partir de um navegador de desktop."
+    "needsWiderScreenBody": "Organizar blocos exige uma área de pelo menos 1024px de largura — nesta tela, uma coluna da grade teria cerca de 15px. Seu perfil publicado não é afetado, e você ainda pode desenhar o layout de celular a partir de um navegador de desktop.",
+    "addToAlwaysVisible": "Adicionar em sempre visível",
+    "addToTabs": "Adicionar na seção de abas",
+    "alwaysVisibleSection": "Sempre visível"
   }
 }

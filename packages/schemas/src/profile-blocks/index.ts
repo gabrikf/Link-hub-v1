@@ -174,6 +174,17 @@ export type ProfileBlock = z.infer<typeof profileBlockSchema>;
 export const layoutSchema = z.object({
   tabs: z.array(profileTabSchema),
   blocks: z.array(profileBlockSchema),
+  /*
+   * "Simple mode", PER VIEWPORT. False means this viewport renders no tab strip
+   * and only the first tab's blocks, plus the always-visible zone.
+   *
+   * It lives here rather than on the profile because tabs themselves are
+   * per-viewport (`profile_tabs.viewport`), and the real use case is asymmetric:
+   * tabs on a wide desktop layout, a single scrolling list on a phone. One
+   * profile-level flag cannot express that, and forcing both viewports to agree
+   * made switching one silently switch the other.
+   */
+  tabsEnabled: z.boolean(),
 });
 export type ProfileLayout = z.infer<typeof layoutSchema>;
 
@@ -190,6 +201,18 @@ export type FullProfileLayout = z.infer<typeof fullLayoutSchema>;
 export const layoutViewportQuerySchema = z.object({
   viewport: profileViewportSchema.optional(),
 });
+
+/**
+ * Flips the tab strip for ONE viewport. Deliberately its own endpoint input
+ * rather than a field on `updateProfileSchemaInput`: this is per-viewport
+ * layout state, and routing it through the profile update would have required
+ * every caller to also send `username` just to toggle a switch.
+ */
+export const setTabsEnabledSchemaInput = z.object({
+  viewport: profileViewportSchema,
+  tabsEnabled: z.boolean(),
+});
+export type SetTabsEnabledInput = z.infer<typeof setTabsEnabledSchemaInput>;
 
 export const createTabSchemaInput = z.object({
   viewport: profileViewportSchema,
