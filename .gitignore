@@ -78,6 +78,10 @@ docs/qa/evidence/
 # all of it is a record of ONE night's run, not of the repo. The durable output
 # is committed instead: docs/qa/** and docs/nightly-loop.md.
 .nightly/
+# `--fresh` archives a finished run to .nightly-<timestamp>/. The pattern above
+# does NOT match those, and one iteration committed 23 of those artifact files
+# (logs, pids, state) into the branch as a result.
+.nightly-*/
 
 # @playwright/test output. `.playwright/cli.config.json` stays versioned (it is
 # the visual-check capture contract); nothing generated does.

@@ -49,6 +49,7 @@ import { ApiTokensController } from "../controllers/api-tokens/api-tokens-contro
 import { AgentPolicyController } from "../controllers/agent-policy/agent-policy-controller.js";
 import { ActivityController } from "../controllers/activity/activity-controller.js";
 import { WorkExperienceController } from "../controllers/work-experience/work-experience-controller.js";
+import { AiImportController } from "../controllers/ai-import/ai-import-controller.js";
 import { webhooksRoutes } from "../routes/webhooks.js";
 
 /**
@@ -274,6 +275,11 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   // here without breaking registration.
   WorkExperienceController.handle(app);
   ActivityController.handle(app);
+  // Registered for the resume-parse length gate. Its use-case is resolved
+  // lazily inside the handler, so a test that wants the parse to succeed
+  // registers its own (hermetic) ParseResumeUseCase; the rejection paths never
+  // resolve one at all.
+  AiImportController.handle(app);
   // Only the create/update use-cases are registered above: the other link
   // routes resolve theirs lazily inside the handler, so they stay unavailable
   // (and unused) here without breaking registration.

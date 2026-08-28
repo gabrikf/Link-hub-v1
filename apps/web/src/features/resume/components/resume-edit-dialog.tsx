@@ -489,7 +489,7 @@ export function ResumeEditDialog({
         onOpenChange={handleOpenChange}
         title="Edit Resume"
         description="Select multiple skills/titles, adjust years and primary title, then save everything together."
-        contentClassName="!w-[96vw] !max-w-none max-h-[92vh] overflow-y-auto xl:!w-[1400px]"
+        contentClassName="!w-[96vw] !max-w-none max-h-[92svh] xl:!w-[1400px]"
         buttons={
           <>
             <Button

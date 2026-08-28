@@ -111,6 +111,67 @@ Rules:
 - Keep skills concise (technology names, not sentences).
 - Markdown for work-experience "description": PRESERVE the resume's bullet structure. When the resume lists responsibilities/achievements as bullets (•, -, *, or numbered), output them as a Markdown bulleted list with each item on its own line starting with "- " (use a real newline "\\n" between items, never merge bullets into one paragraph). You may use **bold** for emphasis. If the entry is genuinely a single prose paragraph, keep it as a paragraph. Keep each bullet concise; do not invent bullets that aren't in the resume.`;
 
+/**
+ * Bullet glyphs that start a line in a real CV. PDFs and DOCX files use every
+ * one of these, and the model echoes back whatever it was given.
+ */
+const LEADING_BULLET_RE = /^[•‣▪●◦∙·–—]\s*/;
+
+/**
+ * The subset strong enough to split on mid-line. `·`, `–` and `—` are left out
+ * on purpose: they show up inside ordinary prose ("2020 – 2022", "React · Node")
+ * often enough that splitting on them would shred a normal sentence.
+ */
+const INLINE_BULLET_RE = /[•‣▪●◦∙]\s*/g;
+
+/**
+ * Rewrites a role description into the Markdown the profile renderer expects:
+ * one bullet per line, each starting with "- ".
+ *
+ * Done here, once, server-side, rather than in the web renderer, so the stored
+ * value is already canonical Markdown — the same text is also read by the MCP
+ * work-context use case and shown in the resume-import review step, and none of
+ * those should have to know what a `▪` means.
+ *
+ * The mid-line split is the repair for the older glued imports: when a whole
+ * resume arrived as a single line (see the whitespace note in
+ * `extract-search-attachment-text.ts`), the model faithfully echoed a run of
+ * "• did this • did that" back on one line. Two or more glyphs is the signal;
+ * a single glyph is just this line's own marker.
+ */
+export function normalizeDescriptionMarkdown(input: string): string {
+  const lines = input.replace(/\r\n?/g, "\n").split("\n");
+  const normalized: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/[^\S\n]+/g, " ").trim();
+
+    if (line.length === 0) {
+      normalized.push("");
+      continue;
+    }
+
+    const glyphs = line.match(INLINE_BULLET_RE);
+    if (glyphs && glyphs.length >= 2) {
+      for (const item of line.split(INLINE_BULLET_RE)) {
+        const text = item.trim();
+        if (text.length > 0) {
+          normalized.push(`- ${text}`);
+        }
+      }
+      continue;
+    }
+
+    normalized.push(line.replace(LEADING_BULLET_RE, "- "));
+  }
+
+  return normalized
+    .join("\n")
+    .replace(/ +$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function asString(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -189,6 +250,10 @@ function normalizeWorkExperience(raw: unknown): ParsedWorkExperience | null {
 
   const isCurrent = asBoolean(value.isCurrent) ?? false;
   const endDate = isCurrent ? null : asIsoDate(value.endDate);
+  const rawDescription = asString(value.description);
+  const description = rawDescription
+    ? (normalizeDescriptionMarkdown(rawDescription) || null)
+    : null;
 
   return {
     title,
@@ -201,7 +266,7 @@ function normalizeWorkExperience(raw: unknown): ParsedWorkExperience | null {
     startDate: asIsoDate(value.startDate),
     endDate,
     isCurrent,
-    description: asString(value.description),
+    description,
     mainStack: asStringArray(value.mainStack),
   };
 }

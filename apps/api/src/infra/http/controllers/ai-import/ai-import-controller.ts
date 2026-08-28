@@ -5,6 +5,7 @@ import {
   aiResumeImportParseResponseSchema,
   applyAiResumeImportInputSchema,
   parsedResumeDataSchema,
+  RESUME_TEXT_MAX_LENGTH,
   type ApplyAiResumeImportInput,
 } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
@@ -59,6 +60,16 @@ export class AiImportController {
         if (!resumeText || resumeText.length < MIN_RESUME_TEXT_LENGTH) {
           throw new BadRequestError(
             "Provide a resume file or pasted text with enough content to parse.",
+          );
+        }
+
+        // The upper bound, checked here rather than through a body schema
+        // because this route also serves multipart. Without it an over-long
+        // paste reaches the model, costs a full parse, and — once it exceeds
+        // the model's context window — comes back as an unexplained 500.
+        if (resumeText.length > RESUME_TEXT_MAX_LENGTH) {
+          throw new BadRequestError(
+            `This resume is too long to parse: ${resumeText.length.toLocaleString("en-US")} characters, and the limit is ${RESUME_TEXT_MAX_LENGTH.toLocaleString("en-US")}. Paste a shorter version or upload the file itself.`,
           );
         }
 

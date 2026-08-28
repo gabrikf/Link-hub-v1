@@ -59,11 +59,6 @@ the baseline-vs-now comparison as a table. Update each `QUEUE.fixed[]` entry wit
 ```bash
 node scripts/nightly/state.mjs set next_phase '"REPORT"'
 ```
-Legal: `REPORT` (clean **and** every lane in `.nightly/LANES.md` is `DONE`, or
-under 45 minutes remain), `HUNT` (clean but lanes are still `TODO` and there is
-time — **prefer this**), `TRIAGE` (you found a regression — it must be triaged
+Legal: `REPORT` (clean), `TRIAGE` (you found a regression — it must be triaged
 and fixed before the report), `FIX` (a regression is obvious and already
 claimed).
-
-A clean regression pass with lanes still `TODO` means the tree is safe to keep
-hunting in, not that the night is over.

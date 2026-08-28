@@ -117,9 +117,14 @@ describe("findDisclosureViolations", () => {
     expect(findDisclosureViolations("The sun is out", ["sun"])).toEqual(["sun"]);
   });
 
-  it("does not match a term glued to another word by a digit or underscore", () => {
+  it("does not match a term glued to another word by a digit, but does match one separated by an underscore", () => {
+    // A digit is part of a word token, so "sun" is genuinely absent from
+    // "sun4life". An underscore is punctuation between tokens — it is how a URL
+    // spells a space — so `my_sun_service` discloses "sun" exactly as
+    // `my-sun-service` does. This assertion used to expect [] on both, which is
+    // the leak in BUG-20260827-disclosure-underscore-slug written down as a test.
     expect(findDisclosureViolations("sun4life", ["sun"])).toEqual([]);
-    expect(findDisclosureViolations("my_sun_service", ["sun"])).toEqual([]);
+    expect(findDisclosureViolations("my_sun_service", ["sun"])).toEqual(["sun"]);
   });
 
   it("matches case-insensitively but reports the canonical spelling", () => {
@@ -260,6 +265,30 @@ describe("findDisclosureViolations", () => {
       expect(
         findDisclosureViolations("https://github.com/ci-t/ledger", ["CI&T"]),
       ).toEqual(["CI&T"]);
+    });
+
+    it("matches a single-word employer glued to the next slug word by an underscore", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/nubank_core/ledger/pull/42",
+          ["Nubank"],
+        ),
+      ).toEqual(["Nubank"]);
+      expect(
+        findDisclosureViolations(
+          "https://jira.nubank_internal.com/browse/LED-1",
+          ["Nubank"],
+        ),
+      ).toEqual(["Nubank"]);
+    });
+
+    it("matches a multi-word employer slug trailed by an underscored word", () => {
+      expect(
+        findDisclosureViolations(
+          "https://github.com/acme_corp_internal/ledger",
+          ["Acme Corp"],
+        ),
+      ).toEqual(["Acme Corp"]);
     });
 
     it("does not match a URL that merely contains one of the words", () => {

@@ -125,7 +125,7 @@ export class AgentPolicyController {
         schema: {
           tags: ["Agent Policy"],
           summary:
-            "Get work history already redacted to the effective disclosure level",
+            "Get work history with blocked employer and client names stripped",
           response: {
             200: workContextSchema,
             ...commonErrorResponses([

@@ -137,7 +137,7 @@ export function PostComposerDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={isEditing ? "Edit post" : "Write a post"}
-      contentClassName="max-w-2xl max-h-[90vh] overflow-y-auto"
+      contentClassName="max-w-2xl max-h-[90svh]"
     >
       <div className="space-y-4">
         <Input

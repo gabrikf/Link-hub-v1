@@ -647,3 +647,321 @@ The gate is green and the offline suites pass — but **not one user journey was
 walked tonight**, so "the journeys walk clean" cannot be claimed at all. Clearing
 this verdict needs a real BOOTSTRAP → HUNT → TRIAGE → FIX round actually run —
 which, with LinkHub now verified on 3344 / 5273, is finally possible.
+
+---
+
+## Run 2026-08-27 — results and gains
+
+Run id `2026-08-22T18:58:46.702Z`. 118 iterations, phase `BOOTSTRAP` →
+`HUNT` → … → `REPORT`. Ended **cleanly**: not on the deadline (463 min still
+left), not on budget (unlimited plan), not on repeated failure
+(`consecutive_failures: 0`). Iteration 117's REGRESSION pass was clean and the
+queue was empty, so it routed itself to `REPORT`.
+
+The QA round itself is written up in
+[`docs/qa/reports/2026-08-27-nightly.md`](qa/reports/2026-08-27-nightly.md).
+This section is about the **loop**.
+
+### Which guards actually fired
+
+Evidence is `.nightly/STATE.json` → `history[]` (113 entries) unless stated.
+
+| Guard | Fired? | Evidence |
+|---|---|---|
+| **Per-iteration cost cap** (`$8`) | **YES — 4×** | Iterations 80, 82, 98, 100, all in `HUNT`, at `$8.12 / $8.03 / $8.06 / $8.14`, each recorded `outcome: "fail"`, `note: "iteration failed"`. |
+| **Plan-usage-limit wait** | **YES — 22×** | 22 `outcome: "paused"` entries, `note: "plan usage limit — waited 1800s, deadline extended by 1800s"`. Not in the required list, but by far the dominant guard this run. |
+| **Per-iteration timeout** (3600s) | no | No `history[]` entry carries a timeout note, and the longest completed iteration was **28 minutes** (iteration 75, REGRESSION) — well under the cap. `run.sh:426` would have logged `TIMED OUT`; `.nightly/logs/` is empty, so this is negative evidence from `history[]` only. |
+| **Deadline → REPORT routing** | no | `deadline_at` is `2026-08-28T01:14:59.000Z`; REPORT was entered at `2026-08-27T17:31Z` with 463 minutes to spare. Iteration 117 chose `REPORT` itself, per its phase's "clean" case. |
+| **Three-strikes fix escalation** (`max_fix_attempts: 3`) | no | `REVIEW_FIX → FIX` occurred exactly twice — iterations 24 and 47 — and each was resolved on the second attempt. `fix_attempts` is back to 0. |
+| **Three-strikes loop failure** (`max_consecutive_failures: 3`) | no | The 4 failures were never consecutive: iteration 81 (`ok`) sits between 80 and 82; a pause (99) and then 101 (`ok`) follow 98 and 100. `consecutive_failures: 0`. |
+| **Illegal-phase-transition refusal** | no | No entry records a refused transition. A *different* guard did fire once: iteration 67 is `HUNT → HUNT` with `note: "iteration reported ok but set no next_phase"` — the loop held the phase rather than counting a failure. That is the right behaviour and worth keeping distinct from the illegal-value case. |
+
+### Did the phase machine behave?
+
+Mostly yes, with two real blemishes and one unexplained gap.
+
+**The four cost-cap failures cost `$32.36` — 11.2% of the run's `$290.09`.** All
+four were `HUNT` iterations that burned the full per-iteration cap and returned
+no phase transition. `HUNT` is the phase with the widest search space and the
+least structure, and it is the only phase that ever hit the cap. Everything else
+averaged around `$2.90`.
+
+**Iteration 67 reported `ok` and set no `next_phase`.** Handled gracefully — the
+phase held at `HUNT` and the next agent continued — but it means an iteration
+can complete, spend money, and advance nothing without being counted as a
+failure.
+
+**Iterations 2, 94, 95 and 96 have no `history[]` entry at all**, and
+`.nightly/logs/` is empty, so there is no evidence of what they did.
+Iteration 97 is a single `paused` entry whose `note` claims a 1800s wait but
+whose `ended_at` is **3 days 21 hours** after iteration 93's. The run was
+plainly stopped and resumed across that window —
+`scripts/nightly/run.sh:589-601` implements exactly that path ("resuming a run
+that still owes its REPORT — extending the deadline") — but the state file does
+not record it as anything other than an ordinary pause, and this report will not
+claim more than the files support.
+
+**A counter is provably wrong.** `guards.limit_waits` reads **22** while
+`guards.limit_wait_seconds` reads **3600** — two waits' worth. If the 22
+`history[]` notes are accurate (1800s each), the true total is **39 600s ≈ 11
+hours**, against a `max_limit_wait_seconds` cap of 25 200s (7h). The cap exists
+so "an exhausted account cannot keep a run alive indefinitely"
+(`state.mjs:317`), and it silently did not bind. Root cause not established
+here — the resume path is the obvious suspect — but the discrepancy is real and
+is the first thing to fix in the loop.
+
+### What it found
+
+23 bugs fixed, each as a `test(BUG-…)` red commit followed by a `fix(BUG-…)`
+green commit, each approved by a `REVIEW_FIX` iteration, each with
+`guardrails PASS` recorded.
+
+| Bug id | Sev | Area | User impact | Red | Fix | Review |
+|---|---|---|---|---|---|---|
+| `BUG-20260822-public-posts-contract` | blocker | profile | Every public profile with a post showed "Could not load posts." | `16ea93f` | `ce33083` | approved 1st |
+| `BUG-20260822-disclosure-external-url` | blocker | posts | Employer name published as a live link at `summary` | `c547eae` | `b65d6d5` | approved 1st |
+| `BUG-20260822-disclosure-cross-role` | blocker | posts | One role at `full` un-blocked every other employer name | `bea6b1b` | `faef823` | approved 1st |
+| `BUG-20260827-login-multi-row-heap-order` | blocker | api/auth | Correct credentials → permanent lockout, winner by heap order | `c9f0bd2` | `a5ca96c` | approved 1st |
+| `BUG-20260822-links-url-scheme` | major | profile | `javascript:`/`data:` accepted as public profile links | `9981b0c` | `66db662` | approved 1st |
+| `BUG-20260822-links-keyboard-reorder` | major | dashboard | Keyboard reorder announced success, did nothing | `43ea606` | `14a550e` | approved 1st |
+| `BUG-20260822-layout-vertical-keyboard` | major | layout | ArrowUp/Down no-ops, each firing a PATCH persisting nothing | `dea5742` | `12a3386` | **rejected 1st** |
+| `BUG-20260822-layout-error-fabricated` | major | layout | Failed `/me/layout` drew a fabricated layout as the user's own | `cf0ae21` | `9ec1639` | **rejected 1st** |
+| `BUG-20260822-dashboard-error-state` | major | dashboard | Failed `/me` looked like a wiped account | `a6443e8` | `91963b9` | approved 1st |
+| `BUG-20260822-agent-self-publish` | major | posts | Agent released its own post from the human review queue | `dd136ee` | `b93853b` | approved 1st |
+| `BUG-20260822-disclosure-url-slug-variant` | major | posts | "Acme Corp" leaked as `acme-corp` in a URL | `f280f0f` | `aeac1ef` | approved 1st |
+| `BUG-20260822-auth-unhandled-rejection` | major | auth | Failed logins shipped user emails to Sentry as unhandled rejections | `63cc50b` | `0fe91ff` | approved 1st |
+| `BUG-20260823-mobile-search-no-feedback` | major | search | Phone search changed nothing on screen; 3 taps = 3 searches | `68d3b83` | `2205295` | approved 1st |
+| `BUG-20260823-excerpt-strips-hyphens` | major | posts/profile | "front-end"→"frontend", "2023-2024"→"20232024" in every excerpt | `73cee34` | `82d090a` | approved 1st |
+| `BUG-20260823-email-case-splits-account` | major | api/auth | One mailbox in two cases became two accounts | `c566114` | `5560cb3` | approved 1st |
+| `BUG-20260827-disclosure-underscore-slug` | major | api/agent-policy | `nubank_core` leaked where `nubank-core` was refused | `5dc9a11` | `f3bd182` | approved 1st |
+| `BUG-20260827-mcp-overstates-redaction` | major | mcp/agent-policy | MCP told agents six unredacted categories were "already redacted" | `9444527` | `493342e` | approved 1st |
+| `BUG-20260822-open-to-work-switch-name` | minor | dashboard | "Open to work" switch had no accessible name | `d7d5603` | `1b24510` | approved 1st |
+| `BUG-20260823-profile-login-tap-eaten` | minor | public-profile | Theme toggle ate 21% of the only sign-in CTA | `31ba821` | `f310b7c` | approved 1st |
+| `BUG-20260823-handle-slash-breaks-profile` | minor | web/profile | A slash in a handle made the public profile unreachable | `1eed39a` | `d288779` | approved 1st |
+| `BUG-20260823-error-state-retry-delay` | minor | web/dashboard | 7.7s frozen skeleton before the designed error state | `2ad3193` | `77511b6` | approved 1st |
+| `BUG-20260827-resume-parse-uncapped` | minor | api/ai-import | Over-long resume → 500, burning an AI-import attempt | `279c1af` | `2646ccd` | approved 1st |
+| `BUG-20260827-work-context-stack-unredacted` | minor | api/agent-policy | Blocked term handed to the agent, then 400'd on publish | `9b3ee27` | `15a8468` | approved 1st |
+
+**Which two the review rejected first, and why it matters.** Both were the
+same class of mistake: a fix that treated the *symptom* rather than the
+condition. `layout-error-fabricated` (rejected at iteration 24, re-fixed at 25,
+approved at 26) and `layout-vertical-keyboard` (rejected at 47, re-fixed at 48,
+approved at 49). Commit timestamps confirm the pairing — `9ec1639` landed
+20:57:33 local inside iteration 25's window, `12a3386` at 04:11:38 inside
+iteration 48's. **Review rejection rate: 2 of 25 `REVIEW_FIX` iterations = 8%.**
+
+### What it rejected, and why
+
+15 candidates were triaged and rejected. This is the evidence the loop held the
+real-user-impact bar rather than churning cosmetics.
+
+| Id | Title | Reason |
+|---|---|---|
+| `REJ-0101` | First visit to `/dashboard/search` discards the submit | dev-server artifact — Vite pre-bundling TF.js forces a reload; a built bundle is unaffected |
+| `CAND-0101` | `@repo/schemas` not importable from a Playwright spec | harness |
+| `CAND-0104` | visual-check scenario loading-state pattern broken | harness |
+| `CAND-0110` | Two journey tests flaky under a full sequential run | harness |
+| `CAND-0111` | Journey 01's empty-resume-404 allowlist hardcodes port 3333 | harness — later fixed anyway by `7655260` |
+| `CAND-0112` | `recordRequests()` hardcodes port 3333 | harness |
+| `CAND-0116` | Layout editor / profile panel "render no error state" | harness — the spec asserts the behaviour a fix deliberately removed |
+| `CAND-0122` | Journey 02 still expects `metadata` on the public feed | harness — the field's absence *is* the fix |
+| `CAND-0113` | Mobile-only journey 05 accent-variable failure | not reproducible |
+| `CAND-0102` | "AI Match %" chip has no accessible role/label/test id | below bar |
+| `CAND-0103` | `create_commit_summary_post` says `repo` is publishable | below bar |
+| `CAND-0107` | Malformed-email inline validation unreachable behind native validation | below bar |
+| `CAND-0108` | Public profile payload includes each link's `userId` | below bar |
+| `CAND-0118` | `markdownExcerpt` leaves a literal `**` on a hard-wrapped emphasis span | below bar |
+| `CAND-0131` | `apps/mcp` README still promises full server-side redaction | below bar |
+
+8 below-bar, 6 harness/dev-artifact, 1 not reproducible. Every one of the six
+harness rejections would have been a tempting "fix" that changed test code to
+hide a disagreement with a deliberate product decision.
+
+### What it escalated
+
+Three decisions left for a human. Full write-ups in `docs/qa/bugs/ESC-*.md`.
+
+1. **`ESC-20260827-register-case-race` (major)** — two concurrent registrations
+   of one mailbox in two cases both succeed. *Options:* ship the unique index now
+   (it will fail on existing data — `linkhub_dev` holds six colliding mailboxes);
+   ship only the login fix (done); or audit → merge → backfill → index
+   concurrently. **Recommendation: the third, as its own task after the deploy.**
+   The login fix already removed the lockout. The same
+   `users (lower(email))` index also restores an index for the login lookup,
+   which the 08-23 fix turned into a sequential scan.
+2. **`ESC-20260822-delete-empty-json-body` (minor)** — every `DELETE` 400s on a
+   JSON content-type with no body. *Options:* a global `addContentTypeParser`
+   change; per-route schema relaxation; or defer. **Recommendation: defer.** The
+   fix touches the parse path of every write endpoint to remove a 400 no shipped
+   client currently hits.
+3. **`ESC-20260827-disclosure-slash-gap` (minor)** — `github.com/acme/corp` is
+   not detected as naming "Acme Corp". *Options:* widen the separator set now;
+   widen after measuring against a real `externalUrl` corpus; or leave it.
+   **Recommendation: the second.** Adding `/` is a widening, not two rules
+   cancelling — "Data Science" would then match `site.com/data/science-fair`, and
+   a new false positive is a 400 on a real publish.
+
+### The gains, measured
+
+Every number below comes from `.nightly/STATE.json` `history[]`,
+`.nightly/QUEUE.json`, `.nightly/MEMORY.md`, or `git`. Where a number is not
+available, it says so.
+
+| Metric | Value |
+|---|---|
+| Iterations attempted | 118 |
+| Iterations in `history[]` | 113 (2, 94, 95, 96 absent — no logs, unexplained) |
+| Outcomes | 87 `ok` · 22 `paused` · 4 `fail` |
+| Elapsed wall-clock, start → REPORT | 118h 33m (2026-08-22T18:58 → 2026-08-27T17:31) |
+| — of which the loop was demonstrably running | ~25h 35m (22h 41m before the gap, 2h 53m after) |
+| — of which the loop was dormant | ~93h (the unexplained 08-23 → 08-27 gap) |
+| — of which was spent waiting on plan usage limits | ~11h nominal (22 × 1800s per the `history[]` notes) |
+| Total notional cost | **290.09 plan-units** (`budget.spent_usd`; a notional estimate, not money) |
+| Cost burned by cost-cap failures | 32.36 units — 11.2%, all four in `HUNT` |
+| Mean cost of a productive iteration | ~2.96 units (257.73 over 87 `ok` iterations) |
+| Most expensive productive iteration | 6.88 (iteration 75, REGRESSION) |
+| Longest iteration | 28 min (iteration 75) |
+| Bugs fixed | **23** — 4 blocker, 13 major, 6 minor |
+| Bugs per lane | posts/agent-policy **7** · public profile **5** · dashboard **4** · auth **3** · layout **2** · search **1** · ai-import **1** |
+| Escalated | 3 |
+| Rejected | 15 (8 below-bar, 6 harness/dev-artifact, 1 not reproducible) |
+| Triage precision | 26 of 41 candidates (63%) became a fix or an escalation |
+| Review rejection rate | **2 of 25 (8%)** |
+| Commits on the branch | 107 — 25 `test(BUG-…)` + 25 `fix(BUG-…)` pairs, 51 `docs(qa)` reviews, plus harness commits |
+| Diff | 109 files, **+12 552 / −157** |
+
+**Tests added — baseline vs final** (from `.nightly/MEMORY.md`, iteration 1
+baseline and iteration 117 final; `f` = test files, `t` = tests):
+
+| Workspace | i1 baseline | i75 | i117 final | Δ tests |
+|---|---|---|---|---|
+| api | 104f / 869t | 106f / 927t | **107f / 938t** | +69 |
+| web | 47f / 436t | 52f / 468t | **52f / 470t** | +34 |
+| `@repo/schemas` | 6f / 105t | 7f / 119t | **7f / 119t** | +14 |
+| extractor | 6f / 100t | 6f / 100t | **6f / 100t** | 0 |
+| training | 9f / 87t | 9f / 87t | **9f / 87t** | 0 |
+| **total** | **172f / 1597t** | **180f / 1701t** | **181f / 1714t** | **+117** |
+
+Zero tests were removed or skipped. Separately, a `test(coverage)` commit added a
+**256-test characterization suite for `apps/mcp`**, which had zero tests — the
+recorded debt in `AGENTS.md`. That suite is not in the table above because it is
+not counted in the per-workspace figures MEMORY.md recorded.
+
+**e2e, baseline vs final:**
+
+| Project | i1 baseline | i75 | i117 final |
+|---|---|---|---|
+| desktop | 29 passed / 12 failed / 1 skipped (42) | 36 / 8 / 1 (45) | **41 / 3 / 1 (45)** |
+| mobile | 5 passed / 4 failed (9) | 6 / 3 (9) | **7 / 2 (9)** |
+
+From 34 passing to **48 passing**, with 16 failures down to 5 — and all 5
+remaining failures map one-to-one to candidates already triaged and rejected as
+harness, named in the QA report.
+
+### What it did NOT verify
+
+- **Iterations 2, 94, 95 and 96.** No `history[]` entry, no log. Whatever they
+  did or cost is unrecoverable.
+- **The ~93-hour dormant window.** The state files record it as an ordinary
+  1800s pause. Nothing else is known.
+- **Three fixes were never walked in a browser**, verified by their unit/HTTP
+  regression tests only: `disclosure-underscore-slug`,
+  `mcp-overstates-redaction`, `resume-parse-uncapped`. A deliberate budget
+  tradeoff, recorded at iteration 117.
+- **No physical device, no production build, no deployed environment, no Sentry
+  observation.** Every mobile finding was verified in Playwright's `mobile`
+  project at 390×844.
+- **The gate's narrowed test lane** skips 3 api e2e files
+  (`search-indexes`, `search-boundaries`, `search.e2e.test.ts`) when
+  `OPENAI_API_KEY` is unset in its shell, and says so by name. Iteration 117's
+  full `npm run test --workspace=api` **did** run them against the live OpenAI
+  API, because `apps/api/.env` carries a key vitest loads itself — that leg
+  spends real money the gate is designed to avoid.
+- **`npm run check-types` was cached (`FULL TURBO`) in several iterations.**
+  Those iterations forced `npx tsc --noEmit` in the affected workspace instead;
+  where they did not say so, the cached green is the only evidence.
+- **`scripts/nightly/run.sh` is modified in the working tree** and was not
+  authored, reviewed, or committed by this run. It has been dirty since
+  iteration 113.
+- **No MCP server was loaded for any iteration** (`--strict-mcp-config`, because
+  the repo's `postgres` stdio server never exits in print mode). Database
+  verification used `docker exec … psql` instead.
+
+### How to run it again
+
+```bash
+# LinkHub is on the alternate ports; 3333/5173 belong to another project here.
+nohup bash scripts/nightly/run.sh start --hours 8 --fresh \
+  --api-port 3344 --web-port 5273 > .nightly/logs/run.log 2>&1 &
+```
+
+### What to change about the loop itself
+
+1. **Fix the `limit_wait_seconds` accounting first.** `limit_waits: 22` against
+   `limit_wait_seconds: 3600` means the 7-hour extension cap never bound against
+   ~11 hours of real waiting. The cap is the only thing stopping an exhausted
+   account from extending a deadline forever, and this run proves it is not
+   measuring what it thinks it is.
+2. **Give `HUNT` a cheaper shape.** All four cost-cap failures were `HUNT`, and
+   they burned 11% of the run for nothing. Options: a lower per-iteration cap for
+   `HUNT` specifically, a mandatory "write what you found so far to MEMORY.md at
+   60% of budget" checkpoint, or splitting `HUNT` into per-lane iterations with
+   smaller scopes.
+3. **Make `ok` with no `next_phase` a distinct outcome.** Iteration 67 spent
+   money, advanced nothing, and is recorded as `ok`. It should read as
+   `stalled` so it is visible in the morning without reading notes.
+4. **Never lose an iteration from `history[]`.** Four are missing. Write the
+   entry when the iteration *starts*, and amend it on completion, so a killed
+   process still leaves a trace.
+5. **Keep `.nightly/logs/` populated.** It is empty, which is why the 93-hour gap
+   cannot be explained. Every question this retrospective could not answer would
+   have been answerable from a log.
+6. **Consider a `harness` lane.** Six of fifteen rejections were tests
+   disagreeing with deliberate product decisions. They are correctly not product
+   bugs, but they are real work that now has no home — and a stale assertion that
+   asserts the *old* behaviour is a trap for the next run.
+
+### Deploy verdict
+
+**SHIP WITH KNOWN ISSUES.**
+
+The evidence for shipping:
+
+- The gate is green. `npm run build:schemas` clean, `pre-push.mjs` →
+  `guardrails PASS` at iteration 117, `lint-changed` clean across 55 files with
+  only the 6 pre-existing ratcheted findings that `AGENTS.md` records as debt.
+- **1 714 unit/integration tests pass, zero fail, zero skipped**, across all five
+  workspaces — up 117 from the baseline, with nothing removed.
+- **All six journeys walk.** 48 of 54 e2e assertions pass (up from 34), and every
+  one of the 5 remaining failures is a test asserting behaviour a fix removed on
+  purpose, or a harness port bug — each named, triaged, and rejected on the
+  record.
+- **All 4 blockers and all 13 majors are fixed, reviewed and regression-verified.**
+  Seven disclosure leaks — the failure mode this product cannot afford — are
+  closed, including one where the MCP layer was actively telling agents that
+  unredacted text was safe to publish.
+- Iteration 117 re-walked the auth blocker **live** rather than from memory:
+  a fresh colliding pair was created, all four login combinations were exercised
+  against the running api, and both rows were cleaned up by id afterwards.
+
+What you are shipping with:
+
+1. **`ESC-20260827-register-case-race`** — two concurrent registrations of one
+   mailbox in two cases still both succeed. The *lockout* it used to cause is
+   fixed; the duplicate account is not. Residual harm is a duplicate account, not
+   a blocked journey. **Read this one first.**
+2. **`ESC-20260822-delete-empty-json-body`** — third-party agent authors whose
+   HTTP client always sets a JSON content-type get an opaque 400 on a bodyless
+   `DELETE`. No shipped client hits it.
+3. **`ESC-20260827-disclosure-slash-gap`** — a two-word employer split across URL
+   path segments (`github.com/acme/corp`) is still not detected. Needs a
+   multi-word employer *and* that exact URL shape.
+4. **5 stale e2e assertions** that will fail in CI until someone updates them to
+   match the fixes. They are not product defects, but they will look like a red
+   suite.
+5. **The login lookup is currently a sequential scan** — a side effect of the
+   08-23 case-normalisation fix. Not user-visible at this data size; the
+   `users (lower(email))` index in item 1 restores it.
+
+Nothing on that list blocks a user journey. Ship it, then take item 1 as the next
+task.
