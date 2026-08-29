@@ -61,7 +61,7 @@
     "nightly:status": "bash scripts/nightly/run.sh status",
     "nightly:stop": "bash scripts/nightly/run.sh stop",
     "-- UTILITY --": "",
-    "prepare": "husky",
+    "prepare": "husky || true",
     "clean": "turbo run clean && rm -rf node_modules/.cache",
     "clean:all": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/.next apps/*/dist packages/*/dist"
   },
