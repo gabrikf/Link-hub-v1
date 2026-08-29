@@ -214,6 +214,24 @@ variable "uploads_bucket_name" {
   default     = "crafthub-uploads"
 }
 
+variable "media_subdomain" {
+  description = <<-EOT
+    Subdomínio que serve publicamente os objetos do bucket de uploads. Resulta em
+    <media_subdomain>.<domain> e é o valor que vai em S3_PUBLIC_BASE_URL na API.
+
+    Não é opcional na prática: o provider de storage da API se recusa a construir sem
+    S3_PUBLIC_BASE_URL, e o endpoint S3 do R2 não serve para <img src> porque exige
+    assinatura SigV4 em cada GET.
+  EOT
+  type        = string
+  default     = "media"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", var.media_subdomain))
+    error_message = "media_subdomain deve ser um único rótulo DNS (minúsculas, números e hífen)."
+  }
+}
+
 variable "tfstate_bucket_name" {
   description = "Nome do bucket R2 que guarda o state deste Terraform. Precisa bater exatamente com o `bucket` do backend em versions.tf. Este bucket é criado À MÃO no bootstrap e depois adotado por um bloco import — ver README."
   type        = string

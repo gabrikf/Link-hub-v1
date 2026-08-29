@@ -97,6 +97,16 @@ output "r2_uploads_bucket" {
   value       = cloudflare_r2_bucket.uploads.name
 }
 
+output "s3_public_base_url" {
+  description = "Vai em S3_PUBLIC_BASE_URL no .env.production. É a URL que acaba no src de cada <img>; o endpoint S3 NÃO serve para isso, porque exige assinatura em cada GET."
+  value       = "https://${local.media_hostname}"
+}
+
+output "media_domain_status" {
+  description = "Status do domínio customizado do bucket R2. Só quando ficar 'active' as imagens carregam; antes disso o upload grava e a leitura dá 404."
+  value       = cloudflare_r2_custom_domain.uploads.status
+}
+
 output "s3_endpoint" {
   description = "Endpoint S3 do R2. Vai na env var S3_ENDPOINT da API."
   value       = local.s3_endpoint

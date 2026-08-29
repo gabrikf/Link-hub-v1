@@ -68,6 +68,9 @@ locals {
   app_hostname = var.app_subdomain == "" ? var.domain : "${var.app_subdomain}.${var.domain}"
   api_hostname = "${var.api_subdomain}.${var.domain}"
 
+  # Hostname publico dos uploads (avatares, capas). Vai em S3_PUBLIC_BASE_URL.
+  media_hostname = "${var.media_subdomain}.${var.domain}"
+
   origin_cert_hostnames = distinct(concat([local.api_hostname], var.origin_cert_extra_hostnames))
 
   # Onde SPF e MX do e-mail vao: no subdominio de envio quando o provedor usa return-path
