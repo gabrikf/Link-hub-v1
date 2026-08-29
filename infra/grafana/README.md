@@ -82,6 +82,7 @@ service).
 | `OTEL_METRIC_EXPORT_INTERVAL_MS` | no — defaults to `60000` | How often metrics are pushed. Lowering it costs data points, not series; on the free tier, 60 s is already generous. |
 | `SERVICE_ROLE` | set per container: `api`, `worker-embedding`, `worker-digest` | Decides which process reports the once-per-cluster gauges. **Exactly one container may claim `api`**, or daily-active-users and queue depth arrive three times under three different instance IDs. `docker-compose.prod.yml` already sets this correctly. |
 | `GIT_SHA` | no | Becomes `service.version`, and doubles as the Sentry release. |
+| `OTEL_ESM_LOADER_HOOK` | no — **defaults to `false`, leave it there** | Installs the OpenTelemetry ESM loader hook, which is what makes the http/fastify/pg/ioredis/undici instrumentations able to patch anything. It is off because it breaks `openai@4` — see "The loader hook" below. Off costs traces and no dashboard panels. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | no | The standard OTel escape hatch. If set it **takes precedence** and the two `GRAFANA_CLOUD_*` variables are ignored — the app assumes you have assembled the auth header yourself. |
 
 Sentry is a separate, independent switch (`SENTRY_DSN`). It is the error sink
@@ -108,6 +109,40 @@ Grafana Cloud's own instructions hand you a pre-encoded
 precedence, but the two-variable form is preferred here: the deploy carries two
 readable values that can be rotated independently instead of one opaque blob that
 has to be re-encoded by hand.
+
+### The loader hook, and why traces are off
+
+`OTEL_ESM_LOADER_HOOK` defaults to `false`. Turning it on is what the API's five
+module-patching instrumentations need in order to produce spans — and it is also
+what crash-loops the API at boot.
+
+`@opentelemetry/instrumentation/hook.mjs` installs `import-in-the-middle`, which
+intercepts **every** ESM import in the process rather than only the modules an
+instrumentation registered interest in. `openai@4` resolves its runtime through
+its `_shims` subsystem during module evaluation; under that interception the
+module is evaluated twice, the second `init()` finds shims already set, and it
+throws
+
+```
+Error: you must `import 'openai/shims/node'` before importing anything else from openai
+```
+
+before any handler runs. This is not theoretical: on 2026-08-29, setting
+`OTEL_EXPORTER_OTLP_ENDPOINT` for the first time took production down for six
+minutes in exactly this way, with all six containers reporting green.
+
+**What being off costs: distributed traces, and nothing else.** Every metric
+queried by the three dashboards in this directory is recorded by hand in
+`metrics.ts`. `RuntimeNodeInstrumentation` reads `perf_hooks` rather than
+patching modules, so the Node process metrics survive too.
+
+**`openai` v5 deleted `_shims`, and this repo is now on v7.** A local probe —
+registering the hook, then importing the SDK — no longer throws, so the original
+cause is fixed. The default is still `false`, deliberately: the app imports far
+more than `openai`, import-in-the-middle wraps every one of those too, and the
+last failure was hard to attribute precisely because the hook and telemetry were
+switched on in the same breath. Turn it on by itself, after telemetry is
+confirmed working, and watch the API come up before trusting it.
 
 ### Checking it works
 
@@ -162,7 +197,12 @@ Two consequences are visible in these dashboards:
   `/wp-admin/...` — becomes the single label `__unmatched__` rather than minting
   a fresh series per path someone probes.
 
-`sanitizeAttributes()` in `metrics.ts` is the backstop for anything dynamic.
+There is **no runtime backstop**, on purpose. Every attribute passed to an
+instrument in this codebase is a literal from a closed vocabulary, so there is no
+dynamic-key path to sanitise — and a `sanitizeAttributes()` that nothing called
+was judged worse than none, because it reads as protection that does not exist.
+The comment at the bottom of `metrics.ts` is the authority here. The rule is
+enforced by review, not by code: check it when you add an instrument.
 
 ---
 

@@ -98,24 +98,42 @@ export function startTelemetry(): void {
      * AWS/GCP/Mongo/Kafka/gRPC instrumentations this app will never load. On a
      * 4GB box the resident memory those add is real and buys nothing.
      *
-     * These five cover the chain the dashboards need end to end:
+     * SPLIT IN TWO BY WHETHER THEY PATCH MODULES. Everything in the first
+     * group rewrites a module at import time, which under ESM only works when
+     * `register.ts` installed the import-in-the-middle loader hook. That hook
+     * is off by default because it breaks `openai@4` — see the comment at the
+     * top of `register.ts`. Registering these without it is not dangerous, just
+     * dead weight: they would patch nothing and still hold memory.
+     *
      *   http + fastify -> incoming request
      *   pg             -> Drizzle/postgres.js queries
      *   undici         -> the OpenAI SDK, which calls global fetch
      *   ioredis        -> BullMQ enqueue and the quota/DAU counters
+     *
+     * They produce SPANS. No metric on any dashboard in `infra/grafana` comes
+     * from them — those are all recorded by hand in `metrics.ts` — so leaving
+     * the hook off costs traces and no panels.
+     *
+     * RuntimeNodeInstrumentation is unconditional: it reads `perf_hooks` and
+     * patches no modules, so it works either way and supplies the Node process
+     * metrics the API health dashboard shows.
      */
     instrumentations: [
-      new HttpInstrumentation({
-        // Health probes fire every few seconds from Docker and would otherwise
-        // dominate the trace volume on the free tier.
-        ignoreIncomingRequestHook: (request) =>
-          request.url === "/health" || request.url === "/health/ready",
-      }),
-      new FastifyInstrumentation(),
-      new PgInstrumentation(),
-      new IORedisInstrumentation(),
-      new UndiciInstrumentation(),
       new RuntimeNodeInstrumentation(),
+      ...(config.esmLoaderHook
+        ? [
+            new HttpInstrumentation({
+              // Health probes fire every few seconds from Docker and would
+              // otherwise dominate the trace volume on the free tier.
+              ignoreIncomingRequestHook: (request) =>
+                request.url === "/health" || request.url === "/health/ready",
+            }),
+            new FastifyInstrumentation(),
+            new PgInstrumentation(),
+            new IORedisInstrumentation(),
+            new UndiciInstrumentation(),
+          ]
+        : []),
     ],
   });
 
