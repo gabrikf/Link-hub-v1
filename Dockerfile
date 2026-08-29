@@ -146,8 +146,30 @@ COPY packages/ui/package.json               packages/ui/
 # a ~200MB production one, and it is a separately cached layer keyed only on the
 # lockfile.
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev --workspace=api --include-workspace-root \
-    && npm cache clean --force
+    # --omit=dev drops husky (a devDependency) but npm STILL runs the root
+    # `prepare` lifecycle script, which invokes it. That is why this line failed
+    # with `sh: 1: husky: not found` / exit 127 on the first real deploy, while
+    # the `deps` stage above succeeded — that one installs dev dependencies.
+    #
+    # Fixed at the source: the root `prepare` is now `husky || true`, which is
+    # husky's own documented form for installs where it is absent.
+    #
+    # NOT fixed with --ignore-scripts: `sharp` is a PRODUCTION dependency and
+    # needs its install script to fetch native binaries. Suppressing scripts here
+    # would swap a loud build failure for a runtime that cannot process images.
+    #
+    # NO `npm cache clean --force` HERE, deliberately. It used to be, and it was
+    # wrong twice over:
+    #
+    #   1. It saves nothing. /root/.npm is a buildx CACHE MOUNT, and cache mount
+    #      contents are never committed into the image layer. There was no size
+    #      to reclaim.
+    #   2. It broke the build. buildx runs the `deps` and `runtime` stages in
+    #      PARALLEL and both mount the same /root/.npm cache. Cleaning it from one
+    #      stage while the other is writing produced `ENOTEMPTY: rmdir
+    #      /root/.npm/_cacache/index-v5/...` (exit 217) and, on another run,
+    #      `EEXIST` on a cacache rename.
+    npm ci --omit=dev --workspace=api --include-workspace-root
 
 # Compiled output. Copied after the install so a source-only change reuses every
 # layer above this line.
