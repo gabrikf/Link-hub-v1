@@ -26,32 +26,72 @@ export function toBlockDTO(block: ProfileBlockEntity): ProfileBlock {
   };
 }
 
-/** Full layout (includes hidden blocks) for the authenticated editor. */
+/**
+ * Full layout (includes hidden blocks) for the authenticated editor.
+ *
+ * `tabsEnabled` is passed in rather than derived: it belongs to the USER row,
+ * per viewport, and the caller is the only one holding it. Making it a required
+ * parameter is deliberate — a default would let a caller quietly ship `true` to
+ * someone who had turned tabs off.
+ */
 export function assembleLayout(
   tabs: ProfileTabEntity[],
   blocks: ProfileBlockEntity[],
+  tabsEnabled: boolean,
 ): ProfileLayout {
   const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
 
   return {
     tabs: sortedTabs.map(toTabDTO),
     blocks: blocks.map(toBlockDTO),
+    tabsEnabled,
   };
 }
 
 /**
- * Public layout: only visible blocks survive — pinned blocks (tabId null) plus
- * per-tab blocks. Same shape as {@link assembleLayout} but visible-only.
+ * Public layout: what an anonymous visitor is allowed to receive.
+ *
+ * Two filters, in this order:
+ *
+ * 1. `isVisible` — a hidden block is never public, in either mode.
+ * 2. `tabsEnabled === false` → the tab strip is not rendered at all, so the
+ *    public payload carries **`tabs: []` and pinned blocks only**
+ *    (`pinnedAllTabs`). Filtering in the browser was not enough: the owner
+ *    believes tab content is hidden while `curl /profile/:username` still
+ *    returned every tab title and every tab block's text, image URLs, button
+ *    URLs and post configs. Withholding it here is the only place that is true
+ *    for every client.
+ *
+ * With `tabsEnabled === true` nothing changes: every tab, every visible block.
+ *
+ * This is deliberately NOT symmetric with {@link assembleLayout}. The owner's
+ * editor must keep receiving every tab and every block with tabs off — it needs
+ * them for the hidden-block warning, and stripping them there would make
+ * turning tabs off look like it deleted the content. Owner sees everything;
+ * the public sees only what is rendered.
  */
 export function toPublicLayout(
   tabs: ProfileTabEntity[],
   blocks: ProfileBlockEntity[],
+  tabsEnabled: boolean,
 ): ProfileLayout {
-  const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
   const visibleBlocks = blocks.filter((block) => block.isVisible);
+
+  if (!tabsEnabled) {
+    return {
+      tabs: [],
+      blocks: visibleBlocks
+        .filter((block) => block.pinnedAllTabs)
+        .map(toBlockDTO),
+      tabsEnabled,
+    };
+  }
+
+  const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
 
   return {
     tabs: sortedTabs.map(toTabDTO),
     blocks: visibleBlocks.map(toBlockDTO),
+    tabsEnabled,
   };
 }

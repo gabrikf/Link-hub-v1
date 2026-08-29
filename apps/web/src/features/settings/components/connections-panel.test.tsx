@@ -285,7 +285,7 @@ describe("ConnectionsPanel one-time webhook secret", () => {
 
   it("shows the secret once, with the webhook URL and the exact setup steps", async () => {
     // The URL is built from the configured API base, not the page origin.
-    vi.stubEnv("VITE_API_URL", "https://api.linkhub.example");
+    vi.stubEnv("VITE_API_URL", "https://api.crafthub.example");
     const { view } = await createGithubConnection();
 
     // The dialog is dismissed as part of creating — the secret must outlive it.
@@ -298,7 +298,7 @@ describe("ConnectionsPanel one-time webhook secret", () => {
     expect(screen.getByRole("button", { name: /Copy Webhook secret/i })).toBeInTheDocument();
 
     const text = view.container.textContent ?? "";
-    expect(text).toContain("https://api.linkhub.example/webhooks/github/conn-new");
+    expect(text).toContain("https://api.crafthub.example/webhooks/github/conn-new");
     // The single most common way to configure this wrong.
     expect(text).toContain("Content type: application/json");
     expect(text).toContain("admin or owner");
@@ -322,7 +322,7 @@ describe("ConnectionsPanel one-time webhook secret", () => {
     expect(screen.queryByText(SECRET)).not.toBeInTheDocument();
 
     window.sessionStorage.setItem(
-      "linkhub:last-created-connection",
+      "crafthub:last-created-connection",
       JSON.stringify({
         connectionId: "conn-wizard",
         provider: "github",
@@ -369,11 +369,11 @@ describe("ConnectionsPanel one-time webhook secret", () => {
       .map((element) => element.textContent ?? "")
       .join("\n");
 
-    // Byte-for-byte what `linkhub-hook print-settings` emits. A hook declared
+    // Byte-for-byte what `crafthub-hook print-settings` emits. A hook declared
     // even slightly wrong never fires, and nothing reports it.
     expect(codeText).toContain('"Stop"');
-    expect(codeText).toContain('"command": "linkhub-hook stop"');
-    expect(codeText).toContain('"command": "linkhub-hook session-end"');
+    expect(codeText).toContain('"command": "crafthub-hook stop"');
+    expect(codeText).toContain('"command": "crafthub-hook session-end"');
     expect(codeText).toContain('"async": true');
     expect(container.textContent).toContain(
       "records session metadata locally on every turn and uploads it when a session ends",

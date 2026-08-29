@@ -1,6 +1,7 @@
-import { sql } from "drizzle-orm";
+import { TransactionRollbackError, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "./index.js";
+import { posts, users } from "./schema.js";
 
 /**
  * Guards the two indexes that back the public-profile and recruiter-search read
@@ -63,29 +64,67 @@ describe("search and profile read-path indexes", () => {
   });
 
   it("lets the posts subquery stop at LIMIT instead of sorting everything", async () => {
-    // With the dev dataset the planner is free to prefer a sequential scan —
-    // that is the right call on a small table and not what is under test. What
-    // matters is that when an index scan IS chosen, the plan carries no Sort
-    // node: the index already provides the order, so the LIMIT terminates the
-    // scan rather than being applied to a fully materialised result.
-    const plan = await db.transaction(async (tx) => {
-      await tx.execute(sql`SET LOCAL enable_seqscan = off`);
+    // THIS TEST SEEDS ITS OWN DATA, and that is the whole point.
+    //
+    // It used to EXPLAIN against whatever the shared dev database happened to
+    // hold. Index choice is cost-based, so on a near-empty `posts` table the
+    // planner correctly prefers `posts_user_id_idx` plus a Sort — six rows are
+    // not worth a wider index — and the assertion failed. It passed or failed
+    // depending on how many posts someone's last e2e run left behind, which
+    // makes it a coin toss in the gate rather than a guard on the index.
+    //
+    // So: seed a realistic number of rows for one user, ANALYZE so the planner
+    // sees them, and roll the whole thing back. Nothing leaks into the database
+    // and the plan under test is the production-shaped one.
+    const ROWS = 400;
+    let planText = "";
 
-      return tx.execute<{ "QUERY PLAN": string }>(sql`
-        EXPLAIN SELECT id
-        FROM posts
-        WHERE user_id = '00000000-0000-0000-0000-000000000000'::uuid
-          AND status = 'published'
-        ORDER BY COALESCE(published_at, created_at) DESC
-        LIMIT 6
-      `);
-    });
+    await db
+      .transaction(async (tx) => {
+        const [author] = await tx
+          .insert(users)
+          .values({
+            email: `search-indexes-bench-${Date.now()}@example.test`,
+            login: `search-indexes-bench-${Date.now()}`,
+            name: "Search Indexes Bench",
+            password: "not-a-real-hash",
+          })
+          .returning({ id: users.id });
+        if (!author) throw new Error("failed to seed the bench author");
 
-    const text = Array.from(plan)
-      .map((row) => row["QUERY PLAN"])
-      .join("\n");
+        await tx.insert(posts).values(
+          Array.from({ length: ROWS }, (_, index) => ({
+            userId: author.id,
+            source: "manual" as const,
+            body: `bench post ${index}`,
+            status: "published" as const,
+            createdAt: new Date(Date.now() - index * 86_400_000),
+            publishedAt: new Date(Date.now() - index * 86_400_000),
+          })),
+        );
+        await tx.execute(sql`ANALYZE posts`);
+        await tx.execute(sql`SET LOCAL enable_seqscan = off`);
 
-    expect(text).toContain("posts_user_published_sort_idx");
-    expect(text).not.toContain("Sort");
+        const plan = await tx.execute<{ "QUERY PLAN": string }>(sql`
+          EXPLAIN SELECT id
+          FROM posts
+          WHERE user_id = ${author.id}
+            AND status = 'published'
+          ORDER BY COALESCE(published_at, created_at) DESC
+          LIMIT 6
+        `);
+        planText = Array.from(plan)
+          .map((row) => row["QUERY PLAN"])
+          .join("\n");
+
+        // Drizzle signals a rollback by throwing; caught below.
+        tx.rollback();
+      })
+      .catch((error) => {
+        if (!(error instanceof TransactionRollbackError)) throw error;
+      });
+
+    expect(planText).toContain("posts_user_published_sort_idx");
+    expect(planText).not.toContain("Sort");
   });
 });

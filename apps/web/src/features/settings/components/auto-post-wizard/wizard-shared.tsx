@@ -1,4 +1,5 @@
 import type { GitConnectionKind } from "@repo/schemas";
+import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { FOCUS_RING } from "../../../../shared-components/surface";
 
@@ -26,16 +27,17 @@ export type WizardStepKey =
   | "preview"
   | "schedule";
 
-export const WIZARD_STEPS: ReadonlyArray<{
-  key: WizardStepKey;
-  label: string;
-}> = [
-  { key: "source", label: "Source" },
-  { key: "connect", label: "Connect" },
-  { key: "verify", label: "Verify" },
-  { key: "preview", label: "Preview" },
-  { key: "schedule", label: "Schedule" },
-];
+export function getWizardSteps(
+  t: TFunction,
+): ReadonlyArray<{ key: WizardStepKey; label: string }> {
+  return [
+    { key: "source", label: t("common.source") },
+    { key: "connect", label: t("wizard.step.connect") },
+    { key: "verify", label: t("wizard.step.verify") },
+    { key: "preview", label: t("common.preview") },
+    { key: "schedule", label: t("wizard.step.schedule") },
+  ];
+}
 
 /**
  * Prefilled display names. A name like "Work laptop — Claude Code" is what the
@@ -48,21 +50,29 @@ export const WIZARD_STEPS: ReadonlyArray<{
 export function defaultLocalDisplayName(
   key: Exclude<WizardSourceKey, "mcp" | "forge">,
   kind: GitConnectionKind,
+  t: TFunction,
 ): string {
   const machine =
     kind === "work"
-      ? "Work laptop"
+      ? t("wizard.namePreset.workLaptop")
       : kind === "mixed"
-        ? "This machine"
-        : "Personal laptop";
-  const tool = key === "claude_code" ? "Claude Code" : "extractor";
+        ? t("wizard.namePreset.thisMachine")
+        : t("wizard.namePreset.personalLaptop");
+  const tool =
+    key === "claude_code"
+      ? t("settings.provider.claudeCode")
+      : t("wizard.namePreset.extractorTool");
   return `${machine} — ${tool}`;
 }
 
-export const DEFAULT_FORGE_DISPLAY_NAMES: Record<ForgeProvider, string> = {
-  github: "My GitHub repos",
-  gitlab: "My GitLab projects",
-};
+export function getDefaultForgeDisplayNames(
+  t: TFunction,
+): Record<ForgeProvider, string> {
+  return {
+    github: t("wizard.namePreset.githubRepos"),
+    gitlab: t("wizard.namePreset.gitlabProjects"),
+  };
+}
 
 type SegmentedOption<T extends string> = {
   value: T;

@@ -1,5 +1,7 @@
 import type { GitConnectionHealth, Post } from "@repo/schemas";
+import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { FiCheckCircle, FiHelpCircle, FiLoader } from "react-icons/fi";
 import { BADGE } from "../../../../shared-components/surface";
 import type { WizardSourceKey } from "./wizard-shared";
@@ -14,16 +16,18 @@ import type { WizardSourceKey } from "./wizard-shared";
 /** ~60s. Long enough for a webhook redelivery, short enough to not feel hung. */
 const RECOVERY_GUIDANCE_AFTER_MS = 60_000;
 
-const RECOVERY_GUIDANCE: Record<Exclude<WizardSourceKey, "mcp">, string> = {
-  claude_code:
-    "Finish a Claude Code session in a git repo — the hook fires when a session ends, not while you work.",
-  extractor:
-    "Run the extract command against a repo, read the JSON it wrote, then run the upload command.",
-  forge:
-    "Push a commit or merge a PR in the connected repository, then check the webhook's recent deliveries page for a 2xx response.",
-};
+function getRecoveryGuidance(
+  t: TFunction,
+): Record<Exclude<WizardSourceKey, "mcp">, string> {
+  return {
+    claude_code: t("wizard.verify.hookGuidance"),
+    extractor: t("wizard.verify.extractorGuidance"),
+    forge: t("wizard.verify.webhookGuidance"),
+  };
+}
 
 function ListeningPanel({ instruction }: { instruction: string }) {
+  const { t } = useTranslation();
   return (
     // `role="status"` (implicit polite live region): the flip from listening
     // to connected happens without user input, so it must be announced, not
@@ -33,8 +37,11 @@ function ListeningPanel({ instruction }: { instruction: string }) {
       className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 dark:border-violet-500/30 dark:bg-violet-500/10"
     >
       <p className="flex items-center gap-2.5 text-sm font-medium text-violet-900 dark:text-violet-100">
-        <FiLoader className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
-        Listening for first activity…
+        <FiLoader
+          className="h-4 w-4 shrink-0 animate-spin"
+          aria-hidden="true"
+        />
+        {t("wizard.verify.listening")}
       </p>
       <p className="mt-1 text-xs text-violet-800/80 dark:text-violet-200/80">
         {instruction}
@@ -48,6 +55,7 @@ function ListeningPanel({ instruction }: { instruction: string }) {
 }
 
 function SuccessPanel({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <div
       role="status"
@@ -62,7 +70,7 @@ function SuccessPanel({ children }: { children: React.ReactNode }) {
           <span
             className={`mr-2 rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE.success}`}
           >
-            Connected
+            {t("wizard.verify.connected")}
           </span>
           {children}
         </span>
@@ -72,6 +80,7 @@ function SuccessPanel({ children }: { children: React.ReactNode }) {
 }
 
 function RecoveryPanel({ guidance }: { guidance: string }) {
+  const { t } = useTranslation();
   return (
     // Appears on a timer, not a click — same announce-or-be-missed rule.
     <div
@@ -81,9 +90,8 @@ function RecoveryPanel({ guidance }: { guidance: string }) {
       <p className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
         <FiHelpCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <span>
-          <span className="font-semibold">Nothing yet — that's normal.</span>{" "}
-          {guidance} You can also skip for now: the connection keeps listening
-          whether this dialog is open or not.
+          <span className="font-semibold">{t("wizard.verify.nothingYet")}</span>{" "}
+          {guidance} {t("wizard.verify.canSkip")}
         </span>
       </p>
     </div>
@@ -118,15 +126,18 @@ export function ConnectionVerifyBody({
   health: GitConnectionHealth | undefined;
   isError: boolean;
 }) {
+  const { t } = useTranslation();
   const isConnected = (health?.totalEvents ?? 0) > 0;
   const waitedLong = useRecoveryTimer(!isConnected);
+  const recoveryGuidance = getRecoveryGuidance(t)[sourceKey];
 
   if (isConnected && health) {
     return (
       <SuccessPanel>
-        {health.totalEvents} event{health.totalEvents === 1 ? "" : "s"} received
-        from {health.distinctReposLast30Days} repo
-        {health.distinctReposLast30Days === 1 ? "" : "s"} (fingerprints only).
+        {t("wizard.verify.eventsReceived", {
+          count: health.totalEvents,
+          repos: health.distinctReposLast30Days,
+        })}
       </SuccessPanel>
     );
   }
@@ -134,13 +145,12 @@ export function ConnectionVerifyBody({
   return (
     <div className="space-y-3">
       <ListeningPanel
-        instruction={`Checked every 5 seconds; this flips green the moment the first event lands. To trigger one: ${RECOVERY_GUIDANCE[sourceKey]}`}
+        instruction={t("wizard.verify.listeningBody", { recoveryGuidance })}
       />
-      {waitedLong ? <RecoveryPanel guidance={RECOVERY_GUIDANCE[sourceKey]} /> : null}
+      {waitedLong ? <RecoveryPanel guidance={recoveryGuidance} /> : null}
       {isError ? (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-          Could not check this connection's status. Still retrying — the
-          connection itself is unaffected.
+          {t("wizard.verify.statusFailed")}
         </p>
       ) : null}
     </div>
@@ -148,25 +158,31 @@ export function ConnectionVerifyBody({
 }
 
 export function McpVerifyBody({ detectedPost }: { detectedPost: Post | null }) {
+  const { t } = useTranslation();
   const waitedLong = useRecoveryTimer(detectedPost === null);
 
   if (detectedPost) {
+    // The post title is the user's own words and is never translated — only
+    // the sentence around it. `<title>` is the Trans slot carrying its
+    // emphasis, so each language decides where in the sentence it lands.
     return (
       <SuccessPanel>
-        Your agent posted{" "}
-        <strong className="font-semibold">
-          {detectedPost.title ?? "an untitled update"}
-        </strong>
-        . It is in your review queue, not public.
+        <Trans
+          i18nKey="wizard.verify.postDetected"
+          values={{
+            postTitle: detectedPost.title ?? t("wizard.verify.untitledUpdate"),
+          }}
+          components={{ title: <strong className="font-semibold" /> }}
+        />
       </SuccessPanel>
     );
   }
 
   return (
     <div className="space-y-3">
-      <ListeningPanel instruction="Run the weekly_update prompt in your agent now — Claude Code: type /mcp__linkhub__weekly_update; Claude Desktop: + menu → linkhub → weekly_update; other tools: the prompt picker, or just ask for “my LinkHub weekly update”. This flips green the moment the post arrives." />
+      <ListeningPanel instruction={t("wizard.verify.mcpGuidance")} />
       {waitedLong ? (
-        <RecoveryPanel guidance="Check that your agent lists the linkhub server as connected (see the Connect step's verify list), then run the prompt again — in Claude Code it is /mcp__linkhub__weekly_update, not /weekly_update." />
+        <RecoveryPanel guidance={t("wizard.verify.mcpRecovery")} />
       ) : null}
     </div>
   );

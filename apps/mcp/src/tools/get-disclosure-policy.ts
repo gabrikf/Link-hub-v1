@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { LinkHubApiClient } from "../api-client.js";
+import type { CraftHubApiClient } from "../api-client.js";
 import { levelInfo, type DisclosureContext } from "../disclosure.js";
 import { runTool, textResult } from "./shared.js";
 
@@ -16,7 +16,7 @@ function bullets(items: readonly string[]): string {
  */
 export function registerGetDisclosurePolicy(
   server: McpServer,
-  client: LinkHubApiClient,
+  client: CraftHubApiClient,
   startupContext: DisclosureContext,
 ): void {
   server.registerTool(
@@ -28,8 +28,8 @@ export function registerGetDisclosurePolicy(
         "lists — what you may say about where they work and what you must never " +
         "say. Call this before writing anything that touches employment history " +
         "if you are unsure, and whenever a post is rejected for naming a blocked " +
-        "term. LinkHub enforces this policy server-side; it is not advisory. The " +
-        "user changes it in LinkHub settings — you cannot, and must not offer to. " +
+        "term. CraftHub enforces this policy server-side; it is not advisory. The " +
+        "user changes it in CraftHub settings — you cannot, and must not offer to. " +
         "Requires the profile:read token scope.",
       inputSchema: {},
     },

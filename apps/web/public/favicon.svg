@@ -6,14 +6,14 @@
   xmlns="http://www.w3.org/2000/svg"
 >
   <!--
-    The LinkHub mark, kept byte-for-byte in step with the BrandLogo component
+    The CraftHub mark, kept byte-for-byte in step with the BrandLogo component
     (src/shared-components/brand-logo.tsx). The tile carries its own violet
     background on purpose: a transparent mark would disappear against a dark
     browser tab strip, and this way one file serves both themes.
   -->
   <defs>
     <linearGradient
-      id="linkhub-brand-gradient"
+      id="crafthub-brand-gradient"
       x1="0"
       y1="0"
       x2="32"
@@ -25,7 +25,7 @@
     </linearGradient>
   </defs>
 
-  <rect width="32" height="32" rx="8.5" fill="url(#linkhub-brand-gradient)" />
+  <rect width="32" height="32" rx="8.5" fill="url(#crafthub-brand-gradient)" />
 
   <!-- connections -->
   <g stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" opacity="0.92">

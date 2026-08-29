@@ -9,7 +9,7 @@ A persona is the answer to *"who am I being right now?"* QA without a persona dr
 - Seed catalog (New / Power / Casual / Mobile / Accessibility-Reliant / Recovering / Autonomous Agent)
 - Persona attributes (YAML schema)
 - Picking the right persona for a charter
-- LinkHub seed personas — the real audience
+- CraftHub seed personas — the real audience
 - Anti-patterns
 
 ## Why personas
@@ -117,9 +117,9 @@ The bug template's `Persona Affected:` field uses `name`.
 
 When in doubt: *"who is most likely to be hurt by this surface failing?"* — that's the mandatory persona. For disclosure surfaces the answer is always the human whose employer got named, never the agent that named them.
 
-## LinkHub seed personas — the real audience
+## CraftHub seed personas — the real audience
 
-LinkHub is a **developer-profile platform**: a developer imports a structured resume, arranges a drag-and-drop public profile, recruiters search it by job description using pgvector semantic search plus an in-browser TensorFlow.js re-rank shown as "AI Match %", and coding agents publish posts to that profile through an MCP server and a local extractor — behind a per-user **disclosure policy** limiting what an agent may reveal about the user's employers.
+CraftHub is a **developer-profile platform**: a developer imports a structured resume, arranges a drag-and-drop public profile, recruiters search it by job description using pgvector semantic search plus an in-browser TensorFlow.js re-rank shown as "AI Match %", and coding agents publish posts to that profile through an MCP server and a local extractor — behind a per-user **disclosure policy** limiting what an agent may reveal about the user's employers.
 
 Its users are three distinct species, and one of them is not a person. Derive `<qa-docs-path>/personas.md` from these five, adapting names and patience to the accounts you actually seed (`bash db-manage.sh seed-all`).
 
@@ -166,7 +166,7 @@ Its users are three distinct species, and one of them is not a person. Derive `<
 
 **Accessibility-Reliant is not optional.** If a cycle folds it into Sam rather than running it separately, record that; if it skips it entirely, record the skip and its reasoning in `<qa-docs-path>/personas.md` — per the derivation rules above. The layout editor's drag-and-drop is the surface most likely to have no keyboard path at all, and only this persona will find that.
 
-**Locale is not a persona axis here.** LinkHub has no i18n — `<html lang="en">`, every string hardcoded English. Do not plan a bilingual persona or a translation sweep; the `i18n` skill describes a *planned* setup, not existing code. Time, timezone and number formatting are still real risks; they belong to the Time & Formatting tour.
+**Locale is not a persona axis here.** CraftHub has no i18n — `<html lang="en">`, every string hardcoded English. Do not plan a bilingual persona or a translation sweep; the `i18n` skill describes a *planned* setup, not existing code. Time, timezone and number formatting are still real risks; they belong to the Time & Formatting tour.
 
 **Theme is a persona axis.** Diego and Sam live in dark mode; Nina and Priya arrive in whatever their OS gave them. Every browser persona's charter names the themes it walks.
 

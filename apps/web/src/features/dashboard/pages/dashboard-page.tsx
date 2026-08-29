@@ -1,15 +1,24 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import {
   SortableContext,
   arrayMove,
+  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import type { LinkIcon, LinkResponse } from "@repo/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import {
   createLink,
   createSkillCatalogItem,
@@ -29,6 +38,7 @@ import {
 } from "../../../lib/auth-api";
 import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyResumeQuery } from "../../../lib/profile-queries";
+import { RETRY_BEHIND_AN_ERROR_STATE } from "../../../lib/query-client";
 import { reportError } from "../../../lib/report-error";
 import { detectLinkIcon, LINK_ICON_OPTIONS } from "../../../lib/link-icons";
 import { useUserInfoStore } from "../../../lib/user-info-store";
@@ -38,6 +48,7 @@ import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { SURFACE } from "../../../shared-components/surface";
 import { DashboardHeader } from "../components/dashboard-header";
 import { DashboardProfileDisplay } from "../components/dashboard-profile-display";
+import { DashboardProfileDisplayError } from "../components/dashboard-profile-display-error";
 import { DashboardProfileDisplaySkeleton } from "../components/dashboard-profile-display-skeleton";
 import { LinkListSkeleton } from "../components/link-list-skeleton";
 import { DashboardLinkForm } from "../components/dashboard-link-form";
@@ -63,11 +74,6 @@ type LinkIconSelectOption = {
   icon?: ReactNode;
 };
 
-const DEFAULT_LINK_ICON_SELECT_OPTION: LinkIconSelectOption = {
-  value: "",
-  label: "Default icon",
-};
-
 type MutationErrorSource = { isError: boolean; error: unknown };
 
 /** First failing mutation's message, or its fallback copy. */
@@ -88,9 +94,14 @@ function resolveLinkMutationError(
 }
 
 export function DashboardPage() {
-  const navigate = useNavigate();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const userInfo = useUserInfoStore((state) => state.userInfo);
+
+  const DEFAULT_LINK_ICON_SELECT_OPTION: LinkIconSelectOption = {
+    value: "",
+    label: t("links.defaultIcon"),
+  };
 
   const hasSession = Boolean(getAuthTokens() && userInfo);
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
@@ -129,6 +140,7 @@ export function DashboardPage() {
     queryKey: ["me"],
     queryFn: fetchMyProfile,
     enabled: hasSession,
+    ...RETRY_BEHIND_AN_ERROR_STATE,
   });
 
   const linksQuery = useQuery({
@@ -168,12 +180,6 @@ export function DashboardPage() {
     queryClient.invalidateQueries({ queryKey: ["public-profile"] });
     queryClient.invalidateQueries({ queryKey: ["public-resume"] });
   };
-
-  useEffect(() => {
-    if (!hasSession) {
-      navigate({ to: "/" });
-    }
-  }, [hasSession, navigate]);
 
   /**
    * The AI-import prompt used to auto-open a modal over a dashboard the user
@@ -303,10 +309,10 @@ export function DashboardPage() {
    * The first failing mutation wins; they can't realistically overlap.
    */
   const linkMutationError = resolveLinkMutationError([
-    [createLinkMutation, "Unable to create the link."],
-    [updateLinkMutation, "Unable to update the link."],
-    [deleteLinkMutation, "Unable to delete the link."],
-    [toggleLinkVisibilityMutation, "Unable to change link visibility."],
+    [createLinkMutation, t("links.createFailed")],
+    [updateLinkMutation, t("links.updateFailed")],
+    [deleteLinkMutation, t("links.deleteFailed")],
+    [toggleLinkVisibilityMutation, t("links.visibilityFailed")],
   ]);
 
   const isCatalogLoading =
@@ -362,7 +368,7 @@ export function DashboardPage() {
         ),
       })),
     ],
-    [],
+    [t, DEFAULT_LINK_ICON_SELECT_OPTION],
   );
 
   const autoDetectedLinkIcon =
@@ -445,6 +451,20 @@ export function DashboardPage() {
     linkFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setFocus("title");
   };
+
+  // Without an explicit sensor list dnd-kit falls back to a KeyboardSensor with
+  // no coordinate getter: arrow keys translate the lifted item by a fixed
+  // offset that never reaches the neighbour's collision box, so `over` stays
+  // the item itself and the drop is a no-op. `sortableKeyboardCoordinates`
+  // moves it to the next sortable item instead, which is what makes the list
+  // reorderable without a pointer. PointerSensor is declared with no options so
+  // the mouse behaviour stays exactly what it was.
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -560,6 +580,7 @@ export function DashboardPage() {
           <LinkListSkeleton />
         ) : (
           <DndContext
+            sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
@@ -600,7 +621,7 @@ export function DashboardPage() {
         {reorderLinksMutation.isError ? (
           <FeedbackMessage
             tone="error"
-            message="Unable to reorder links right now."
+            message={t("links.reorderFailed")}
           />
         ) : null}
 
@@ -618,11 +639,10 @@ export function DashboardPage() {
             </span>
             <div>
               <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                Import from your resume
+                {t("dashboard.importFromResume")}
               </p>
               <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                Upload a PDF or Word file and let AI auto-fill your resume and
-                work history.
+                {t("dashboard.importFromResumeHelp")}
               </p>
             </div>
           </div>
@@ -633,14 +653,14 @@ export function DashboardPage() {
             onClick={() => setIsImportModalOpen(true)}
           >
             <FiUploadCloud className="h-4 w-4" aria-hidden="true" />
-            Import resume file
+            {t("dashboard.importResumeFile")}
           </Button>
         </div>
 
         <ResumeReadOnlyCard
           resume={resumeQuery.data ?? null}
           isLoading={resumeQuery.isLoading}
-          subtitle="Public-facing resume snapshot"
+          subtitle={t("dashboard.resumeSnapshot")}
           action={
             <Button
               type="button"
@@ -652,10 +672,10 @@ export function DashboardPage() {
               // it before they arrive shows empty pickers, so the trigger stays
               // busy until they do (they had no loading UI at all).
               isLoading={isCatalogLoading}
-              loadingLabel="Edit"
+              loadingLabel={t("common.edit")}
               onClick={() => setIsResumeDialogOpen(true)}
             >
-              Edit
+              {t("common.edit")}
             </Button>
           }
         />
@@ -716,15 +736,26 @@ export function DashboardPage() {
             immediately below it. */}
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            Profile
+            {t("common.profile")}
           </h2>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Update your public identity.
+            {t("dashboard.updateIdentity")}
           </p>
         </div>
 
+        {/* Error is its own state. Rendering the display's defaults for a
+            failed /me made a transient 5xx look like a wiped account. Stale
+            data still wins over the error panel: showing what we last had
+            beats blanking the panel on a failed background refetch. */}
         {meQuery.isLoading ? (
           <DashboardProfileDisplaySkeleton />
+        ) : meQuery.isError && !meQuery.data ? (
+          <DashboardProfileDisplayError
+            onRetry={() => {
+              void meQuery.refetch();
+            }}
+            isRetrying={meQuery.isFetching}
+          />
         ) : (
           <DashboardProfileDisplay
             name={meQuery.data?.name ?? ""}
@@ -745,8 +776,8 @@ export function DashboardPage() {
         <Dialog
           open={isProfileDialogOpen}
           onOpenChange={handleProfileDialogOpenChange}
-          title="Edit profile"
-          description="Update your public identity and appearance."
+          title={t("dashboard.editProfile")}
+          description={t("dashboard.updateIdentityAndAppearance")}
           contentClassName="max-w-3xl"
         >
           <DashboardProfileForm
@@ -759,7 +790,7 @@ export function DashboardPage() {
               updateProfileMutation.isError
                 ? updateProfileMutation.error instanceof Error
                   ? updateProfileMutation.error.message
-                  : "Unable to update profile"
+                  : t("dashboard.unableToUpdateProfile")
                 : null
             }
           />
@@ -770,8 +801,8 @@ export function DashboardPage() {
         <Dialog
           open={isDiscardProfileEditOpen}
           onOpenChange={setIsDiscardProfileEditOpen}
-          title="Discard your changes?"
-          description="You have unsaved profile changes. Closing now loses them."
+          title={t("dashboard.discardTitle")}
+          description={t("dashboard.discardDescription")}
           buttons={
             <>
               <Button
@@ -780,7 +811,7 @@ export function DashboardPage() {
                 fullWidth={false}
                 onClick={() => setIsDiscardProfileEditOpen(false)}
               >
-                Keep editing
+                {t("common.keepEditing")}
               </Button>
               <Button
                 type="button"
@@ -792,7 +823,7 @@ export function DashboardPage() {
                   setIsProfileDialogOpen(false);
                 }}
               >
-                Discard changes
+                {t("common.discardChanges")}
               </Button>
             </>
           }

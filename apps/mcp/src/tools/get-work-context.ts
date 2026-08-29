@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { LinkHubApiClient, WorkContextRole } from "../api-client.js";
+import type { CraftHubApiClient, WorkContextRole } from "../api-client.js";
 import type { DisclosureContext } from "../disclosure.js";
 import { runTool, textResult } from "./shared.js";
 
@@ -35,7 +35,9 @@ function formatRole(role: WorkContextRole, index: number): string {
     lines.push(`- Engineering practices: ${role.practices.join(", ")}`);
   }
   if (role.achievements.length > 0) {
-    lines.push("- Achievements (already redacted):");
+    lines.push(
+      "- Achievements (employer and client names stripped; nothing else is):",
+    );
     for (const achievement of role.achievements) {
       lines.push(`  - ${achievement}`);
     }
@@ -54,7 +56,7 @@ function formatRole(role: WorkContextRole, index: number): string {
  */
 export function registerGetWorkContext(
   server: McpServer,
-  client: LinkHubApiClient,
+  client: CraftHubApiClient,
   disclosure: DisclosureContext,
 ): void {
   const policyNote = disclosure.degraded
@@ -71,8 +73,9 @@ export function registerGetWorkContext(
       description:
         "Return the user's work history — roles, seniority, dates and duration, " +
         "employment type and work model, tech stack, engineering practices, " +
-        "problem domain and achievements — ALREADY REDACTED to their disclosure " +
-        "level by LinkHub. THIS IS THE ONLY SANCTIONED SOURCE OF EMPLOYMENT " +
+        "problem domain and achievements — with the employer and client names " +
+        "on their denylist ALREADY STRIPPED by CraftHub, and nothing else " +
+        "removed. THIS IS THE ONLY SANCTIONED SOURCE OF EMPLOYMENT " +
         "DETAIL. You must NOT infer the user's employer or client from git " +
         "remotes, package or scope names, directory paths, code comments, README " +
         "files, commit trailers, or anything else in the working tree — those " +
@@ -89,16 +92,26 @@ export function registerGetWorkContext(
 
         if (context.roles.length === 0) {
           return textResult(
-            "No work history on this LinkHub profile yet. Do not invent one — " +
+            "No work history on this CraftHub profile yet. Do not invent one — " +
               "if the post needs employment context, ask the user to add their " +
-              "roles in LinkHub first.",
+              "roles in CraftHub first.",
           );
         }
 
+        // Say exactly what the server did, and no more. CraftHub only strips
+        // the user's blocked employer and client names; an agent told the whole
+        // payload is "already redacted" stops reading the achievement it is
+        // about to quote, which is how a ticket id reaches a public post.
         const header =
           `Work history at disclosure level "${context.disclosureLevel}" ` +
-          `(${context.roles.length} role(s)). Everything below is already redacted ` +
-          `— publish only what appears here.`;
+          `(${context.roles.length} role(s)). CraftHub has stripped the employer ` +
+          `and client names on the user's denylist from this text — that is the ` +
+          `ONLY category it removes. Ticket ids, customer names, internal ` +
+          `codenames, unreleased products, architecture details and headcount ` +
+          `figures are NOT stripped and may still appear below: leaving them out ` +
+          `of the post is your job, not CraftHub's. Check the "You must not say" ` +
+          `list for this level before quoting anything from here, and do not add ` +
+          `anything that is not here either.`;
 
         return textResult(
           `${header}\n\n${context.roles.map(formatRole).join("\n\n")}`,

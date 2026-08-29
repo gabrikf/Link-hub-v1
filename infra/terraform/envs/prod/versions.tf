@@ -53,7 +53,7 @@ terraform {
   # bloco `import`. Ver README, seção "Bootstrap".
   # ---------------------------------------------------------------------------------
   backend "s3" {
-    bucket = "linkhub-tfstate"
+    bucket = "crafthub-tfstate"
     key    = "prod/terraform.tfstate"
     region = "auto" # o R2 não tem regiões no sentido da AWS
 

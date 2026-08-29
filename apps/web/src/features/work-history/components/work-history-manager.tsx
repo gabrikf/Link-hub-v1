@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SURFACE } from "../../../shared-components/surface";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type {
   CreateWorkExperienceInput,
   WorkExperienceResponse,
@@ -33,6 +34,7 @@ export function WorkHistoryManager({
   enabled = true,
   onMutated,
 }: WorkHistoryManagerProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -83,10 +85,10 @@ export function WorkHistoryManager({
         <div>
           <h3 className="inline-flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             <FiBriefcase className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
-            Work history
+            {t("common.workHistory")}
           </h3>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Roles shown on your public profile.
+            {t("work.rolesShownOnProfile")}
           </p>
         </div>
         {!isAdding && !editingId ? (
@@ -99,7 +101,7 @@ export function WorkHistoryManager({
             onClick={() => setIsAdding(true)}
           >
             <FiPlus className="h-4 w-4" aria-hidden="true" />
-            Add
+            {t("common.add")}
           </Button>
         ) : null}
       </div>
@@ -108,7 +110,7 @@ export function WorkHistoryManager({
         <div className="mt-4">
           <WorkExperienceForm
             isSubmitting={createMutation.isPending}
-            submitLabel="Add experience"
+            submitLabel={t("work.addExperience")}
             onSubmit={async (payload) => {
               await createMutation.mutateAsync(payload);
             }}
@@ -121,7 +123,7 @@ export function WorkHistoryManager({
         <div className="mt-3">
           <FeedbackMessage
             tone="error"
-            message="Unable to add the work experience."
+            message={t("work.addFailed")}
           />
         </div>
       ) : null}
@@ -130,7 +132,7 @@ export function WorkHistoryManager({
         <WorkHistoryListSkeleton />
       ) : workExperiences.length === 0 && !isAdding ? (
         <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/40 dark:text-zinc-400">
-          No work experience yet. Click “Add” to create your first entry.
+          {t("work.emptyWithHint")}
         </div>
       ) : (
         <ul className="mt-4 space-y-2">
@@ -140,7 +142,7 @@ export function WorkHistoryManager({
                 <WorkExperienceForm
                   initialValue={item}
                   isSubmitting={updateMutation.isPending}
-                  submitLabel="Save changes"
+                  submitLabel={t("common.saveChanges")}
                   onSubmit={async (payload) => {
                     await updateMutation.mutateAsync({ id: item.id, payload });
                   }}
@@ -195,9 +197,10 @@ function WorkHistoryRowSkeleton() {
 }
 
 function WorkHistoryListSkeleton() {
+  const { t } = useTranslation();
   return (
     <>
-      <LoadingLabel>Loading work history</LoadingLabel>
+      <LoadingLabel>{t("work.loading")}</LoadingLabel>
       <ul className="mt-4 space-y-2">
         {Array.from({ length: 3 }, (_, index) => (
           <WorkHistoryRowSkeleton key={index} />
@@ -220,10 +223,12 @@ function WorkHistoryRow({
   onEdit,
   onDelete,
 }: WorkHistoryRowProps) {
+  const { t } = useTranslation();
   const dateRange = formatWorkDateRange(
     item.startDate,
     item.endDate,
     item.isCurrent,
+    t,
   );
   const location = formatWorkLocation(item);
 
@@ -247,7 +252,7 @@ function WorkHistoryRow({
           variant="icon"
           size="icon"
           fullWidth={false}
-          aria-label="Edit work experience"
+          aria-label={t("work.editExperience")}
           disabled={disabled}
           onClick={onEdit}
         >
@@ -258,10 +263,10 @@ function WorkHistoryRow({
           variant="danger"
           size="icon"
           fullWidth={false}
-          aria-label="Delete work experience"
+          aria-label={t("work.deleteExperience")}
           shouldHaveConfirmation
-          confirmationTitle="Delete this experience?"
-          confirmationDescription="This will remove it from your profile."
+          confirmationTitle={t("work.deleteConfirmTitle")}
+          confirmationDescription={t("work.deleteConfirmBody")}
           disabled={disabled}
           onClick={onDelete}
         >

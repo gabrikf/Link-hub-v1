@@ -13,6 +13,22 @@ import {
   linkSchema,
   loginSchemaInput,
   loginSchemaOutput,
+  verifyEmailSchemaInput,
+  verifyEmailSchemaOutput,
+  resendVerificationSchemaInput,
+  resendVerificationSchemaOutput,
+  forgotPasswordSchemaInput,
+  forgotPasswordSchemaOutput,
+  resetPasswordSchemaInput,
+  resetPasswordSchemaOutput,
+  type VerifyEmailInput,
+  type VerifyEmailOutput,
+  type ResendVerificationInput,
+  type ResendVerificationOutput,
+  type ForgotPasswordInput,
+  type ForgotPasswordOutput,
+  type ResetPasswordInput,
+  type ResetPasswordOutput,
   publicResumeSchema,
   recruiterSearchInputSchema,
   recruiterSearchResultSchema,
@@ -29,6 +45,10 @@ import {
   updateLinkSchemaInput,
   updateProfileSchemaInput,
   updateProfileSchemaOutput,
+  userPreferencesSchema,
+  updateUserPreferencesSchemaInput,
+  type UserPreferences,
+  type UpdateUserPreferencesInput,
   createInteractionInputSchema,
   interactionSchema,
   candidateContactSchema,
@@ -47,6 +67,7 @@ import {
   createTabSchemaInput,
   renameTabSchemaInput,
   reorderTabsSchemaInput,
+  setTabsEnabledSchemaInput,
   createBlockSchemaInput,
   updateBlockSchemaInput,
   updateBlockPositionsSchemaInput,
@@ -58,6 +79,7 @@ import {
   type CreateTabInput,
   type RenameTabInput,
   type ReorderTabsInput,
+  type SetTabsEnabledInput,
   type CreateBlockInput,
   type UpdateBlockInput,
   type UpdateBlockPositionsInput,
@@ -97,6 +119,8 @@ import axios, {
   type AxiosResponse,
 } from "axios";
 import { z } from "zod";
+import i18n from "../i18n";
+import { ApiRequestError } from "./api-error";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
 import { reportError, reportHandled } from "./report-error";
 import {
@@ -121,6 +145,12 @@ export const getLinkedInSignInUrl = (): string => {
 
 type ApiErrorShape = {
   message?: string;
+  /**
+   * The API's machine-readable failure code — see the global error handler in
+   * `apps/api/src/infra/http/middleware/global-error-handler.ts`. Present on
+   * every application error it serialises, absent on a transport failure.
+   */
+  code?: string;
 };
 
 export type UpsertResumeInput = z.input<typeof upsertResumeInputSchema>;
@@ -162,6 +192,33 @@ const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+/**
+ * Every request announces the language the UI is currently rendered in.
+ *
+ * This is the only channel an ANONYMOUS caller has for saying what language it
+ * wants — a signed-in user's stored preference is read server-side, but a
+ * logged-out visitor has no row to read. It is also the fallback the API uses
+ * when a signed-in user is still on "follow the device".
+ *
+ * A request interceptor rather than a static default header, because the value
+ * changes at runtime when the switcher is used; a header baked in at
+ * `axios.create()` time would pin the whole session to whatever language the
+ * app booted with. It sits here rather than in `fetchWithTokens` so that the
+ * handful of calls made directly through `apiClient` are covered too.
+ */
+apiClient.interceptors.request.use((config) => {
+  // `resolvedLanguage` is the one actually in effect after fallback resolution,
+  // which is what the server should be told — `language` can still hold an
+  // unsupported tag that i18next has already fallen back from.
+  const activeLanguage = i18n.resolvedLanguage ?? i18n.language;
+
+  if (activeLanguage) {
+    config.headers.set("Accept-Language", activeLanguage);
+  }
+
+  return config;
 });
 
 /* ------------------------------------------------------------------ *
@@ -281,12 +338,36 @@ const readErrorMessage = (error: unknown): string => {
     }
 
     return error.response?.status === 401
-      ? "Invalid email or password."
-      : "Request failed. Please try again.";
+      ? i18n.t("errors.invalidCredentials")
+      : i18n.t("common.requestFailed");
   }
 
-  return "Request failed. Please try again.";
+  return i18n.t("common.requestFailed");
 };
+
+/**
+ * The envelope's `code`, so a caller can branch on WHICH failure this is.
+ *
+ * Kept separate from `readErrorMessage` because the two answer different
+ * questions: the message is what a person reads (and is translated by the API,
+ * so it is not an identifier), the code is what the app decides with.
+ */
+const readErrorCode = (error: unknown): string | null => {
+  if (!axios.isAxiosError(error)) {
+    return null;
+  }
+
+  const responseData = error.response?.data as ApiErrorShape | undefined;
+  return typeof responseData?.code === "string" ? responseData.code : null;
+};
+
+/**
+ * The rejection every auth request throws: the readable message, plus the code
+ * behind it. `ApiRequestError extends Error`, so `error.message` still reads
+ * the same at every existing call site.
+ */
+const authFailure = (error: unknown): ApiRequestError =>
+  new ApiRequestError(readErrorMessage(error), readErrorCode(error));
 
 export async function loginRequest(
   credentials: LoginInput,
@@ -298,7 +379,82 @@ export async function loginRequest(
     return loginSchemaOutput.parse(response.data);
   } catch (error) {
     reportError(error, { action: "auth.login" });
-    throw new Error(readErrorMessage(error));
+    // Carries the code so the caller can tell "wrong password" (401) from
+    // "correct password, unproved address" (403 EMAIL_NOT_VERIFIED), which are
+    // two completely different screens.
+    throw authFailure(error);
+  }
+}
+
+/**
+ * Proves control of the mailbox and, unlike registering, MINTS A SESSION — see
+ * `verifyEmailSchemaOutput`. The caller stores the tokens exactly as it does
+ * after a sign-in.
+ */
+export async function verifyEmailRequest(
+  payload: VerifyEmailInput,
+): Promise<VerifyEmailOutput> {
+  const body = verifyEmailSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/verify-email", body);
+    return verifyEmailSchemaOutput.parse(response.data);
+  } catch (error) {
+    reportError(error, { action: "auth.verify-email" });
+    throw authFailure(error);
+  }
+}
+
+/**
+ * Always resolves to `{ status: "sent" }` when the API is reachable — for an
+ * unknown address and an already-verified one alike. A caller that renders
+ * anything address-specific from the RESULT would undo that; the confirmation
+ * has to read the same either way.
+ */
+export async function resendVerificationRequest(
+  payload: ResendVerificationInput,
+): Promise<ResendVerificationOutput> {
+  const body = resendVerificationSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/resend-verification", body);
+    return resendVerificationSchemaOutput.parse(response.data);
+  } catch (error) {
+    reportError(error, { action: "auth.resend-verification" });
+    throw authFailure(error);
+  }
+}
+
+/** Same silence as `resendVerificationRequest`, for the same reason. */
+export async function forgotPasswordRequest(
+  payload: ForgotPasswordInput,
+): Promise<ForgotPasswordOutput> {
+  const body = forgotPasswordSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/forgot-password", body);
+    return forgotPasswordSchemaOutput.parse(response.data);
+  } catch (error) {
+    reportError(error, { action: "auth.forgot-password" });
+    throw authFailure(error);
+  }
+}
+
+/**
+ * Changes the password and deliberately returns NO SESSION — the user signs in
+ * afterwards with what they just chose. See `resetPasswordSchemaOutput`.
+ */
+export async function resetPasswordRequest(
+  payload: ResetPasswordInput,
+): Promise<ResetPasswordOutput> {
+  const body = resetPasswordSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/reset-password", body);
+    return resetPasswordSchemaOutput.parse(response.data);
+  } catch (error) {
+    reportError(error, { action: "auth.reset-password" });
+    throw authFailure(error);
   }
 }
 
@@ -365,10 +521,23 @@ export async function fetchMyProfile(): Promise<ProfileResponse> {
   return profileSchema.parse(response.data);
 }
 
+/**
+ * The public readers below receive the handle already decoded — it comes off
+ * the router param — so it has to be re-encoded before it goes back into a URL
+ * path. A handle holding `/`, `?` or `#` otherwise reshapes the request and the
+ * api answers 404 for a profile it serves fine at the encoded path.
+ *
+ * Only the places that *build* a URL from a raw handle need this. The router
+ * (`to="/profile/$username"` with params) and the Share link (read off
+ * `window.location.href`) already hand out encoded values; encoding those again
+ * would double-encode them.
+ */
 export async function fetchPublicProfile(
   username: string,
 ): Promise<ProfileResponse> {
-  const response = await apiClient.get(`/profile/${username}`);
+  const response = await apiClient.get(
+    `/profile/${encodeURIComponent(username)}`,
+  );
   return profileSchema.parse(response.data);
 }
 
@@ -483,9 +652,7 @@ export async function renameTab(
   return profileTabSchema.parse(response.data);
 }
 
-export async function deleteTab(
-  tabId: string,
-): Promise<{ success: boolean }> {
+export async function deleteTab(tabId: string): Promise<{ success: boolean }> {
   const response = await fetchWithTokens(`/me/layout/tabs/${tabId}`, {
     method: "DELETE",
   });
@@ -503,6 +670,25 @@ export async function reorderTabs(
   });
 
   return response.data as { success: boolean };
+}
+
+/**
+ * Flip the tab strip for ONE viewport. Sits with the other layout writes
+ * because that is where the flag lives now — it used to ride along on
+ * `PUT /profile`, which made it one setting for both viewports.
+ *
+ * Returns nothing: the caller patches its cached layout optimistically and
+ * refetches the layout afterwards, so the response body is never read. That
+ * also keeps this client honest about a shape it does not own.
+ */
+export async function setTabsEnabled(
+  payload: SetTabsEnabledInput,
+): Promise<void> {
+  const body = setTabsEnabledSchemaInput.parse(payload);
+  await fetchWithTokens("/me/layout/tabs-enabled", {
+    method: "PATCH",
+    data: body,
+  });
 }
 
 export async function createBlock(
@@ -672,7 +858,9 @@ export async function saveResumeTitlesBulk(
 export async function fetchPublicResume(
   username: string,
 ): Promise<PublicResumeResponse> {
-  const response = await apiClient.get(`/profile/${username}/resume`);
+  const response = await apiClient.get(
+    `/profile/${encodeURIComponent(username)}/resume`,
+  );
   return publicResumeSchema.parse(response.data);
 }
 
@@ -754,7 +942,7 @@ export async function searchRecruiterResumes(
       throw new Error((data as { message: string }).message);
     }
 
-    throw new Error("Search failed. Try again.");
+    throw new Error(i18n.t("errors.searchFailed"));
   }
 
   if (Array.isArray(data)) {
@@ -871,7 +1059,7 @@ export async function fetchPublicWorkExperiences(
   username: string,
 ): Promise<PublicWorkExperienceResponse[]> {
   const response = await apiClient.get(
-    `/profile/${username}/work-experiences`,
+    `/profile/${encodeURIComponent(username)}/work-experiences`,
   );
 
   return publicWorkExperienceSchema.array().parse(response.data);
@@ -919,7 +1107,7 @@ export async function parseResumeImport(input: {
       throw new Error((data as { message: string }).message);
     }
 
-    throw new Error("Could not parse the resume. Try again.");
+    throw new Error(i18n.t("errors.resumeParseFailed"));
   }
 
   return aiResumeImportParseResponseSchema.parse(data);
@@ -985,4 +1173,30 @@ export async function updateWorkExperienceDisclosure(
     method: "PATCH",
     data: { disclosureLevel },
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Preferences — the private, cross-device half of the UI settings.
+ *
+ * Deliberately NOT part of the profile endpoints: `profileSchema` is served
+ * publicly at `/profile/:username`, and a person's UI language and dark-mode
+ * choice are nobody else's business.
+ * ------------------------------------------------------------------ */
+
+export async function fetchPreferences(): Promise<UserPreferences> {
+  const response = await fetchWithTokens("/preferences", { method: "GET" });
+  return userPreferencesSchema.parse(response.data);
+}
+
+export async function updatePreferences(
+  patch: UpdateUserPreferencesInput,
+): Promise<UserPreferences> {
+  const body = updateUserPreferencesSchemaInput.parse(patch);
+
+  const response = await fetchWithTokens("/preferences", {
+    method: "PUT",
+    data: body,
+  });
+
+  return userPreferencesSchema.parse(response.data);
 }

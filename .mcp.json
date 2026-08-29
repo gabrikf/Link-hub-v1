@@ -7,7 +7,7 @@
         "--access-mode=restricted"
       ],
       "env": {
-        "DATABASE_URI": "postgresql://linkhub_user:linkhub_password@localhost:5432/linkhub_dev"
+        "DATABASE_URI": "postgresql://crafthub_user:crafthub_password@localhost:5432/crafthub_dev"
       }
     }
   }

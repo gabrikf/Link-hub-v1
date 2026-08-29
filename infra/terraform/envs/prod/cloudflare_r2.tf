@@ -120,3 +120,41 @@ locals {
   s3_secret_access_key = sha256(cloudflare_account_token.r2_uploads.value)
   s3_endpoint          = "https://${var.cloudflare_account_id}.r2.cloudflarestorage.com"
 }
+
+# -------------------------------------------------------------------------------------
+# Domínio público do bucket de uploads
+#
+# POR QUE ISTO É OBRIGATÓRIO, e não um enfeite:
+#
+# `s3-file-storage-provider.ts` monta a URL de todo arquivo como
+# `${S3_PUBLIC_BASE_URL}/${key}` e SE RECUSA A CONSTRUIR sem essa variável. O endpoint S3
+# (`<account>.r2.cloudflarestorage.com`) não serve: ele exige assinatura SigV4 em cada
+# GET, e o que vai para o `src` de um `<img>` é uma URL que o navegador busca sem
+# credencial nenhuma.
+#
+# Sem isto o sistema falha de um jeito especialmente ruim: o upload funciona, o objeto
+# existe no bucket, a linha no banco aponta para uma URL — e toda imagem dá 404. Um erro
+# de leitura, não de escrita, que só aparece depois de o dado já estar gravado.
+#
+# POR QUE UM DOMÍNIO PRÓPRIO E NÃO O `r2.dev`:
+# a Cloudflare oferece um subdomínio `pub-<hash>.r2.dev` num clique. Ele é explicitamente
+# documentado como não sendo para produção — tem rate limit, não é cacheado pela CDN e
+# não pode ficar atrás do WAF. Um domínio da própria zona passa pela borda como qualquer
+# outro hostname: cache, WAF e analytics inclusos, e sem custo de egress porque é R2.
+#
+# O DNS é criado pela PRÓPRIA Cloudflare ao conectar o domínio (por isso o resource pede
+# `zone_id`). Não declare um cloudflare_dns_record para `media.` — seriam dois donos do
+# mesmo nome, e o apply passaria a alternar entre eles.
+# -------------------------------------------------------------------------------------
+resource "cloudflare_r2_custom_domain" "uploads" {
+  account_id  = var.cloudflare_account_id
+  bucket_name = cloudflare_r2_bucket.uploads.name
+  zone_id     = data.cloudflare_zone.main.id
+
+  domain  = local.media_hostname
+  enabled = true
+
+  # TLS 1.2 como piso. 1.0 e 1.1 estão depreciados desde 2021 e não há cliente relevante
+  # que precise deles para carregar um avatar.
+  min_tls = "1.2"
+}

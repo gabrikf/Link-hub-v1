@@ -3,8 +3,9 @@ import type {
   Post,
   UpdatePostInput,
 } from "@repo/schemas";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiChevronRight,
   FiEdit2,
@@ -64,18 +65,12 @@ function resolveMutationError(
 }
 
 export function PostsPage() {
-  const navigate = useNavigate();
+  const { t } = useTranslation();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
-
-  useEffect(() => {
-    if (!hasSession) {
-      navigate({ to: "/" });
-    }
-  }, [hasSession, navigate]);
 
   const postsQuery = useMyPosts(hasSession);
   const createPost = useCreatePost();
@@ -112,9 +107,9 @@ export function PostsPage() {
    * inside the composer too; this is the page-level backstop.
    */
   const mutationError = resolveMutationError([
-    [createPost, "Could not publish your post."],
-    [updatePost, "Could not save your changes."],
-    [deletePost, "Could not delete that post. It is still here."],
+    [createPost, t("posts.publishFailed")],
+    [updatePost, t("posts.saveFailed")],
+    [deletePost, t("posts.deleteFailed")],
   ]);
 
   return (
@@ -130,11 +125,10 @@ export function PostsPage() {
       <header className="anim-fade-up flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <h1 className="anim-gradient bg-linear-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">
-            Posts
+            {t("common.posts")}
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Write updates, articles and changelog entries. Published posts appear
-            in your profile’s Posts block.
+            {t("posts.pageSubtitle")}
           </p>
         </div>
         <Button
@@ -144,7 +138,7 @@ export function PostsPage() {
           onClick={openCreate}
         >
           <FiPlus className="h-4 w-4" aria-hidden="true" />
-          New post
+          {t("posts.newPost")}
         </Button>
       </header>
 
@@ -161,11 +155,10 @@ export function PostsPage() {
             {pendingCount}
           </span>
           <span className="text-zinc-700 dark:text-zinc-200">
-            {pendingCount === 1 ? "post is" : "posts are"} waiting for your
-            review
+            {t("posts.waitingForReviewCount", { count: pendingCount })}
           </span>
           <span className="ml-auto inline-flex items-center gap-1 font-medium text-violet-700 dark:text-violet-300">
-            Open review queue
+            {t("posts.openReviewQueue")}
             <FiChevronRight className="h-4 w-4" aria-hidden="true" />
           </span>
         </Link>
@@ -179,12 +172,12 @@ export function PostsPage() {
         <PostListSkeleton />
       ) : postsQuery.isError ? (
         <p className="text-sm text-red-600 dark:text-red-400">
-          Could not load your posts. Please try again.
+          {t("posts.loadFailed")}
         </p>
       ) : posts.length === 0 ? (
         <div className={`anim-fade-up p-10 text-center ${SURFACE_EMPTY}`}>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            You haven’t written any posts yet.
+            {t("posts.emptyTitle")}
           </p>
           <Button
             type="button"
@@ -194,7 +187,7 @@ export function PostsPage() {
             onClick={openCreate}
           >
             <FiPlus className="h-4 w-4" aria-hidden="true" />
-            Write your first post
+            {t("posts.writeFirstPost")}
           </Button>
         </div>
       ) : (
@@ -236,7 +229,7 @@ export function PostsPage() {
 
                   <div className="flex-1">
                     <h2 className="line-clamp-2 font-semibold text-zinc-900 dark:text-zinc-100">
-                      {post.title ?? (excerpt.slice(0, 60) || "Untitled post")}
+                      {post.title ?? (excerpt.slice(0, 60) || t("posts.untitled"))}
                     </h2>
                     {post.title ? (
                       <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -272,7 +265,7 @@ export function PostsPage() {
                           size="sm"
                           fullWidth={false}
                         >
-                          Review
+                          {t("common.review")}
                         </Button>
                       </Link>
                     ) : isMachineAuthored(post.source) ? (
@@ -280,7 +273,7 @@ export function PostsPage() {
                       // not content — the one field a machine post accepts.
                       <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                         <FiLock className="h-3.5 w-3.5" aria-hidden="true" />
-                        Body written by software — you can attach a link
+                        {t("posts.machineBodyAttachLink")}
                         {!post.externalUrl ? (
                           <AttachLinkControl post={post} />
                         ) : null}
@@ -294,7 +287,7 @@ export function PostsPage() {
                         onClick={() => openEdit(post)}
                       >
                         <FiEdit2 className="h-4 w-4" aria-hidden="true" />
-                        Edit
+                        {t("common.edit")}
                       </Button>
                     )}
                     <Button
@@ -303,12 +296,12 @@ export function PostsPage() {
                       size="sm"
                       fullWidth={false}
                       shouldHaveConfirmation
-                      confirmationTitle="Delete post?"
-                      confirmationDescription="This permanently removes the post."
+                      confirmationTitle={t("posts.deletePostShort")}
+                      confirmationDescription={t("posts.deletePermanent")}
                       onClick={() => deletePost.mutate(post.id)}
                     >
                       <FiTrash2 className="h-4 w-4" aria-hidden="true" />
-                      Delete
+                      {t("common.delete")}
                     </Button>
                     {post.externalUrl ? (
                       <a
@@ -318,7 +311,7 @@ export function PostsPage() {
                         className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-violet-600 dark:hover:text-violet-300"
                       >
                         <FiExternalLink className="h-4 w-4" aria-hidden="true" />
-                        Link
+                        {t("common.link")}
                       </a>
                     ) : null}
                   </div>
@@ -401,9 +394,10 @@ function PostCardSkeleton() {
 }
 
 function PostListSkeleton() {
+  const { t } = useTranslation();
   return (
     <>
-      <LoadingLabel>Loading posts</LoadingLabel>
+      <LoadingLabel>{t("profile.loadingPosts")}</LoadingLabel>
       <ul className="grid gap-4 sm:grid-cols-2">
         {Array.from({ length: 4 }, (_, index) => (
           <PostCardSkeleton key={index} />

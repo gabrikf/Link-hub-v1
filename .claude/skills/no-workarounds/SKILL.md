@@ -47,7 +47,7 @@ Each row is the compiler, linter, runtime, or reviewer telling you something tru
 | **SCATTER** — deep `?.` / `??`, fallback chains | The data is unreliable at its source | Validating once at the boundary, then trusting the shape everywhere downstream |
 | **CLONE** — copy-and-tweak of similar code | An abstraction doesn't fit but gets forced | Extracting the shared pattern, or writing purpose-built code |
 
-**When any category's signal fires, read `references/workaround-catalog.md` in full before choosing the fix** — 36 named patterns (W-01…W-36) with before/after code, including environment, build, test, and architecture workarounds beyond the seven above. W-31…W-36 are the LinkHub-specific set: contract casts, widened zod schemas, docker-skipped tests, swallowed use-case errors, `setTimeout` race "fixes", and inline eslint disables.
+**When any category's signal fires, read `references/workaround-catalog.md` in full before choosing the fix** — 36 named patterns (W-01…W-36) with before/after code, including environment, build, test, and architecture workarounds beyond the seven above. W-31…W-36 are the CraftHub-specific set: contract casts, widened zod schemas, docker-skipped tests, swallowed use-case errors, `setTimeout` race "fixes", and inline eslint disables.
 
 ## The escape valve
 
@@ -78,7 +78,7 @@ The principle converges from Toyota's Jidoka, Fowler's debt quadrant, Torvalds' 
 
 ---
 
-# LinkHub binding — where each signal actually fires in this repo
+# CraftHub binding — where each signal actually fires in this repo
 
 The doctrine above is general. Below is the concrete shape each category takes in this
 codebase: which sensor catches it, and what the fix at the source looks like here.

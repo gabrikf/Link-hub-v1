@@ -9,9 +9,9 @@
 # ---------------------------------------------------------------------------
 # Run `crontab -e` on the VPS and add:
 #
-#   # LinkHub database backup — 03:17 UTC daily. Deliberately not on the hour:
+#   # CraftHub database backup — 03:17 UTC daily. Deliberately not on the hour:
 #   # every cron on every VPS on earth fires at :00, and R2 rate-limits.
-#   17 3 * * * /srv/linkhub/scripts/backup.sh >> /var/log/linkhub-backup.log 2>&1
+#   17 3 * * * /srv/crafthub/scripts/backup.sh >> /var/log/crafthub-backup.log 2>&1
 #
 # Cron runs with a minimal PATH and no login shell, so `rclone` must be at
 # /usr/bin or /usr/local/bin (the official install script puts it there).
@@ -42,9 +42,9 @@
 # ---------------------------------------------------------------------------
 # RESTORE (write this down somewhere that is not this VPS)
 # ---------------------------------------------------------------------------
-#   rclone copy r2:linkhub-backups/postgres/linkhub-2026-08-15T03-17-00Z.sql.gz .
-#   gunzip -c linkhub-*.sql.gz | \
-#     docker exec -i linkhub-postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+#   rclone copy r2:crafthub-backups/postgres/crafthub-2026-08-15T03-17-00Z.sql.gz .
+#   gunzip -c crafthub-*.sql.gz | \
+#     docker exec -i crafthub-postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 #
 # A backup that has never been restored is a hypothesis. Test it once a quarter
 # against a scratch database.
@@ -53,9 +53,9 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ENV_FILE:-$REPO_DIR/.env.production}"
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-linkhub-postgres}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-crafthub-postgres}"
 RCLONE_REMOTE="${RCLONE_REMOTE:-r2}"
-RCLONE_BUCKET="${RCLONE_BUCKET:-linkhub-backups}"
+RCLONE_BUCKET="${RCLONE_BUCKET:-crafthub-backups}"
 RCLONE_PATH="${RCLONE_PATH:-postgres}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 
@@ -84,7 +84,7 @@ docker inspect "$POSTGRES_CONTAINER" >/dev/null 2>&1 \
   || die "container $POSTGRES_CONTAINER is not running — nothing to back up"
 
 TIMESTAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
-DUMP_NAME="linkhub-${TIMESTAMP}.sql.gz"
+DUMP_NAME="crafthub-${TIMESTAMP}.sql.gz"
 
 # mktemp -d, not a fixed path: two overlapping runs (a slow dump plus the next
 # cron tick) would otherwise write the same file and upload a truncated one.

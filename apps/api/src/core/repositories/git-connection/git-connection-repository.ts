@@ -7,7 +7,7 @@ export interface IGitConnectionRepository {
   findByUserId(userId: string): Promise<GitConnectionEntity[]>;
   /**
    * Routes an inbound webhook to the connection that owns it. A forge delivery
-   * carries an account id and nothing else LinkHub controls, so this is the only
+   * carries an account id and nothing else CraftHub controls, so this is the only
    * way to answer "whose activity is this" without trusting the payload.
    */
   findByExternalAccount(

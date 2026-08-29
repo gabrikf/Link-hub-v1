@@ -1,5 +1,6 @@
 import { postsBlockConfigSchema, type PostsBlockConfig } from "@repo/schemas";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
@@ -19,6 +20,7 @@ export function PostsBlockDialog({
   isSubmitting = false,
   onSubmit,
 }: PostsBlockDialogProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [limit, setLimit] = useState(5);
   const [layout, setLayout] = useState<"list" | "grid">("list");
@@ -44,7 +46,7 @@ export function PostsBlockDialog({
     });
 
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Please review the options.");
+      setError(parsed.error.issues[0]?.message ?? t("layout.postsBlock.reviewOptions"));
       return;
     }
 
@@ -56,27 +58,28 @@ export function PostsBlockDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={initialConfig ? "Edit posts block" : "Add posts block"}
+      title={
+        initialConfig ? t("layout.postsBlock.edit") : t("layout.postsBlock.add")
+      }
       contentClassName="max-w-md"
     >
       <div className="space-y-4">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          This block shows your published posts. Manage the posts themselves from
-          the Posts page.
+          {t("layout.postsBlock.help")}
         </p>
 
         <Input
           id="posts-block-title"
-          label="Heading (optional)"
+          label={t("layout.postsBlock.headingOptional")}
           value={title}
           maxLength={120}
-          placeholder="e.g. Latest posts"
+          placeholder={t("layout.postsBlock.headingPlaceholder")}
           onChange={(event) => setTitle(event.target.value)}
         />
 
         <Input
           id="posts-block-limit"
-          label="Number of posts"
+          label={t("layout.postsBlock.numberOfPosts")}
           type="number"
           min={1}
           max={20}
@@ -89,7 +92,7 @@ export function PostsBlockDialog({
 
         <div>
           <span className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300">
-            Layout
+            {t("common.layout")}
           </span>
           <div className="flex gap-2">
             {(["list", "grid"] as const).map((option) => (
@@ -104,7 +107,11 @@ export function PostsBlockDialog({
                     : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800",
                 ].join(" ")}
               >
-                {option}
+                {t(
+                  option === "list"
+                    ? "layout.postsBlock.list"
+                    : "layout.postsBlock.grid",
+                )}
               </button>
             ))}
           </div>
@@ -112,10 +119,10 @@ export function PostsBlockDialog({
 
         <Input
           id="posts-block-tag"
-          label="Filter by tag (optional)"
+          label={t("layout.postsBlock.filterByTag")}
           value={tag}
           maxLength={60}
-          placeholder="e.g. changelog"
+          placeholder={t("layout.postsBlock.tagPlaceholder")}
           onChange={(event) => setTag(event.target.value)}
         />
 
@@ -128,16 +135,16 @@ export function PostsBlockDialog({
             fullWidth={false}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             isLoading={isSubmitting}
-            loadingLabel="Saving"
+            loadingLabel={t("common.saving")}
             onClick={handleSave}
           >
-            Save
+            {t("common.save")}
           </Button>
         </div>
       </div>

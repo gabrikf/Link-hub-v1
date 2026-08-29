@@ -1,36 +1,51 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createUserSchemaInput } from "@repo/schemas";
 import type { CreateUserInput } from "@repo/schemas";
+import type { TFunction } from "i18next";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { FiLoader, FiUserPlus } from "react-icons/fi";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { Button } from "../../../shared-components/button";
 import { Input } from "../../../shared-components/input";
+import { FOCUS_RING } from "../../../shared-components/surface";
 
 type RegisterFormProps = {
   isPending: boolean;
   errorMessage?: string;
+  /**
+   * Opens the "reset your password" screen. It belongs on this tab too: a
+   * person who cannot get in often assumes they never registered, and lands
+   * here rather than on the sign-in tab.
+   */
+  onForgotPassword?: () => void;
+  // Rejects when the registration fails. The parent owns how that reads to the
+  // user and passes it back down as `errorMessage`.
   onSubmit: (data: CreateUserInput) => Promise<void>;
 };
 
 // Friendly labels for the optional persona picker. Values must match
 // `personaSchema` in @repo/schemas.
-const PERSONA_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: "developer", label: "Developer" },
-  { value: "designer", label: "Designer" },
-  { value: "product-manager", label: "Product Manager" },
-  { value: "product-owner", label: "Product Owner" },
-  { value: "qa-engineer", label: "QA Engineer" },
-  { value: "data", label: "Data" },
-  { value: "devops", label: "DevOps" },
-  { value: "other", label: "Other" },
+const getPersonaOptions = (
+  t: TFunction,
+): ReadonlyArray<{ value: string; label: string }> => [
+  { value: "developer", label: t("enum.persona.developer") },
+  { value: "designer", label: t("enum.persona.designer") },
+  { value: "product-manager", label: t("enum.persona.product-manager") },
+  { value: "product-owner", label: t("enum.persona.product-owner") },
+  { value: "qa-engineer", label: t("enum.persona.qa-engineer") },
+  { value: "data", label: t("enum.persona.data") },
+  { value: "devops", label: t("enum.persona.devops") },
+  { value: "other", label: t("common.other") },
 ];
 
 export function RegisterForm({
   isPending,
   errorMessage,
+  onForgotPassword,
   onSubmit,
 }: RegisterFormProps) {
+  const { t } = useTranslation();
   const {
     register,
     handleSubmit,
@@ -45,25 +60,38 @@ export function RegisterForm({
       password: "",
     },
   });
+  const personaOptions = getPersonaOptions(t);
 
   return (
     <form
       className="space-y-3"
       onSubmit={handleSubmit(async (data) => {
-        await onSubmit(data);
+        try {
+          await onSubmit(data);
+        } catch {
+          // An address that is already registered is an ordinary outcome, and
+          // it is already handled: the parent renders it as `errorMessage`
+          // below. react-hook-form re-throws whatever the submit handler
+          // rejects with, so letting it through would hand the message — which
+          // quotes the email the user just typed — to the global
+          // unhandledrejection handler, which is Sentry in production.
+          // Keep the typed values so the correction is one edit, not a retype.
+          return;
+        }
+
         reset();
       })}
     >
       <Input
         id="register-name"
-        label="Name"
+        label={t("common.name")}
         error={errors.name?.message}
         {...register("name")}
       />
 
       <Input
         id="register-login"
-        label="Login"
+        label={t("auth.handleLabel")}
         error={errors.login?.message}
         {...register("login")}
       />
@@ -71,7 +99,7 @@ export function RegisterForm({
       <Input
         id="register-email"
         type="email"
-        label="Email"
+        label={t("common.email")}
         error={errors.email?.message}
         {...register("email")}
       />
@@ -79,7 +107,7 @@ export function RegisterForm({
       <Input
         id="register-password"
         type="password"
-        label="Password"
+        label={t("common.password")}
         error={errors.password?.message}
         {...register("password")}
       />
@@ -89,7 +117,7 @@ export function RegisterForm({
           className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300"
           htmlFor="register-persona"
         >
-          Role (optional)
+          {t("auth.roleOptional")}
         </label>
         <select
           id="register-persona"
@@ -99,8 +127,8 @@ export function RegisterForm({
             setValueAs: (value) => (value === "" ? undefined : value),
           })}
         >
-          <option value="">Prefer not to say</option>
-          {PERSONA_OPTIONS.map((option) => (
+          <option value="">{t("auth.preferNotToSay")}</option>
+          {personaOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -119,15 +147,29 @@ export function RegisterForm({
         {isPending ? (
           <>
             <FiLoader className="h-4 w-4 animate-spin" />
-            Creating account...
+            {t("auth.creatingAccount")}
           </>
         ) : (
           <>
             <FiUserPlus className="h-4 w-4" />
-            Create account
+            {t("auth.createAccount")}
           </>
         )}
       </Button>
+
+      {/* Footer placement, under the primary action: on this tab it is a way
+          out for somebody in the wrong place, not a step in signing up. */}
+      {onForgotPassword && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={onForgotPassword}
+            className={`rounded-md text-xs font-medium text-violet-700 underline-offset-2 hover:underline dark:text-violet-300 ${FOCUS_RING}`}
+          >
+            {t("auth.forgotPassword")}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

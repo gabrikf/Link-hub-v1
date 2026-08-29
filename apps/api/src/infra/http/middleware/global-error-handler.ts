@@ -85,7 +85,13 @@ export async function errorHandler(
   else if (error instanceof BaseError) {
     statusCode = error.statusCode;
     errorMessage = error.message;
-    errorCode = error.constructor.name.replace("Error", "").toUpperCase();
+    // An error that declares its own code wins. The class-name derivation below
+    // cannot express a multi-word domain code (`EmailNotVerifiedError` would
+    // come out as `EMAILNOTVERIFIED`), so anything a client is expected to
+    // branch on sets `errorCode` on the class itself.
+    errorCode =
+      error.errorCode ??
+      error.constructor.name.replace("Error", "").toUpperCase();
   }
   // Handle Fastify validation errors
   else if ("validation" in error && error.validation) {

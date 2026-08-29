@@ -91,19 +91,41 @@ export function buildDefaultLayout(viewport: ProfileViewport): ProfileLayout {
   return {
     tabs: [{ id: tabId, title: DEFAULT_TAB_TITLE, order: 0 }],
     blocks,
+    // The fallback stands in for a profile that has never been arranged, and
+    // every profile starts with its tab strip on.
+    tabsEnabled: true,
   };
 }
 
 /**
  * Resolve the layout for one viewport out of a (possibly-undefined) full layout,
  * falling back to the default single-tab layout for legacy responses.
+ *
+ * WHY THE EMPTY-TABS FALLBACK IS CONDITIONAL
+ *
+ * An empty `tabs` array used to be a reliable proxy for "this profile predates
+ * layouts" — nothing else could produce one. That stopped being true once the
+ * public payload started omitting tabs for a profile whose tab section is
+ * switched off: `tabs: []` is now the CORRECT, deliberate answer for that
+ * profile, not the sign of a missing layout.
+ *
+ * Falling back there was actively harmful, because `buildDefaultLayout`
+ * FABRICATES the default builtin blocks — resume, work history and the rest. A
+ * profile with tabs off therefore rendered a made-up arrangement of exactly the
+ * content its owner had just hidden. Two individually-correct changes produced
+ * it together, which is why no test on either side caught it.
+ *
+ * So the fallback now fires only when tabs are supposed to be there and are not.
  */
 export function resolveViewportLayout(
   layout: FullProfileLayout | undefined,
   viewport: ProfileViewport,
 ): ProfileLayout {
   const viewportLayout = layout?.[viewport];
-  if (!viewportLayout || viewportLayout.tabs.length === 0) {
+  if (!viewportLayout) {
+    return buildDefaultLayout(viewport);
+  }
+  if (viewportLayout.tabs.length === 0 && viewportLayout.tabsEnabled) {
     return buildDefaultLayout(viewport);
   }
   return viewportLayout;
@@ -112,6 +134,37 @@ export function resolveViewportLayout(
 /** Pinned blocks (shown on every tab) in stable grid order. */
 export function pinnedBlocks(layout: ProfileLayout): ProfileBlock[] {
   return layout.blocks.filter((block) => block.pinnedAllTabs);
+}
+
+/**
+ * How many blocks stop being reachable once the tabs section is switched off.
+ *
+ * With tabs off the public profile renders the pinned zone AND NOTHING ELSE, so
+ * every block on every tab — the first one included — is still stored, still
+ * editable, and simply not on the page. That is a content-visibility
+ * consequence the user has to be told about before it surprises them — hence
+ * the count, not a vague warning. Counting only the tabs past the first (the
+ * rule this used to encode) now under-reports what the switch actually hides.
+ *
+ * Pinned blocks are excluded on purpose: they render on every tab, so turning
+ * tabs off cannot hide them.
+ *
+ * Blocks the owner has ALREADY hidden are excluded too. The public profile only
+ * ever renders `isVisible` blocks, so one that was already off was never on the
+ * page and losing it costs nothing — counting it would inflate the warning. An
+ * exaggerated number is not a harmless rounding error here: this count is the
+ * only safeguard against silently hiding someone's content, and a warning that
+ * overstates itself is one people learn to dismiss.
+ *
+ * A layout with no tabs has no tabs section to switch off, so it counts zero.
+ */
+export function countBlocksHiddenWithoutTabs(layout: ProfileLayout): number {
+  if (layout.tabs.length === 0) {
+    return 0;
+  }
+  return layout.blocks.filter(
+    (block) => block.isVisible && !block.pinnedAllTabs,
+  ).length;
 }
 
 /** Blocks that belong to a specific tab (not pinned). */
@@ -226,6 +279,36 @@ export const minBlockWidth = (cols: number) => (cols <= 4 ? 1 : 2);
 export const MIN_BLOCK_HEIGHT = 2;
 
 /**
+ * One drop attempt: react-grid-layout's own drag maths, run on a throwaway copy
+ * (`moveElement` mutates the layout it is handed).
+ */
+function attemptMove(
+  items: readonly GridLayoutItem[],
+  blockId: string,
+  x: number,
+  y: number,
+  cols: number,
+): readonly GridLayoutItem[] {
+  const copy = items.map((item) => ({ ...item }));
+  const target = copy.find((item) => item.i === blockId);
+  if (!target) {
+    return copy;
+  }
+  const moved = moveElement(
+    copy,
+    target,
+    x,
+    y,
+    true,
+    false,
+    verticalCompactor.type,
+    cols,
+    false,
+  );
+  return verticalCompactor.compact(moved, cols);
+}
+
+/**
  * Move one block by a grid-cell delta, pushing neighbours out of the way and
  * repacking — the same `moveElement` + vertical compaction react-grid-layout
  * runs for a mouse drag, so a keyboard nudge and a drag produce identical
@@ -235,6 +318,20 @@ export const MIN_BLOCK_HEIGHT = 2;
  * keyboard equivalent for drag or resize, so a keyboard user could not arrange
  * a layout at all. Arrow-key nudging is not a complete a11y story, but it is
  * the part that makes the editor operable.
+ *
+ * VERTICALLY, A ROW IS NOT A POSITION. The grid is vertically compacted, so
+ * every block already rests on the one above it: dropping it one row higher
+ * changes nothing, because the compactor floats it straight back down. A block
+ * only moves when it crosses a whole neighbour, and neighbours are six rows
+ * tall while the keyboard sends one row per press — which is why ArrowUp and
+ * ArrowDown used to be permanent no-ops. So `dy` is read as a DIRECTION with a
+ * minimum distance: the block is dropped at `y + dy` and, if the compacted
+ * result leaves it on the cell it started from, one row further, until THE
+ * BLOCK ITSELF lands somewhere new or the grid runs out. In practice that is
+ * "swap with the neighbour on that side", for a neighbour of any height.
+ *
+ * Returns the input array unchanged when the nudge has nowhere to go, so the
+ * caller can skip persisting a byte-identical layout.
  *
  * Callers must pass ONE ZONE at a time — see `compactBlocks`.
  */
@@ -252,23 +349,41 @@ export function moveBlockBy(
   }
 
   const x = clampInt(target.x + dx, 0, cols - target.w);
-  const y = Math.max(0, target.y + dy);
-  if (x === target.x && y === target.y) {
+  const firstY = Math.max(0, target.y + dy);
+  if (x === target.x && firstY === target.y) {
     return blocks;
   }
 
-  const moved = moveElement(
-    items,
-    target,
-    x,
-    y,
-    true,
-    false,
-    verticalCompactor.type,
-    cols,
-    false,
-  );
-  return applyGeometry(blocks, verticalCompactor.compact(moved, cols));
+  const step = Math.sign(dy);
+  // Down stops one row below the lowest block in the zone: past that there is
+  // nothing left to cross. Up stops at the top of the grid.
+  const lastY =
+    step > 0
+      ? items.reduce((bottom, item) => Math.max(bottom, item.y + item.h), 0)
+      : 0;
+
+  const candidates =
+    step === 0
+      ? [firstY]
+      : Array.from(
+          { length: Math.max(0, (lastY - firstY) * step + 1) },
+          (_unused, index) => firstY + index * step,
+        );
+
+  for (const y of candidates) {
+    const attempt = attemptMove(items, blockId, x, y, cols);
+    const landed = attempt.find((item) => item.i === blockId);
+    // The candidate only counts when THE BLOCK THE USER IS NUDGING ends up on a
+    // different cell. Accepting "anything in the layout changed" lets a row a
+    // neighbour got shoved out of pass as a successful nudge: the focused block
+    // stays put, a bystander is flung to the bottom, and that scrambled layout
+    // is persisted. Keep walking instead — the row where the target really does
+    // cross its neighbour is further along the same direction.
+    if (landed && (landed.x !== target.x || landed.y !== target.y)) {
+      return applyGeometry(blocks, attempt);
+    }
+  }
+  return blocks;
 }
 
 /**

@@ -1,9 +1,11 @@
 import {
   createPostSchemaInput,
   postSchema,
+  publicPostSchema,
   updatePostSchemaInput,
   type CreatePostInput,
   type Post,
+  type PublicPost,
   type UpdatePostInput,
 } from "@repo/schemas";
 import {
@@ -55,10 +57,17 @@ export async function fetchPostById(postId: string): Promise<Post> {
   return postSchema.parse(response.data);
 }
 
+/**
+ * The public feed serves `publicPostSchema` — a post without `metadata`, which
+ * is provenance that may never leave the owner's own views. Parsing it with
+ * `postSchema` (where `metadata` is required) made every profile with a
+ * published post render the error state, so this parses the shape the route
+ * actually declares.
+ */
 export async function fetchPublicPosts(
   username: string,
   params: PublicPostsParams = {},
-): Promise<Post[]> {
+): Promise<PublicPost[]> {
   // Public endpoint — fetchWithTokens only *adds* auth headers when present, so
   // it works both for a logged-out visitor and the owner previewing their feed.
   const query = new URLSearchParams();
@@ -69,10 +78,17 @@ export async function fetchPublicPosts(
     query.set("offset", String(params.offset));
   }
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  const response = await fetchWithTokens(`/profile/${username}/posts${suffix}`, {
-    method: "GET",
-  });
-  return postSchema.array().parse(response.data);
+  // The handle arrives decoded from the router param, so it is re-encoded here
+  // before going back into a URL path — otherwise a `/`, `?` or `#` in the
+  // handle reshapes the request and this panel renders its error state on a
+  // profile the api serves fine.
+  const response = await fetchWithTokens(
+    `/profile/${encodeURIComponent(username)}/posts${suffix}`,
+    {
+      method: "GET",
+    },
+  );
+  return publicPostSchema.array().parse(response.data);
 }
 
 export async function createPost(payload: CreatePostInput): Promise<Post> {

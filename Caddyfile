@@ -1,31 +1,139 @@
-# Caddy — TLS termination and reverse proxy for the LinkHub API.
+# Caddy — TLS termination and reverse proxy for the CraftHub API.
 #
 # Mounted read-only at /etc/caddy/Caddyfile by docker-compose.prod.yml.
-# {$DOMAIN} and {$ACME_EMAIL} are read from the container's environment, which
-# comes from .env.production. Caddy substitutes them when it loads this file, so
-# changing the domain is an env edit plus `docker compose restart caddy`.
+# {$DOMAIN} is read from the container's environment, which comes from
+# .env.production. Caddy substitutes it when it loads this file, so changing the
+# domain is an env edit plus `docker compose restart caddy`.
 #
 # THE API IS THE ONLY THING BEHIND THIS PROXY. apps/web is a static Vite bundle
 # served by Cloudflare Pages, so there is no static-file route here and there
 # never should be — adding one puts the front end's uptime on the same 4GB box
 # as the database.
-
 {
-	# Contact address for the Let's Encrypt account. Certificate-expiry warnings
-	# go here; leaving it unset means the only notice of a broken renewal is the
-	# site going down.
-	email {$ACME_EMAIL}
-
-	# Certificates are obtained and renewed automatically over HTTP-01/TLS-ALPN.
-	# This is why ports 80 AND 443 are both published: the HTTP-01 challenge and
-	# the HTTP->HTTPS redirect both need :80.
+	# ---------------------------------------------------------------------
+	# WHY THERE IS NO ACME / LET'S ENCRYPT CONFIGURATION HERE ANY MORE
+	# ---------------------------------------------------------------------
+	# This file used to configure automatic issuance over HTTP-01/TLS-ALPN.
+	# It could never have worked. `api.<domain>` is an orange-clouded record
+	# (infra/terraform/envs/prod/cloudflare_dns.tf sets `proxied = true`) and
+	# the Hetzner firewall only accepts 80/443 from Cloudflare's own ranges
+	# (`restrict_http_to_cloudflare`, default true). Both ACME challenges are
+	# answered by whoever the resolver reaches on the public name — which is
+	# Cloudflare's edge, not this box. The challenge never arrives, issuance
+	# never completes, and Caddy loops on failed orders while the edge serves
+	# a 525 to every visitor.
 	#
-	# Uncomment to test the whole flow against the staging CA, which has
-	# generous rate limits, before pointing real DNS at the box:
-	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+	# The fix is the Cloudflare Origin Certificate, which Terraform already
+	# mints (cloudflare_tls.tf) and the deploy workflow now delivers. See the
+	# `tls` directive below.
+	#
+	# `.env.production` no longer needs ACME_EMAIL. Leaving it set is
+	# harmless; nothing reads it.
+
+	servers {
+		# ---------------------------------------------------------------
+		# WITHOUT THIS BLOCK THE APPLICATION RATE LIMIT DOES NOTHING.
+		# ---------------------------------------------------------------
+		# Every request arrives from a Cloudflare edge IP, because the DNS
+		# record is proxied. Caddy's `{remote_host}` is therefore a colo
+		# address, and there are only a few hundred of them worldwide. The
+		# API runs `trustProxy: true` in production
+		# (apps/api/src/infra/config/app-config.ts), so @fastify/rate-limit
+		# buckets by whatever we hand it: with a colo address that means
+		# every user behind the same Cloudflare datacenter shares one
+		# bucket. Two consequences, both bad: one abusive client 429s a
+		# whole city, and a distributed abuser gets a fresh quota per colo.
+		#
+		# `trusted_proxies` tells Caddy which peers are allowed to speak
+		# for the client, and `client_ip_headers` tells it where to read
+		# the real address from. CF-Connecting-IP is set by Cloudflare on
+		# every proxied request and, unlike X-Forwarded-For, it is a single
+		# value that the edge overwrites — a client cannot forge it
+		# through the orange cloud. X-Forwarded-For is the fallback for
+		# the case where this file is used without Cloudflare in front.
+		#
+		# WHY A STATIC LIST AND NOT `trusted_proxies cloudflare`: that
+		# module refreshes the range list by itself, but it ships in the
+		# `caddy-cloudflare-ip` plugin, which is NOT in the stock
+		# `caddy:2-alpine` image this stack runs. Using it would mean
+		# building a custom Caddy with xcaddy on every deploy — a new
+		# build step, a new failure mode, on a 4GB box. The static list
+		# below is the same data, pinned.
+		#
+		# KEEPING IT FRESH: this is Cloudflare's published range list,
+		# captured 2026-08-28. It has been stable for years and changes
+		# are announced, but it is not eternal. The authoritative copy is
+		# what Terraform already downloads for the firewall:
+		#
+		#     cd infra/terraform/envs/prod
+		#     terraform output http_allowed_source_ips
+		#
+		# If a range is added there and not here, requests through the new
+		# colo fall back to `{remote_host}` — the rate limit degrades to
+		# the old broken behaviour rather than breaking outright, which is
+		# why this is a maintenance note and not an outage.
+		trusted_proxies static \
+ 173.245.48.0/20 \
+ 103.21.244.0/22 \
+ 103.22.200.0/22 \
+ 103.31.4.0/22 \
+ 141.101.64.0/18 \
+ 108.162.192.0/18 \
+ 190.93.240.0/20 \
+ 188.114.96.0/20 \
+ 197.234.240.0/22 \
+ 198.41.128.0/17 \
+ 162.158.0.0/15 \
+ 104.16.0.0/13 \
+ 104.24.0.0/14 \
+ 172.64.0.0/13 \
+ 131.0.72.0/22 \
+ 2400:cb00::/32 \
+ 2606:4700::/32 \
+ 2803:f800::/32 \
+ 2405:b500::/32 \
+ 2405:8100::/32 \
+ 2a06:98c0::/29 \
+ 2c0f:f248::/32
+
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
+	}
 }
 
 {$DOMAIN} {
+	# -------------------------------------------------------------------------
+	# TLS: the Cloudflare Origin Certificate, delivered by the deploy job.
+	# -------------------------------------------------------------------------
+	# These are container paths. On the host the two files live in
+	# `secrets/caddy/` next to docker-compose.prod.yml (gitignored, 0600 on the
+	# key) and are bind-mounted read-only — see the caddy service in
+	# docker-compose.prod.yml.
+	#
+	# They are written on every deploy by the "Deliver the Cloudflare Origin
+	# Certificate" step in .github/workflows/deploy.yml, from the repository
+	# secrets CADDY_ORIGIN_CERT_B64 and CADDY_ORIGIN_KEY_B64. Produce those with:
+	#
+	#     cd infra/terraform/envs/prod
+	#     terraform output -raw origin_certificate | base64 -w0
+	#     terraform output -raw origin_private_key | base64 -w0
+	#
+	# Naming the certificate explicitly also switches Caddy's automatic issuance
+	# OFF for this site, which is the point.
+	#
+	# IF THE FILES ARE MISSING, CADDY REFUSES TO START. That is deliberate and
+	# it is an improvement: the previous configuration started happily and then
+	# served a 525 to every visitor while retrying ACME orders forever. A
+	# container that will not start is visible in `docker compose ps` in one
+	# second. scripts/deploy.sh checks for both files before it restarts
+	# anything, so the usual case is caught even earlier.
+	#
+	# This certificate is issued by Cloudflare's private CA and is trusted ONLY
+	# by Cloudflare. It is never seen by a browser — the public certificate is
+	# Cloudflare's Universal SSL. It is only a security boundary while the zone
+	# is in Full (strict); Terraform manages that setting
+	# (cloudflare_zone_setting.ssl_mode) rather than assuming it.
+	tls /etc/caddy/origin.pem /etc/caddy/origin.key
+
 	# zstd first: Caddy picks the first algorithm the client also advertises, and
 	# a modern browser sending `zstd` gets a materially smaller JSON payload than
 	# it would from gzip. gzip is the fallback for everything else.
@@ -63,13 +171,16 @@
 	}
 
 	reverse_proxy api:3333 {
-		# Caddy already sets X-Forwarded-For / -Proto / -Host. X-Real-IP is added
-		# because @fastify/rate-limit's default key extractor reads the socket
-		# address, which behind this proxy is the Caddy container for every
-		# request — without a real client IP the global 100 req/min limit would
-		# be shared by the entire internet and the first busy user would 429
-		# everyone else.
-		header_up X-Real-IP {remote_host}
+		# `{client_ip}`, NOT `{remote_host}`. This is the whole point of the
+		# `trusted_proxies` / `client_ip_headers` block above: `{remote_host}` is
+		# the Cloudflare edge address, `{client_ip}` is the address Caddy
+		# resolved from CF-Connecting-IP after confirming the peer is a trusted
+		# proxy. @fastify/rate-limit reads X-Real-IP, so this line is what makes
+		# a per-user limit actually per-user.
+		#
+		# If Cloudflare is ever taken out of the path, `{client_ip}` falls back
+		# to the socket address on its own — there is nothing to change here.
+		header_up X-Real-IP {client_ip}
 
 		# Long enough for an OpenAI-backed resume parse or recruiter search to
 		# finish; short enough that a wedged upstream is not held open forever.

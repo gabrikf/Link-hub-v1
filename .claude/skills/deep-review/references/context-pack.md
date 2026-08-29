@@ -43,7 +43,7 @@ Extract only rules that can bind a review result (error handling, testing shape,
 }
 ```
 
-### LinkHub rubric sources
+### CraftHub rubric sources
 
 `build_knowledge.py` finds `AGENTS.md` / `CLAUDE.md`, `.deep-review/learnings.md` and every `SKILL.md` under `.claude/skills/`. In this repo those cover the root `AGENTS.md` plus the per-workspace `apps/api/AGENTS.md` and `apps/web/AGENTS.md`, which the walker picks up as nested instruction files — register each under its own directory subtree scope rather than folding them into the root.
 
@@ -51,7 +51,7 @@ Two more rule-bearing sources it cannot discover — **add them to `rules.json` 
 
 | Source | Scope glob | Kind of rule it binds |
 |---|---|---|
-| `DESIGN.md` (repo root) | `apps/web/**` | LinkHub's design language: tokens, typography, spacing, elevation, motion, and the light/dark pairing. A hardcoded color, a missing dark-mode variant, or a primitive reinvented instead of composed from Radix + `apps/web/src/shared-components/` is a defect against it |
+| `DESIGN.md` (repo root) | `apps/web/**` | CraftHub's design language: tokens, typography, spacing, elevation, motion, and the light/dark pairing. A hardcoded color, a missing dark-mode variant, or a primitive reinvented instead of composed from Radix + `apps/web/src/shared-components/` is a defect against it |
 | `README.md` (repo root) | `**/*` | The orientation doc — workspace boundaries, what each app owns, and which parts are deliberate debt. Rarely rule-bearing on its own; read it so a finding does not "discover" something already recorded |
 
 `DEVELOPMENT-GUIDE.md` is the npm-scripts reference — context for building lane commands, not a rubric source.
@@ -63,7 +63,7 @@ Findings are only as good as the reviewer's model of the repo. Before extracting
 | Area | Shape | What that implies for review |
 |---|---|---|
 | `apps/api` | Fastify 5 with **clean architecture** — `src/core/{entity,use-case,repositories,providers}/` is pure and framework-free; `src/infra/{http,database,queue,providers,di}/` is everything else. **tsyringe** DI, wired in `src/infra/di/container.ts` (~1900 lines). Every module is registered **twice**: bare and under `/api/v1` | A framework import inside `core/` is an architecture defect, not a nitpick. A new route registered on only one of the two mounts is a real contract break. A provider added without a container registration fails at runtime, not at build |
-| `packages/schemas` | `@repo/schemas` — 16 zod modules (importing from `zod/v4`), consumed by api, web, mcp, extractor and training. Ships `dist/`, and turbo's `dependsOn: ["^build"]` means it must be built before check-types or tests | This is **the contract**. A response shape changed on one side only is the single highest-yield defect class in this repo — see the taxonomy's LinkHub priorities |
+| `packages/schemas` | `@repo/schemas` — 16 zod modules (importing from `zod/v4`), consumed by api, web, mcp, extractor and training. Ships `dist/`, and turbo's `dependsOn: ["^build"]` means it must be built before check-types or tests | This is **the contract**. A response shape changed on one side only is the single highest-yield defect class in this repo — see the taxonomy's CraftHub priorities |
 | `apps/web` | React 19 + Vite 8, **TanStack Router declared in code** (`src/router.tsx` — no file-based tree), TanStack Query for server state, one Zustand store for client state, Tailwind v4 CSS-first (no `tailwind.config.js`), Radix dialog/alert-dialog/switch, dnd-kit + react-grid-layout in `features/profile-layout` | Feature layout is `src/features/<feature>/{pages,components,hooks,lib}/`, shared primitives in `src/shared-components/`, cross-cutting helpers in `src/lib/`. A new route that never reaches `router.tsx` is dead code. Server state held in Zustand is a finding |
 | `apps/mcp` | stdio MCP server, a thin HTTP client over the API. **Zero tests** — recorded debt | Judge it against the API contract it speaks, not against a test suite it does not have |
 | `apps/extractor` | CLI + Claude Code hook turning local git history into hashed activity | Anything that could emit unhashed repo content is a disclosure finding |
@@ -86,7 +86,7 @@ These are recorded decisions. Reporting them wastes the fan-out budget and burie
 
 Detect what the repo already enforces and run it scoped to selected files; findings a lane reports are suppressed from the review (taxonomy rule 1).
 
-**In LinkHub the lanes are:**
+**In CraftHub the lanes are:**
 
 ```bash
 npm run build:schemas                       # ALWAYS first — every other lane types against dist/

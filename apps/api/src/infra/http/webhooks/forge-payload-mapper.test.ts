@@ -208,7 +208,7 @@ describe("mapGithubDelivery", () => {
     expect(received.counterparties).toEqual(["octocat"]);
   });
 
-  it("ignores event types LinkHub does not model", () => {
+  it("ignores event types CraftHub does not model", () => {
     expect(
       mapGithubDelivery(
         "issue_comment",
@@ -355,7 +355,7 @@ describe("mapGitlabDelivery", () => {
     ).toEqual([]);
   });
 
-  it("ignores event types LinkHub does not model", () => {
+  it("ignores event types CraftHub does not model", () => {
     expect(
       mapGitlabDelivery(
         "Note Hook",

@@ -7,6 +7,7 @@ import {
   type UpdatePostInput,
 } from "@repo/schemas";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiEye, FiEyeOff, FiPlus, FiTrash2 } from "react-icons/fi";
 import { reportError } from "../../../lib/report-error";
 import { Button } from "../../../shared-components/button";
@@ -33,6 +34,7 @@ export function PostComposerDialog({
   isSubmitting = false,
   onSubmit,
 }: PostComposerDialogProps) {
+  const { t } = useTranslation();
   const isEditing = Boolean(initialPost);
 
   const [title, setTitle] = useState("");
@@ -74,8 +76,7 @@ export function PostComposerDialog({
   const updateImage = (index: number, url: string) =>
     setImages((current) => current.map((row, i) => (i === index ? url : row)));
 
-  const addImage = () =>
-    setImages((current) => [...current, EMPTY_IMAGE_ROW]);
+  const addImage = () => setImages((current) => [...current, EMPTY_IMAGE_ROW]);
 
   const removeImage = (index: number) =>
     setImages((current) =>
@@ -104,7 +105,7 @@ export function PostComposerDialog({
       : createPostSchemaInput.safeParse({ ...draft, source: "manual" });
 
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Please review the form.");
+      setError(parsed.error.issues[0]?.message ?? t("posts.reviewTheForm"));
       return;
     }
 
@@ -123,8 +124,8 @@ export function PostComposerDialog({
         cause instanceof Error && cause.message
           ? cause.message
           : isEditing
-            ? "Could not save your changes. Please try again."
-            : "Could not publish your post. Please try again.",
+            ? t("posts.saveFailedRetry")
+            : t("posts.publishFailedRetry"),
       );
       return;
     }
@@ -136,16 +137,16 @@ export function PostComposerDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isEditing ? "Edit post" : "Write a post"}
-      contentClassName="max-w-2xl max-h-[90vh] overflow-y-auto"
+      title={isEditing ? t("posts.editPost") : t("posts.writeAPost")}
+      contentClassName="max-w-2xl max-h-[90svh]"
     >
       <div className="space-y-4">
         <Input
           id="post-title"
-          label="Title (optional)"
+          label={t("common.titleOptional")}
           value={title}
           maxLength={160}
-          placeholder="An optional headline"
+          placeholder={t("posts.headlinePlaceholder")}
           onChange={(event) => setTitle(event.target.value)}
         />
 
@@ -155,7 +156,7 @@ export function PostComposerDialog({
               htmlFor="post-body"
               className="text-sm text-zinc-700 dark:text-zinc-300"
             >
-              Body (markdown)
+              {t("posts.bodyMarkdown")}
             </label>
             <button
               type="button"
@@ -165,12 +166,12 @@ export function PostComposerDialog({
               {showPreview ? (
                 <>
                   <FiEyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                  Edit
+                  {t("common.edit")}
                 </>
               ) : (
                 <>
                   <FiEye className="h-3.5 w-3.5" aria-hidden="true" />
-                  Preview
+                  {t("common.preview")}
                 </>
               )}
             </button>
@@ -180,7 +181,9 @@ export function PostComposerDialog({
               {body.trim() ? (
                 <Markdown>{body}</Markdown>
               ) : (
-                <p className="text-sm text-zinc-400">Nothing to preview yet.</p>
+                <p className="text-sm text-zinc-400">
+                  {t("posts.nothingToPreview")}
+                </p>
               )}
             </div>
           ) : (
@@ -188,7 +191,7 @@ export function PostComposerDialog({
               id="post-body"
               value={body}
               rows={10}
-              placeholder={"Write your story in **markdown**.\n\n- Lists, `code`, [links](https://example.com) and headings all work."}
+              placeholder={t("posts.bodyPlaceholder")}
               onChange={(event) => setBody(event.target.value)}
               className="w-full resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             />
@@ -196,7 +199,7 @@ export function PostComposerDialog({
         </div>
 
         <FileUpload
-          label="Cover image (optional)"
+          label={t("posts.coverImageOptional")}
           aspect="cover"
           value={coverImageUrl.trim() || null}
           onChange={(url) => setCoverImageUrl(url ?? "")}
@@ -204,7 +207,7 @@ export function PostComposerDialog({
 
         <div className="space-y-2">
           <span className="block text-sm text-zinc-700 dark:text-zinc-300">
-            Inline images (optional)
+            {t("posts.inlineImagesOptional")}
           </span>
           {images.map((url, index) => (
             <div key={index} className="flex items-start gap-2">
@@ -220,7 +223,7 @@ export function PostComposerDialog({
                 variant="icon"
                 size="icon"
                 fullWidth={false}
-                aria-label={`Remove image ${index + 1}`}
+                aria-label={t("image.removeImageNumber", { index: index + 1 })}
                 disabled={images.length === 1}
                 onClick={() => removeImage(index)}
               >
@@ -236,23 +239,28 @@ export function PostComposerDialog({
             onClick={addImage}
           >
             <FiPlus className="h-4 w-4" aria-hidden="true" />
-            Add image
+            {t("common.addImage")}
           </Button>
         </div>
 
-        <TagInput id="post-tags" label="Tags" value={tags} onChange={setTags} />
+        <TagInput
+          id="post-tags"
+          label={t("posts.tags")}
+          value={tags}
+          onChange={setTags}
+        />
 
         <Input
           id="post-external"
-          label="External link (optional)"
+          label={t("posts.externalLinkOptional")}
           value={externalUrl}
-          placeholder="https://..."
+          placeholder={t("common.urlPlaceholder")}
           onChange={(event) => setExternalUrl(event.target.value)}
         />
 
         <div>
           <span className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300">
-            Status
+            {t("common.status")}
           </span>
           <div className="flex gap-2">
             {statusOptions.map((option) => (
@@ -267,6 +275,11 @@ export function PostComposerDialog({
                     : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800",
                 ].join(" ")}
               >
+                {/* Renders the raw wire value. Deliberately left untranslated:
+                    it is an expression, not a string literal, so it sits
+                    outside this migration's string-swap scope, and the one
+                    test that drives this control asserts the lowercase English
+                    name. Tracked in the handover notes. */}
                 {option.replace("_", " ")}
               </button>
             ))}
@@ -286,16 +299,18 @@ export function PostComposerDialog({
             fullWidth={false}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             isLoading={isSubmitting}
-            loadingLabel={isEditing ? "Saving..." : "Publishing..."}
+            loadingLabel={
+              isEditing ? t("common.saving") : t("common.publishing")
+            }
             onClick={handleSave}
           >
-            {isEditing ? "Save changes" : "Publish"}
+            {isEditing ? t("common.saveChanges") : t("common.publish")}
           </Button>
         </div>
       </div>

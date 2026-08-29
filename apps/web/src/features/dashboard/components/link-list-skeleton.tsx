@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
 
 type LinkListSkeletonProps = {
@@ -12,9 +13,11 @@ type LinkListSkeletonProps = {
  * control cluster on the right — so the list does not jump when links land.
  */
 export function LinkListSkeleton({ count = 3 }: LinkListSkeletonProps) {
+  const { t } = useTranslation();
+
   return (
     <>
-      <LoadingLabel>Loading links</LoadingLabel>
+      <LoadingLabel>{t("dashboard.loadingLinks")}</LoadingLabel>
       <ul className="space-y-2">
         {Array.from({ length: count }, (_, index) => (
           <li

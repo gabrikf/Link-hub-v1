@@ -41,6 +41,10 @@ class TestTokenProvider implements ITokenProvider {
     throw new Error("not used by IngestActivityUseCase");
   }
 
+  generateOpaqueToken(): string {
+    throw new Error("not used by IngestActivityUseCase");
+  }
+
   hash(value: string): string {
     return sha256(value);
   }

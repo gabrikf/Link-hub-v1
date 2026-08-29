@@ -9,7 +9,7 @@ type HeaderSetter = {
   set(name: string, value: string): unknown;
 };
 
-const AUTH_TOKENS_STORAGE_KEY = "linkhub.auth.tokens";
+const AUTH_TOKENS_STORAGE_KEY = "crafthub.auth.tokens";
 
 export function getAuthTokens(): AuthTokens | null {
   if (typeof window === "undefined") {

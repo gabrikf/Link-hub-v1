@@ -1,16 +1,30 @@
-import { eq, or } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import type { AgentDisclosureLevel } from "@repo/schemas";
 import { UserEntity } from "../../../../core/entity/user/user-entity.js";
+import { normalizeEmail } from "../../../../core/entity/user/normalize-email.js";
+import { selectMatchingAccount } from "../../../../core/entity/user/select-matching-account.js";
 import { IUsersRepository } from "../../../../core/repositories/user/user-repository.js";
 import { db } from "../index.js";
 import { users } from "../schema.js";
 
+/**
+ * The email half of a lookup, matched the way `normalizeEmail` defines it: one
+ * mailbox is one account whatever case it was typed in, including for the rows
+ * that were already stored with capitals.
+ */
+function emailMatches(email: string) {
+  return sql`lower(${users.email}) = ${normalizeEmail(email)}`;
+}
+
 export class DrizzleUserRepository implements IUsersRepository {
   async findByEmailOrLogin(login: string): Promise<UserEntity | null> {
-    const [user] = await db
+    const matches = await db
       .select()
       .from(users)
-      .where(or(...[eq(users.email, login), eq(users.login, login)]));
+      .where(or(...[emailMatches(login), eq(users.login, login)]))
+      .orderBy(users.createdAt, users.id);
+
+    const user = selectMatchingAccount(matches, login);
 
     if (!user) return null;
 
@@ -28,10 +42,13 @@ export class DrizzleUserRepository implements IUsersRepository {
       themeAccent: user.themeAccent,
       themePreset: user.themePreset,
       openToWork: user.openToWork,
+      tabsEnabledPc: user.tabsEnabledPc,
+      tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
+      emailVerifiedAt: user.emailVerifiedAt,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -39,7 +56,13 @@ export class DrizzleUserRepository implements IUsersRepository {
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const matches = await db
+      .select()
+      .from(users)
+      .where(emailMatches(email))
+      .orderBy(users.createdAt, users.id);
+
+    const user = selectMatchingAccount(matches, email);
 
     if (!user) return null;
 
@@ -56,10 +79,13 @@ export class DrizzleUserRepository implements IUsersRepository {
       themeAccent: user.themeAccent,
       themePreset: user.themePreset,
       openToWork: user.openToWork,
+      tabsEnabledPc: user.tabsEnabledPc,
+      tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
+      emailVerifiedAt: user.emailVerifiedAt,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -84,10 +110,13 @@ export class DrizzleUserRepository implements IUsersRepository {
       themeAccent: user.themeAccent,
       themePreset: user.themePreset,
       openToWork: user.openToWork,
+      tabsEnabledPc: user.tabsEnabledPc,
+      tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
+      emailVerifiedAt: user.emailVerifiedAt,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -112,10 +141,13 @@ export class DrizzleUserRepository implements IUsersRepository {
       themeAccent: user.themeAccent,
       themePreset: user.themePreset,
       openToWork: user.openToWork,
+      tabsEnabledPc: user.tabsEnabledPc,
+      tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
+      emailVerifiedAt: user.emailVerifiedAt,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -143,10 +175,13 @@ export class DrizzleUserRepository implements IUsersRepository {
       themeAccent: user.themeAccent,
       themePreset: user.themePreset,
       openToWork: user.openToWork,
+      tabsEnabledPc: user.tabsEnabledPc,
+      tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
+      emailVerifiedAt: user.emailVerifiedAt,
       googleId: user.googleId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -167,11 +202,14 @@ export class DrizzleUserRepository implements IUsersRepository {
         themeAccent: user.themeAccent,
         themePreset: user.themePreset,
         openToWork: user.openToWork,
+        tabsEnabledPc: user.tabsEnabledPc,
+        tabsEnabledMobile: user.tabsEnabledMobile,
         location: user.location,
         persona: user.persona,
         agentDisclosureLevel: user.agentDisclosureLevel,
         agentBlockedTerms: user.agentBlockedTerms,
         password: user.password,
+        emailVerifiedAt: user.emailVerifiedAt,
         googleId: user.googleId,
         updatedAt: user.updatedAt,
       })
@@ -195,11 +233,14 @@ export class DrizzleUserRepository implements IUsersRepository {
       themeAccent: updatedUser.themeAccent,
       themePreset: updatedUser.themePreset,
       openToWork: updatedUser.openToWork,
+      tabsEnabledPc: updatedUser.tabsEnabledPc,
+      tabsEnabledMobile: updatedUser.tabsEnabledMobile,
       location: updatedUser.location,
       persona: updatedUser.persona,
       agentDisclosureLevel:
         updatedUser.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: updatedUser.agentBlockedTerms,
+      emailVerifiedAt: updatedUser.emailVerifiedAt,
       googleId: updatedUser.googleId,
       createdAt: updatedUser.createdAt,
       updatedAt: updatedUser.updatedAt,
@@ -219,7 +260,10 @@ export class DrizzleUserRepository implements IUsersRepository {
         description: user.description,
         avatarUrl: user.avatarUrl,
         backgroundImageUrl: user.backgroundImageUrl,
+        tabsEnabledPc: user.tabsEnabledPc,
+        tabsEnabledMobile: user.tabsEnabledMobile,
         persona: user.persona,
+        emailVerifiedAt: user.emailVerifiedAt,
         googleId: user.googleId,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -240,11 +284,14 @@ export class DrizzleUserRepository implements IUsersRepository {
       themeAccent: createdUser.themeAccent,
       themePreset: createdUser.themePreset,
       openToWork: createdUser.openToWork,
+      tabsEnabledPc: createdUser.tabsEnabledPc,
+      tabsEnabledMobile: createdUser.tabsEnabledMobile,
       location: createdUser.location,
       persona: createdUser.persona,
       agentDisclosureLevel:
         createdUser.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: createdUser.agentBlockedTerms,
+      emailVerifiedAt: createdUser.emailVerifiedAt,
       googleId: createdUser.googleId,
       createdAt: createdUser.createdAt,
       updatedAt: createdUser.updatedAt,

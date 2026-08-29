@@ -3,24 +3,30 @@ import type {
   CreateWorkExperienceInput,
   WorkExperienceResponse,
 } from "@repo/schemas";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared-components/button";
 import { Input } from "../../../shared-components/input";
 import { TextArea } from "../../../shared-components/text-area";
 
-const EMPLOYMENT_TYPE_OPTIONS = [
-  { value: "full-time", label: "Full-time" },
-  { value: "part-time", label: "Part-time" },
-  { value: "contract", label: "Contract" },
-  { value: "freelance", label: "Freelance" },
-  { value: "internship", label: "Internship" },
-  { value: "temporary", label: "Temporary" },
-] as const;
+const getEmploymentTypeOptions = (
+  t: TFunction,
+): ReadonlyArray<{ value: string; label: string }> => [
+  { value: "full-time", label: t("enum.contractType.full-time") },
+  { value: "part-time", label: t("enum.contractType.part-time") },
+  { value: "contract", label: t("enum.contractType.contract") },
+  { value: "freelance", label: t("enum.contractType.freelance") },
+  { value: "internship", label: t("enum.contractType.internship") },
+  { value: "temporary", label: t("enum.contractType.temporary") },
+];
 
-const WORK_MODEL_OPTIONS = [
-  { value: "remote", label: "Remote" },
-  { value: "hybrid", label: "Hybrid" },
-  { value: "on-site", label: "On-site" },
-] as const;
+const getWorkModelOptions = (
+  t: TFunction,
+): ReadonlyArray<{ value: string; label: string }> => [
+  { value: "remote", label: t("enum.workModel.remote") },
+  { value: "hybrid", label: t("enum.workModel.hybrid") },
+  { value: "on-site", label: t("enum.workModel.on-site") },
+];
 
 type FormState = {
   title: string;
@@ -74,14 +80,19 @@ type WorkExperienceFormProps = {
 export function WorkExperienceForm({
   initialValue,
   isSubmitting = false,
-  submitLabel = "Save experience",
+  submitLabel,
   onSubmit,
   onCancel,
 }: WorkExperienceFormProps) {
+  const { t } = useTranslation();
   const [state, setState] = useState<FormState>(() =>
     buildInitialState(initialValue),
   );
   const [error, setError] = useState<string | null>(null);
+
+  const resolvedSubmitLabel = submitLabel ?? t("work.saveExperience");
+  const employmentTypeOptions = getEmploymentTypeOptions(t);
+  const workModelOptions = getWorkModelOptions(t);
 
   const update = <Key extends keyof FormState>(
     key: Key,
@@ -95,7 +106,7 @@ export function WorkExperienceForm({
     setError(null);
 
     if (!state.title.trim() || !state.companyName.trim()) {
-      setError("Title and company name are required.");
+      setError(t("work.requiredFields"));
       return;
     }
 
@@ -104,7 +115,7 @@ export function WorkExperienceForm({
       state.isCurrent || !state.endMonth ? null : `${state.endMonth}-01`;
 
     if (startDate && endDate && startDate > endDate) {
-      setError("Start date must be before the end date.");
+      setError(t("work.dateOrder"));
       return;
     }
 
@@ -141,15 +152,15 @@ export function WorkExperienceForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Input
           id="work-title"
-          label="Title *"
-          placeholder="Senior Software Engineer"
+          label={t("work.titleRequired")}
+          placeholder={t("work.titlePlaceholder")}
           value={state.title}
           onChange={(event) => update("title", event.target.value)}
         />
         <Input
           id="work-company"
-          label="Company *"
-          placeholder="Acme Inc."
+          label={t("work.companyRequired")}
+          placeholder={t("work.companyPlaceholder")}
           value={state.companyName}
           onChange={(event) => update("companyName", event.target.value)}
         />
@@ -161,7 +172,7 @@ export function WorkExperienceForm({
             htmlFor="work-employment-type"
             className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300"
           >
-            Employment type
+            {t("work.employmentType")}
           </label>
           <select
             id="work-employment-type"
@@ -169,8 +180,8 @@ export function WorkExperienceForm({
             value={state.employmentType}
             onChange={(event) => update("employmentType", event.target.value)}
           >
-            <option value="">Not specified</option>
-            {EMPLOYMENT_TYPE_OPTIONS.map((option) => (
+            <option value="">{t("common.notSpecified")}</option>
+            {employmentTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -183,7 +194,7 @@ export function WorkExperienceForm({
             htmlFor="work-model"
             className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300"
           >
-            Work model
+            {t("common.workModel")}
           </label>
           <select
             id="work-model"
@@ -191,8 +202,8 @@ export function WorkExperienceForm({
             value={state.workModel}
             onChange={(event) => update("workModel", event.target.value)}
           >
-            <option value="">Not specified</option>
-            {WORK_MODEL_OPTIONS.map((option) => (
+            <option value="">{t("common.notSpecified")}</option>
+            {workModelOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -204,22 +215,22 @@ export function WorkExperienceForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Input
           id="work-city"
-          label="City"
-          placeholder="Lisbon"
+          label={t("work.city")}
+          placeholder={t("work.cityPlaceholder")}
           value={state.locationCity}
           onChange={(event) => update("locationCity", event.target.value)}
         />
         <Input
           id="work-state"
-          label="State / Region"
-          placeholder="Lisbon"
+          label={t("work.stateRegion")}
+          placeholder={t("work.cityPlaceholder")}
           value={state.locationState}
           onChange={(event) => update("locationState", event.target.value)}
         />
         <Input
           id="work-country"
-          label="Country"
-          placeholder="Portugal"
+          label={t("work.country")}
+          placeholder={t("work.countryPlaceholder")}
           value={state.locationCountry}
           onChange={(event) => update("locationCountry", event.target.value)}
         />
@@ -228,14 +239,14 @@ export function WorkExperienceForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Input
           id="work-start"
-          label="Start date"
+          label={t("work.startDate")}
           type="month"
           value={state.startMonth}
           onChange={(event) => update("startMonth", event.target.value)}
         />
         <Input
           id="work-end"
-          label="End date"
+          label={t("work.endDate")}
           type="month"
           value={state.endMonth}
           disabled={state.isCurrent}
@@ -250,22 +261,37 @@ export function WorkExperienceForm({
           checked={state.isCurrent}
           onChange={(event) => update("isCurrent", event.target.checked)}
         />
-        I currently work here
+        {t("work.currentlyWorkHere")}
       </label>
 
-      <TextArea
-        id="work-description"
-        label="Description / achievements"
-        rows={4}
-        placeholder="What you built, owned, and achieved..."
-        value={state.description}
-        onChange={(event) => update("description", event.target.value)}
-      />
+      {/*
+        Eight rows, not four: this field holds a bulleted achievement list, and
+        four rows meant a three-bullet entry was already scrolling while you
+        wrote it. The hint is there because the line breaks used to be thrown
+        away on render, so people had learned not to trust them.
+      */}
+      <div>
+        <TextArea
+          id="work-description"
+          label={t("work.achievements")}
+          rows={8}
+          placeholder={t("work.achievementsPlaceholder")}
+          aria-describedby="work-description-hint"
+          value={state.description}
+          onChange={(event) => update("description", event.target.value)}
+        />
+        <p
+          id="work-description-hint"
+          className="mt-1 text-xs text-zinc-500 dark:text-zinc-400"
+        >
+          {t("work.achievementsHint")}
+        </p>
+      </div>
 
       <Input
         id="work-stack"
-        label="Main stack (comma separated)"
-        placeholder="TypeScript, React, Node.js, PostgreSQL"
+        label={t("work.mainStack")}
+        placeholder={t("work.mainStackPlaceholder")}
         value={state.mainStackText}
         onChange={(event) => update("mainStackText", event.target.value)}
       />
@@ -284,16 +310,16 @@ export function WorkExperienceForm({
             fullWidth={false}
             onClick={onCancel}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
         ) : null}
         <Button
           type="submit"
           fullWidth={false}
           isLoading={isSubmitting}
-          loadingLabel="Saving..."
+          loadingLabel={t("common.saving")}
         >
-          {submitLabel}
+          {resolvedSubmitLabel}
         </Button>
       </div>
     </form>

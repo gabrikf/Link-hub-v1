@@ -30,7 +30,7 @@ data.
   "command": "uvx",
   "args": ["postgres-mcp", "--access-mode=restricted"],
   "env": {
-    "DATABASE_URI": "postgresql://linkhub_user:linkhub_password@localhost:5432/linkhub_dev"
+    "DATABASE_URI": "postgresql://crafthub_user:crafthub_password@localhost:5432/crafthub_dev"
   }
 }
 ```
@@ -39,7 +39,7 @@ data.
    timeout. An agent can look; it cannot write, drop or lock. The write path
    through the API is the thing under test — letting the verifier also be able
    to mutate state destroys the whole point of the check.
-2. **It points at `linkhub_dev` on `localhost` only.** The local docker database
+2. **It points at `crafthub_dev` on `localhost` only.** The local docker database
    from `docker-compose.dev.yml`, whose credentials are already in that file and
    in `db-manage.sh` — nothing here is a secret. Never repoint this at staging
    or production: a "read-only" agent with production data in its context window
@@ -77,9 +77,9 @@ writing against any of them.
 
 ---
 
-## `linkhub` — the product's own MCP server
+## `crafthub` — the product's own MCP server
 
 `apps/mcp` is a *product feature*, not development tooling: it is how a coding
-agent publishes posts to a user's LinkHub profile, behind that user's disclosure
+agent publishes posts to a user's CraftHub profile, behind that user's disclosure
 policy. It is not part of this repo's development harness and does not belong in
 `.mcp.json`. Its consumer-facing setup lives in the root `README.md`.

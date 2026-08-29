@@ -3,7 +3,7 @@ type BrandLogoProps = {
 };
 
 /**
- * Professional LinkHub mark: a connected "hub" of nodes inside a rounded
+ * Professional CraftHub mark: a connected "hub" of nodes inside a rounded
  * gradient tile. Sized via the wrapper `className` (defaults to h-9 w-9).
  */
 export function BrandLogo({ className = "h-9 w-9" }: BrandLogoProps) {
@@ -17,7 +17,7 @@ export function BrandLogo({ className = "h-9 w-9" }: BrandLogoProps) {
       >
         <defs>
           <linearGradient
-            id="linkhub-brand-gradient"
+            id="crafthub-brand-gradient"
             x1="0"
             y1="0"
             x2="32"
@@ -29,7 +29,7 @@ export function BrandLogo({ className = "h-9 w-9" }: BrandLogoProps) {
           </linearGradient>
         </defs>
 
-        <rect width="32" height="32" rx="8.5" fill="url(#linkhub-brand-gradient)" />
+        <rect width="32" height="32" rx="8.5" fill="url(#crafthub-brand-gradient)" />
 
         {/* connections */}
         <g

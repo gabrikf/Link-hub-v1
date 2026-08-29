@@ -168,6 +168,32 @@ describe("AutoPostWizard source step", () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
+  it("warns that the hook needs a partner source before anything can post", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    // The hook only emits agent_session events, which never clear the evidence
+    // bar — the card must say so, and so must the step once it is chosen.
+    expect(
+      screen.queryByText(/can't start one by itself/),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Claude Code background hook/ }),
+    );
+
+    expect(
+      screen.getByText(
+        /adds context to your posts — it can't start one by itself/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/combine it with GitHub \/ GitLab webhooks/),
+    ).toBeInTheDocument();
+    // Information, not a block: the wizard still moves forward.
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+  });
+
   it("prefills a sensible display name per source, following the kind selection", async () => {
     const user = userEvent.setup();
     renderWizard();
@@ -223,7 +249,7 @@ describe("AutoPostWizard source step", () => {
     expect(screen.queryByLabelText("Display name")).not.toBeInTheDocument();
     // The explanation stays: it is the reason the controls are absent.
     expect(
-      screen.getByText(/MCP needs no connection on LinkHub's side/),
+      screen.getByText(/MCP needs no connection on CraftHub's side/),
     ).toBeInTheDocument();
   });
 
@@ -438,9 +464,9 @@ describe("AutoPostWizard extractor path", () => {
         .join("\n");
 
     // The CLI is an installed tool — never "clone the repository".
-    expect(codeText()).toContain("npx linkhub-extract ~/path/to/repo");
+    expect(codeText()).toContain("npx crafthub-extract ~/path/to/repo");
     expect(codeText()).toContain(
-      "npx linkhub-extract upload linkhub-activity.json",
+      "npx crafthub-extract upload crafthub-activity.json",
     );
     expect(codeText()).not.toContain("git clone");
     expect(
@@ -448,7 +474,7 @@ describe("AutoPostWizard extractor path", () => {
     ).toBeGreaterThan(0);
 
     // The cron shortcut exists but carries the --yes caution.
-    expect(codeText()).toContain("0 18 * * 5 npx linkhub-extract --yes");
+    expect(codeText()).toContain("0 18 * * 5 npx crafthub-extract --yes");
     expect(
       screen.getByText(/--yes skips the review step/i),
     ).toBeInTheDocument();
@@ -463,12 +489,12 @@ describe("AutoPostWizard extractor path", () => {
     ).toBeInTheDocument();
     // The export line now carries the real plaintext.
     expect(codeText()).toContain(
-      "export LINKHUB_API_TOKEN=lh_pat_ONE_TIME_PLAINTEXT",
+      "export CRAFTHUB_API_TOKEN=lh_pat_ONE_TIME_PLAINTEXT",
     );
     // Stashed like the settings page's own dialog does, so closing the wizard
     // (Escape, backdrop) cannot destroy the only copy of the plaintext.
     expect(
-      window.sessionStorage.getItem("linkhub:last-created-token"),
+      window.sessionStorage.getItem("crafthub:last-created-token"),
     ).toContain("lh_pat_ONE_TIME_PLAINTEXT");
   });
 });
@@ -794,7 +820,7 @@ describe("AutoPostWizard MCP path", () => {
     );
     await user.click(screen.getByRole("button", { name: "Next" }));
 
-    // No LinkHub-side connection for MCP — the agent posts with its token.
+    // No CraftHub-side connection for MCP — the agent posts with its token.
     expect(createMutateAsync).not.toHaveBeenCalled();
 
     // The exact host tabs from the manual panel, plus the generic MCP one.
@@ -810,7 +836,7 @@ describe("AutoPostWizard MCP path", () => {
 
     // Verify instructs the one action that proves the loop end-to-end.
     expect(
-      screen.getByText(/mcp__linkhub__weekly_update/i),
+      screen.getByText(/mcp__crafthub__weekly_update/i),
     ).toBeInTheDocument();
     expect(useMyPosts).toHaveBeenLastCalledWith(
       true,
@@ -843,10 +869,10 @@ describe("AutoPostWizard MCP path", () => {
       .map((el) => el.textContent ?? "")
       .join("\n");
     expect(codeText).toContain('"/home/you/work/payments-api"');
-    expect(codeText).toContain("> ~/.linkhub/repos.json");
+    expect(codeText).toContain("> ~/.crafthub/repos.json");
     // The file the agent reads, named where the user has to create it.
     expect(
-      within(block as HTMLElement).getByText("~/.linkhub/repos.json"),
+      within(block as HTMLElement).getByText("~/.crafthub/repos.json"),
     ).toBeInTheDocument();
   });
 
@@ -949,7 +975,7 @@ describe("AutoPostWizard MCP path", () => {
       screen.getByText(/Routines in the Claude Code Desktop app/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/claude -p .*--allowedTools "mcp__linkhub"/),
+      screen.getByText(/claude -p .*--allowedTools "mcp__crafthub"/),
     ).toBeInTheDocument();
 
     // The chat app has no scheduler of its own; the wizard points at the one
@@ -960,7 +986,7 @@ describe("AutoPostWizard MCP path", () => {
     ).toBeInTheDocument();
     // Twice over: the Claude Desktop path and the universal fallback list.
     expect(
-      screen.getAllByText(/\+ menu → linkhub → weekly_update/).length,
+      screen.getAllByText(/\+ menu → crafthub → weekly_update/).length,
     ).toBeGreaterThan(0);
 
     // Duplicate safety is what makes an over-firing scheduler harmless.

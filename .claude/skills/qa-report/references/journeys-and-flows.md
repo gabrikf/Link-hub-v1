@@ -11,7 +11,7 @@ A journey is a sequence of user actions that delivers a specific value. Real-use
 - Mapping the flow (Mermaid)
 - The true end state
 - Identifying high-value journeys
-- The LinkHub journey seed set
+- The CraftHub journey seed set
 - Journey file format
 - Abandonment paths
 - Cross-surface journeys
@@ -91,7 +91,7 @@ For release cycles, pick 3-7 journeys by risk:
 
 For branch/PR cycles, scope by the diff instead: every user-visible change maps to the journey(s) it touches — new flows get mapped, touched flows get updated. A diff confined to `apps/mcp` or `apps/extractor` is still user-visible; it maps to the agent journeys.
 
-## The LinkHub journey seed set
+## The CraftHub journey seed set
 
 Start here and adapt; these are the value paths the product exists to deliver. Ids are content-addressed slugs.
 
@@ -143,7 +143,7 @@ journey:
   disclosure_relevant: <yes | no — yes for anything that can reach a public surface>
 ```
 
-`themes` and `disclosure_relevant` are LinkHub additions and are not optional: a journey that renders UI declares both themes, and a journey that can reach a public surface declares its disclosure relevance so Step 7's completeness check can find it.
+`themes` and `disclosure_relevant` are CraftHub additions and are not optional: a journey that renders UI declares both themes, and a journey that can reach a public surface declares its disclosure relevance so Step 7's completeness check can find it.
 
 ## Abandonment paths
 
@@ -161,7 +161,7 @@ Abort paths surface the highest-impact bugs: lost work, duplicated careers, and 
 
 ## Cross-surface journeys
 
-Journeys crossing service boundaries get regression priority — no single test watches the whole contract. In LinkHub, these are the ones:
+Journeys crossing service boundaries get regression priority — no single test watches the whole contract. In CraftHub, these are the ones:
 
 - **Disclosure enforcement** crosses settings UI → API → the MCP tool layer → the stored post → the public profile renderer → the public API payload. The settings test passes while the journey leaks. Mark `crosses: [web, api, mcp]` and walk it every cycle.
 - **Recruiter search** crosses the JD input → embedding provider → pgvector query → the in-browser TF.js re-rank. Half of it runs on a server and half in the recruiter's laptop, and only the journey sees both.

@@ -19,21 +19,35 @@ domain = "example.com"
 cloudflare_account_id = "0000000000000000000000000000000a"
 
 # Conteúdo do SEU ARQUIVO .pub — a linha inteira. Nunca a chave privada.
-# Gere com: ssh-keygen -t ed25519 -C "linkhub-deploy" -f ~/.ssh/linkhub_deploy
-ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPLACEHOLDERPLACEHOLDERPLACEHOLDER linkhub-deploy"
+# Gere com: ssh-keygen -t ed25519 -C "crafthub-deploy" -f ~/.ssh/crafthub_deploy
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPLACEHOLDERPLACEHOLDERPLACEHOLDER crafthub-deploy"
 
-# Client IDs de OAuth (públicos — vão no bundle do front).
-# As origens/redirects correspondentes precisam ser cadastrados À MÃO nos painéis do
-# Google e do LinkedIn. Ver README, seção "O que é manual".
-vite_google_client_id      = "000000000000-placeholderplaceholderplaceholder.apps.googleusercontent.com"
-vite_linkedin_client_id    = "00placeholder00"
-vite_linkedin_redirect_uri = "https://app.example.com/auth/linkedin/callback"
+# Quem pode abrir SSH (porta 22) na VPS. NÃO TEM DEFAULT de propósito: o default antigo
+# era ["0.0.0.0/0", "::/0"], que abria a porta 22 de produção para a internet inteira em
+# quem nunca mexesse nesta linha.
+#
+# Coloque o seu IP fixo. Se o deploy por GitHub Actions usar SSH (usa), ou você adiciona
+# os ranges do runner, ou aceita ["0.0.0.0/0"] CONSCIENTEMENTE — os ranges do runner são
+# enormes e mudam, e a sua proteção real ali é a chave, não o CIDR.
+#
+# Se errar e se trancar para fora: o Console (VNC) da Hetzner no painel continua
+# funcionando. Não dá para perder a máquina por aqui.
+ssh_allowed_ips = ["203.0.113.10/32"]
+
+# Client ID de OAuth do Google (público — vai no bundle do front). As origens autorizadas
+# precisam ser cadastradas À MÃO no Google Cloud Console. Ver README, "O que é manual".
+#
+# NÃO EXISTEM MAIS vite_linkedin_client_id / vite_linkedin_redirect_uri: o front nunca as
+# leu (o login do LinkedIn é server-side, a API guarda essas credenciais). Se você tem um
+# terraform.tfvars antigo, APAGUE essas duas linhas — o Terraform recusa variável não
+# declarada.
+vite_google_client_id = "000000000000-placeholderplaceholderplaceholder.apps.googleusercontent.com"
 
 # ---------------------------------------------------------------------------------------
 # Opcionais — os defaults já servem. Descomente só o que quiser mudar.
 # ---------------------------------------------------------------------------------------
 
-# project_name  = "linkhub"
+# project_name  = "crafthub"
 # app_subdomain = "app"
 # api_subdomain = "api"
 
@@ -51,38 +65,109 @@ vite_linkedin_redirect_uri = "https://app.example.com/auth/linkedin/callback"
 # min_vcpu      = 2
 # min_memory_gb = 4
 
-# Snapshots diários da Hetzner (+20% do preço do servidor).
+# 'x86' ou 'arm'. Mantenha x86 enquanto a imagem Docker do projeto não for multi-arch —
+# 'arm' escolhe um tipo CAX e o container simplesmente não sobe.
+# server_architecture = "x86"
+
+# O cloud-init deste diretório assume Ubuntu 24.04 (apt, ufw, sshd_config.d). Trocar a
+# imagem sem revisar cloud-init.yaml.tftpl entrega um host que não termina o boot.
+# server_image = "ubuntu-24.04"
+
+# Snapshots diários da Hetzner (+20% do preço do servidor). O banco vive no disco raiz
+# desta máquina; com false, perder o servidor é perder o banco (ver docs/deployment-readiness.md).
 # enable_backups = false
 
+# true (DEFAULT) impede que a Hetzner destrua o servidor. É o que você quer em produção —
+# e é também o motivo de `terraform destroy` falhar com uma mensagem que não explica
+# nada. Para destruir de verdade: ponha false, aplique, e SÓ ENTÃO destrua.
+# enable_delete_protection = true
+
 # --- Acesso -------------------------------------------------------------------------
-# Restrinja o SSH assim que tiver um IP fixo. Inclua também os ranges do runner do
-# GitHub Actions se o deploy usar SSH.
-# ssh_allowed_ips = ["203.0.113.10/32"]
+# ssh_allowed_ips está lá em cima, nas obrigatórias.
 
 # true (default) = 80/443 só aceitam os ranges oficiais da Cloudflare. Desligue apenas
 # para depurar, e lembre que com false o IP da origem pode ser usado para pular o rate
 # limit de borda.
 # restrict_http_to_cloudflare = true
 
+# --- TLS ----------------------------------------------------------------------------
+# Validade do Origin Certificate em dias. Aceitos: 7, 30, 90, 365, 730, 1095, 5475.
+# 5475 = 15 anos, que é o normal para certificado de origem (o navegador nunca o vê).
+# Valores curtos servem para ensaiar a rotação antes de precisar dela.
+# origin_cert_validity_days = 5475
+
+# Hostnames extras no Origin Certificate, além de api.<domínio>. Só preencha se algo além
+# da API falar direto com a origem. Aceita curinga de um nível.
+# origin_cert_extra_hostnames = ["*.example.com"]
+
+# true (default) = o Terraform força o modo SSL da zona para "Full (strict)". É o que faz
+# o Origin Certificate ter função de segurança. Só desligue se OUTRO processo gerencia
+# esse setting — desligar sem isso deixa a Cloudflare aceitando qualquer certificado na
+# origem.
+# manage_zone_ssl_mode = true
+
 # --- R2 -----------------------------------------------------------------------------
-# uploads_bucket_name = "linkhub-uploads"
-# tfstate_bucket_name = "linkhub-tfstate"   # precisa bater com o backend em versions.tf
+# uploads_bucket_name = "crafthub-uploads"
+# tfstate_bucket_name = "crafthub-tfstate"   # precisa bater com o backend em versions.tf
 # r2_location_hint    = "enam"
 
 # --- Pages --------------------------------------------------------------------------
-# pages_project_name      = "linkhub-web"
+# pages_project_name      = "crafthub-web"
 # pages_production_branch = "main"
+
+# Build do front, executado na raiz do monorepo pelo Pages.
+# pages_build_command = "npm run build:web"
+# pages_output_dir    = "apps/web/dist"
+
+# Env vars VITE_* opcionais do build no Pages. Todas são PÚBLICAS (Vite as embute no
+# bundle). Deixe comentadas para não definir a variável — definir como "" não é o mesmo
+# que ausente.
+# vite_model_cdn_base_url = "https://cdn.example.com/models"
+# vite_sentry_dsn         = "https://publickey@o000000.ingest.sentry.io/0000000"
+# vite_sentry_environment = "production"
 
 # Deixe comentado para conectar o repositório pelo PAINEL da Cloudflare (recomendado
 # no primeiro apply). Ver a nota em cloudflare_pages.tf sobre o histórico do bloco
 # `source` no provider v5.
 # pages_git_source = {
 #   owner = "gabrikf"
-#   repo  = "linkhub-v.1"
+#   repo  = "crafthub-v.1"
 # }
 
 # --- Rate limit de borda ------------------------------------------------------------
 # No plano free, period e mitigation_timeout ficam travados em 10 e só existe uma regra.
-# rate_limit_requests_per_period = 5
-# rate_limit_period_seconds      = 10
-# rate_limit_action              = "block"   # use "log" para observar antes de bloquear
+# rate_limited_path                     = "/api/v1/me/resume/ai-import/parse"
+# rate_limit_requests_per_period        = 5
+# rate_limit_period_seconds             = 10
+# rate_limit_mitigation_timeout_seconds = 10
+# rate_limit_action                     = "block"   # use "log" para observar antes de bloquear
+
+# --- E-mail transacional (SPF / DKIM / DMARC / MX) ----------------------------------
+# A verificação de e-mail do produto faz a API MANDAR e-mail. Sem estes registros:
+#   - qualquer um pode falsificar remetente @<seu domínio>, e nenhum receptor detecta;
+#   - o e-mail legítimo de verificação cai em spam com frequência alta.
+#
+# Deixe comentado enquanto não houver provedor: nada é criado, o apply é no-op nesta
+# parte, e a API roda com MAIL_TRANSPORT=log (imprime o link em vez de mandar e-mail).
+#
+# Os valores vêm da tela "verify your domain" do provedor. Não invente nenhum.
+# Comece a política DMARC em "none": ela só liga os relatórios, sem rejeitar nada. Só
+# suba para "quarantine" e depois "reject" quando os relatórios mostrarem que todo
+# remetente legítimo do domínio já passa.
+#
+# email_provider = {
+#   spf_include        = "_spf.resend.com"        # só o host, sem "include:"
+#   dkim_record_name   = "resend._domainkey"      # relativo ao domínio
+#   dkim_record_type   = "CNAME"                  # "TXT" ou "CNAME", conforme o provedor
+#   dkim_record_value  = "resend._domainkey.resend.com"
+#   dmarc_policy       = "none"                   # none | quarantine | reject
+#   dmarc_report_email = "dmarc@example.com"
+#
+#   # Só se você quiser RECEBER e-mail neste domínio. Mandar não precisa de MX.
+#   # ATENÇÃO: se o domínio já recebe e-mail em outro lugar, DEIXE VAZIO — declarar MX
+#   # aqui substitui o roteamento existente e o e-mail para de chegar.
+#   # mx = [
+#   #   { host = "mx1.provedor.com", priority = 10 },
+#   #   { host = "mx2.provedor.com", priority = 20 },
+#   # ]
+# }

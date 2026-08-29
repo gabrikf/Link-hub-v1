@@ -17,12 +17,16 @@ export class LoginController {
           tags: ["Auth"],
           summary: "Login user",
           description:
-            "Authenticates a user and returns access and refresh tokens",
+            "Authenticates a user and returns access and refresh tokens. A " +
+            "password account whose email has not been verified is refused " +
+            "with 403 EMAIL_NOT_VERIFIED.",
           response: {
             200: loginSchemaOutput,
             ...commonErrorResponses([
               "badRequest",
               "unauthorized",
+              // 403 EMAIL_NOT_VERIFIED: correct credentials, unproved address.
+              "forbidden",
               "internalServerError",
             ]),
           },

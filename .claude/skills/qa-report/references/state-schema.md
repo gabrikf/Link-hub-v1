@@ -68,7 +68,7 @@ The discipline that keeps the directory greppable and merges clean:
 | 15 | `overlaps` | Scenario ids this file overlaps, with the canonical owner first | Ids only |
 | 16 | *(body)* | Free-prose notes — including required themes and disclosure specifics | The ONLY free-prose location |
 
-Two LinkHub conventions that live inside these fields rather than beside them:
+Two CraftHub conventions that live inside these fields rather than beside them:
 
 - **Themes.** A scenario whose surface renders UI states its theme requirement in the body (`Walk in light and dark.`) and proves it through `evidence` paths that name the theme. A `pass` on a UI scenario with only light-mode evidence is not settled — `../qa-execution/references/status-and-reporting.md` treats it as `Pending`.
 - **MCP entry points.** The agent persona's scenarios use `mcp:<tool-name>` in `entry_points` (e.g. `mcp:create_commit_summary_post`), and their `expected` sentence names the **human-visible** surface where the observable is confirmed — never the tool's return value.

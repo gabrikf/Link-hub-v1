@@ -32,7 +32,7 @@ The Theme tour is the one exception to "one tour per charter" in a narrow sense:
 ### Disclosure Tour
 
 - **Theme:** can an agent say something about this person that this person did not authorize?
-- **When to use:** anything touching `/dashboard/settings` (the disclosure policy, API tokens, git connections), `/dashboard/posts`, `/dashboard/posts/review`, the MCP tools, the extractor, or the public profile. **This is LinkHub's highest-value tour** — a leak here publishes a real person's real employment context to the open internet.
+- **When to use:** anything touching `/dashboard/settings` (the disclosure policy, API tokens, git connections), `/dashboard/posts`, `/dashboard/posts/review`, the MCP tools, the extractor, or the public profile. **This is CraftHub's highest-value tour** — a leak here publishes a real person's real employment context to the open internet.
 - **Mission verbs:** "reveal", "redact", "publish", "escalate".
 - **Off-script actions:**
   - Set the policy to its most restrictive level, then ask the agent (through `create_post` / `create_commit_summary_post`) to write about work that unavoidably touches the employer. Does it redact, refuse, or leak?
@@ -99,7 +99,7 @@ The Theme tour is the one exception to "one tour per charter" in a narrow sense:
 - **Mission verbs:** "format", "span", "round".
 - **Off-script actions:** set the device to a non-default timezone (Sydney, Anchorage) and re-read every timestamp; enter a work-history range ending today, ending "present", starting and ending the same month, and inverted (end before start); post something at 23:59 local and read the date it shows; cross a daylight-saving boundary; read a match percentage of exactly 0, exactly 100, and something that rounds at .5.
 - **What to look for:** off-by-one days, a "present" role rendered as ending in 1970, a range that excludes its own edge, a duration computed in the server's timezone and displayed in the browser's, a percentage rendered with false precision or as a raw float.
-- **Note:** LinkHub has **no i18n** — `<html lang="en">`, all strings hardcoded English. There is no translation coverage to check and no `t()` calls to add. This tour is about time and number handling only.
+- **Note:** CraftHub has **no i18n** — `<html lang="en">`, all strings hardcoded English. There is no translation coverage to check and no `t()` calls to add. This tour is about time and number handling only.
 - **Sample evidence:** screenshot with the device timezone visible alongside the rendered value.
 
 ### Paste Tour

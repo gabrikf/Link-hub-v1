@@ -1,12 +1,15 @@
 import "reflect-metadata";
 import { container, instanceCachingFactory } from "tsyringe";
 import { IUsersRepository } from "../../core/repositories/user/user-repository.js";
+import { IUserPreferencesRepository } from "../../core/repositories/user-preferences/user-preferences-repository.js";
 import { ILinksRepository } from "../../core/repositories/link/link-repository.js";
 import { IPostRepository } from "../../core/repositories/post/post-repository.js";
 import { IApiTokenRepository } from "../../core/repositories/api-token/api-token-repository.js";
 import { IProfileTabsRepository } from "../../core/repositories/profile-tab/profile-tabs-repository.js";
 import { IProfileBlocksRepository } from "../../core/repositories/profile-block/profile-block-repository.js";
 import { IRefreshTokenRepository } from "../../core/repositories/refresh-token/refresh-token-repository.js";
+import { IEmailVerificationTokenRepository } from "../../core/repositories/email-verification-token/email-verification-token-repository.js";
+import { IPasswordResetTokenRepository } from "../../core/repositories/password-reset-token/password-reset-token-repository.js";
 import { IOAuthAccountRepository } from "../../core/repositories/oauth-account/oauth-account-repository.js";
 import { IResumesRepository } from "../../core/repositories/resume/resume-repository.js";
 import { ISkillCatalogRepository } from "../../core/repositories/skill-catalog/skill-catalog-repository.js";
@@ -34,15 +37,19 @@ import { IResumeParsingProvider } from "../../core/providers/resume-parsing/resu
 import { IFileStorageProvider } from "../../core/providers/storage/file-storage-provider.js";
 import { IImageOptimizerProvider } from "../../core/providers/image-optimizer/image-optimizer-provider.js";
 import { IAiQuotaProvider } from "../../core/providers/ai-quota/ai-quota-provider.js";
+import { IMailProvider } from "../../core/providers/mail/mail-provider.js";
 import { InMemoryAiQuotaProvider } from "../../core/providers/ai-quota/in-memory-ai-quota-provider.js";
 import { IUnitOfWork } from "../../core/providers/unit-of-work/unit-of-work.js";
 import { DrizzleUserRepository } from "../database/drizzle/repositories/user.repository.js";
+import { DrizzleUserPreferencesRepository } from "../database/drizzle/repositories/user-preferences.repository.js";
 import { DrizzleLinksRepository } from "../database/drizzle/repositories/link.repository.js";
 import { DrizzlePostsRepository } from "../database/drizzle/repositories/post.repository.js";
 import { DrizzleApiTokenRepository } from "../database/drizzle/repositories/api-token.repository.js";
 import { DrizzleProfileTabsRepository } from "../database/drizzle/repositories/profile-tab.repository.js";
 import { DrizzleProfileBlocksRepository } from "../database/drizzle/repositories/profile-block.repository.js";
 import { DrizzleRefreshTokenRepository } from "../database/drizzle/repositories/refresh-token.repository.js";
+import { DrizzleEmailVerificationTokenRepository } from "../database/drizzle/repositories/email-verification-token.repository.js";
+import { DrizzlePasswordResetTokenRepository } from "../database/drizzle/repositories/password-reset-token.repository.js";
 import { DrizzleOAuthAccountRepository } from "../database/drizzle/repositories/oauth-account.repository.js";
 import { DrizzleResumesRepository } from "../database/drizzle/repositories/resume.repository.js";
 import { DrizzleSkillCatalogRepository } from "../database/drizzle/repositories/skill-catalog.repository.js";
@@ -78,12 +85,25 @@ import {
 } from "../providers/s3-file-storage-provider.js";
 import { createImageOptimizerProvider } from "../providers/sharp-image-optimizer-provider.js";
 import { RedisAiQuotaProvider } from "../providers/redis-ai-quota-provider.js";
+import { SmtpMailProvider } from "../providers/smtp-mail-provider.js";
+import { LogMailProvider } from "../providers/log-mail-provider.js";
+import {
+  appPublicUrl,
+  emailVerificationConfig,
+  mailConfig,
+  passwordResetConfig,
+} from "../config/app-config.js";
 import { isRedisConfigured } from "../redis/redis-client.js";
 import { InternalServerError } from "../../core/errors/index.js";
 import { CreateUserUseCase } from "../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 import { LoginUseCase } from "../../core/use-case/auth/login-use-case/login.use-case.js";
 import { GoogleSignInUseCase } from "../../core/use-case/auth/google-sign-in-use-case/google-sign-in.use-case.js";
 import { OAuthSignInUseCase } from "../../core/use-case/auth/oauth-sign-in-use-case/oauth-sign-in.use-case.js";
+import { VerifyEmailUseCase } from "../../core/use-case/auth/verify-email-use-case/verify-email.use-case.js";
+import { ResendVerificationUseCase } from "../../core/use-case/auth/resend-verification-use-case/resend-verification.use-case.js";
+import { RefreshSessionUseCase } from "../../core/use-case/auth/refresh-session-use-case/refresh-session.use-case.js";
+import { ForgotPasswordUseCase } from "../../core/use-case/auth/forgot-password-use-case/forgot-password.use-case.js";
+import { ResetPasswordUseCase } from "../../core/use-case/auth/reset-password-use-case/reset-password.use-case.js";
 import { ListUserLinksUseCase } from "../../core/use-case/links/list-user-links-use-case/list-user-links.use-case.js";
 import { GetLinkByIdUseCase } from "../../core/use-case/links/get-link-by-id-use-case/get-link-by-id.use-case.js";
 import { CreateLinkUseCase } from "../../core/use-case/links/create-link-use-case/create-link.use-case.js";
@@ -94,6 +114,7 @@ import { ToggleLinkVisibilityUseCase } from "../../core/use-case/links/toggle-li
 import { GetLayoutUseCase } from "../../core/use-case/profile-layout/get-layout-use-case/get-layout.use-case.js";
 import { CreateTabUseCase } from "../../core/use-case/profile-layout/create-tab-use-case/create-tab.use-case.js";
 import { RenameTabUseCase } from "../../core/use-case/profile-layout/rename-tab-use-case/rename-tab.use-case.js";
+import { SetTabsEnabledUseCase } from "../../core/use-case/profile-layout/set-tabs-enabled-use-case/set-tabs-enabled.use-case.js";
 import { DeleteTabUseCase } from "../../core/use-case/profile-layout/delete-tab-use-case/delete-tab.use-case.js";
 import { ReorderTabsUseCase } from "../../core/use-case/profile-layout/reorder-tabs-use-case/reorder-tabs.use-case.js";
 import { CreateBlockUseCase } from "../../core/use-case/profile-layout/create-block-use-case/create-block.use-case.js";
@@ -103,6 +124,8 @@ import { UpdateBlockPositionsUseCase } from "../../core/use-case/profile-layout/
 import { GetPublicProfileUseCase } from "../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
 import { GetMeProfileUseCase } from "../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
 import { UpdateProfileUseCase } from "../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
+import { GetUserPreferencesUseCase } from "../../core/use-case/preferences/get-user-preferences-use-case/get-user-preferences.use-case.js";
+import { UpdateUserPreferencesUseCase } from "../../core/use-case/preferences/update-user-preferences-use-case/update-user-preferences.use-case.js";
 import { GetMyResumeUseCase } from "../../core/use-case/resumes/get-my-resume-use-case/get-my-resume.use-case.js";
 import { UpsertMyResumeUseCase } from "../../core/use-case/resumes/upsert-my-resume-use-case/upsert-my-resume.use-case.js";
 import { ListSkillsCatalogUseCase } from "../../core/use-case/resumes/list-skills-catalog-use-case/list-skills-catalog.use-case.js";
@@ -155,12 +178,17 @@ import { PreviewActivityDigestUseCase } from "../../core/use-case/activity/previ
 // Tokens for dependency injection
 export const TOKENS = {
   UsersRepository: Symbol.for("UsersRepository"),
+  UserPreferencesRepository: Symbol.for("UserPreferencesRepository"),
   LinksRepository: Symbol.for("LinksRepository"),
   PostsRepository: Symbol.for("PostsRepository"),
   ApiTokenRepository: Symbol.for("ApiTokenRepository"),
   ProfileTabsRepository: Symbol.for("ProfileTabsRepository"),
   ProfileBlocksRepository: Symbol.for("ProfileBlocksRepository"),
   RefreshTokenRepository: Symbol.for("RefreshTokenRepository"),
+  EmailVerificationTokenRepository: Symbol.for(
+    "EmailVerificationTokenRepository",
+  ),
+  PasswordResetTokenRepository: Symbol.for("PasswordResetTokenRepository"),
   OAuthAccountRepository: Symbol.for("OAuthAccountRepository"),
   ResumesRepository: Symbol.for("ResumesRepository"),
   SkillCatalogRepository: Symbol.for("SkillCatalogRepository"),
@@ -188,6 +216,7 @@ export const TOKENS = {
   FileStorageProvider: Symbol.for("FileStorageProvider"),
   ImageOptimizerProvider: Symbol.for("ImageOptimizerProvider"),
   AiQuotaProvider: Symbol.for("AiQuotaProvider"),
+  MailProvider: Symbol.for("MailProvider"),
   UnitOfWork: Symbol.for("UnitOfWork"),
   ResumeEmbeddingQueue: Symbol.for("ResumeEmbeddingQueue"),
   ActivityDigestQueue: Symbol.for("ActivityDigestQueue"),
@@ -196,6 +225,11 @@ export const TOKENS = {
   CreateUserUseCase: Symbol.for("CreateUserUseCase"),
   LoginUseCase: Symbol.for("LoginUseCase"),
   OAuthSignInUseCase: Symbol.for("OAuthSignInUseCase"),
+  VerifyEmailUseCase: Symbol.for("VerifyEmailUseCase"),
+  ResendVerificationUseCase: Symbol.for("ResendVerificationUseCase"),
+  RefreshSessionUseCase: Symbol.for("RefreshSessionUseCase"),
+  ForgotPasswordUseCase: Symbol.for("ForgotPasswordUseCase"),
+  ResetPasswordUseCase: Symbol.for("ResetPasswordUseCase"),
   GoogleSignInUseCase: Symbol.for("GoogleSignInUseCase"),
   ListUserLinksUseCase: Symbol.for("ListUserLinksUseCase"),
   GetLinkByIdUseCase: Symbol.for("GetLinkByIdUseCase"),
@@ -209,6 +243,7 @@ export const TOKENS = {
   RenameTabUseCase: Symbol.for("RenameTabUseCase"),
   DeleteTabUseCase: Symbol.for("DeleteTabUseCase"),
   ReorderTabsUseCase: Symbol.for("ReorderTabsUseCase"),
+  SetTabsEnabledUseCase: Symbol.for("SetTabsEnabledUseCase"),
   CreateBlockUseCase: Symbol.for("CreateBlockUseCase"),
   UpdateBlockUseCase: Symbol.for("UpdateBlockUseCase"),
   DeleteBlockUseCase: Symbol.for("DeleteBlockUseCase"),
@@ -216,6 +251,8 @@ export const TOKENS = {
   GetPublicProfileUseCase: Symbol.for("GetPublicProfileUseCase"),
   GetMeProfileUseCase: Symbol.for("GetMeProfileUseCase"),
   UpdateProfileUseCase: Symbol.for("UpdateProfileUseCase"),
+  GetUserPreferencesUseCase: Symbol.for("GetUserPreferencesUseCase"),
+  UpdateUserPreferencesUseCase: Symbol.for("UpdateUserPreferencesUseCase"),
   GetMyResumeUseCase: Symbol.for("GetMyResumeUseCase"),
   UpsertMyResumeUseCase: Symbol.for("UpsertMyResumeUseCase"),
   ListSkillsCatalogUseCase: Symbol.for("ListSkillsCatalogUseCase"),
@@ -289,6 +326,13 @@ export function setupContainer() {
     useClass: DrizzleUserRepository,
   });
 
+  container.register<IUserPreferencesRepository>(
+    TOKENS.UserPreferencesRepository,
+    {
+      useClass: DrizzleUserPreferencesRepository,
+    },
+  );
+
   container.register<ILinksRepository>(TOKENS.LinksRepository, {
     useClass: DrizzleLinksRepository,
   });
@@ -315,6 +359,20 @@ export function setupContainer() {
   container.register<IRefreshTokenRepository>(TOKENS.RefreshTokenRepository, {
     useClass: DrizzleRefreshTokenRepository,
   });
+
+  container.register<IEmailVerificationTokenRepository>(
+    TOKENS.EmailVerificationTokenRepository,
+    {
+      useClass: DrizzleEmailVerificationTokenRepository,
+    },
+  );
+
+  container.register<IPasswordResetTokenRepository>(
+    TOKENS.PasswordResetTokenRepository,
+    {
+      useClass: DrizzlePasswordResetTokenRepository,
+    },
+  );
 
   container.register<IOAuthAccountRepository>(TOKENS.OAuthAccountRepository, {
     useClass: DrizzleOAuthAccountRepository,
@@ -544,6 +602,37 @@ export function setupContainer() {
     ),
   });
 
+  /**
+   * Which mail implementation runs is decided by MAIL_TRANSPORT, the same way
+   * "no OPENAI_API_KEY -> deterministic provider" is decided above: development
+   * and test get `LogMailProvider`, which prints the verification link so the
+   * whole flow works with no SMTP server anywhere.
+   *
+   * Cached, and this one MATTERS more than the others: `SmtpMailProvider` opens
+   * a pooled SMTP connection, and a transient registration would build a fresh
+   * pool — and a fresh TCP+TLS handshake — for every single email.
+   * `assertProductionConfig()` refuses to boot production on the log transport,
+   * so this cannot silently become a mail black hole in production.
+   */
+  container.register<IMailProvider>(TOKENS.MailProvider, {
+    useFactory: instanceCachingFactory(() => {
+      const mail = mailConfig();
+
+      if (mail.transport === "smtp" && mail.smtp.host !== undefined) {
+        return new SmtpMailProvider({
+          host: mail.smtp.host,
+          port: mail.smtp.port,
+          secure: mail.smtp.secure,
+          user: mail.smtp.user,
+          password: mail.smtp.password,
+          from: mail.from,
+        });
+      }
+
+      return new LogMailProvider();
+    }),
+  });
+
   container.register<IGoogleOAuthProvider>(TOKENS.GoogleOAuthProvider, {
     useFactory: () => {
       return new GoogleOAuthProvider({
@@ -574,20 +663,29 @@ export function setupContainer() {
       const usersRepository = c.resolve<IUsersRepository>(
         TOKENS.UsersRepository,
       );
-      const refreshTokenRepository = c.resolve<IRefreshTokenRepository>(
-        TOKENS.RefreshTokenRepository,
-      );
+      const emailVerificationTokenRepository =
+        c.resolve<IEmailVerificationTokenRepository>(
+          TOKENS.EmailVerificationTokenRepository,
+        );
       const hashProvider = c.resolve<IHashProvider>(TOKENS.HashProvider);
-      const jwtProvider = c.resolve<IJwtProvider>(TOKENS.JwtProvider);
+      const tokenProvider = c.resolve<ITokenProvider>(TOKENS.TokenProvider);
+      const mailProvider = c.resolve<IMailProvider>(TOKENS.MailProvider);
 
       // Simple validator that passes through (Zod validation happens at controller level)
       const validator = (input: unknown) => input as any;
 
+      // No refresh-token repository and no JWT provider any more: registering
+      // no longer mints a session.
       return new CreateUserUseCase(
         usersRepository,
-        refreshTokenRepository,
+        emailVerificationTokenRepository,
         hashProvider,
-        jwtProvider,
+        tokenProvider,
+        mailProvider,
+        {
+          appPublicUrl: appPublicUrl(),
+          tokenTtlHours: emailVerificationConfig().tokenTtlHours,
+        },
         validator,
       );
     },
@@ -610,6 +708,7 @@ export function setupContainer() {
       return new LoginUseCase(
         usersRepository,
         refreshTokenRepository,
+        c.resolve<IOAuthAccountRepository>(TOKENS.OAuthAccountRepository),
         hashProvider,
         jwtProvider,
         validator,
@@ -658,6 +757,98 @@ export function setupContainer() {
       return new GoogleSignInUseCase(
         googleOAuthProvider,
         oauthSignInUseCase,
+        validator,
+      );
+    },
+  });
+
+  container.register<VerifyEmailUseCase>(TOKENS.VerifyEmailUseCase, {
+    useFactory: (c) => {
+      const validator = (input: unknown) => input as any;
+
+      return new VerifyEmailUseCase(
+        c.resolve<IUsersRepository>(TOKENS.UsersRepository),
+        c.resolve<IEmailVerificationTokenRepository>(
+          TOKENS.EmailVerificationTokenRepository,
+        ),
+        c.resolve<IRefreshTokenRepository>(TOKENS.RefreshTokenRepository),
+        c.resolve<ITokenProvider>(TOKENS.TokenProvider),
+        c.resolve<IJwtProvider>(TOKENS.JwtProvider),
+        validator,
+      );
+    },
+  });
+
+  container.register<ResendVerificationUseCase>(
+    TOKENS.ResendVerificationUseCase,
+    {
+      useFactory: (c) => {
+        const validator = (input: unknown) => input as any;
+
+        return new ResendVerificationUseCase(
+          c.resolve<IUsersRepository>(TOKENS.UsersRepository),
+          c.resolve<IEmailVerificationTokenRepository>(
+            TOKENS.EmailVerificationTokenRepository,
+          ),
+          c.resolve<IOAuthAccountRepository>(TOKENS.OAuthAccountRepository),
+          c.resolve<ITokenProvider>(TOKENS.TokenProvider),
+          c.resolve<IMailProvider>(TOKENS.MailProvider),
+          {
+            appPublicUrl: appPublicUrl(),
+            tokenTtlHours: emailVerificationConfig().tokenTtlHours,
+          },
+          validator,
+        );
+      },
+    },
+  );
+
+  container.register<RefreshSessionUseCase>(TOKENS.RefreshSessionUseCase, {
+    useFactory: (c) => {
+      const validator = (input: unknown) => input as any;
+
+      return new RefreshSessionUseCase(
+        c.resolve<IRefreshTokenRepository>(TOKENS.RefreshTokenRepository),
+        c.resolve<IJwtProvider>(TOKENS.JwtProvider),
+        validator,
+      );
+    },
+  });
+
+  container.register<ForgotPasswordUseCase>(TOKENS.ForgotPasswordUseCase, {
+    useFactory: (c) => {
+      const validator = (input: unknown) => input as any;
+
+      return new ForgotPasswordUseCase(
+        c.resolve<IUsersRepository>(TOKENS.UsersRepository),
+        c.resolve<IPasswordResetTokenRepository>(
+          TOKENS.PasswordResetTokenRepository,
+        ),
+        c.resolve<ITokenProvider>(TOKENS.TokenProvider),
+        c.resolve<IMailProvider>(TOKENS.MailProvider),
+        {
+          appPublicUrl: appPublicUrl(),
+          tokenTtlMinutes: passwordResetConfig().tokenTtlMinutes,
+        },
+        validator,
+      );
+    },
+  });
+
+  container.register<ResetPasswordUseCase>(TOKENS.ResetPasswordUseCase, {
+    useFactory: (c) => {
+      const validator = (input: unknown) => input as any;
+
+      return new ResetPasswordUseCase(
+        c.resolve<IUsersRepository>(TOKENS.UsersRepository),
+        c.resolve<IPasswordResetTokenRepository>(
+          TOKENS.PasswordResetTokenRepository,
+        ),
+        // The first real consumer of `deleteByUserId`: a reset revokes every
+        // session the account has.
+        c.resolve<IRefreshTokenRepository>(TOKENS.RefreshTokenRepository),
+        c.resolve<IHashProvider>(TOKENS.HashProvider),
+        c.resolve<ITokenProvider>(TOKENS.TokenProvider),
         validator,
       );
     },
@@ -749,11 +940,26 @@ export function setupContainer() {
       );
       const unitOfWork = c.resolve<IUnitOfWork>(TOKENS.UnitOfWork);
 
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+
       return new GetLayoutUseCase(
         profileTabsRepository,
         profileBlocksRepository,
         unitOfWork,
+        usersRepository,
       );
+    },
+  });
+
+  container.register<SetTabsEnabledUseCase>(TOKENS.SetTabsEnabledUseCase, {
+    useFactory: (c) => {
+      const usersRepository = c.resolve<IUsersRepository>(
+        TOKENS.UsersRepository,
+      );
+
+      return new SetTabsEnabledUseCase(usersRepository);
     },
   });
 
@@ -912,6 +1118,34 @@ export function setupContainer() {
       return new UpdateProfileUseCase(usersRepository);
     },
   });
+
+  container.register<GetUserPreferencesUseCase>(
+    TOKENS.GetUserPreferencesUseCase,
+    {
+      useFactory: (c) => {
+        const userPreferencesRepository =
+          c.resolve<IUserPreferencesRepository>(
+            TOKENS.UserPreferencesRepository,
+          );
+
+        return new GetUserPreferencesUseCase(userPreferencesRepository);
+      },
+    },
+  );
+
+  container.register<UpdateUserPreferencesUseCase>(
+    TOKENS.UpdateUserPreferencesUseCase,
+    {
+      useFactory: (c) => {
+        const userPreferencesRepository =
+          c.resolve<IUserPreferencesRepository>(
+            TOKENS.UserPreferencesRepository,
+          );
+
+        return new UpdateUserPreferencesUseCase(userPreferencesRepository);
+      },
+    },
+  );
 
   container.register<GetMyResumeUseCase>(TOKENS.GetMyResumeUseCase, {
     useFactory: (c) => {
@@ -1216,9 +1450,15 @@ export function setupContainer() {
             TOKENS.SearchResumesByRecruiterQueryUseCase,
           );
 
+        const userPreferencesRepository =
+          c.resolve<IUserPreferencesRepository>(
+            TOKENS.UserPreferencesRepository,
+          );
+
         return new TransformRecruiterSearchInputUseCase(
           queryConversionProvider,
           searchResumesByRecruiterQueryUseCase,
+          userPreferencesRepository,
         );
       },
     },
@@ -1422,11 +1662,16 @@ export function setupContainer() {
         TOKENS.ResumeParsingProvider,
       );
 
+      const userPreferencesRepository = c.resolve<IUserPreferencesRepository>(
+        TOKENS.UserPreferencesRepository,
+      );
+
       return new ParseResumeUseCase(
         usersRepository,
         skillCatalogRepository,
         titleCatalogRepository,
         resumeParsingProvider,
+        userPreferencesRepository,
       );
     },
   });

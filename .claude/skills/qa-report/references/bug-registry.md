@@ -11,8 +11,8 @@
 - Disclosure leaks: the standing severity floor
 - Mapping to technical severity
 - Required fields
-- LinkHub: the GitHub issue
-- LinkHub: Root Cause — the fixed taxonomy
+- CraftHub: the GitHub issue
+- CraftHub: Root Cause — the fixed taxonomy
 - Anti-patterns
 
 ## Id minting
@@ -32,7 +32,7 @@ Before minting, search the registry for the symptom:
 4. **Same symptom, bug `verified` (fix confirmed)** → the bug regressed: reopen it (status back to `open`, append a `## Regressed` section). A regression on the same id is far more informative than a fresh id.
 5. Only mint a new id when the symptom is genuinely new.
 
-One LinkHub-specific dedup trap: **"a surface is unreadable in dark mode" is not one bug.** Each surface authored without its `dark:` variants is its own symptom on its own route, and folding six of them into one id destroys the signal that a *pattern* exists. File them separately and, if the pattern repeats across cycles, raise it as an automation-backlog entry (a theme scenario walk) rather than as a mega-bug.
+One CraftHub-specific dedup trap: **"a surface is unreadable in dark mode" is not one bug.** Each surface authored without its `dark:` variants is its own symptom on its own route, and folding six of them into one id destroys the signal that a *pattern* exists. File them separately and, if the pattern repeats across cycles, raise it as an automation-backlog entry (a theme scenario walk) rather than as a mega-bug.
 
 ## Bug statuses
 
@@ -119,7 +119,7 @@ Every bug file (template: `<qa-docs-path>/templates/bug.md`, seed: `assets/bug-t
 - After a fix: `Fix commit:` (SHA) and `Regression test:` (the vitest test that failed before and passes after — or the documented replay and the stated reason no automated test is meaningful).
 - **Required here:** `GitHub:` (the issue link) and — once the bug is closed — `Root Cause:` (one value from the fixed taxonomy). Both sections below.
 
-## LinkHub: the GitHub issue
+## CraftHub: the GitHub issue
 
 The registry id and the GitHub issue number are **two different identities and both are kept**:
 
@@ -141,7 +141,7 @@ Rules:
 - A bug that never becomes an issue (Cosmetic batched into polish, or `wont-fix`) leaves `GitHub:` empty with the reason recorded. An empty field with no reason is a gap.
 - **Never put the leaked content in a public issue.** A disclosure bug's issue describes the *mechanism* ("a blocked term written in camel case passes the filter") and points at the registry file and evidence paths for the actual string. Filing the leak into a public tracker re-publishes it.
 
-## LinkHub: Root Cause — the fixed taxonomy
+## CraftHub: Root Cause — the fixed taxonomy
 
 The user-impact tier says *how much it hurt*. **Root Cause says where the bug was born** — and it is what makes month-over-month analysis possible instead of anecdotal.
 

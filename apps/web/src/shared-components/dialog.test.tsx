@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { Dialog } from "./dialog";
 
 /**
@@ -85,5 +87,310 @@ describe("Dialog width-class suppression", () => {
     expect(classes).toContain("max-w-6xl");
     expect(classes).not.toContain("w-[92vw]");
     expect(classes).not.toContain("max-w-lg");
+  });
+});
+
+/**
+ * "Always visible" in a real browser means "not inside the scroll container".
+ * The X used to be an absolutely positioned child of the element carrying
+ * `overflow-y-auto`, so it scrolled out of the frame with the content and any
+ * dialog taller than its max height lost its only pointer affordance for
+ * closing — on mobile, the primary one. jsdom cannot measure that, but it can
+ * assert the DOM relationship the fix depends on.
+ */
+describe("Dialog close button pinning", () => {
+  const closeButton = () => screen.getByRole("button", { name: /close/i });
+
+  const scrollContainer = (): HTMLElement => {
+    const dialog = screen.getByRole("dialog");
+    const scroller = dialog.querySelector(".overflow-y-auto");
+    expect(scroller).not.toBeNull();
+    return scroller as HTMLElement;
+  };
+
+  it("keeps the close button outside the scrolling container", () => {
+    render(
+      <Dialog open title="Scrolls">
+        body
+      </Dialog>,
+    );
+
+    expect(scrollContainer().contains(closeButton())).toBe(false);
+  });
+
+  it("puts the scrolling container inside the dialog frame, not on it", () => {
+    render(
+      <Dialog open title="Scrolls">
+        body
+      </Dialog>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    const classes = dialog.className.split(/\s+/);
+    expect(classes).toContain("overflow-hidden");
+    expect(classes).not.toContain("overflow-y-auto");
+    expect(dialog.contains(scrollContainer())).toBe(true);
+    expect(scrollContainer()).not.toBe(dialog);
+  });
+
+  it("lets the scrolling container shrink so the frame's max-h wins", () => {
+    render(
+      <Dialog open title="Scrolls">
+        body
+      </Dialog>,
+    );
+
+    // Without `min-h-0` a flex child refuses to shrink below its content and
+    // the body pushes past the frame instead of scrolling inside it.
+    const classes = scrollContainer().className.split(/\s+/);
+    expect(classes).toContain("min-h-0");
+    expect(classes).toContain("flex-1");
+    expect(screen.getByRole("dialog").className.split(/\s+/)).toContain(
+      "flex-col",
+    );
+  });
+
+  it("keeps the close button reachable on a very tall dialog", () => {
+    render(
+      <Dialog open title="Very tall" description="Lots of content below.">
+        <div>
+          {Array.from({ length: 200 }, (_, index) => (
+            <p key={index}>Row {index}</p>
+          ))}
+        </div>
+      </Dialog>,
+    );
+
+    expect(screen.getByText("Row 199")).toBeTruthy();
+    const button = closeButton();
+    expect(button.isConnected).toBe(true);
+    expect(scrollContainer().contains(button)).toBe(false);
+  });
+
+  it("reserves horizontal room so a long title cannot run under the X", () => {
+    render(
+      <Dialog
+        open
+        title="A very long dialog title that would otherwise reach the corner"
+      >
+        body
+      </Dialog>,
+    );
+
+    const header = screen.getByText(
+      "A very long dialog title that would otherwise reach the corner",
+    ).parentElement;
+    expect(header?.className).toContain("pr-11");
+  });
+
+  it("reserves that room on the body when there is no header to carry it", () => {
+    render(
+      <Dialog open>
+        <p>orphan body</p>
+      </Dialog>,
+    );
+
+    const body = screen.getByText("orphan body").parentElement;
+    expect(body?.className).toContain("pr-11");
+  });
+
+  it("paints the close button above the scrolled body", () => {
+    render(
+      <Dialog open title="Layered">
+        body
+      </Dialog>,
+    );
+
+    expect(closeButton().className).toContain("z-10");
+  });
+});
+
+describe("Dialog close button across every state", () => {
+  const cases: Array<[string, ReactNode]> = [
+    ["title only", <Dialog key="a" open title="Only title" />],
+    [
+      "title and description",
+      <Dialog key="b" open title="T" description="D" />,
+    ],
+    [
+      "children only",
+      <Dialog key="c" open>
+        {"just children"}
+      </Dialog>,
+    ],
+    [
+      "buttons only",
+      <Dialog key="d" open buttons={<button type="button">Go</button>} />,
+    ],
+    [
+      "everything at once",
+      <Dialog
+        key="e"
+        open
+        title="T"
+        description="D"
+        buttons={<button type="button">Go</button>}
+      >
+        children
+      </Dialog>,
+    ],
+    ["nothing at all", <Dialog key="f" open />],
+  ];
+
+  it.each(cases)("renders the close button with %s", (_label, element) => {
+    render(element);
+
+    const dialog = screen.getByRole("dialog");
+    const button = screen.getByRole("button", { name: /close/i });
+    expect(dialog.contains(button)).toBe(true);
+
+    const scroller = dialog.querySelector(".overflow-y-auto");
+    expect(scroller?.contains(button) ?? false).toBe(false);
+  });
+});
+
+describe("Dialog close button labelling and behaviour", () => {
+  it("names the close button after the dialog title", () => {
+    render(<Dialog open title="Edit profile" />);
+
+    expect(
+      screen.getByRole("button", { name: "Close Edit profile" }),
+    ).toBeTruthy();
+  });
+
+  it("prefers an explicit closeLabel over the title-derived name", () => {
+    render(
+      <Dialog open title="Adjust your photo" closeLabel="Cancel cropping" />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Cancel cropping" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Close Adjust your photo" }),
+    ).toBeNull();
+  });
+
+  it("falls back to a generic name when there is no title", () => {
+    render(<Dialog open>{"body"}</Dialog>);
+
+    expect(screen.getByRole("button", { name: "Close dialog" })).toBeTruthy();
+  });
+
+  it("asks the caller to close when the X is clicked", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<Dialog open title="Clickable" onOpenChange={onOpenChange} />);
+
+    await user.click(screen.getByRole("button", { name: "Close Clickable" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("still closes on Escape", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<Dialog open title="Escapable" onOpenChange={onOpenChange} />);
+
+    await user.keyboard("{Escape}");
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps the X focusable by keyboard", async () => {
+    const user = userEvent.setup();
+    render(<Dialog open title="Focusable" />);
+
+    const button = screen.getByRole("button", { name: "Close Focusable" });
+    await user.tab();
+
+    expect(document.activeElement).toBe(button);
+  });
+});
+
+/**
+ * The restructure moved padding, scrolling and the header into new wrappers.
+ * These pin the three previously-fixed behaviours to the NEW shape so a future
+ * refactor cannot quietly undo them again.
+ */
+describe("Dialog regressions that survived the close-button restructure", () => {
+  it("still lets a caller's width, max-width and max-height win", () => {
+    render(
+      <Dialog
+        open
+        title="Preview"
+        contentClassName="w-[96vw] max-w-6xl max-h-[80svh]"
+      >
+        body
+      </Dialog>,
+    );
+
+    const classes = screen.getByRole("dialog").className.split(/\s+/);
+    expect(classes).toContain("w-[96vw]");
+    expect(classes).toContain("max-w-6xl");
+    expect(classes).toContain("max-h-[80svh]");
+    expect(classes).not.toContain("w-[92vw]");
+    expect(classes).not.toContain("max-w-lg");
+    expect(classes).not.toContain("max-h-[92svh]");
+  });
+
+  it("still caps height in svh on the frame that owns the scrolling child", () => {
+    render(
+      <Dialog open title="Tall">
+        body
+      </Dialog>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.className.split(/\s+/)).toContain("max-h-[92svh]");
+    // The cap must sit on the frame; if it moved to the scroller the frame
+    // would grow past the viewport and take the pinned X off-screen with it.
+    expect(dialog.querySelector(".overflow-y-auto")?.className).not.toContain(
+      "max-h-",
+    );
+  });
+
+  it("still wraps a three-button action row", () => {
+    render(
+      <Dialog
+        open
+        title="Unsaved changes"
+        buttons={
+          <>
+            <button type="button">Keep editing</button>
+            <button type="button">Close without saving</button>
+            <button type="button">Save and close</button>
+          </>
+        }
+      >
+        body
+      </Dialog>,
+    );
+
+    const actions = screen.getByRole("button", {
+      name: "Close without saving",
+    }).parentElement;
+    expect(actions?.className).toContain("flex-wrap");
+    expect(actions?.className).toContain("justify-end");
+  });
+
+  it("keeps the dialog padding on the scrolling body", () => {
+    render(
+      <Dialog open title="Padded">
+        body
+      </Dialog>,
+    );
+
+    // Padding moved off the frame so content scrolls to the rounded edge
+    // instead of disappearing 20px early.
+    expect(screen.getByRole("dialog").className.split(/\s+/)).not.toContain(
+      "p-5",
+    );
+    expect(
+      screen
+        .getByRole("dialog")
+        .querySelector(".overflow-y-auto")
+        ?.className.split(/\s+/),
+    ).toContain("p-5");
   });
 });

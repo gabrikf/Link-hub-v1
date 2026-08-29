@@ -10,7 +10,7 @@ The tree is **merge-safe** by construction: every id is content-addressed (no sh
 - What is durable vs per-run
 - Version-control policy (the gitignore block)
 - Bootstrap procedure (new project)
-- LinkHub: where the tree sits, and its area codes
+- CraftHub: where the tree sits, and its area codes
 - Adoption procedure (project with scattered QA artifacts)
 - Evidence policy (lean by design)
 - Anti-patterns
@@ -75,19 +75,19 @@ The rule behind the block, applied to anything new the tree accumulates: **gener
 3. Write `README.md` with: the project's area codes for scenario ids (defined once — seed table below), the product's entry points and routes, how to start the stack, and the evidence policy choice (default below).
 4. Append the gitignore block (above) to the repo-root `.gitignore`.
 
-For LinkHub, the README's "how to start" section is exactly:
+For CraftHub, the README's "how to start" section is exactly:
 
 ```bash
 npm run build:schemas                       # always first
 bash db-manage.sh start                     # Postgres/pgvector 5432, Redis 6379
-bash db-manage.sh seed-all                  # recruiter.seed@linkhub.local + seed-<slug>-<NN>, password 12345678
+bash db-manage.sh seed-all                  # recruiter.seed@crafthub.local + seed-<slug>-<NN>, password 12345678
 npm run dev:api                             # http://localhost:3333 (Swagger at /docs)
 npm run dev:web                             # http://localhost:5173
 node scripts/guardrails/pre-push.mjs        # the gate
 node scripts/visual/session.mjs login       # seed an authed storageState for the visual runner
 ```
 
-## LinkHub: where the tree sits, and its area codes
+## CraftHub: where the tree sits, and its area codes
 
 `<qa-docs-path>` defaults to **`docs/qa/`** at the repo root, beside `docs/specs/`:
 

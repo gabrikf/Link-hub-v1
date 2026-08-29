@@ -141,6 +141,34 @@
       "when": 1786793962584,
       "tag": "0019_skinny_venus",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787877891544,
+      "tag": "0020_oval_blindfold",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787881588624,
+      "tag": "0021_gray_ser_duncan",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787923187343,
+      "tag": "0022_boring_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787924121361,
+      "tag": "0023_acoustic_genesis",
+      "breakpoints": true
     }
   ]
 }

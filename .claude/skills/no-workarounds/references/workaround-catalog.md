@@ -552,7 +552,7 @@ return <Checkout />;
 
 **Harm:** Dead code branches accumulate. Nobody knows which flags are active. Testing surface doubles.
 
-## LinkHub-Specific Workarounds
+## CraftHub-Specific Workarounds
 
 These are the shapes this repository actually produces. Each one has been seen, or is one
 edit away from being seen, in `apps/api`, `apps/web`, `apps/mcp` or `packages/schemas`.

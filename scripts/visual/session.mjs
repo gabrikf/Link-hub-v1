@@ -7,9 +7,9 @@
  * is empty" or, worse, calls the work done while looking at the wrong screen.
  * This script is the only place that produces and validates that session.
  *
- * HOW IT WORKS: LinkHub keeps its JWTs in `localStorage` under
- * `linkhub.auth.tokens` (see apps/web/src/lib/auth-tokens.ts), so the session is
- * a Playwright storageState with one `origins[].localStorage` entry — no cookie
+ * HOW IT WORKS: CraftHub keeps its JWTs in `localStorage` under
+ * `crafthub.auth.tokens` (see apps/web/src/lib/auth-tokens.ts), so the session is
+ * a Playwright storageState with two `origins[].localStorage` entries — no cookie
  * involved. We log in PROGRAMMATICALLY against the API rather than opening a
  * browser for a human to type into: the credentials are seeded test accounts,
  * the flow is two HTTP calls, and it means `visual:login` works unattended in a
@@ -22,7 +22,7 @@
  *
  * CREDENTIALS ARE NEVER STORED IN THIS REPO. They come from the environment:
  *
- *   VISUAL_EMAIL     defaults to recruiter.seed@linkhub.local
+ *   VISUAL_EMAIL     defaults to recruiter.seed@crafthub.local
  *   VISUAL_PASSWORD  defaults to 12345678
  *
  * Those defaults are the seeded local accounts created by
@@ -39,11 +39,23 @@ const STATE = resolve(ROOT, ".playwright/auth.json");
 const APP_URL = process.env.VISUAL_APP_URL || "http://localhost:5173";
 const API_URL = process.env.VISUAL_API_URL || "http://localhost:3333";
 
-const EMAIL = process.env.VISUAL_EMAIL || "recruiter.seed@linkhub.local";
+const EMAIL = process.env.VISUAL_EMAIL || "recruiter.seed@crafthub.local";
 const PASSWORD = process.env.VISUAL_PASSWORD || "12345678";
 
 /** Must match AUTH_TOKENS_STORAGE_KEY in apps/web/src/lib/auth-tokens.ts. */
-const TOKENS_KEY = "linkhub.auth.tokens";
+const TOKENS_KEY = "crafthub.auth.tokens";
+
+/**
+ * Must match the `name` given to zustand's `persist` in
+ * apps/web/src/lib/user-info-store.ts.
+ *
+ * Tokens alone are not a session. Every dashboard route guards on
+ * `getAuthTokens() && userInfo`, and `userInfo` lives in this separately
+ * persisted store — so a state file holding only the tokens boots the app,
+ * fails the guard, and bounces to "/", which reads exactly like an expired
+ * session. Authenticated scenarios were unrunnable for that reason alone.
+ */
+const USER_INFO_KEY = "crafthub.auth.user-info";
 
 const EMPTY_STATE = { cookies: [], origins: [] };
 
@@ -128,6 +140,15 @@ async function login() {
             value: JSON.stringify({
               accessToken: payload.accessToken,
               refreshToken: payload.refreshToken,
+            }),
+          },
+          {
+            name: USER_INFO_KEY,
+            // zustand's persist envelope, not the bare user — the store reads
+            // `state.userInfo` and ignores anything shaped differently.
+            value: JSON.stringify({
+              state: { userInfo: payload.user },
+              version: 0,
             }),
           },
         ],

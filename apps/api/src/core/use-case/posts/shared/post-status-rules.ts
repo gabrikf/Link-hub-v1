@@ -91,6 +91,48 @@ export function assertPostStatusTransition(
 }
 
 /**
+ * Rejects a release from the review queue attempted by software.
+ *
+ * `pending_review` exists for exactly one reason: the user is told "nothing
+ * here is public until you approve it". That promise is about WHO releases the
+ * post, so it has to be enforced against the credential, not against the route
+ * — otherwise an agent holding a `posts:write` PAT simply approves its own
+ * post, either by patching the status or by calling the approve endpoint, and
+ * machine-written text about the user's real work goes public unread.
+ *
+ * A refusal here is `ForbiddenError`, not `BadRequestError`: the move itself is
+ * legal (`assertPostStatusTransition` allows it) and the caller does own the
+ * post — it is the *caller kind* that is not allowed to make it.
+ *
+ * Deliberately narrow:
+ *
+ * - `draft -> published` from a PAT stays legal. A draft was never presented to
+ *   the user as awaiting a decision, and creating straight to `published` is
+ *   already the default for an agent, so blocking it would take away nothing an
+ *   agent cannot do in one request anyway.
+ * - Re-sending `pending_review` stays the no-op it is for every other caller.
+ *
+ * Defaults to the human session for the same reason as
+ * `assertMachineAuthoredPostIsImmutable`: only the paths that actually carry a
+ * credential forward pass an `authType`.
+ */
+export function assertReviewReleaseIsHumanConsent(
+  from: PostStatus,
+  to: PostStatus,
+  authType: "jwt" | "pat" = "jwt",
+): void {
+  if (authType === "pat" && from === "pending_review" && to === "published") {
+    throw new ForbiddenError(
+      "This post is waiting for review, and only its owner — signed in to " +
+        "CraftHub — can publish it. An API token may not approve a post it " +
+        "wrote: that review step is the human's consent to text written by " +
+        "software. Leave the post as it is and ask the user to approve it, or " +
+        "delete it and write a new one.",
+    );
+  }
+}
+
+/**
  * Rejects any content change to a post the user did not write themselves.
  *
  * The whole value of an `mcp`/`agent`/`commit` post is that a recruiter can

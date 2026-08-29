@@ -26,6 +26,7 @@ const block = (overrides: Partial<ProfileBlock>): ProfileBlock => ({
 });
 
 const layoutWith = (kind: ProfileBlock["kind"]): ProfileLayout => ({
+  tabsEnabled: true,
   tabs: [{ id: "tab-1", title: "One", order: 0 }],
   blocks: [block({ id: `${kind}-block`, kind })],
 });

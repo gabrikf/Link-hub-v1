@@ -4,7 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LinkHub</title>
+    <!--
+      Verification and password-reset links arrive as `?token=…`. Both pages
+      strip the token on mount, but the browser sends `Referer` on every
+      subresource and outbound request made BEFORE that happens — fonts, images,
+      an analytics beacon, any third-party host the page touches — and the
+      default policy would put the whole URL, token included, in that header.
+      `no-referrer` is site-wide rather than per-page because the leak happens
+      during the first paint, which is too early for anything the app can do.
+    -->
+    <meta name="referrer" content="no-referrer" />
+    <title>CraftHub</title>
   </head>
   <body>
     <div id="root"></div>

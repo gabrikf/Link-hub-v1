@@ -15,6 +15,16 @@ import { InMemoryApiTokenRepository } from "../../../core/repositories/api-token
 import { InMemoryWorkExperienceRepository } from "../../../core/repositories/work-experience/in-memory-work-experience-repository.js";
 import { InMemoryGitConnectionRepository } from "../../../core/repositories/git-connection/in-memory-git-connection-repository.js";
 import { InMemoryActivityEventRepository } from "../../../core/repositories/activity-event/in-memory-activity-event-repository.js";
+import { InMemoryLinksRepository } from "../../../core/repositories/link/in-memory-links-repository.js";
+import { InMemoryProfileTabsRepository } from "../../../core/repositories/profile-tab/in-memory-profile-tabs-repository.js";
+import { InMemoryProfileBlocksRepository } from "../../../core/repositories/profile-block/in-memory-profile-block-repository.js";
+import { InMemoryUserPreferencesRepository } from "../../../core/repositories/user-preferences/in-memory-user-preferences-repository.js";
+import { InMemoryRefreshTokenRepository } from "../../../core/repositories/refresh-token/in-memory-refresh-token-repository.js";
+import { InMemoryOAuthAccountRepository } from "../../../core/repositories/oauth-account/in-memory-oauth-account-repository.js";
+import { InMemoryEmailVerificationTokenRepository } from "../../../core/repositories/email-verification-token/in-memory-email-verification-token-repository.js";
+import { InMemoryPasswordResetTokenRepository } from "../../../core/repositories/password-reset-token/in-memory-password-reset-token-repository.js";
+import { InMemoryMailProvider } from "../../../core/providers/mail/in-memory-mail-provider.js";
+import { InMemoryHashProvider } from "../../../core/providers/hash/in-memory-hash-provider.js";
 import { CryptoTokenProvider } from "../../providers/crypto-token-provider.js";
 import { CryptoWebhookSecretProvider } from "../../providers/crypto-webhook-secret-provider.js";
 import { JwtProvider } from "../../providers/jwt-provider.js";
@@ -40,11 +50,34 @@ import { IngestActivityUseCase } from "../../../core/use-case/activity/ingest-ac
 import { BuildCandidateEvidenceUseCase } from "../../../core/use-case/activity/build-candidate-evidence-use-case/build-candidate-evidence.use-case.js";
 import { GetConnectionHealthUseCase } from "../../../core/use-case/activity/get-connection-health-use-case/get-connection-health.use-case.js";
 import { PreviewActivityDigestUseCase } from "../../../core/use-case/activity/preview-activity-digest-use-case/preview-activity-digest.use-case.js";
+import { CreateLinkUseCase } from "../../../core/use-case/links/create-link-use-case/create-link.use-case.js";
+import { UpdateLinkUseCase } from "../../../core/use-case/links/update-link-use-case/update-link.use-case.js";
+import { GetLayoutUseCase } from "../../../core/use-case/profile-layout/get-layout-use-case/get-layout.use-case.js";
+import { SetTabsEnabledUseCase } from "../../../core/use-case/profile-layout/set-tabs-enabled-use-case/set-tabs-enabled.use-case.js";
+import { InMemoryUnitOfWork } from "../../../core/providers/unit-of-work/in-memory-unit-of-work.js";
+import { GetMeProfileUseCase } from "../../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
+import { GetPublicProfileUseCase } from "../../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
+import { UpdateProfileUseCase } from "../../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
+import { GetUserPreferencesUseCase } from "../../../core/use-case/preferences/get-user-preferences-use-case/get-user-preferences.use-case.js";
+import { UpdateUserPreferencesUseCase } from "../../../core/use-case/preferences/update-user-preferences-use-case/update-user-preferences.use-case.js";
 import { PostsController } from "../controllers/posts/posts-controller.js";
+import { LinksController } from "../controllers/links/links-controller.js";
 import { ApiTokensController } from "../controllers/api-tokens/api-tokens-controller.js";
 import { AgentPolicyController } from "../controllers/agent-policy/agent-policy-controller.js";
 import { ActivityController } from "../controllers/activity/activity-controller.js";
 import { WorkExperienceController } from "../controllers/work-experience/work-experience-controller.js";
+import { AiImportController } from "../controllers/ai-import/ai-import-controller.js";
+import { ProfileController } from "../controllers/profile/profile-controller.js";
+import { profileLayoutRoutes } from "../routes/profile-layout.js";
+import { PreferencesController } from "../controllers/preferences/preferences-controller.js";
+import { CreateUserUseCase } from "../../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
+import { LoginUseCase } from "../../../core/use-case/auth/login-use-case/login.use-case.js";
+import { VerifyEmailUseCase } from "../../../core/use-case/auth/verify-email-use-case/verify-email.use-case.js";
+import { ResendVerificationUseCase } from "../../../core/use-case/auth/resend-verification-use-case/resend-verification.use-case.js";
+import { RefreshSessionUseCase } from "../../../core/use-case/auth/refresh-session-use-case/refresh-session.use-case.js";
+import { ForgotPasswordUseCase } from "../../../core/use-case/auth/forgot-password-use-case/forgot-password.use-case.js";
+import { ResetPasswordUseCase } from "../../../core/use-case/auth/reset-password-use-case/reset-password.use-case.js";
+import { authRoutes } from "../routes/auth.js";
 import { webhooksRoutes } from "../routes/webhooks.js";
 
 /**
@@ -54,6 +87,40 @@ import { webhooksRoutes } from "../routes/webhooks.js";
  */
 export const TEST_JWT_SECRET = "e2e-test-secret";
 
+/**
+ * Origin the test app builds verification links from, so an e2e test can pull
+ * the raw token straight out of the email body it just caused to be "sent".
+ */
+export const TEST_APP_PUBLIC_URL = "https://app.test.crafthub";
+
+/** Matches the production default; the expiry tests set their own clock. */
+export const TEST_VERIFICATION_TTL_HOURS = 24;
+
+/** Matches the production default (OWASP: a reset link lives 20 minutes). */
+export const TEST_PASSWORD_RESET_TTL_MINUTES = 20;
+
+/**
+ * Response-time floor used by every hermetic HTTP test, in place of the 500 ms
+ * production default.
+ *
+ * `/auth/forgot-password` and `/auth/resend-verification` answer after a fixed
+ * budget so their duration cannot be used to tell a registered address from an
+ * unknown one. At the production value the auth suites would spend eight
+ * seconds asleep, and a slow gate is a gate people learn to skip.
+ *
+ * This lowers the number, not the mechanism: the floor still applies to both
+ * branches and still does not apply to the schema-validation 400, and
+ * `response-time-floor.timing.e2e.test.ts` asserts exactly that against
+ * `authEmailResponseFloorMs()` — whatever it is set to. The production default
+ * is pinned by its own assertion in `response-time-floor.test.ts`, so nobody
+ * can quietly zero it here and take the suite green with them.
+ */
+export const TEST_AUTH_EMAIL_RESPONSE_FLOOR_MS = 25;
+
+process.env.AUTH_EMAIL_RESPONSE_FLOOR_MS ??= String(
+  TEST_AUTH_EMAIL_RESPONSE_FLOOR_MS,
+);
+
 export interface TestAppHandles {
   app: FastifyInstance;
   usersRepository: InMemoryUsersRepository;
@@ -62,6 +129,17 @@ export interface TestAppHandles {
   workExperienceRepository: InMemoryWorkExperienceRepository;
   gitConnectionRepository: InMemoryGitConnectionRepository;
   activityEventRepository: InMemoryActivityEventRepository;
+  linksRepository: InMemoryLinksRepository;
+  profileTabsRepository: InMemoryProfileTabsRepository;
+  profileBlocksRepository: InMemoryProfileBlocksRepository;
+  userPreferencesRepository: InMemoryUserPreferencesRepository;
+  refreshTokenRepository: InMemoryRefreshTokenRepository;
+  oauthAccountRepository: InMemoryOAuthAccountRepository;
+  emailVerificationTokenRepository: InMemoryEmailVerificationTokenRepository;
+  passwordResetTokenRepository: InMemoryPasswordResetTokenRepository;
+  /** Every email the app tried to send. Assert on it, and read links out of it. */
+  mailProvider: InMemoryMailProvider;
+  hashProvider: InMemoryHashProvider;
   tokenProvider: CryptoTokenProvider;
   webhookSecretProvider: CryptoWebhookSecretProvider;
   jwtProvider: JwtProvider;
@@ -76,8 +154,17 @@ interface SeedUserInput {
   login: string;
   name: string;
   password: string;
+  /**
+   * Defaults to VERIFIED. Every suite that predates email verification seeds a
+   * user and expects it to behave like a normal account; making them all opt in
+   * would have been a hundred-line diff that says nothing. Pass null to build
+   * an unverified account on purpose.
+   */
+  emailVerifiedAt: Date | null;
   agentDisclosureLevel: AgentDisclosureLevel;
   agentBlockedTerms: string[];
+  tabsEnabledPc: boolean;
+  tabsEnabledMobile: boolean;
 }
 
 let seedCounter = 0;
@@ -101,6 +188,18 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   const workExperienceRepository = new InMemoryWorkExperienceRepository();
   const gitConnectionRepository = new InMemoryGitConnectionRepository();
   const activityEventRepository = new InMemoryActivityEventRepository();
+  const linksRepository = new InMemoryLinksRepository();
+  const profileTabsRepository = new InMemoryProfileTabsRepository();
+  const profileBlocksRepository = new InMemoryProfileBlocksRepository();
+  const userPreferencesRepository = new InMemoryUserPreferencesRepository();
+  const refreshTokenRepository = new InMemoryRefreshTokenRepository();
+  const oauthAccountRepository = new InMemoryOAuthAccountRepository();
+  const emailVerificationTokenRepository =
+    new InMemoryEmailVerificationTokenRepository();
+  const passwordResetTokenRepository =
+    new InMemoryPasswordResetTokenRepository();
+  const mailProvider = new InMemoryMailProvider();
+  const hashProvider = new InMemoryHashProvider();
   const tokenProvider = new CryptoTokenProvider();
   const webhookSecretProvider = new CryptoWebhookSecretProvider();
   const jwtProvider = new JwtProvider({
@@ -124,6 +223,39 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     TOKENS.ActivityEventRepository,
     activityEventRepository,
   );
+  container.registerInstance(TOKENS.LinksRepository, linksRepository);
+  container.registerInstance(
+    TOKENS.ProfileTabsRepository,
+    profileTabsRepository,
+  );
+  container.registerInstance(
+    TOKENS.ProfileBlocksRepository,
+    profileBlocksRepository,
+  );
+  container.registerInstance(
+    TOKENS.UserPreferencesRepository,
+    userPreferencesRepository,
+  );
+  container.registerInstance(
+    TOKENS.RefreshTokenRepository,
+    refreshTokenRepository,
+  );
+  container.registerInstance(
+    TOKENS.OAuthAccountRepository,
+    oauthAccountRepository,
+  );
+  container.registerInstance(
+    TOKENS.EmailVerificationTokenRepository,
+    emailVerificationTokenRepository,
+  );
+  container.registerInstance(
+    TOKENS.PasswordResetTokenRepository,
+    passwordResetTokenRepository,
+  );
+  // The real provider interface, backed by an array. Nothing here opens a
+  // socket, and a test can read the verification link out of what was "sent".
+  container.registerInstance(TOKENS.MailProvider, mailProvider);
+  container.registerInstance(TOKENS.HashProvider, hashProvider);
   container.registerInstance(TOKENS.TokenProvider, tokenProvider);
   container.registerInstance(
     TOKENS.WebhookSecretProvider,
@@ -244,6 +376,149 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     ),
   );
 
+  container.registerInstance(
+    TOKENS.CreateLinkUseCase,
+    new CreateLinkUseCase(linksRepository, usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.UpdateLinkUseCase,
+    new UpdateLinkUseCase(linksRepository),
+  );
+
+  container.registerInstance(
+    TOKENS.GetMeProfileUseCase,
+    new GetMeProfileUseCase(usersRepository, linksRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetPublicProfileUseCase,
+    new GetPublicProfileUseCase(
+      usersRepository,
+      linksRepository,
+      profileTabsRepository,
+      profileBlocksRepository,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.UpdateProfileUseCase,
+    new UpdateProfileUseCase(usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetLayoutUseCase,
+    new GetLayoutUseCase(
+      profileTabsRepository,
+      profileBlocksRepository,
+      new InMemoryUnitOfWork(),
+      usersRepository,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.SetTabsEnabledUseCase,
+    new SetTabsEnabledUseCase(usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.GetUserPreferencesUseCase,
+    new GetUserPreferencesUseCase(userPreferencesRepository),
+  );
+  container.registerInstance(
+    TOKENS.UpdateUserPreferencesUseCase,
+    new UpdateUserPreferencesUseCase(userPreferencesRepository),
+  );
+
+  /**
+   * Auth use cases. This app registered NONE of them until email verification
+   * landed, which is why /auth had no e2e coverage at all: every auth test was
+   * a use-case unit test, and the controllers, the zod schemas and the error
+   * mapping were exercised by nothing.
+   *
+   * The validators are pass-throughs, exactly as in the real container — zod
+   * has already validated the body by the time a use case runs.
+   */
+  const passThroughValidator = <T>(input: unknown) => input as T;
+  const verificationOptions = {
+    appPublicUrl: TEST_APP_PUBLIC_URL,
+    tokenTtlHours: TEST_VERIFICATION_TTL_HOURS,
+  };
+
+  container.registerInstance(
+    TOKENS.CreateUserUseCase,
+    new CreateUserUseCase(
+      usersRepository,
+      emailVerificationTokenRepository,
+      hashProvider,
+      tokenProvider,
+      mailProvider,
+      verificationOptions,
+      passThroughValidator,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.LoginUseCase,
+    new LoginUseCase(
+      usersRepository,
+      refreshTokenRepository,
+      oauthAccountRepository,
+      hashProvider,
+      jwtProvider,
+      passThroughValidator,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.VerifyEmailUseCase,
+    new VerifyEmailUseCase(
+      usersRepository,
+      emailVerificationTokenRepository,
+      refreshTokenRepository,
+      tokenProvider,
+      jwtProvider,
+      passThroughValidator,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.ResendVerificationUseCase,
+    new ResendVerificationUseCase(
+      usersRepository,
+      emailVerificationTokenRepository,
+      oauthAccountRepository,
+      tokenProvider,
+      mailProvider,
+      verificationOptions,
+      passThroughValidator,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.RefreshSessionUseCase,
+    new RefreshSessionUseCase(
+      refreshTokenRepository,
+      jwtProvider,
+      passThroughValidator,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.ForgotPasswordUseCase,
+    new ForgotPasswordUseCase(
+      usersRepository,
+      passwordResetTokenRepository,
+      tokenProvider,
+      mailProvider,
+      {
+        appPublicUrl: TEST_APP_PUBLIC_URL,
+        tokenTtlMinutes: TEST_PASSWORD_RESET_TTL_MINUTES,
+      },
+      passThroughValidator,
+    ),
+  );
+  container.registerInstance(
+    TOKENS.ResetPasswordUseCase,
+    new ResetPasswordUseCase(
+      usersRepository,
+      passwordResetTokenRepository,
+      refreshTokenRepository,
+      hashProvider,
+      tokenProvider,
+      passThroughValidator,
+    ),
+  );
+
   const app = fastify();
 
   app.setErrorHandler(errorHandler);
@@ -258,6 +533,42 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   // here without breaking registration.
   WorkExperienceController.handle(app);
   ActivityController.handle(app);
+  // Registered for the resume-parse length gate. Its use-case is resolved
+  // lazily inside the handler, so a test that wants the parse to succeed
+  // registers its own (hermetic) ParseResumeUseCase; the rejection paths never
+  // resolve one at all.
+  AiImportController.handle(app);
+  // Only the create/update use-cases are registered above: the other link
+  // routes resolve theirs lazily inside the handler, so they stay unavailable
+  // (and unused) here without breaking registration.
+  LinksController.handle(app);
+  ProfileController.handle(app);
+  // Only the layout read and the per-viewport tabs switch have use-cases
+  // registered above: the tab/block mutation routes resolve theirs lazily
+  // inside the handler, so they stay unavailable (and unused) here without
+  // breaking registration.
+  //
+  // Mounted twice, bare and under `/api/v1`, the way `routes/index.ts` mounts
+  // every module in production — so an e2e test can assert both paths really
+  // answer instead of taking the dual mount on trust.
+  await app.register(profileLayoutRoutes);
+  await app.register(profileLayoutRoutes, { prefix: "/api/v1" });
+  PreferencesController.handle(app);
+  /**
+   * Mounted twice, bare and under `/api/v1`, the way `routes/index.ts` does it
+   * in production — the web client's refresher builds its URL from whichever
+   * base it was configured with, so an e2e test has to be able to prove both
+   * paths answer.
+   */
+  await app.register(async (instance) => {
+    authRoutes(instance);
+  });
+  await app.register(
+    async (instance) => {
+      authRoutes(instance);
+    },
+    { prefix: "/api/v1" },
+  );
   // Registered as a real plugin, not called like the controllers above: the
   // raw-body content-type parser it declares is only encapsulated — and the
   // rest of the app only keeps default JSON parsing — because it lives inside
@@ -276,6 +587,16 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     workExperienceRepository,
     gitConnectionRepository,
     activityEventRepository,
+    linksRepository,
+    profileTabsRepository,
+    profileBlocksRepository,
+    userPreferencesRepository,
+    refreshTokenRepository,
+    oauthAccountRepository,
+    emailVerificationTokenRepository,
+    passwordResetTokenRepository,
+    mailProvider,
+    hashProvider,
     tokenProvider,
     webhookSecretProvider,
     jwtProvider,
@@ -287,8 +608,14 @@ export async function buildTestApp(): Promise<TestAppHandles> {
         login: overrides?.login ?? `user${seedCounter}`,
         name: overrides?.name ?? `User ${seedCounter}`,
         password: overrides?.password ?? "hashed-password",
+        emailVerifiedAt:
+          overrides?.emailVerifiedAt === undefined
+            ? new Date()
+            : overrides.emailVerifiedAt,
         agentDisclosureLevel: overrides?.agentDisclosureLevel,
         agentBlockedTerms: overrides?.agentBlockedTerms,
+        tabsEnabledPc: overrides?.tabsEnabledPc,
+        tabsEnabledMobile: overrides?.tabsEnabledMobile,
         description: null,
         avatarUrl: null,
         googleId: null,

@@ -1,8 +1,8 @@
 /**
  * Runtime configuration, read once from the environment.
  *
- * - LINKHUB_API_URL   base URL of the LinkHub API (default http://localhost:3333)
- * - LINKHUB_API_TOKEN Personal Access Token (`lh_pat_...`) — REQUIRED to upload
+ * - CRAFTHUB_API_URL   base URL of the CraftHub API (default http://localhost:3333)
+ * - CRAFTHUB_API_TOKEN Personal Access Token (`lh_pat_...`) — REQUIRED to upload
  *
  * Identical in shape and defaults to `apps/mcp/src/config.ts` on purpose: the
  * same PAT, minted in the same Settings screen, drives the MCP server and this
@@ -14,7 +14,7 @@
  * path — extracting and reviewing a payload works with no token at all, and
  * with the network unplugged.
  */
-export interface LinkHubConfig {
+export interface CraftHubConfig {
   readonly apiUrl: string;
   readonly token: string;
 }
@@ -29,27 +29,27 @@ export class ConfigError extends Error {
   }
 }
 
-let cached: LinkHubConfig | null = null;
+let cached: CraftHubConfig | null = null;
 
 /**
  * Loads and validates configuration. Fails fast (throws ConfigError) when the
  * PAT is missing. The result is memoized so a multi-batch upload shares one
  * config.
  */
-export function loadConfig(): LinkHubConfig {
+export function loadConfig(): CraftHubConfig {
   if (cached) return cached;
 
-  const apiUrl = (process.env.LINKHUB_API_URL ?? DEFAULT_API_URL)
+  const apiUrl = (process.env.CRAFTHUB_API_URL ?? DEFAULT_API_URL)
     .trim()
     .replace(/\/+$/, "");
 
-  const token = process.env.LINKHUB_API_TOKEN?.trim();
+  const token = process.env.CRAFTHUB_API_TOKEN?.trim();
 
   if (!token) {
     throw new ConfigError(
-      "LINKHUB_API_TOKEN is not set. Create a Personal Access Token (lh_pat_...) " +
-        "in the LinkHub app under Settings → Personal Access Tokens with the " +
-        "activity:write scope checked, then expose it as the LINKHUB_API_TOKEN " +
+      "CRAFTHUB_API_TOKEN is not set. Create a Personal Access Token (lh_pat_...) " +
+        "in the CraftHub app under Settings → Personal Access Tokens with the " +
+        "activity:write scope checked, then expose it as the CRAFTHUB_API_TOKEN " +
         "environment variable. Extraction works without it — only uploading needs a token.",
     );
   }

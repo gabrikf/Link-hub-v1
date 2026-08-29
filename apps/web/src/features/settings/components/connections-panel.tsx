@@ -1,5 +1,10 @@
-import type { AgentPolicy, GitConnection, WorkExperienceResponse } from "@repo/schemas";
+import type {
+  AgentPolicy,
+  GitConnection,
+  WorkExperienceResponse,
+} from "@repo/schemas";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiActivity,
   FiChevronDown,
@@ -23,16 +28,16 @@ import {
   useWorkExperiencesForPolicy,
 } from "../lib/agent-policy-queries";
 import {
-  CADENCE_LABELS,
-  CLAUDE_HOOK_NOTES,
+  claudeHookNotes,
   CLAUDE_HOOK_SNIPPET,
-  CLAUDE_HOOK_SUMMARY,
+  claudeHookSummary,
   CLAUDE_HOOK_TARGET,
   CONNECTIONS_PANEL_ID,
   disclosureConsequence,
   disclosureLevelLabel,
   disclosureSourceLabel,
   formatLastDigest,
+  getCadenceLabels,
   kindInheritsWorkRules,
   KIND_LABELS,
   PROVIDER_LABELS,
@@ -66,20 +71,21 @@ const cx = (...parts: Array<string | false | null | undefined>) =>
  * ------------------------------------------------------------------ */
 
 function ClaudeHookDisclosure() {
+  const { t } = useTranslation();
   return (
     <details className="group mt-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/60">
       <summary
         className={`flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
       >
         <FiTerminal className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        Claude Code hook — {CLAUDE_HOOK_TARGET}
+        {t("settings.connections.hookTarget", { target: CLAUDE_HOOK_TARGET })}
         <FiChevronDown
           className="ml-auto h-3.5 w-3.5 shrink-0 transition group-open:rotate-180"
           aria-hidden="true"
         />
       </summary>
       <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-        {CLAUDE_HOOK_SUMMARY}
+        {claudeHookSummary()}
       </p>
       <div className="mt-2">
         <SnippetBlock
@@ -90,7 +96,7 @@ function ClaudeHookDisclosure() {
           }}
         />
       </div>
-      <InstructionList steps={CLAUDE_HOOK_NOTES} />
+      <InstructionList steps={claudeHookNotes()} />
     </details>
   );
 }
@@ -113,9 +119,11 @@ function EffectiveDisclosure({
   policy: AgentPolicy | undefined;
   roles: WorkExperienceResponse[];
 }) {
+  const { t } = useTranslation();
   const { level, source } = resolveEffectiveDisclosure(connection, policy);
   const companyName =
-    roles.find((role) => role.id === connection.workExperienceId)?.companyName ??
+    roles.find((role) => role.id === connection.workExperienceId)
+      ?.companyName ??
     policy?.perEmployer.find(
       (entry) => entry.workExperienceId === connection.workExperienceId,
     )?.companyName ??
@@ -126,7 +134,9 @@ function EffectiveDisclosure({
       <FiShield className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>
         <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-          Disclosure: {disclosureLevelLabel(level)}
+          {t("settings.connections.disclosureLevel", {
+            level: disclosureLevelLabel(level),
+          })}
         </span>{" "}
         <span className="text-zinc-600 dark:text-zinc-400">
           ({disclosureSourceLabel(source, companyName)})
@@ -156,6 +166,7 @@ function ConnectionRow({
   onFinishSetup?: (connection: GitConnection) => void;
   isDeleting: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <li className={`anim-fade-up p-4 ${SURFACE_GLASS}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -187,28 +198,30 @@ function ConnectionRow({
               )}
             >
               {connection.autoPostEnabled
-                ? "Auto-posting on"
-                : "Auto-posting off"}
+                ? t("settings.connections.autoPostingOn")
+                : t("settings.connections.autoPostingOff")}
             </span>
           </div>
 
           <dl className="flex flex-wrap gap-x-5 gap-y-1 pt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
             <div className="flex gap-1">
-              <dt>Cadence</dt>
+              <dt>{t("settings.connections.cadence")}</dt>
               <dd className="text-zinc-700 dark:text-zinc-300">
-                {CADENCE_LABELS[connection.cadence]}
+                {getCadenceLabels(t)[connection.cadence]}
               </dd>
             </div>
             <div className="flex gap-1">
-              <dt>Last digest</dt>
+              <dt>{t("settings.connections.lastDigest")}</dt>
               <dd className="text-zinc-700 dark:text-zinc-300">
                 {formatLastDigest(connection.lastDigestAt)}
               </dd>
             </div>
             <div className="flex gap-1">
-              <dt>Agent summary</dt>
+              <dt>{t("settings.connections.agentSummary")}</dt>
               <dd className="text-zinc-700 dark:text-zinc-300">
-                {connection.includeAgentSummary ? "Sent" : "Not sent"}
+                {connection.includeAgentSummary
+                  ? t("settings.connections.sent")
+                  : t("settings.connections.notSent")}
               </dd>
             </div>
           </dl>
@@ -244,7 +257,7 @@ function ConnectionRow({
               onClick={() => onFinishSetup(connection)}
             >
               <FiPlay className="h-4 w-4" aria-hidden="true" />
-              Finish setup
+              {t("settings.connections.finishSetup")}
             </Button>
           ) : null}
           <Button
@@ -255,7 +268,7 @@ function ConnectionRow({
             onClick={() => onEdit(connection)}
           >
             <FiEdit2 className="h-4 w-4" aria-hidden="true" />
-            Edit
+            {t("common.edit")}
           </Button>
           <Button
             type="button"
@@ -263,14 +276,14 @@ function ConnectionRow({
             size="sm"
             fullWidth={false}
             isLoading={isDeleting}
-            loadingLabel="Disconnecting..."
+            loadingLabel={t("settings.connections.disconnecting")}
             shouldHaveConfirmation
-            confirmationTitle="Disconnect this source?"
-            confirmationDescription="LinkHub stops accepting activity from it immediately, and any webhook you configured will start failing. Activity already recorded is kept."
+            confirmationTitle={t("settings.connections.disconnectTitle")}
+            confirmationDescription={t("settings.connections.disconnectBody")}
             onClick={() => onDelete(connection.id)}
           >
             <FiTrash2 className="h-4 w-4" aria-hidden="true" />
-            Disconnect
+            {t("settings.connections.disconnect")}
           </Button>
         </div>
       </div>
@@ -316,9 +329,10 @@ function ConnectionRowSkeleton() {
 }
 
 function ConnectionListSkeleton() {
+  const { t } = useTranslation();
   return (
     <>
-      <LoadingLabel>Loading activity sources</LoadingLabel>
+      <LoadingLabel>{t("settings.connections.loading")}</LoadingLabel>
       <ul className="mt-4 space-y-3">
         {Array.from({ length: 2 }, (_, index) => (
           <ConnectionRowSkeleton key={index} />
@@ -360,6 +374,7 @@ export function ConnectionsPanel({
   onFinishSetup,
   wizardOpen = false,
 }: ConnectionsPanelProps) {
+  const { t } = useTranslation();
   const connectionsQuery = useMyConnections(enabled);
   const policyQuery = useAgentPolicy(enabled);
   const workExperiencesQuery = useWorkExperiencesForPolicy(enabled);
@@ -450,13 +465,12 @@ export function ConnectionsPanel({
         <ConnectionListSkeleton />
       ) : connectionsQuery.isError ? (
         <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-400">
-          Could not load your activity sources. Please try again.
+          {t("settings.connections.loadFailed")}
         </p>
       ) : connections.length === 0 ? (
         <div className={`anim-fade-up mt-4 p-10 text-center ${SURFACE_EMPTY}`}>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            No activity sources connected yet. Add one to have your work show up
-            without writing the post yourself.
+            {t("settings.connections.empty")}
           </p>
           <Button
             type="button"
@@ -466,7 +480,7 @@ export function ConnectionsPanel({
             onClick={openCreate}
           >
             <FiPlus className="h-4 w-4" aria-hidden="true" />
-            Connect your first source
+            {t("settings.connections.connectFirst")}
           </Button>
         </div>
       ) : (
@@ -516,12 +530,10 @@ export function ConnectionsPanel({
           </span>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Connected activity sources
+              {t("settings.connections.sectionTitle")}
             </h2>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              A connected source turns what you shipped into a periodic digest
-              post. Only hashed, aggregated metadata is stored — never repository
-              names, commit messages or file paths.
+              {t("settings.connections.sectionHelp")}
             </p>
           </div>
         </div>
@@ -532,7 +544,7 @@ export function ConnectionsPanel({
           onClick={openCreate}
         >
           <FiPlus className="h-4 w-4" aria-hidden="true" />
-          Add source
+          {t("settings.addSource")}
         </Button>
       </div>
 

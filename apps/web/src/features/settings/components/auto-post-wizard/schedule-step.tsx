@@ -1,5 +1,7 @@
 import type { DigestCadence } from "@repo/schemas";
+import type { TFunction } from "i18next";
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { FiChevronDown, FiInfo, FiShield } from "react-icons/fi";
 import {
   FOCUS_RING,
@@ -18,12 +20,13 @@ export type WizardCadence = Extract<
   "weekly" | "biweekly" | "monthly"
 >;
 
-const CADENCE_HINTS: Record<WizardCadence, string> = {
-  weekly: "The goal: one post a week.",
-  biweekly:
-    "Every two weeks — pair two machines or accounts to alternate and still add up to weekly.",
-  monthly: "One larger digest a month.",
-};
+function getCadenceHints(t: TFunction): Record<WizardCadence, string> {
+  return {
+    weekly: t("wizard.schedule.goalWeekly"),
+    biweekly: t("wizard.schedule.goalBiweekly"),
+    monthly: t("wizard.schedule.goalMonthly"),
+  };
+}
 
 export function ScheduleStepBody({
   cadence,
@@ -43,24 +46,26 @@ export function ScheduleStepBody({
   includeAgentSummary: boolean;
   onIncludeAgentSummaryChange: (enabled: boolean) => void;
 }) {
+  const { t } = useTranslation();
+  const cadenceHints = getCadenceHints(t);
   return (
     <div className="space-y-4">
       <div className={`space-y-2 p-4 ${SURFACE_INSET}`}>
         <span className="block text-sm text-zinc-700 dark:text-zinc-300">
-          Digest cadence
+          {t("wizard.schedule.cadence")}
         </span>
         <Segmented
-          label="Digest cadence"
+          label={t("wizard.schedule.cadence")}
           value={cadence}
           options={[
-            { value: "weekly", label: "Weekly" },
-            { value: "biweekly", label: "Every two weeks" },
-            { value: "monthly", label: "Monthly" },
+            { value: "weekly", label: t("settings.cadence.weekly") },
+            { value: "biweekly", label: t("settings.cadence.biweekly") },
+            { value: "monthly", label: t("settings.cadence.monthly") },
           ]}
           onChange={onCadenceChange}
         />
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {CADENCE_HINTS[cadence]}
+          {cadenceHints[cadence]}
         </p>
       </div>
 
@@ -73,19 +78,17 @@ export function ScheduleStepBody({
         />
         <span className="min-w-0">
           <span className="text-sm text-zinc-900 dark:text-zinc-100">
-            Post digests automatically
+            {t("settings.connectionDialog.autoPost")}
           </span>
           <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-            Off means digests are still generated on this cadence, but wait for
-            you to approve them.
+            {t("settings.connectionDialog.autoPostHelp")}
           </span>
         </span>
       </label>
 
       <p className="flex items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
         <FiInfo className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        Recommendation: keep auto-posting off until a few digests looked right
-        in the review queue, then flip it on from the connection row.
+        {t("wizard.schedule.recommendation")}
       </p>
 
       {showAgentSummaryToggle ? (
@@ -104,13 +107,10 @@ export function ScheduleStepBody({
           />
           <span className="min-w-0">
             <span className="text-sm text-zinc-900 dark:text-zinc-100">
-              Send the coding agent&apos;s own description of each task
+              {t("settings.connectionDialog.agentSummaryToggle")}
             </span>
             <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-              Off by default. That text is prose a model wrote about what you
-              were working on, and on a work machine it can describe systems,
-              decisions and problems that are your employer&apos;s to describe,
-              not yours. Without it, only hashed, aggregated metadata is sent.
+              {t("settings.connectionDialog.agentSummaryHelp")}
             </span>
           </span>
         </label>
@@ -135,17 +135,18 @@ export type McpGuidanceKey =
   | "vscode"
   | "windsurf-kiro";
 
-const GUIDANCE_OPTIONS: ReadonlyArray<{
-  value: McpGuidanceKey;
-  label: string;
-}> = [
-  { value: "claude-code", label: "Claude Code" },
-  { value: "claude-desktop", label: "Claude Desktop" },
-  { value: "codex", label: "Codex" },
-  { value: "cursor", label: "Cursor" },
-  { value: "vscode", label: "VS Code + Copilot" },
-  { value: "windsurf-kiro", label: "Windsurf / Kiro" },
-];
+function getGuidanceOptions(
+  t: TFunction,
+): ReadonlyArray<{ value: McpGuidanceKey; label: string }> {
+  return [
+    { value: "claude-code", label: t("settings.provider.claudeCode") },
+    { value: "claude-desktop", label: t("settings.mcp.claudeDesktop") },
+    { value: "codex", label: t("wizard.schedule.tool.codex") },
+    { value: "cursor", label: t("settings.mcp.cursor") },
+    { value: "vscode", label: t("wizard.schedule.tool.copilot") },
+    { value: "windsurf-kiro", label: t("wizard.schedule.tool.windsurfKiro") },
+  ];
+}
 
 /**
  * Connect-step tab → guidance. The generic tab lands on Codex (first of its
@@ -168,10 +169,10 @@ export function guidanceKeyForToolTab(tabKey: string | null): McpGuidanceKey {
 }
 
 /** The prompt every scheduled run sends, cadence baked in for monthly. */
-function workflowPrompt(cadence: WizardCadence): string {
+function workflowPrompt(cadence: WizardCadence, t: TFunction): string {
   return cadence === "monthly"
-    ? "Run the linkhub weekly_update workflow with period monthly and create my post"
-    : "Run the linkhub weekly_update workflow and create my post";
+    ? t("wizard.schedule.promptMonthly")
+    : t("wizard.schedule.promptDefault");
 }
 
 /** Mondays 9:00 for weekly/biweekly, the 1st for monthly. */
@@ -179,10 +180,10 @@ function cronPrefix(cadence: WizardCadence): string {
   return cadence === "monthly" ? "0 9 1 * *" : "0 9 * * 1";
 }
 
-function cronTarget(cadence: WizardCadence): string {
+function cronTarget(cadence: WizardCadence, t: TFunction): string {
   return cadence === "monthly"
-    ? "crontab — 1st of the month, 09:00"
-    : "crontab — Mondays at 09:00";
+    ? t("wizard.schedule.crontabMonthly")
+    : t("wizard.schedule.crontabMondays");
 }
 
 type GuidancePath = {
@@ -196,8 +197,9 @@ type GuidancePath = {
 function buildGuidance(
   key: McpGuidanceKey,
   cadence: WizardCadence,
+  t: TFunction,
 ): { recommended: GuidancePath; fallback: GuidancePath } {
-  const prompt = workflowPrompt(cadence);
+  const prompt = workflowPrompt(cadence, t);
   const cadenceNoun =
     cadence === "weekly"
       ? "weekly"
@@ -209,15 +211,10 @@ function buildGuidance(
     case "claude-code":
       return {
         recommended: {
-          heading: "Recommended — Routines in the Claude Code Desktop app",
-          body:
-            "Routines → New routine → Local, then pick the Weekly preset " +
-            "(day and time) and paste the prompt below. Local routines run " +
-            "sessions on this machine, so they see your local MCP servers — " +
-            "and a run missed while the machine slept fires one catch-up on " +
-            "wake.",
+          heading: t("wizard.schedule.claudeRoutines"),
+          body: t("wizard.schedule.claudeRoutinesBody"),
           snippet: {
-            target: "Routine prompt",
+            target: t("wizard.schedule.routinePrompt"),
             language: "text",
             code: prompt,
           },
@@ -226,125 +223,102 @@ function buildGuidance(
               ? undefined
               : // The Routines UI has presets, not a cron box — saying so
                 // stops the user hunting for a field that is not there.
-                `The schedule picker offers Hourly / Daily / Weekdays / Weekly, with no cron box. For ${cadenceNoun}, ask in chat instead: "every ${cadence === "biweekly" ? "two weeks on Monday" : "month on the 1st"} at 9am, run my LinkHub update" — Claude creates the task itself.`,
+                t("wizard.schedule.claudePickerLimits", {
+                  cadenceNoun,
+                  cadenceDetail:
+                    cadence === "biweekly"
+                      ? "two weeks on Monday"
+                      : "month on the 1st",
+                }),
         },
         fallback: {
-          heading: "Fallback — cron + headless CLI",
-          body: "The same workflow, headless, on the OS scheduler:",
+          heading: t("wizard.schedule.cronFallback"),
+          body: t("wizard.schedule.cronFallbackBody"),
           snippet: {
-            target: cronTarget(cadence),
+            target: cronTarget(cadence, t),
             language: "bash",
-            code: `${cronPrefix(cadence)} claude -p "${prompt}" --allowedTools "mcp__linkhub"`,
+            code: `${cronPrefix(cadence)} claude -p "${prompt}" --allowedTools "mcp__crafthub"`,
           },
-          note:
-            "Use an absolute path to claude in cron. On macOS prefer launchd " +
-            "— cron skips runs while the machine sleeps; launchd fires missed " +
-            "jobs on wake.",
+          note: t("wizard.schedule.cronAbsolutePath"),
         },
       };
     case "claude-desktop":
       return {
         recommended: {
-          heading: "Recommended — schedule it from Claude Code Desktop",
-          body:
-            "Real scheduling lives in the Claude Code Desktop app: Routines " +
-            "→ New routine → Local → Weekly. Local routines reach local MCP " +
-            "servers, so add linkhub to Claude Code as well (the Claude Code " +
-            "tab in the previous step has the one-line command) — the chat " +
-            "app's claude_desktop_config.json is a separate config.",
+          heading: t("wizard.schedule.desktopRecommended"),
+          body: t("wizard.schedule.desktopBody"),
           snippet: {
-            target: "Routine prompt",
+            target: t("wizard.schedule.routinePrompt"),
             language: "text",
             code: prompt,
           },
         },
         fallback: {
-          heading: "Fallback — a calendar reminder",
-          body:
-            `A ${cadenceNoun} reminder, then run it by hand from the ` +
-            "composer: + menu → linkhub → weekly_update.",
+          heading: t("wizard.schedule.calendarFallback"),
+          body: t("wizard.schedule.calendarBody", { cadenceNoun }),
           // The trap worth naming: Cowork's scheduler looks like the obvious
           // answer and cannot work for a local stdio server.
-          note:
-            "Cowork's Scheduled tasks are not the tool for this: they run " +
-            "remotely, so they cannot open your repositories or reach a " +
-            "linkhub server running on your machine.",
+          note: t("wizard.schedule.coworkWarning"),
         },
       };
     case "codex":
       return {
         recommended: {
-          heading: "Recommended — Codex app Automations",
-          body: `Codex → Automations → new ${cadenceNoun} automation with this prompt:`,
+          heading: t("wizard.schedule.codexAutomations"),
+          body: t("wizard.schedule.codexAutomationsBody", { cadenceNoun }),
           snippet: {
-            target: "Automation prompt",
+            target: t("wizard.schedule.automationPrompt"),
             language: "text",
-            code: "Run the linkhub weekly_update workflow",
+            code: t("wizard.schedule.promptShort"),
           },
         },
         fallback: {
-          heading: "Fallback — cron",
-          body:
-            "codex exec in cron currently auto-cancels MCP tool calls unless " +
-            "run with its approvals-bypass flag — prefer the app Automation.",
+          heading: t("wizard.schedule.cronFallbackShort"),
+          body: t("wizard.schedule.codexCronWarning"),
         },
       };
     case "cursor":
       return {
         recommended: {
-          heading: "Recommended — cron + the Cursor agent CLI",
-          body:
-            "The CLI shares the IDE's MCP config, so linkhub is already " +
-            "there, and cron runs it on this machine:",
+          heading: t("wizard.schedule.cursorCron"),
+          body: t("wizard.schedule.cursorCronBody"),
           snippet: {
-            target: cronTarget(cadence),
+            target: cronTarget(cadence, t),
             language: "bash",
-            code: `${cronPrefix(cadence)} agent -p "Run the linkhub weekly_update workflow"`,
+            code: `${cronPrefix(cadence)} agent -p "Run the crafthub weekly_update workflow"`,
           },
         },
         fallback: {
-          heading: "Cursor Automations — only for a hosted setup",
-          body:
-            "Automations schedule prompts in Cursor's cloud sandbox, which " +
-            "cannot reach a linkhub server running on your machine. Use them " +
-            "only if you point LinkHub at a remote API instead.",
+          heading: t("wizard.schedule.cursorAutomations"),
+          body: t("wizard.schedule.cursorAutomationsBody"),
         },
       };
     case "vscode":
       return {
         recommended: {
-          heading: "Recommended — cron + Copilot CLI",
-          body: "Copilot's CLI runs the workflow headless on the OS scheduler:",
+          heading: t("wizard.schedule.copilotCron"),
+          body: t("wizard.schedule.copilotCronBody"),
           snippet: {
-            target: cronTarget(cadence),
+            target: cronTarget(cadence, t),
             language: "bash",
-            code: `${cronPrefix(cadence)} copilot -p "Run the linkhub weekly_update workflow" --allow-tool 'linkhub'`,
+            code: `${cronPrefix(cadence)} copilot -p "Run the crafthub weekly_update workflow" --allow-tool 'crafthub'`,
           },
-          note:
-            "Copilot CLI reads MCP servers from ~/.copilot/mcp-config.json — " +
-            "add linkhub there if it only lives in .vscode/mcp.json.",
+          note: t("wizard.schedule.copilotMcpConfig"),
         },
         fallback: {
-          heading: "Fallback — the universal reminder",
-          body:
-            "No cron on this machine? The universal fallback below covers " +
-            "VS Code too.",
+          heading: t("wizard.schedule.universalFallback"),
+          body: t("wizard.schedule.noCron"),
         },
       };
     case "windsurf-kiro":
       return {
         recommended: {
-          heading: "Recommended — Kiro: cron + headless CLI",
-          body:
-            "Kiro runs headless from cron — pass --trust-tools so the " +
-            "scheduled run can call linkhub without a human at the approval " +
-            "prompt.",
+          heading: t("wizard.schedule.kiroCron"),
+          body: t("wizard.schedule.kiroCronBody"),
         },
         fallback: {
-          heading: "Windsurf — no headless mode",
-          body:
-            "Windsurf cannot run without its UI — use the universal fallback " +
-            "below.",
+          heading: t("wizard.schedule.windsurfNoHeadless"),
+          body: t("wizard.schedule.windsurfBody"),
         },
       };
   }
@@ -382,50 +356,49 @@ export function McpScheduleBody({
   /** Connect-step tab, threaded through the wizard; null if never picked. */
   toolKey: string | null;
 }) {
+  const { t } = useTranslation();
+  const cadenceHints = getCadenceHints(t);
   // Local: nothing downstream needs the switch, and remounting the step
   // re-derives it from the Connect-step choice.
   const [guidanceKey, setGuidanceKey] = useState<McpGuidanceKey>(() =>
     guidanceKeyForToolTab(toolKey),
   );
-  const guidance = buildGuidance(guidanceKey, cadence);
+  const guidance = buildGuidance(guidanceKey, cadence, t);
 
   return (
     <div className="space-y-4">
       <div className={`space-y-2 p-4 ${SURFACE_INSET}`}>
         <span className="block text-sm text-zinc-700 dark:text-zinc-300">
-          Cadence
+          {t("settings.connections.cadence")}
         </span>
         <Segmented
-          label="Cadence"
+          label={t("settings.connections.cadence")}
           value={cadence}
           options={[
-            { value: "weekly", label: "Weekly" },
-            { value: "biweekly", label: "Every two weeks" },
-            { value: "monthly", label: "Monthly" },
+            { value: "weekly", label: t("settings.cadence.weekly") },
+            { value: "biweekly", label: t("settings.cadence.biweekly") },
+            { value: "monthly", label: t("settings.cadence.monthly") },
           ]}
           onChange={onCadenceChange}
         />
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {CADENCE_HINTS[cadence]}
+          {cadenceHints[cadence]}
         </p>
         {cadence === "biweekly" ? (
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Plain cron can't express "every two weeks" — keep the weekly
-            schedule (the duplicate guard makes the off-week run a no-op that
-            posts nothing), or use your OS scheduler's own biweekly trigger
-            where it exists (Task Scheduler, launchd).
+            {t("wizard.schedule.biweeklyCron")}
           </p>
         ) : null}
       </div>
 
       <div className={`space-y-3 p-4 ${SURFACE_INSET}`}>
         <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          Make it automatic
+          {t("wizard.schedule.title")}
         </span>
         <Segmented
-          label="Your tool"
+          label={t("wizard.schedule.yourTool")}
           value={guidanceKey}
-          options={GUIDANCE_OPTIONS}
+          options={getGuidanceOptions(t)}
           onChange={setGuidanceKey}
         />
         <GuidancePathBlock path={guidance.recommended} />
@@ -435,42 +408,38 @@ export function McpScheduleBody({
           <summary
             className={`flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
           >
-            No scheduler at all? The universal fallback
+            {t("wizard.schedule.noSchedulerTitle")}
             <FiChevronDown
               className="ml-auto h-3.5 w-3.5 shrink-0 transition group-open:rotate-180"
               aria-hidden="true"
             />
           </summary>
           <div className="mt-2 space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400">
-            <p>
-              A repeating calendar reminder plus one minute: open your agent
-              and run the prompt.
-            </p>
+            <p>{t("wizard.schedule.noSchedulerBody")}</p>
             <ul className="list-disc space-y-0.5 pl-5">
               <li>
-                Claude Code:{" "}
-                <code className="font-mono">/mcp__linkhub__weekly_update</code>
+                <Trans
+                  i18nKey="wizard.schedule.claudeCodeHint"
+                  components={{ cmd: <code className="font-mono" /> }}
+                />
               </li>
-              <li>Claude Desktop: + menu → linkhub → weekly_update</li>
-              <li>
-                Anything else: pick weekly_update from the tool's prompt
-                picker, or just ask for it in plain language.
-              </li>
+              <li>{t("wizard.schedule.claudeDesktopHint")}</li>
+              <li>{t("wizard.schedule.anythingElseHint")}</li>
             </ul>
           </div>
         </details>
 
         <p className="flex items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
-          <FiShield className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          Every scheduled run is duplicate-safe: the workflow checks your
-          recent posts first and skips if this period is already covered.
+          <FiShield
+            className="mt-0.5 h-3.5 w-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          {t("wizard.schedule.duplicateSafe")}
         </p>
       </div>
 
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        There is no connection to configure on LinkHub's side for MCP — nothing
-        else to save here. Every run's post lands in your review queue pending
-        your approval.
+        {t("wizard.schedule.mcpNoConnection")}
       </p>
     </div>
   );

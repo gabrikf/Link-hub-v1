@@ -1,7 +1,7 @@
 ---
 name: qa-execution
 description: >-
-  Runs real-user dogfooding sessions through LinkHub's public interfaces: a
+  Runs real-user dogfooding sessions through CraftHub's public interfaces: a
   persona walks a journey in the browser (or an agent persona walks it through
   MCP), takes a thematic tour, probes edges, hunts paper cuts, and reports what
   a real user would experience. Reads its plan from the living QA docs tree
@@ -33,19 +33,19 @@ Three non-negotiables hold every session:
 
 - **qa-docs-path** (optional): root of the living QA docs tree; defaults to `docs/qa/`. The tree is this skill's memory and its only output location — never a temp dir. If it doesn't exist, run `qa-report` first; it owns the tree and its bootstrap.
 
-## LinkHub specifics
+## CraftHub specifics
 
 - **The app under test:** `npm run dev:web` → **http://localhost:5173** (Vite), talking to `npm run dev:api` → **http://localhost:3333** (Fastify; Swagger at `/docs`). Both need the local stack up: `bash db-manage.sh start` (Postgres/pgvector 5432, Redis 6379). Never QA against a mocked build — a session against MSW handlers measures the mocks.
-- **Test data comes from the seeder**, never from invented records: `bash db-manage.sh seed-all` creates the recruiter `recruiter.seed@linkhub.local` and candidate accounts `seed-<blueprint-slug>-<NN>` (e.g. `seed-react-frontend-003`). **Password for every seed user: `12345678`.** The public profile of a seeded candidate is `http://localhost:5173/profile/seed-react-frontend-003`.
+- **Test data comes from the seeder**, never from invented records: `bash db-manage.sh seed-all` creates the recruiter `recruiter.seed@crafthub.local` and candidate accounts `seed-<blueprint-slug>-<NN>` (e.g. `seed-react-frontend-003`). **Password for every seed user: `12345678`.** The public profile of a seeded candidate is `http://localhost:5173/profile/seed-react-frontend-003`.
 - **The browser driver is the `visual-check` skill** — load it before Step 3; it owns how the browser is driven in this repo. Its default shape is a scenario script run in one process:
   ```bash
   node scripts/visual/run.mjs scripts/visual/scenarios/<name>.scenario.mjs
   node scripts/visual/session.mjs login      # seeds an authenticated storageState at .playwright/auth.json
   ```
   The runner fails the walk on console errors, uncaught exceptions and un-mocked 4xx/5xx — those are findings even when the screen looks right. `mock()` inside a scenario is what forces a loading, empty or error state; use it to *reach* a state, never to fake the state under test. Command surface: `references/session-protocol.md`.
-- **Dark mode is a standing dimension, not an optional tour.** The web app themes through a `.dark` class on `<html>`, persisted in `localStorage["linkhub-theme"]` (`@custom-variant dark` in `apps/web/src/index.css`); a surface whose author forgot its `dark:` variant renders invisible or unreadable text and is one of this repo's most common real bug classes. Every browser charter walks its surface in **both** themes, and the report says so.
+- **Dark mode is a standing dimension, not an optional tour.** The web app themes through a `.dark` class on `<html>`, persisted in `localStorage["crafthub-theme"]` (`@custom-variant dark` in `apps/web/src/index.css`); a surface whose author forgot its `dark:` variant renders invisible or unreadable text and is one of this repo's most common real bug classes. Every browser charter walks its surface in **both** themes, and the report says so.
 - **The disclosure policy is the highest-value bug class in the product.** A post published by a coding agent that names an employer, a client, or a blocked term above the user's chosen disclosure level is a `Data-Loss`-tier leak of someone's real employment context. It gets its own lens (`references/lenses.md`), its own edge-case section (`references/edge-cases.md`), and its own tour (`references/tours.md`). Never treat a disclosure finding as cosmetic.
-- **Design questions resolve against `DESIGN.md`** at the repo root — LinkHub's design language. There is no external design system to cite.
+- **Design questions resolve against `DESIGN.md`** at the repo root — CraftHub's design language. There is no external design system to cite.
 - **There is no i18n.** `<html lang="en">`, every user-visible string is hardcoded English. Do not walk a "Locale tour" looking for missing translation keys, and never invent `t()` calls in a fix — the **`i18n`** skill holds the *planned* setup, not a description of existing code. Number, date and timezone formatting is still in scope; that lives in the Time & Formatting tour and the lens pass.
 - **Bugs go to GitHub.** Every registry bug that reaches engineering gets an issue via `gh issue create` on `https://github.com/gabrikf/Link-hub-v1` (read `git remote -v` rather than trusting that string), and on close carries one **Root Cause** from the fixed taxonomy in `../qa-report/references/bug-registry.md`. Default branch is `main`.
 - **CI gates and test hygiene are not this skill's job.** `node scripts/guardrails/pre-push.mjs` owns the gate. A session that uncovers a gate problem files it and names the gate; it does not pivot mid-session into fixing the pipeline.
@@ -78,7 +78,7 @@ Each step names the reference that owns its detail — read it in full when you 
 **Step 3 — Walk each journey in persona**
 - Read `references/session-protocol.md` (the enter→act→verify→capture loop, the evidence standard, the browser and MCP command surfaces) and `references/persona-fidelity.md` (the public-interface guardrails and stall-is-a-finding). Load the **`visual-check`** skill — it owns how the browser is driven here.
 - For each charter, in matrix order: adopt the persona (device, network, theme), enter through its real entry point, and walk the journey verb by verb to its **true end state** — verifying each step against the evidence standard.
-- The **coding-agent persona walks through MCP**, not the browser: the `linkhub` MCP tools (`get_disclosure_policy`, `get_work_context`, `create_post`, `create_commit_summary_post`, `update_post`, `list_my_posts`, `delete_post`) are its only interface, exactly as a real agent has them. Its true end state is always what the *human* sees in `/dashboard/posts/review` and on the public profile.
+- The **coding-agent persona walks through MCP**, not the browser: the `crafthub` MCP tools (`get_disclosure_policy`, `get_work_context`, `create_post`, `create_commit_summary_post`, `update_post`, `list_my_posts`, `delete_post`) are its only interface, exactly as a real agent has them. Its true end state is always what the *human* sees in `/dashboard/posts/review` and on the public profile.
 - Hunt **paper cuts** throughout: persona-felt friction no functional check fails; sharp ones become findings.
 - A leg only a human can complete (real Google OAuth against a live account, a real GitHub App install, a funded `OPENAI_API_KEY` import) is marked `Blocked (needs human verify)` with exact instructions — never faked.
 - **Done when:** every charter is walked to a recorded verdict in both themes where a browser is involved, evidence captured at checkpoints and divergences, the debrief written to the report's Session Debriefs section, and the matrix row updated.

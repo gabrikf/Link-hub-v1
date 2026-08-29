@@ -15,7 +15,7 @@ describe("HowItWorksDialog", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Your machine")).toBeInTheDocument();
     expect(screen.getByText("Sanitizer")).toBeInTheDocument();
-    expect(screen.getByText("LinkHub")).toBeInTheDocument();
+    expect(screen.getByText("CraftHub")).toBeInTheDocument();
     expect(
       screen.getByText(/Code never leaves your machine/),
     ).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe("HowItWorksDialog", () => {
 
     // The enforced-vs-guidance grid and the weak/strong examples are the SAME
     // shared components the connect panel renders — spot-check their copy.
-    expect(screen.getByText("Enforced by LinkHub")).toBeInTheDocument();
+    expect(screen.getByText("Enforced by CraftHub")).toBeInTheDocument();
     expect(
       screen.getByText(/Guidance to the model — not a guarantee/),
     ).toBeInTheDocument();

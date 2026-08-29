@@ -1,14 +1,19 @@
-version: "3.8"
+# Development stack: Postgres, Redis and two optional tools behind the `tools`
+# profile. `bash db-manage.sh start` brings up the first two; `bash db-manage.sh
+# admin` adds the tools.
+#
+# NO `version:` KEY. Compose v2 ignores it and warns that it is obsolete on every
+# single invocation; it was a v1 field and has meant nothing since 2020.
 
 services:
   postgres:
     image: pgvector/pgvector:pg15
-    container_name: linkhub-postgres-dev
+    container_name: crafthub-postgres-dev
     restart: unless-stopped
     environment:
-      POSTGRES_DB: linkhub_dev
-      POSTGRES_USER: linkhub_user
-      POSTGRES_PASSWORD: linkhub_password
+      POSTGRES_DB: crafthub_dev
+      POSTGRES_USER: crafthub_user
+      POSTGRES_PASSWORD: crafthub_password
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
@@ -33,17 +38,17 @@ services:
       -c random_page_cost=1.1
       -c effective_io_concurrency=200
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U linkhub_user -d linkhub_dev"]
+      test: ["CMD-SHELL", "pg_isready -U crafthub_user -d crafthub_dev"]
       interval: 5s
       timeout: 3s
       retries: 5
       start_period: 10s
     networks:
-      - linkhub-network
+      - crafthub-network
 
   redis:
     image: redis:7-alpine
-    container_name: linkhub-redis-dev
+    container_name: crafthub-redis-dev
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -53,15 +58,15 @@ services:
       timeout: 3s
       retries: 5
     networks:
-      - linkhub-network
+      - crafthub-network
 
   # Optional: pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: linkhub-pgadmin-dev
+    container_name: crafthub-pgadmin-dev
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@linkhub.com
+      PGADMIN_DEFAULT_EMAIL: admin@crafthub.com
       PGADMIN_DEFAULT_PASSWORD: admin123
       PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
@@ -72,7 +77,62 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - linkhub-network
+      - crafthub-network
+    profiles:
+      - tools
+
+  # -------------------------------------------------------------------------
+  # mailpit — catches every e-mail the API sends, so you can actually SEE the
+  # account-verification message instead of guessing.
+  # -------------------------------------------------------------------------
+  # DEVELOPMENT ONLY. It is in this file, never in docker-compose.prod.yml, and
+  # it accepts any credentials and delivers nothing to the outside world — that
+  # is the entire point, and it is also why it must never run in production.
+  #
+  # Without it there is no way to look at a verification e-mail locally. The API
+  # falls back to MAIL_TRANSPORT=log and prints the link to the terminal, which
+  # is fine for clicking through a flow but tells you nothing about whether the
+  # message renders, whether the subject is right, or how it looks in a client.
+  #
+  # Behind the `tools` profile, like pgadmin: `docker compose -f
+  # docker-compose.dev.yml up -d` does NOT start it, so nobody pays for a mail
+  # catcher they are not using. `bash db-manage.sh admin` runs compose with
+  # `--profile tools` and therefore starts it alongside pgAdmin.
+  #
+  #   Web UI  http://localhost:8025
+  #   SMTP    localhost:1025 — no auth, no TLS
+  #
+  # The exact SMTP_* values to paste into apps/api/.env are in
+  # DEVELOPMENT-GUIDE.md, under "Seeing the e-mails the API sends".
+  #
+  # No volume on purpose: messages live in memory and vanish on restart. A mail
+  # catcher whose contents survive is a mail catcher full of last month's test
+  # data.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: crafthub-mailpit-dev
+    restart: unless-stopped
+    environment:
+      # Cap the mailbox so a runaway loop in a worker cannot eat the machine's
+      # memory. Oldest messages are dropped first.
+      MP_MAX_MESSAGES: 500
+      # Accept whatever SMTP credentials the API sends, over a plain connection.
+      # Mailpit refuses unauthenticated/insecure SMTP by default, and without
+      # these two the API's SMTP_USER/SMTP_PASSWORD would have to be real — which
+      # would mean configuring credentials for a server that throws mail away.
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "8025:8025" # web UI
+      - "1025:1025" # SMTP
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - crafthub-network
     profiles:
       - tools
 
@@ -83,5 +143,5 @@ volumes:
     driver: local
 
 networks:
-  linkhub-network:
+  crafthub-network:
     driver: bridge

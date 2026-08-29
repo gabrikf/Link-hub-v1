@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAuthTokens, setAuthTokens } from "./auth-tokens";
+import { PREFERENCES_QUERY_KEY, queryClient } from "./query-client";
 import {
   consumeSessionExpiredMessage,
   handleSessionExpired,
@@ -7,6 +8,7 @@ import {
   resetSessionExpiredRedirect,
   SESSION_EXPIRED_MESSAGE,
   setSessionExpiredRedirect,
+  signOut,
 } from "./session";
 import { useUserInfoStore } from "./user-info-store";
 
@@ -64,5 +66,56 @@ describe("handleSessionExpired", () => {
     expect(assign).toHaveBeenCalledWith("/");
 
     vi.restoreAllMocks();
+  });
+});
+
+describe("signOut — what the next account in this tab can see", () => {
+  afterEach(() => queryClient.clear());
+
+  /**
+   * THE BUG, in the shape a person meets it: two people share a laptop. The
+   * first signs out, the second signs in, and for the first few frames the
+   * dashboard is painted from the FIRST account's cache — their name in the top
+   * bar, their posts, their links, their layout.
+   *
+   * `signOut` used to evict exactly one key, `["preferences"]`, because that is
+   * the entry a specific reported bug was traced to. Every other cached answer
+   * — all of it account-scoped, none of it re-fetched before first paint —
+   * simply stayed. Eviction of one key was never the rule; leaving nothing of
+   * the previous account behind is.
+   *
+   * Asserted against the REAL `queryClient` singleton on purpose: that is the
+   * one `signOut` reaches for, and a throwaway client would prove nothing about
+   * the wiring the Logout button actually goes through.
+   */
+  it("drops every cached answer belonging to the account signing out", () => {
+    queryClient.setQueryData(["me"], { login: "ada", name: "Ada" });
+    queryClient.setQueryData(["posts"], [{ id: "post-1" }]);
+    queryClient.setQueryData(["links"], [{ id: "link-1" }]);
+    queryClient.setQueryData(["layout"], { tabs: [] });
+    queryClient.setQueryData(PREFERENCES_QUERY_KEY, {
+      theme: "dark",
+      language: "pt-BR",
+    });
+
+    signOut();
+
+    expect(queryClient.getQueryData(["me"])).toBeUndefined();
+    expect(queryClient.getQueryData(["posts"])).toBeUndefined();
+    expect(queryClient.getQueryData(["links"])).toBeUndefined();
+    expect(queryClient.getQueryData(["layout"])).toBeUndefined();
+    // Still true — the preferences fix this replaces must not regress.
+    expect(queryClient.getQueryData(PREFERENCES_QUERY_KEY)).toBeUndefined();
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+  });
+
+  it("clears the stores as well, so half a session cannot survive", () => {
+    setAuthTokens({ accessToken: "a", refreshToken: "r" });
+    useUserInfoStore.getState().setUserInfo({ id: "1", login: "ada" } as never);
+
+    signOut();
+
+    expect(getAuthTokens()).toBeNull();
+    expect(useUserInfoStore.getState().userInfo).toBeNull();
   });
 });

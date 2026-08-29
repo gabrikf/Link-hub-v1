@@ -154,6 +154,29 @@ describe("GetWorkContextUseCase", () => {
     expect(context.roles[0].achievements[0]).not.toContain("Nubank");
   });
 
+  it("keeps a summary-level employer redacted inside a full-level role", async () => {
+    const user = await seedUser();
+    await workExperienceRepository.create(
+      makeRole(user.id, {
+        companyName: "VTEX",
+        disclosureLevel: "full",
+        description: "Migrated the ledger we later reused at PagBank.",
+        displayOrder: 0,
+      }),
+    );
+    await workExperienceRepository.create(
+      makeRole(user.id, { companyName: "PagBank", displayOrder: 1 }),
+    );
+
+    const context = await sut.execute(user.id);
+
+    // The permissive role may name ITSELF...
+    expect(context.roles[0].companyName).toBe("VTEX");
+    // ...but not the employer the user deliberately left at summary.
+    expect(context.roles[0].achievements[0]).not.toContain("PagBank");
+    expect(context.roles[0].achievements[0]).toContain("[employer]");
+  });
+
   it("honours a per-role override over the account default", async () => {
     const user = await seedUser({ agentDisclosureLevel: "summary" });
     await workExperienceRepository.create(
@@ -212,6 +235,45 @@ describe("GetWorkContextUseCase", () => {
       expect.arrayContaining(["TDD", "CI/CD", "trunk-based development"]),
     );
     expect(role.domain).toBe("payments");
+  });
+
+  it("drops a stack entry that carries a blocked term, keeping the rest", async () => {
+    const user = await seedUser({
+      agentBlockedTerms: ["Project Falcon", "Sun"],
+    });
+    await workExperienceRepository.create(
+      makeRole(user.id, {
+        title: "Senior Engineer at Acme Corp",
+        companyName: "Acme Corp",
+        description: "Built the Acme Corp ingestion pipeline.",
+        mainStack: [
+          "React",
+          "Acme Corp Platform",
+          "acmecorp-cli",
+          "Project Falcon SDK",
+          "Sunset Analytics",
+        ],
+      }),
+    );
+
+    const role = (await sut.execute(user.id)).roles[0];
+
+    // A technology name is a label, not a sentence: redacting it in place would
+    // ship "[employer] Platform" as a tech the agent then repeats in the post
+    // tags. There is nothing to salvage, so the entry goes.
+    expect(role.stack).not.toContain("Acme Corp Platform");
+    expect(role.stack).not.toContain("acmecorp-cli");
+    expect(role.stack).not.toContain("Project Falcon SDK");
+    expect(role.stack.join(" ")).not.toMatch(/acme|falcon/i);
+    // ...and the fix is not "empty the array": an unrelated technology, and one
+    // that merely contains the blocked term "Sun" mid-word, both survive —
+    // dropping those would cost the agent real signal for no disclosure gain.
+    expect(role.stack).toEqual(["React", "Sunset Analytics"]);
+
+    // The sibling fields keep the treatment they already had.
+    expect(role.title).toBe("Senior Engineer at [employer]");
+    expect(role.companyName).toBeNull();
+    expect(role.achievements[0]).toBe("Built the [employer] ingestion pipeline.");
   });
 
   it("reports duration in whole months", async () => {

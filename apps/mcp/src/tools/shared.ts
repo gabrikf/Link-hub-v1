@@ -1,6 +1,6 @@
 import type { Post } from "@repo/schemas";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { LinkHubApiError } from "../api-client.js";
+import { CraftHubApiError } from "../api-client.js";
 
 /** A plain text tool result. */
 export function textResult(text: string): CallToolResult {
@@ -14,7 +14,7 @@ export function errorResult(text: string): CallToolResult {
 
 /**
  * Wraps a tool handler so any thrown error becomes a clean, user-facing
- * `isError` result instead of crashing the MCP session. LinkHubApiError
+ * `isError` result instead of crashing the MCP session. CraftHubApiError
  * messages are already human-readable; unknown errors are stringified.
  */
 export async function runTool(
@@ -23,7 +23,7 @@ export async function runTool(
   try {
     return await fn();
   } catch (err) {
-    if (err instanceof LinkHubApiError) return errorResult(err.message);
+    if (err instanceof CraftHubApiError) return errorResult(err.message);
     const detail = err instanceof Error ? err.message : String(err);
     return errorResult(`Unexpected error: ${detail}`);
   }

@@ -1,4 +1,4 @@
-# LinkHub Design Language
+# CraftHub Design Language
 
 This is the prescriptive reference for anything visual in `apps/web`. It is not a
 description of what the code happens to do — it is what the code is required to
@@ -73,7 +73,7 @@ The app uses the **class strategy**, declared in `index.css` as:
 ```
 
 `apps/web/src/lib/theme.ts` owns the toggle and persists the choice in
-`localStorage` under `linkhub-theme`.
+`localStorage` under `crafthub-theme`.
 
 **Every colour utility you write needs a `dark:` counterpart.** A missing
 `dark:` variant is the single most common visual bug in this repo, and it is
@@ -87,7 +87,7 @@ Rules:
 - Never test contrast in one theme only. Every token in this document is
   verified at 4.5:1 or better in **both**.
 - Do not use `dark:opacity-*` to fake a dark colour. Use the dark token.
-- Never force the `.dark` class directly to test — set `linkhub-theme` and
+- Never force the `.dark` class directly to test — set `crafthub-theme` and
   reload, so the real bootstrap path runs.
 
 ---

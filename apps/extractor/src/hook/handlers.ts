@@ -1,5 +1,5 @@
 import type { IngestActivityEventInput } from "@repo/schemas";
-import { LinkHubActivityClient } from "../api-client.js";
+import { CraftHubActivityClient } from "../api-client.js";
 import { loadConfig } from "../config.js";
 import {
   deliveryIdForAgentSession,
@@ -22,7 +22,7 @@ import { debounceKey, Spool } from "./spool.js";
  * A rule that outranks everything else in this file: **neither handler may ever
  * block or slow a Claude Code session.** Exit code 2 blocks the agent and any
  * other non-zero is a reported error, so every path here returns 0 — a
- * misconfigured LinkHub, an unreachable API, a corrupt spool and an unexpected
+ * misconfigured CraftHub, an unreachable API, a corrupt spool and an unexpected
  * exception all look the same to the user, which is: nothing happened.
  *
  * The handlers return a small result object instead of exiting, so the tests
@@ -244,7 +244,7 @@ export async function handleSessionEnd(
     if (records.length === 0) return { flushed: 0, duplicates: 0, reason: "empty_spool" };
 
     const config = loadConfig();
-    const client = new LinkHubActivityClient(config);
+    const client = new CraftHubActivityClient(config);
 
     let flushed = 0;
     let duplicates = 0;

@@ -169,6 +169,6 @@ runcmd:
   # Aplica o drop-in de SSH por último, para não derrubar a própria sessão do cloud-init.
   - [systemctl, restart, ssh]
 
-  - [touch, /var/lib/cloud/linkhub-bootstrap-done]
+  - [touch, /var/lib/cloud/crafthub-bootstrap-done]
 
 final_message: "Bootstrap concluído em $UPTIME s. Host pronto para o deploy do GitHub Actions."

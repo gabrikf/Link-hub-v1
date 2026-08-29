@@ -7,6 +7,8 @@ import {
 import { InMemoryProfileTabsRepository } from "../../../repositories/profile-tab/in-memory-profile-tabs-repository.js";
 import { InMemoryProfileBlocksRepository } from "../../../repositories/profile-block/in-memory-profile-block-repository.js";
 import { InMemoryUnitOfWork } from "../../../providers/unit-of-work/in-memory-unit-of-work.js";
+import { InMemoryUsersRepository } from "../../../repositories/user/in-memory-users-repository.js";
+import { UserEntity } from "../../../entity/user/user-entity.js";
 import { GetLayoutUseCase } from "./get-layout.use-case.js";
 
 // Derived rather than hard-coded so adding a default block is a one-line change
@@ -18,13 +20,48 @@ describe("GetLayoutUseCase", () => {
   let tabsRepository: InMemoryProfileTabsRepository;
   let blocksRepository: InMemoryProfileBlocksRepository;
   let unitOfWork: InMemoryUnitOfWork;
+  let usersRepository: InMemoryUsersRepository;
   let sut: GetLayoutUseCase;
 
-  beforeEach(() => {
+  /**
+   * The layout read now needs the owner's row: `tabsEnabled` is two columns on
+   * `users`, one per viewport, and only the user knows them.
+   */
+  async function seedUser(props?: {
+    tabsEnabledPc?: boolean;
+    tabsEnabledMobile?: boolean;
+  }) {
+    const now = new Date();
+    await usersRepository.create(
+      new UserEntity({
+        id: "user-1",
+        email: "user-1@example.com",
+        login: "user-1",
+        name: "User One",
+        password: "hashed",
+        description: null,
+        avatarUrl: null,
+        googleId: null,
+        tabsEnabledPc: props?.tabsEnabledPc,
+        tabsEnabledMobile: props?.tabsEnabledMobile,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+  }
+
+  beforeEach(async () => {
     tabsRepository = new InMemoryProfileTabsRepository();
     blocksRepository = new InMemoryProfileBlocksRepository();
     unitOfWork = new InMemoryUnitOfWork();
-    sut = new GetLayoutUseCase(tabsRepository, blocksRepository, unitOfWork);
+    usersRepository = new InMemoryUsersRepository();
+    sut = new GetLayoutUseCase(
+      tabsRepository,
+      blocksRepository,
+      unitOfWork,
+      usersRepository,
+    );
+    await seedUser();
   });
 
   it("seeds and persists a default layout for a single viewport", async () => {
@@ -106,5 +143,35 @@ describe("GetLayoutUseCase", () => {
     );
     expect(pcTabs).toHaveLength(1);
     expect(pcBlocks).toHaveLength(DEFAULT_BLOCK_COUNT);
+  });
+
+  describe("tabsEnabled travels per viewport", () => {
+    it("reports each viewport's own flag on the full layout", async () => {
+      usersRepository.clear();
+      await seedUser({ tabsEnabledPc: true, tabsEnabledMobile: false });
+
+      const layout = (await sut.execute("user-1")) as FullProfileLayout;
+
+      expect(layout.pc.tabsEnabled).toBe(true);
+      expect(layout.mobile.tabsEnabled).toBe(false);
+    });
+
+    it("reports the requested viewport's own flag on a single-viewport read", async () => {
+      usersRepository.clear();
+      await seedUser({ tabsEnabledPc: false, tabsEnabledMobile: true });
+
+      const pc = (await sut.execute("user-1", "pc")) as ProfileLayout;
+      const mobile = (await sut.execute("user-1", "mobile")) as ProfileLayout;
+
+      expect(pc.tabsEnabled).toBe(false);
+      expect(mobile.tabsEnabled).toBe(true);
+    });
+
+    it("defaults both viewports to true for an account that never set them", async () => {
+      const layout = (await sut.execute("user-1")) as FullProfileLayout;
+
+      expect(layout.pc.tabsEnabled).toBe(true);
+      expect(layout.mobile.tabsEnabled).toBe(true);
+    });
   });
 });

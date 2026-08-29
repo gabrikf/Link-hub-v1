@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   LoadingLabel,
   Skeleton,
@@ -62,9 +63,10 @@ type ReviewQueueSkeletonProps = {
 };
 
 export function ReviewQueueSkeleton({ count = 2 }: ReviewQueueSkeletonProps) {
+  const { t } = useTranslation();
   return (
     <>
-      <LoadingLabel>Loading posts waiting for review</LoadingLabel>
+      <LoadingLabel>{t("posts.loadingWaitingForReview")}</LoadingLabel>
       <ul className="grid gap-4">
         {Array.from({ length: count }, (_, index) => (
           <ReviewQueueCardSkeleton key={index} />

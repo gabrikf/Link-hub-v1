@@ -1,6 +1,6 @@
 ---
 name: spec-implement
-description: Use when IMPLEMENTING a LinkHub spec produced by #spec-writer. Reads the spec in docs/specs/[feature]/, plans the execution (sequential, or parallel via worktrees/subagents), implements task by task with continuous harness verification against this repo's real commands (build:schemas, check-types, lint-changed, vitest, visual scenarios), and delivers code ready for a GitHub PR. Supports --all-default.
+description: Use when IMPLEMENTING a CraftHub spec produced by #spec-writer. Reads the spec in docs/specs/[feature]/, plans the execution (sequential, or parallel via worktrees/subagents), implements task by task with continuous harness verification against this repo's real commands (build:schemas, check-types, lint-changed, vitest, visual scenarios), and delivers code ready for a GitHub PR. Supports --all-default.
 ---
 
 ## Spec Implement — From Spec to Finished Code
@@ -168,7 +168,7 @@ npm run dev:web                  # http://localhost:5173
 node scripts/visual/session.mjs login   # seed an authed storageState for the visual runner
 ```
 
-Seed users if you need them: `bash db-manage.sh seed-all` — recruiter `recruiter.seed@linkhub.local`, candidates `seed-<blueprint-slug>-<NN>` (e.g. `seed-react-frontend-003`), password `12345678` for all. Public profile: `/profile/seed-react-frontend-003`.
+Seed users if you need them: `bash db-manage.sh seed-all` — recruiter `recruiter.seed@crafthub.local`, candidates `seed-<blueprint-slug>-<NN>` (e.g. `seed-react-frontend-003`), password `12345678` for all. Public profile: `/profile/seed-react-frontend-003`.
 
 #### 2.4: G0 — the blocking liveness probe
 
@@ -497,7 +497,7 @@ This file is what makes it safe to pick the feature back up in a fresh session. 
 > **How to test:**
 > - `bash db-manage.sh start && npm run dev:api && npm run dev:web`
 > - [http://localhost:5173/[route]](http://localhost:5173/[route])
-> - Sign in as `recruiter.seed@linkhub.local` / `12345678` (or a `seed-*` candidate)
+> - Sign in as `recruiter.seed@crafthub.local` / `12345678` (or a `seed-*` candidate)
 > - Actions to try: [list]
 >
 > **Screens you need to check** (one per usage shape — only if shared code changed):
@@ -563,8 +563,8 @@ If Phase 1 selected the parallel strategy:
 #### Worktree setup
 
 ```bash
-git worktree add ../linkhub-wt-1 -b feat/[feature]-group-1
-git worktree add ../linkhub-wt-2 -b feat/[feature]-group-2
+git worktree add ../crafthub-wt-1 -b feat/[feature]-group-1
+git worktree add ../crafthub-wt-2 -b feat/[feature]-group-2
 ```
 
 Each worktree needs its own `npm install` and its own `npm run build:schemas` — the workspace symlinks and the built `dist/` do not carry across.
@@ -577,8 +577,8 @@ Each worktree needs its own `npm install` and its own `npm run build:schemas` �
 
 | Group | Worktree | Web port | API port | Branch |
 |-------|----------|-------|--------|--------|
-| 1 | `../linkhub-wt-1` | 5174 | 3334 | `feat/[feature]-group-1` |
-| 2 | `../linkhub-wt-2` | 5175 | 3335 | `feat/[feature]-group-2` |
+| 1 | `../crafthub-wt-1` | 5174 | 3334 | `feat/[feature]-group-1` |
+| 2 | `../crafthub-wt-2` | 5175 | 3335 | `feat/[feature]-group-2` |
 | main | repo root | 5173 | 3333 | `feat/[feature]` (integration) |
 
 Only one worktree at a time may hold the shared local Postgres/Redis. Groups that need the database must either be serialised or given their own database.
@@ -597,8 +597,8 @@ Only one worktree at a time may hold the shared local Postgres/Redis. Groups tha
 #### Cleanup
 
 ```bash
-git worktree remove ../linkhub-wt-1
-git worktree remove ../linkhub-wt-2
+git worktree remove ../crafthub-wt-1
+git worktree remove ../crafthub-wt-2
 ```
 
 ---

@@ -23,7 +23,7 @@ OpenAI-dependent api files excluded — the same scope CI runs.
 | `apps/extractor` | 85.89% | 77.68% | 97.56% | 85.89% | 6 |
 | `apps/training` | 99.01% | 86.54% | 100% | 98.96% | 9 |
 | `packages/schemas` | 41.12% | 81.57% | 77.77% | 41.12% | 6 |
-| `apps/mcp` | — | — | — | — | **0** |
+| `apps/mcp` | 95.56% | 99.2% | 100% | 95.56% | 7 |
 
 ## Floors currently enforced
 
@@ -34,7 +34,7 @@ OpenAI-dependent api files excluded — the same scope CI runs.
 | `apps/extractor` | 83 | 75 | 94 | 83 |
 | `apps/training` | 95 | 84 | 98 | 95 |
 | `packages/schemas` | 39 | 79 | 74 | 39 |
-| `apps/mcp` | 0 — no coverage config, no tests | | | |
+| `apps/mcp` | 92 | 96 | 97 | 92 |
 
 **Target is 70 across the board.**
 
@@ -62,18 +62,28 @@ number in a config file.
 
 ---
 
-## `apps/mcp` has no tests at all
+## `apps/mcp` — from zero tests to a floor
 
-Zero. It is a stdio MCP server and a thin HTTP client over the api, and it is
-the surface through which **coding agents publish to a user's public profile
-under a disclosure policy**. The blast radius of a bug there is "an agent said
-something about an employer that the user forbade", which is the worst failure
-this product has.
+It used to have none. It is a stdio MCP server and a thin HTTP client over the
+api, and it is the surface through which **coding agents publish to a user's
+public profile under a disclosure policy**. The blast radius of a bug there is
+"an agent said something about an employer that the user forbade", which is the
+worst failure this product has.
 
-It has no coverage floor because a floor of 0 is not a gate and any floor above
-0 fails immediately. What it needs is a first test — the disclosure-policy path
-specifically — and then a floor. Until then this is an honest gap, written down
-rather than averaged away.
+It now has 256 **characterization** tests across 7 files — they pin what the
+code does today, so a later refactor that changes disclosure behaviour fails
+loudly instead of silently. Nineteen of its twenty modules are at 100%.
+
+Read the caveat in the next section before treating 95% as safety. These tests
+were written by reading the implementation, which is exactly the way to write a
+regression net and exactly the wrong way to discover that the implementation is
+wrong in the first place. The disclosure rules in particular are pinned as
+*observed*, not as *specified*.
+
+The one uncovered module is `src/index.ts` (45 statements) — the stdio
+bootstrap. Covering it means spawning the process and speaking the protocol over
+a pipe, which belongs in an e2e, not in this suite. That is a deliberate gap,
+written down rather than averaged away.
 
 ---
 

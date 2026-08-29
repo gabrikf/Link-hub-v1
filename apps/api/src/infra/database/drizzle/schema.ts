@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   customType,
   date,
   index,
@@ -48,6 +49,23 @@ export const users = pgTable("users", {
   themeAccent: text("theme_accent"),
   themePreset: text("theme_preset"),
   openToWork: boolean("open_to_work").notNull().default(false),
+  /*
+   * "Simple mode" switch for the public profile: false renders no tab strip,
+   * only the first tab's blocks plus pinned ones.
+   *
+   * TWO columns, one per viewport, because `profile_tabs.viewport` already
+   * makes tabs per-viewport and the real use case is asymmetric: tabs on a wide
+   * desktop layout, one scrolling list on a phone. A single flag could not
+   * express that, and flipping it in one viewport silently flipped the other.
+   *
+   * These live on `users` ON PURPOSE, unlike `user_preferences` below: the
+   * public renderer cannot decide whether to draw the tab strip without them,
+   * so they travel in the public payload (inside `layout.pc` / `layout.mobile`)
+   * rather than staying private. Both default to true so every account that
+   * existed before these columns keeps exactly the behaviour it had.
+   */
+  tabsEnabledPc: boolean("tabs_enabled_pc").notNull().default(true),
+  tabsEnabledMobile: boolean("tabs_enabled_mobile").notNull().default(true),
   location: text("location"),
   persona: text("persona"),
   // How much an agent acting for this user may reveal about their work history.
@@ -62,6 +80,19 @@ export const users = pgTable("users", {
     .notNull()
     .default([]),
   password: text("password").notNull(),
+  /*
+   * When this address was proved, or NULL while it is still unproved.
+   *
+   * NOT derivable from `password`: that column is notNull and an OAuth signup
+   * gets a random hash nobody knows, so "has a password" is true for every row
+   * and says nothing about how the account was created. The OAuth signal is the
+   * absence of a `google_id` and of any `oauth_accounts` row.
+   *
+   * Nullable with no default, and migration 0022 backfills every pre-existing
+   * row to now(): a default of NULL alone would have locked ~301 seeded
+   * accounts and every real dev account out of password login on deploy.
+   */
+  emailVerifiedAt: timestamp("email_verified_at"),
   googleId: text("google_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
@@ -69,6 +100,77 @@ export const users = pgTable("users", {
     .defaultNow()
     .$onUpdateFn(() => new Date()),
 });
+
+/**
+ * One row per verification link ever emailed.
+ *
+ * Only the sha256 of the token is stored (`token_hash`), so this table is worth
+ * nothing to whoever reads it — the raw value lives in the user's inbox and
+ * nowhere else. Rows are single-use: `consumed_at` is stamped on the token that
+ * was spent AND on every other outstanding token for that user, so the older
+ * links sitting in the same inbox stop working the moment one succeeds.
+ */
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    // Both non-lookup reads are per user: the resend cooldown wants the newest
+    // row for one user, and a successful verify invalidates that user's others.
+    index("email_verification_tokens_user_id_created_at_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * One row per password-reset link ever emailed.
+ *
+ * A SEPARATE table from `email_verification_tokens` rather than a `purpose`
+ * column on it: the two have different lifetimes (20 minutes vs 24 hours) and
+ * very different blast radii — a leaked reset token IS the account — so keeping
+ * them apart means no query can ever accidentally accept one where the other
+ * was meant.
+ *
+ * Same rules otherwise: only the sha256 is stored, and `consumed_at` is stamped
+ * both when a link is issued (invalidating older ones) and when one is spent.
+ */
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    index("password_reset_tokens_user_id_created_at_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  ],
+);
 
 export const refreshTokens = pgTable("refresh_tokens", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -746,6 +848,67 @@ export const activityEvents = pgTable(
   ],
 );
 
+/**
+ * Private per-user interface preferences: rendering language and light/dark.
+ *
+ * WHY THIS IS A SEPARATE TABLE AND NOT TWO MORE COLUMNS ON `users`
+ *
+ * `profileSchema` in @repo/schemas is the response shape for BOTH `GET /me`
+ * and the fully public `GET /profile/:username`, and it is fed straight from a
+ * `users` row. Put `language` and `theme` on `users` and the natural next edit
+ * — adding them beside `themePreset`, which is already in that schema —
+ * silently publishes a person's UI language and dark-mode setting to every
+ * anonymous visitor of their profile. A separate table makes that leak require
+ * deliberate effort instead of being the path of least resistance, and gives
+ * the preference set somewhere to grow (notifications, email cadence) without
+ * widening the row that gets serialised publicly.
+ *
+ * `user_id` is the primary key AND the foreign key: 1:1 is enforced by the
+ * schema rather than by convention, the index comes free, and ON DELETE
+ * CASCADE means deleting a user cannot orphan a preference row.
+ *
+ * Both "follow the device" states are real stored values, not absences:
+ * `language IS NULL` and `theme = 'system'`. The rejected alternative — freeze
+ * the detected device value into the row on first login — reads as "saved" but
+ * strands a user who later flips their OS to dark mode in permanent light.
+ */
+export const userPreferences = pgTable(
+  "user_preferences",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** NULL = follow the device. See `uiLanguageSchema` in @repo/schemas. */
+    language: text("language"),
+    /** See `themePreferenceSchema` in @repo/schemas. */
+    theme: text("theme").notNull().default("system"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    /*
+     * The zod schemas at the HTTP edge already reject these values, but a
+     * migration, a seed script or a psql session does not go through zod. A
+     * stored `theme = 'sepia'` would be read back as a valid `ThemePreference`
+     * by every consumer and break at render time instead of at write time.
+     *
+     * Written as literal IN lists rather than a pg enum: adding a fourth locale
+     * is then an ALTER on one constraint, not a type migration.
+     */
+    check(
+      "user_preferences_language_check",
+      sql`${table.language} IS NULL OR ${table.language} IN ('en-US', 'pt-BR', 'es-ES')`,
+    ),
+    check(
+      "user_preferences_theme_check",
+      sql`${table.theme} IN ('light', 'dark', 'system')`,
+    ),
+  ],
+);
+
 export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   user: one(users, {
     fields: [refreshTokens.userId],
@@ -753,8 +916,31 @@ export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   }),
 }));
 
-export const userRelations = relations(users, ({ many }) => ({
+export const passwordResetTokenRelations = relations(
+  passwordResetTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [passwordResetTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const emailVerificationTokenRelations = relations(
+  emailVerificationTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [emailVerificationTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const userRelations = relations(users, ({ one, many }) => ({
+  preferences: one(userPreferences),
   refreshTokens: many(refreshTokens),
+  emailVerificationTokens: many(emailVerificationTokens),
+  passwordResetTokens: many(passwordResetTokens),
   oauthAccounts: many(oauthAccounts),
   links: many(links),
   posts: many(posts),
@@ -944,3 +1130,10 @@ export const candidateInteractionsRelations = relations(
     }),
   }),
 );
+
+export const userPreferencesRelations = relations(userPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [userPreferences.userId],
+    references: [users.id],
+  }),
+}));

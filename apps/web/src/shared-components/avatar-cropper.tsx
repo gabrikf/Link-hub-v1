@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import Cropper, { type Area, type Point } from "react-easy-crop";
+import { useTranslation } from "react-i18next";
 import {
   FiCheck,
   FiRotateCw,
@@ -60,6 +61,7 @@ function CropperDialog({
   onCancel,
   onCropped,
 }: AvatarCropperProps & { file: File }) {
+  const { t } = useTranslation();
   const reactId = useId();
   const zoomId = `avatar-cropper-zoom-${reactId}`;
 
@@ -126,7 +128,7 @@ function CropperDialog({
       setError(
         cropError instanceof Error
           ? cropError.message
-          : "We couldn't crop that image. Please try another file.",
+          : t("errors.imageCropFailed"),
       );
       setIsSaving(false);
     }
@@ -138,9 +140,9 @@ function CropperDialog({
       onOpenChange={(open) => {
         if (!open) onCancel();
       }}
-      title="Adjust your photo"
-      description="Drag to reposition, then zoom or rotate until it looks right. Only the circle is saved."
-      closeLabel="Cancel cropping"
+      title={t("image.adjustYourPhoto")}
+      description={t("image.cropperHelp")}
+      closeLabel={t("image.cancelCropping")}
       contentClassName="max-w-md"
       buttons={
         <>
@@ -151,7 +153,7 @@ function CropperDialog({
             onClick={onCancel}
             disabled={isSaving}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
@@ -159,10 +161,10 @@ function CropperDialog({
             onClick={() => void handleSave()}
             disabled={!hasCropArea}
             isLoading={isSaving}
-            loadingLabel="Saving…"
+            loadingLabel={t("common.saving")}
           >
             <FiCheck className="h-4 w-4" aria-hidden="true" />
-            Save photo
+            {t("image.savePhoto")}
           </Button>
         </>
       }
@@ -211,7 +213,7 @@ function CropperDialog({
               variant="icon"
               size="icon"
               fullWidth={false}
-              aria-label="Zoom out"
+              aria-label={t("image.zoomOut")}
               disabled={zoom <= MIN_ZOOM}
               onClick={() => setZoom((current) => clampZoom(current - ZOOM_STEP))}
             >
@@ -225,8 +227,8 @@ function CropperDialog({
               max={MAX_ZOOM}
               step={0.01}
               value={zoom}
-              aria-label="Zoom"
-              aria-valuetext={`${zoom.toFixed(1)}x`}
+              aria-label={t("image.zoom")}
+              aria-valuetext={t("image.zoomLevel", { zoom: zoom.toFixed(1) })}
               onChange={(event) => setZoom(clampZoom(Number(event.target.value)))}
               className={cx(
                 "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 accent-violet-600 dark:bg-zinc-700 dark:accent-violet-400",
@@ -239,7 +241,7 @@ function CropperDialog({
               variant="icon"
               size="icon"
               fullWidth={false}
-              aria-label="Zoom in"
+              aria-label={t("image.zoomIn")}
               disabled={zoom >= MAX_ZOOM}
               onClick={() => setZoom((current) => clampZoom(current + ZOOM_STEP))}
             >
@@ -249,7 +251,7 @@ function CropperDialog({
 
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Drag the photo to reposition it.
+              {t("image.dragToReposition")}
             </p>
             <Button
               type="button"
@@ -259,7 +261,7 @@ function CropperDialog({
               onClick={() => setRotation((current) => (current + 90) % 360)}
             >
               <FiRotateCw className="h-4 w-4" aria-hidden="true" />
-              Rotate 90°
+              {t("image.rotate90")}
             </Button>
           </div>
         </div>

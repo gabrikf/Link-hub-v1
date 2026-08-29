@@ -62,7 +62,7 @@ export function normalizeRepoIdentity(identity: string): string {
 
 /** `repoFingerprint` for an event. Accepts a remote URL or a local path. */
 export function fingerprintRepo(identity: string): string {
-  return sha256Hex(`linkhub:repo:${normalizeRepoIdentity(identity)}`);
+  return sha256Hex(`crafthub:repo:${normalizeRepoIdentity(identity)}`);
 }
 
 /**
@@ -73,7 +73,7 @@ export function fingerprintRepo(identity: string): string {
  * and never appears anywhere in the output.
  */
 export function fingerprintCounterparty(identity: string): string {
-  return sha256Hex(`linkhub:counterparty:${identity.trim().toLowerCase()}`);
+  return sha256Hex(`crafthub:counterparty:${identity.trim().toLowerCase()}`);
 }
 
 /**
@@ -95,7 +95,7 @@ export function deliveryIdForCommit(
   repoFingerprint: string,
   commitSha: string,
 ): string {
-  return sha256Hex(`linkhub:commit:${repoFingerprint}:${commitSha}`);
+  return sha256Hex(`crafthub:commit:${repoFingerprint}:${commitSha}`);
 }
 
 /**
@@ -112,6 +112,6 @@ export function deliveryIdForAgentSession(
   headSha: string,
 ): string {
   return sha256Hex(
-    `linkhub:agent-session:${repoFingerprint}:${sessionId}:${headSha}`,
+    `crafthub:agent-session:${repoFingerprint}:${sessionId}:${headSha}`,
   );
 }

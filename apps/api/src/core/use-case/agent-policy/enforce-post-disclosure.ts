@@ -7,14 +7,33 @@ import type { IWorkExperienceRepository } from "../../repositories/work-experien
 import {
   buildBlockedTerms,
   findDisclosureViolations,
+  resolveDisclosureCompanies,
   resolveEffectiveLevel,
 } from "./redact-work-disclosure.js";
 
-/** The text fields of a post that a reader (and therefore a recruiter) sees. */
+/**
+ * The fields of a post that a reader (and therefore a recruiter) sees.
+ *
+ * The URLs are here for the same reason the prose is: they are SERVED to
+ * anonymous readers. `externalUrl` is rendered as the post's `<a href>` on the
+ * public profile and `coverImageUrl`/`images` as its `<img src>`, so
+ * "github.com/acme-internal/..." publishes the employer just as plainly as
+ * writing the name in the body — and an agent attaching the PR link it just
+ * read is the ordinary case, not an attack.
+ *
+ * `metadata` is deliberately absent: it is stripped from the public projection
+ * (`publicPostResponseSchema` omits it) so it reaches no one but its owner. The
+ * digest path, which is the only writer that fills it, scans it separately in
+ * `assertTemplateIsClean`. If metadata ever starts being served, it belongs
+ * here.
+ */
 export interface PostDisclosureContent {
   title?: string | null;
   body?: string | null;
   tags?: string[] | null;
+  externalUrl?: string | null;
+  coverImageUrl?: string | null;
+  images?: string[] | null;
 }
 
 export interface EnforcePostDisclosureInput extends PostDisclosureContent {
@@ -38,10 +57,13 @@ function buildViolationMessage(
   const quoted = violations.map((term) => `"${term}"`).join(", ");
 
   return (
-    `Post mentions ${quoted}, which your disclosure level (${level}) does not allow. ` +
+    `Post mentions ${quoted}, which your disclosure settings do not allow. ` +
+    `Each employer follows the level of its own role (this post's level is "${level}") ` +
+    `and your own blocked terms always apply, so raising one role never un-blocks another. ` +
     `Describe the capability without naming the employer or client — what you built, ` +
-    `the stack, the practices and the outcome are all still allowed — or raise your ` +
-    `disclosure level in LinkHub settings under "What your agent may share".`
+    `the stack, the practices and the outcome are all still allowed — or raise the ` +
+    `disclosure level of the role in question in CraftHub settings under ` +
+    `"What your agent may share".`
   );
 }
 
@@ -68,20 +90,28 @@ export function assertPostRespectsDisclosure(
     role?.disclosureLevel,
   );
 
+  // Per employer, never a single level for the whole list: attributing the post
+  // to a `full` role must not un-block the employer still sitting at `summary`.
   const blockedTerms = buildBlockedTerms({
-    level,
-    companyNames: input.workExperiences.map((item) => item.companyName),
+    companies: resolveDisclosureCompanies(
+      input.user.agentDisclosureLevel,
+      input.workExperiences,
+    ),
     userBlockedTerms: input.user.agentBlockedTerms,
   });
 
   if (blockedTerms.length === 0) return;
 
-  // Tags are joined with a separator that can't create an accidental match
-  // across two tags, then scanned as one string.
+  // Every field is joined with a separator that can't create an accidental
+  // match across two of them, then scanned as one string. A newline is not a
+  // letter/digit/underscore, so it reads as a word boundary to the matcher.
   const haystack = [
     input.title ?? "",
     input.body ?? "",
     ...(input.tags ?? []),
+    input.externalUrl ?? "",
+    input.coverImageUrl ?? "",
+    ...(input.images ?? []),
   ].join("\n");
 
   const violations = findDisclosureViolations(haystack, blockedTerms);

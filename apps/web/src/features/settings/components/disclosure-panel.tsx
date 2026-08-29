@@ -3,6 +3,7 @@ import {
   type AgentDisclosureLevel,
 } from "@repo/schemas";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiAlertTriangle,
   FiCheck,
@@ -47,6 +48,7 @@ type LevelCardProps = {
  * into the agent's tool descriptions, and two versions of it would drift.
  */
 function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
+  const { t } = useTranslation();
   const descriptionId = `disclosure-level-${level.value}-description`;
 
   return (
@@ -87,7 +89,7 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGE.neutral}`}
           >
-            Default
+            {t("common.default")}
           </span>
         ) : null}
       </span>
@@ -100,7 +102,7 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
       </span>
 
       <span className="mt-3 block text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-        Your agent may share
+        {t("settings.disclosure.mayShare")}
       </span>
       <ul className="mt-1 space-y-1">
         {level.allows.map((item) => (
@@ -118,7 +120,7 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
       </ul>
 
       <span className="mt-3 block text-xs font-semibold text-red-700 dark:text-red-300">
-        Never shared
+        {t("settings.disclosure.neverShared")}
       </span>
       {level.blocks.length > 0 ? (
         <ul className="mt-1 space-y-1">
@@ -137,7 +139,7 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
         </ul>
       ) : (
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-          Nothing beyond the blocked terms you add below.
+          {t("settings.disclosure.nothingBeyondBlocked")}
         </p>
       )}
     </button>
@@ -151,6 +153,7 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
  * advice, which is why the copy is allowed to promise rather than hedge.
  */
 export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
+  const { t } = useTranslation();
   const policyQuery = useAgentPolicy(enabled);
   const workExperiencesQuery = useWorkExperiencesForPolicy(enabled);
   const updatePolicy = useUpdateAgentPolicy();
@@ -184,7 +187,7 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
     const term = termDraft.trim();
 
     if (term.length < 2) {
-      setTermError("Enter at least 2 characters.");
+      setTermError(t("settings.disclosure.termTooShort"));
       return;
     }
 
@@ -195,7 +198,7 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
         (existing) => existing.toLowerCase() === term.toLowerCase(),
       )
     ) {
-      setTermError("That term is already blocked.");
+      setTermError(t("settings.disclosure.termDuplicate"));
       return;
     }
 
@@ -238,23 +241,17 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
         </span>
         <div className="space-y-1">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            What your agent may share
+            {t("settings.connect.whatAgentMayShare")}
           </h2>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Your coding agent can describe what you built without naming who you
-            built it for. LinkHub enforces this on the server: a post that names
-            a blocked employer or client is rejected outright, and the work
-            history your agent can read is redacted before it leaves LinkHub.
+            {t("settings.disclosure.intro")}
           </p>
         </div>
       </div>
 
       {policyQuery.isError ? (
-        <p
-          role="alert"
-          className="mt-4 text-sm text-red-600 dark:text-red-400"
-        >
-          Could not load your disclosure settings. Please try again.
+        <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-400">
+          {t("settings.disclosure.loadFailed")}
         </p>
       ) : null}
 
@@ -263,14 +260,17 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
           role="alert"
           className="mt-4 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200"
         >
-          <FiAlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          Could not save that change. Your previous setting is still in force.
+          <FiAlertTriangle
+            className="mt-0.5 h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+          {t("settings.disclosure.saveFailed")}
         </p>
       ) : null}
 
       <div
         role="radiogroup"
-        aria-label="Disclosure level"
+        aria-label={t("settings.disclosure.levelLabel")}
         className="mt-5 grid gap-3 lg:grid-cols-3"
       >
         {AGENT_DISCLOSURE_LEVELS.map((level) => (
@@ -287,21 +287,18 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
       <div className={`mt-6 p-4 ${SURFACE_INSET}`}>
         <h3 className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
           <FiLock className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Blocked terms
+          {t("settings.disclosure.blockedTerms")}
         </h3>
         <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-          Words your agent must never publish, whatever the level above —
-          including Full. Client codenames, internal project names, unreleased
-          products. Matching ignores case and only hits whole words, so
-          &quot;Sun&quot; will not redact &quot;sunset&quot;.
+          {t("settings.disclosure.blockedTermsHelp")}
         </p>
 
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div className="min-w-[12rem] flex-1">
             <Input
               id="blocked-term"
-              label="Add a term"
-              placeholder="e.g. Project Falcon"
+              label={t("settings.disclosure.addTerm")}
+              placeholder={t("settings.disclosure.termPlaceholder")}
               value={termDraft}
               error={termError ?? undefined}
               onChange={(event) => {
@@ -317,11 +314,11 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
             fullWidth={false}
             className="mb-0.5 shrink-0"
             isLoading={updatePolicy.isPending}
-            loadingLabel="Saving..."
+            loadingLabel={t("common.saving")}
             onClick={handleAddTerm}
           >
             <FiPlus className="h-4 w-4" aria-hidden="true" />
-            Add
+            {t("common.add")}
           </Button>
         </div>
 
@@ -335,7 +332,7 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
                   {term}
                   <button
                     type="button"
-                    aria-label={`Remove ${term}`}
+                    aria-label={t("settings.disclosure.removeTerm", { term })}
                     disabled={updatePolicy.isPending}
                     onClick={() => handleRemoveTerm(term)}
                     className={cx(
@@ -351,26 +348,24 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
           </ul>
         ) : (
           <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-500">
-            No blocked terms yet.
+            {t("settings.disclosure.noTerms")}
           </p>
         )}
       </div>
 
       <div className={`mt-4 p-4 ${SURFACE_INSET}`}>
         <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          Per-employer overrides
+          {t("settings.disclosure.perEmployer")}
         </h3>
         <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-          One job at a time. Your open-source role can be Full while a
-          consulting client stays on Summary. Anything left on
-          &quot;Account default&quot; follows the level you picked above.
+          {t("settings.disclosure.perEmployerHelp")}
         </p>
 
         {roles.length === 0 ? (
           <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-500">
             {workExperiencesQuery.isLoading
-              ? "Loading your roles..."
-              : "Add work experience to your profile to set per-employer rules."}
+              ? t("settings.disclosure.loadingRoles")
+              : t("settings.disclosure.noRoles")}
           </p>
         ) : (
           <ul className="mt-3 space-y-2">
@@ -394,7 +389,7 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
                       htmlFor={selectId}
                       className="text-xs text-zinc-600 dark:text-zinc-400"
                     >
-                      Level
+                      {t("common.level")}
                     </label>
                     <select
                       id={selectId}
@@ -408,7 +403,9 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
                         FOCUS_RING,
                       )}
                     >
-                      <option value={INHERIT}>Account default</option>
+                      <option value={INHERIT}>
+                        {t("settings.connectionDialog.accountDefault")}
+                      </option>
                       {AGENT_DISCLOSURE_LEVELS.map((level) => (
                         <option key={level.value} value={level.value}>
                           {level.label}

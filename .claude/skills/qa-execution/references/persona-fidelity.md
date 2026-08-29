@@ -42,7 +42,7 @@ Wherever the session produces text a product surface or agent under test will co
 
 The persona writes what a real person with their goal would write. A recruiter pastes a real job description, not "test JD 1". A developer's post says what they built. If a session note needs meta-language, it goes in the session log — never into the product.
 
-This matters double here because **LinkHub has an agent inside it**. An agent told it is being tested behaves differently — and the disclosure policy is precisely the surface where a self-conscious agent over-redacts and hides the bug. The session's prompts must be indistinguishable from real usage: one in-persona kickoff with a real goal, then observation.
+This matters double here because **CraftHub has an agent inside it**. An agent told it is being tested behaves differently — and the disclosure policy is precisely the surface where a self-conscious agent over-redacts and hides the bug. The session's prompts must be indistinguishable from real usage: one in-persona kickoff with a real goal, then observation.
 
 ## Stall is a finding
 
@@ -60,7 +60,7 @@ One caveat worth knowing before filing: three API test files hang for 60-90 seco
 
 Real product work uses words that look meta but aren't — don't over-block:
 
-- "review", "approve", "reject" — LinkHub's post review queue is literally about reviewing and approving. Using those flows is real usage.
+- "review", "approve", "reject" — CraftHub's post review queue is literally about reviewing and approving. Using those flows is real usage.
 - "disclosure", "policy", "blocked term" — the product's own vocabulary, on the product's own settings screen.
 - "test" — when it names a real artifact inside a persona whose job includes it (a developer's post about writing tests is a real post).
 

@@ -99,7 +99,7 @@ describe("SharpImageOptimizerProvider", () => {
         background: { r: 10, g: 10, b: 10 },
       },
     })
-      .withExif({ IFD0: { Copyright: "linkhub", Software: "test-camera" } })
+      .withExif({ IFD0: { Copyright: "crafthub", Software: "test-camera" } })
       .jpeg()
       .toBuffer();
 

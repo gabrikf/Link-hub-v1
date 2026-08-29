@@ -135,6 +135,33 @@ describe("OAuthSignInUseCase", () => {
     expect(linkedAccount?.providerAccountId).toBe(validInput.providerAccountId);
   });
 
+  it("links existing user when the provider email differs only by case", async () => {
+    // The account was created by hand with capitals; Google hands the same
+    // mailbox back lowercased. It must be one account, not two.
+    const existingUser = UserEntity.create({
+      email: "Case.Split@Example.com",
+      login: "local-user",
+      name: "Local Name",
+      password: "hashed-password",
+      description: null,
+      avatarUrl: null,
+      googleId: null,
+    });
+    await usersRepository.create(existingUser);
+
+    const lowercaseFromProvider: IOAuthSignInUseCaseInput = {
+      ...validInput,
+      email: "case.split@example.com",
+    };
+    vi.mocked(mockValidator).mockReturnValue(lowercaseFromProvider);
+
+    const result = await sut.execute(lowercaseFromProvider);
+
+    expect(result.isNewUser).toBe(false);
+    expect(result.user.id).toBe(existingUser.id);
+    expect(usersRepository.count()).toBe(1);
+  });
+
   it("throws when provider email is not verified", async () => {
     vi.mocked(mockValidator).mockReturnValue({
       ...validInput,
@@ -146,5 +173,78 @@ describe("OAuthSignInUseCase", () => {
     );
     expect(usersRepository.count()).toBe(0);
     expect(refreshTokenRepository.count()).toBe(0);
+  });
+
+
+  describe("email verification", () => {
+    it("marks a brand-new OAuth account verified at creation", async () => {
+      vi.mocked(mockValidator).mockReturnValue(validInput);
+
+      const result = await sut.execute(validInput);
+
+      // The provider already confirmed the mailbox (the guard at the top of the
+      // use case refuses an unconfirmed one), so asking the user to prove it a
+      // second time by email would be theatre.
+      expect(result.user.emailVerified).toBe(true);
+      expect(usersRepository.getAll()[0].emailVerifiedAt).toBeInstanceOf(Date);
+    });
+
+    it("rescues an UNVERIFIED password account that signs in with the same address", async () => {
+      // The escape hatch: someone registered with a password, never got the
+      // email, and signs in with Google instead. Linking the provider proves
+      // the address, so they are simply in.
+      const passwordUser = UserEntity.create({
+        email: validInput.email,
+        login: "password-user",
+        name: "Password User",
+        password: "hashed_password123",
+        description: null,
+        avatarUrl: null,
+        emailVerifiedAt: null,
+        googleId: null,
+      });
+      await usersRepository.create(passwordUser);
+
+      vi.mocked(mockValidator).mockReturnValue(validInput);
+
+      const result = await sut.execute(validInput);
+
+      expect(result.isNewUser).toBe(false);
+      expect(result.user.id).toBe(passwordUser.id);
+      expect(result.user.emailVerified).toBe(true);
+      expect(usersRepository.getAll()[0].emailVerifiedAt).toBeInstanceOf(Date);
+      // Still one account — the link did not create a second one.
+      expect(usersRepository.count()).toBe(1);
+    });
+
+    it("does not rewrite the verification date on a returning user", async () => {
+      const verifiedAt = new Date("2026-01-01T00:00:00.000Z");
+      const existing = UserEntity.create({
+        email: validInput.email,
+        login: "returning",
+        name: "Returning",
+        password: "hashed_password123",
+        description: null,
+        avatarUrl: null,
+        emailVerifiedAt: verifiedAt,
+        googleId: null,
+      });
+      await usersRepository.create(existing);
+      await oauthAccountRepository.create(
+        OAuthAccountEntity.create({
+          userId: existing.id,
+          provider: validInput.provider,
+          providerAccountId: validInput.providerAccountId,
+        }),
+      );
+
+      vi.mocked(mockValidator).mockReturnValue(validInput);
+
+      await sut.execute(validInput);
+
+      // Otherwise "when was this address proved" silently degrades into
+      // "when did they last sign in".
+      expect(usersRepository.getAll()[0].emailVerifiedAt).toEqual(verifiedAt);
+    });
   });
 });

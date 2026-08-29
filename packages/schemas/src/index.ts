@@ -19,6 +19,10 @@ export * from "./links/index.js";
 export * from "./posts/index.js";
 export * from "./profile-blocks/index.js";
 export * from "./profile/index.js";
+// Per-user interface preferences (UI language + light/dark). Deliberately NOT
+// part of ./profile: that module's `profileSchema` is served publicly at
+// /profile/:username, and these are private.
+export * from "./preferences/index.js";
 export * from "./resume/index.js";
 export * from "./work-experience/index.js";
 export * from "./ai-import/index.js";

@@ -90,13 +90,13 @@ A pull request with only the filled state is incomplete.
 
 Class strategy: `@custom-variant dark (&:where(.dark, .dark *))` in `index.css`,
 toggled by `src/lib/theme.ts`, persisted in `localStorage` under
-`linkhub-theme`.
+`crafthub-theme`.
 
 **Every colour utility needs a `dark:` counterpart.** This is the most common
 visual bug in the repo and it is invisible to anyone developing in light mode —
 the element just renders white-on-white for half the users.
 
-To test dark mode, set `linkhub-theme` and reload. Never force the `.dark` class
+To test dark mode, set `crafthub-theme` and reload. Never force the `.dark` class
 directly: that bypasses `applyTheme`, so a broken theme bootstrap would still
 look perfect.
 

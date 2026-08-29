@@ -1,5 +1,6 @@
 import { videoBlockConfigSchema, type VideoBlockConfig } from "@repo/schemas";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
@@ -30,6 +31,7 @@ export function VideoBlockDialog({
   isSubmitting = false,
   onSubmit,
 }: VideoBlockDialogProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export function VideoBlockDialog({
 
   const handleSave = async () => {
     if (!provider) {
-      setError("Enter a valid YouTube or Vimeo URL.");
+      setError(t("layout.videoBlock.invalidUrl"));
       return;
     }
 
@@ -57,7 +59,9 @@ export function VideoBlockDialog({
     });
 
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Invalid video block.");
+      setError(
+        parsed.error.issues[0]?.message ?? t("layout.videoBlock.invalid"),
+      );
       return;
     }
 
@@ -69,27 +73,34 @@ export function VideoBlockDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={initialConfig ? "Edit video block" : "Add video block"}
+      title={
+        initialConfig ? t("layout.videoBlock.edit") : t("layout.videoBlock.add")
+      }
     >
       <div className="space-y-4">
         <Input
           id="video-block-title"
-          label="Title (optional)"
+          label={t("common.titleOptional")}
           value={title}
           maxLength={120}
           onChange={(event) => setTitle(event.target.value)}
         />
         <Input
           id="video-block-url"
-          label="Video URL (YouTube or Vimeo)"
+          label={t("layout.videoBlock.urlLabel")}
           value={url}
-          placeholder="https://www.youtube.com/watch?v=..."
+          placeholder={t("layout.videoBlock.urlPlaceholder")}
           onChange={(event) => setUrl(event.target.value)}
         />
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           {provider
-            ? `Detected provider: ${provider === "youtube" ? "YouTube" : "Vimeo"}`
-            : "Paste a YouTube or Vimeo link."}
+            ? t("layout.videoBlock.detectedProvider", {
+                provider:
+                  provider === "youtube"
+                    ? t("enum.platform.youtube")
+                    : t("enum.platform.vimeo"),
+              })
+            : t("layout.videoBlock.pasteLink")}
         </p>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="flex justify-end gap-2">
@@ -99,16 +110,16 @@ export function VideoBlockDialog({
             fullWidth={false}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             isLoading={isSubmitting}
-            loadingLabel="Saving"
+            loadingLabel={t("common.saving")}
             onClick={handleSave}
           >
-            Save
+            {t("common.save")}
           </Button>
         </div>
       </div>

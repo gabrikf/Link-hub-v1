@@ -21,10 +21,10 @@ function sha256(value: string): string {
 describe("repo-fingerprint — parity with the extractor", () => {
   it("reproduces the extractor's prefixed hash inputs exactly", () => {
     expect(repoFingerprintInput("git@github.com:acme/thing.git")).toBe(
-      "linkhub:repo:github.com/acme/thing",
+      "crafthub:repo:github.com/acme/thing",
     );
     expect(counterpartyFingerprintInput(" Bob@Acme.com ")).toBe(
-      "linkhub:counterparty:bob@acme.com",
+      "crafthub:counterparty:bob@acme.com",
     );
   });
 

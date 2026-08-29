@@ -59,12 +59,12 @@ export function normalizeRepoIdentity(identity: string): string {
 }
 
 /**
- * The exact string whose sha-256 is a `repoFingerprint`. The `linkhub:repo:`
+ * The exact string whose sha-256 is a `repoFingerprint`. The `crafthub:repo:`
  * prefix domain-separates it from every other hash in the product, so a repo
  * fingerprint can never collide with a counterparty's or a token's.
  */
 export function repoFingerprintInput(identity: string): string {
-  return `linkhub:repo:${normalizeRepoIdentity(identity)}`;
+  return `crafthub:repo:${normalizeRepoIdentity(identity)}`;
 }
 
 /**
@@ -74,5 +74,5 @@ export function repoFingerprintInput(identity: string): string {
  * — mirroring the extractor, which already applies the same folding.
  */
 export function counterpartyFingerprintInput(identity: string): string {
-  return `linkhub:counterparty:${identity.trim().toLowerCase()}`;
+  return `crafthub:counterparty:${identity.trim().toLowerCase()}`;
 }

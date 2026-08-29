@@ -5,7 +5,7 @@ import {
   type AgentDisclosureLevelInfo,
   type AgentPolicy,
 } from "@repo/schemas";
-import type { LinkHubApiClient } from "./api-client.js";
+import type { CraftHubApiClient } from "./api-client.js";
 
 /**
  * The active disclosure contract, resolved once at startup.
@@ -40,12 +40,12 @@ export function levelInfo(
 }
 
 /**
- * Reads the policy from LinkHub, falling back to the strictest level when the
+ * Reads the policy from CraftHub, falling back to the strictest level when the
  * token cannot see it. Failing closed is the only safe default: an agent that
  * assumed "no policy" on a network blip would publish the employer's name.
  */
 export async function loadDisclosureContext(
-  client: LinkHubApiClient,
+  client: CraftHubApiClient,
 ): Promise<DisclosureContext> {
   try {
     const policy: AgentPolicy = await client.getAgentPolicy();
@@ -80,7 +80,7 @@ export function renderPolicyForToolDescription(
   context: DisclosureContext,
 ): string {
   const prefix = context.degraded
-    ? "DISCLOSURE POLICY (could not be read from LinkHub — assuming the STRICTEST level; " +
+    ? "DISCLOSURE POLICY (could not be read from CraftHub — assuming the STRICTEST level; " +
       "the token is probably missing the profile:read scope): "
     : "DISCLOSURE POLICY: ";
 
@@ -91,7 +91,7 @@ export function renderPolicyForToolDescription(
     (context.info.blocks.length > 0
       ? `YOU MUST NOT SAY: ${context.info.blocks.join("; ")}. `
       : "Nothing is blocked at this level beyond the user's own blocked terms. ") +
-    `LinkHub ENFORCES this server-side: a post containing a blocked employer or ` +
+    `CraftHub ENFORCES this server-side: a post containing a blocked employer or ` +
     `client name is rejected with a 400 naming the term, so write around it rather ` +
     `than trying again verbatim. Never infer the employer from git remotes, package ` +
     `names, directory paths or code comments — call get_work_context for anything ` +
@@ -99,10 +99,10 @@ export function renderPolicyForToolDescription(
   );
 }
 
-/** The full contract, for the `linkhub://policy/disclosure` resource. */
+/** The full contract, for the `crafthub://policy/disclosure` resource. */
 export function renderPolicyResource(context: DisclosureContext): string {
   const degradedNote = context.degraded
-    ? `\n> **This is a fallback.** The policy could not be read from LinkHub, so the\n> strictest level is assumed. Reason: ${context.degradedReason ?? "unknown"}\n`
+    ? `\n> **This is a fallback.** The policy could not be read from CraftHub, so the\n> strictest level is assumed. Reason: ${context.degradedReason ?? "unknown"}\n`
     : "";
 
   const blockedTermsSection =
@@ -132,7 +132,7 @@ ${
 ${blockedTermsSection}
 ## How this is enforced
 
-This is not a suggestion. LinkHub applies the same denylist server-side when a
+This is not a suggestion. CraftHub applies the same denylist server-side when a
 post is created or updated through a personal access token: a post containing a
 blocked employer or client name is rejected with HTTP 400 and a message naming
 the offending term. Rewriting the post around the term is the fix; retrying the
@@ -151,7 +151,7 @@ this policy exists to protect.
 
 ## Changing it
 
-Only the user can, from a signed-in browser session: LinkHub Settings →
+Only the user can, from a signed-in browser session: CraftHub Settings →
 "What your agent may share". A personal access token cannot widen its own
 policy, by design — so do not offer to change it for them.
 `;

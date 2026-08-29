@@ -56,9 +56,20 @@ output "cloudflare_zone_id" {
 # -------------------------------------------------------------------------------------
 # Origin Certificate
 #
-# Estes dois vão para o servidor como /etc/caddy/origin.pem e /etc/caddy/origin.key,
-# entregues pelo GitHub Actions (guarde-os como secrets do repositório). O trecho de
-# Caddyfile que os consome está no README.
+# Estes dois viram DOIS SECRETS DO REPOSITÓRIO, em base64, e o job de deploy os escreve
+# no servidor a cada release. O passo existe de verdade — "Entregar o Origin Certificate"
+# em .github/workflows/deploy.yml — e o Caddyfile os consome com a diretiva `tls`.
+#
+# Como preencher os secrets (base64 numa linha só; o `envs:` do appleboy/ssh-action não
+# atravessa valor multi-linha, e um PEM é multi-linha por definição):
+#
+#     terraform output -raw origin_certificate | base64 -w0   # -> CADDY_ORIGIN_CERT_B64
+#     terraform output -raw origin_private_key | base64 -w0   # -> CADDY_ORIGIN_KEY_B64
+#
+# No macOS o flag é `base64` sem -w0 (ele já não quebra linha).
+#
+# base64 NÃO é criptografia — é só transporte. O sigilo continua sendo o do GitHub
+# Secrets.
 # -------------------------------------------------------------------------------------
 
 output "origin_certificate" {
@@ -84,6 +95,16 @@ output "origin_certificate_expires_on" {
 output "r2_uploads_bucket" {
   description = "Nome do bucket R2 de uploads."
   value       = cloudflare_r2_bucket.uploads.name
+}
+
+output "s3_public_base_url" {
+  description = "Vai em S3_PUBLIC_BASE_URL no .env.production. É a URL que acaba no src de cada <img>; o endpoint S3 NÃO serve para isso, porque exige assinatura em cada GET."
+  value       = "https://${local.media_hostname}"
+}
+
+output "media_domain_status" {
+  description = "Status do domínio customizado do bucket R2. Só quando ficar 'active' as imagens carregam; antes disso o upload grava e a leitura dá 404."
+  value       = cloudflare_r2_custom_domain.uploads.status
 }
 
 output "s3_endpoint" {
@@ -129,4 +150,33 @@ output "pages_repo_connected_by_terraform" {
 output "http_allowed_source_ips" {
   description = "CIDRs que podem falar 80/443 com a origem. Quando restrict_http_to_cloudflare é true, é a lista oficial de ranges da Cloudflare."
   value       = local.http_source_ips
+}
+
+# -------------------------------------------------------------------------------------
+# E-mail
+# -------------------------------------------------------------------------------------
+
+output "email_dns_managed" {
+  description = "false significa que var.email_provider está null e NENHUM registro de e-mail (SPF/DKIM/DMARC/MX) é gerenciado — o domínio continua falsificável e a API precisa rodar com MAIL_TRANSPORT=log."
+  value       = var.email_provider != null
+}
+
+output "email_dns_records" {
+  description = "Os registros de e-mail que este diretório gerencia, para conferir contra o painel do provedor. Vazio quando email_provider é null."
+  value = var.email_provider == null ? [] : concat(
+    [
+      "TXT  ${local.email_sending_hostname}  ->  v=spf1 include:${var.email_provider.spf_include} ${var.email_provider.spf_qualifier}",
+      "TXT  _dmarc.${var.domain}  ->  v=DMARC1; p=${var.email_provider.dmarc_policy}; rua=mailto:${var.email_provider.dmarc_report_email}; fo=1",
+      "${var.email_provider.dkim_record_type}  ${var.email_provider.dkim_record_name}.${var.domain}  ->  ${var.email_provider.dkim_record_value}",
+    ],
+    [
+      for record in var.email_provider.mx :
+      "MX   ${local.email_sending_hostname}  ->  ${record.host} (prioridade ${record.priority})"
+    ],
+  )
+}
+
+output "app_pages_domain_status" {
+  description = "Status do domínio customizado no projeto Pages. 'active' é o que faz app.<domínio> realmente servir o site; 'pending' significa que a Cloudflare ainda está validando a posse pelo DNS."
+  value       = cloudflare_pages_domain.app.status
 }

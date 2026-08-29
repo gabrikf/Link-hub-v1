@@ -1,3 +1,5 @@
+import i18n from "../i18n";
+
 /**
  * Client-side rasteriser for the avatar cropper.
  *
@@ -50,7 +52,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     image.crossOrigin = "anonymous";
     image.onload = () => resolve(image);
     image.onerror = () =>
-      reject(new Error("We couldn't read that image. Please try another file."));
+      reject(new Error(i18n.t("errors.imageUnreadable")));
     image.src = src;
   });
 }
@@ -58,9 +60,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 function getContext2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const context = canvas.getContext("2d");
   if (!context) {
-    throw new Error(
-      "Your browser couldn't process this image. Try a different browser.",
-    );
+    throw new Error(i18n.t("errors.imageBrowserUnsupported"));
   }
   return context;
 }
@@ -91,7 +91,7 @@ async function encodeBest(canvas: HTMLCanvasElement): Promise<Blob> {
     return jpeg;
   }
 
-  throw new Error("We couldn't process that image. Please try another file.");
+  throw new Error(i18n.t("errors.imageProcessingFailed"));
 }
 
 /** Strips any existing extension so we can append the one we actually encoded. */

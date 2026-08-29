@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 const created: string[] = [];
 
 /** An empty repository on a known branch, with commit signing disabled. */
-export function createTempRepo(prefix = "linkhub-extractor-"): string {
+export function createTempRepo(prefix = "crafthub-extractor-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   created.push(dir);
   run(dir, ["init", "--quiet", "--initial-branch=main"]);
@@ -114,7 +114,7 @@ export function cleanupTempRepos(): void {
 }
 
 /** A scratch directory that is not a git repository (spool dirs, output files). */
-export function createTempDir(prefix = "linkhub-scratch-"): string {
+export function createTempDir(prefix = "crafthub-scratch-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   created.push(dir);
   return dir;

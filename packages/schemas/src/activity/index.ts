@@ -6,7 +6,7 @@ import { agentDisclosureLevelSchema } from "../agent-policy/index.js";
  *
  * The shapes here are written defensively on purpose: the ingestion endpoints
  * are reachable by a Claude Code hook, a forge webhook and a local CLI, none of
- * which LinkHub controls. Anything this module does not accept cannot be
+ * which CraftHub controls. Anything this module does not accept cannot be
  * persisted, which makes the schema — not a code review — the thing that keeps
  * repo names, commit messages and third-party identities out of the database.
  */

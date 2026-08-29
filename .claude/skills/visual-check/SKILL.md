@@ -143,7 +143,7 @@ The runner default-exports one async function and hands it a context object:
 export const requiresAuth = true;   // default is false
 ```
 
-Unlike a fully gated corporate app, **linkhub has genuinely public pages**. `/profile/$username`
+Unlike a fully gated corporate app, **crafthub has genuinely public pages**. `/profile/$username`
 renders for anonymous visitors and is the reference scenario precisely because it needs no session.
 Everything under `/dashboard` does. Declare `requiresAuth = true` there so a dead session fails fast
 with guidance instead of producing six screenshots of the auth screen.
@@ -186,9 +186,9 @@ npm run visual:check
 
 `npm run visual:login` performs a **programmatic** login against `POST http://localhost:3333/auth/login`
 and writes a Playwright `storageState` to `.playwright/auth.json` containing the
-`linkhub.auth.tokens` localStorage entry. Credentials come from the environment —
+`crafthub.auth.tokens` localStorage entry. Credentials come from the environment —
 `VISUAL_EMAIL` / `VISUAL_PASSWORD` — and default to the seeded recruiter
-(`recruiter.seed@linkhub.local`). Seed the database first if that user does not exist:
+(`recruiter.seed@crafthub.local`). Seed the database first if that user does not exist:
 
 ```bash
 bash db-manage.sh seed-all
@@ -350,7 +350,7 @@ table forces you to look at each dimension.
 | Components | the primitives in `apps/web/src/shared-components/` (`Button`, `Dialog`, `Input`, `Select`, `Skeleton`, `Avatar`, …) where one fits, not a hand-rolled div |
 | **Dark mode** | **every surface, border, text color and icon has a `dark:` variant and is legible (§3)** |
 | States | the 4 states exist and are styled; buttons show loading/disabled correctly |
-| Content | no raw placeholder text on screen. linkhub has no i18n — strings are hardcoded English, so a wrong string is a wrong string, not a missing key |
+| Content | no raw placeholder text on screen. crafthub has no i18n — strings are hardcoded English, so a wrong string is a wrong string, not a missing key |
 | Empty data | nothing shows `undefined`, `NaN`, `null`, `Invalid Date`, or an empty box |
 
 For a "must not change" check, diff the accessibility trees instead of squinting at two PNGs — dump
@@ -428,7 +428,7 @@ not check the thing most likely to be broken.
 
 `apps/web/src/lib/theme.ts`:
 
-- `initializeTheme()` reads `localStorage["linkhub-theme"]` and falls back to
+- `initializeTheme()` reads `localStorage["crafthub-theme"]` and falls back to
   `prefers-color-scheme`.
 - `applyTheme()` toggles the `.dark` class on `document.documentElement` and sets
   `style.colorScheme`.
@@ -440,7 +440,7 @@ initialization path:
 
 ```js
 async function setTheme(page, theme) {
-  await page.evaluate((value) => window.localStorage.setItem('linkhub-theme', value), theme);
+  await page.evaluate((value) => window.localStorage.setItem('crafthub-theme', value), theme);
   await page.reload();
 }
 ```
@@ -610,7 +610,7 @@ to pick locators. Never leave it in a scenario an agent runs — it hangs the pr
 - **Never mutate real data to reach a state.** Use `mock()`; reseed with `bash db-manage.sh seed-all`
   if you need different data.
 - **`page.evaluate` is for reading state**, not for patching the app to make a screenshot look right.
-  Setting `localStorage["linkhub-theme"]` and reloading is driving the app; injecting a `.dark` class
+  Setting `localStorage["crafthub-theme"]` and reloading is driving the app; injecting a `.dark` class
   or overwriting a style is faking the result.
 - Screenshots are evidence, not a decision: if a difference is intentional, say why in the hand-off
   instead of silently accepting it.
@@ -646,7 +646,7 @@ If the browser cannot run (no Chromium, no display, offline):
 | Routes | `/` · `/dashboard` · `/dashboard/search` · `/dashboard/layout` · `/dashboard/posts` · `/dashboard/posts/review` · `/dashboard/settings` · `/profile/$username` (public) |
 | Seed profile | `/profile/seed-react-frontend-003` |
 | Baseline viewport | 1440 × 900 (also verify 1024 × 768) |
-| Themes | light **and** dark, every check — `localStorage["linkhub-theme"]`, `.dark` on `<html>` |
+| Themes | light **and** dark, every check — `localStorage["crafthub-theme"]`, `.dark` on `<html>` |
 | Evidence folder | `.visual/` — gitignored |
 | Auth session | `.playwright/auth.json` — gitignored |
 | Design authority | `DESIGN.md` (repo root) |

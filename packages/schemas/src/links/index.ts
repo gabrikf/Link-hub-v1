@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { httpUrlSchemaWith } from "../profile-blocks/index.js";
 
 export const linkIconSchema = z.enum([
   "youtube",
@@ -23,6 +24,13 @@ export const linkIconSchema = z.enum([
   "website",
 ]);
 
+/**
+ * RESPONSE shape. `url` stays a bare `z.string().url()` on purpose: the two
+ * INPUT schemas below are http(s)-only, so no NEW non-http(s) link can be
+ * stored, but a row written before that gate existed would fail response
+ * serialization here and 500 the whole profile — a worse outcome than the one
+ * being prevented. Tightening this needs a production data check first.
+ */
 export const linkSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -37,14 +45,14 @@ export const linkSchema = z.object({
 
 export const createLinkSchemaInput = z.object({
   title: z.string().min(1, "Title is required"),
-  url: z.string().url("Invalid URL format"),
+  url: httpUrlSchemaWith("Invalid URL format"),
   icon: linkIconSchema.nullable().optional(),
   isPublic: z.boolean().default(true),
 });
 
 export const updateLinkSchemaInput = z.object({
   title: z.string().min(1, "Title is required"),
-  url: z.string().url("Invalid URL format"),
+  url: httpUrlSchemaWith("Invalid URL format"),
   icon: linkIconSchema.nullable().optional(),
   isPublic: z.boolean(),
 });

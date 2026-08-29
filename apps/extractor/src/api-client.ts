@@ -2,7 +2,7 @@ import type {
   IngestActivityInput,
   IngestActivityResult,
 } from "@repo/schemas";
-import type { LinkHubConfig } from "./config.js";
+import type { CraftHubConfig } from "./config.js";
 
 /**
  * Error raised by the API client. `status` is the HTTP status when the failure
@@ -13,13 +13,13 @@ import type { LinkHubConfig } from "./config.js";
  * divergence is the 403 branch, which here is about `activity:write` rather
  * than `profile:read`.
  */
-export class LinkHubApiError extends Error {
+export class CraftHubApiError extends Error {
   constructor(
     message: string,
     readonly status?: number,
   ) {
     super(message);
-    this.name = "LinkHubApiError";
+    this.name = "CraftHubApiError";
   }
 }
 
@@ -38,19 +38,19 @@ const INGEST_PATH = "/me/activity";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /**
- * Thin, typed HTTP client for LinkHub activity ingestion. Pure transport: it
+ * Thin, typed HTTP client for CraftHub activity ingestion. Pure transport: it
  * authenticates with the PAT, serializes JSON, splits oversized batches, and
  * translates HTTP failures into actionable messages. It performs no hashing and
  * no redaction — by the time a payload reaches this class it must already be
  * safe to send, because this is the last place it could be inspected and it
  * deliberately does not inspect it.
  */
-export class LinkHubActivityClient {
+export class CraftHubActivityClient {
   private readonly baseUrl: string;
   private readonly token: string;
 
   constructor(
-    config: LinkHubConfig,
+    config: CraftHubConfig,
     private readonly timeoutMs: number = REQUEST_TIMEOUT_MS,
   ) {
     this.baseUrl = config.apiUrl;
@@ -99,14 +99,14 @@ export class LinkHubActivityClient {
       });
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      throw new LinkHubApiError(
-        `Could not reach the LinkHub API at ${this.baseUrl}. ` +
-          `Make sure the API is running and LINKHUB_API_URL is correct. (${detail})`,
+      throw new CraftHubApiError(
+        `Could not reach the CraftHub API at ${this.baseUrl}. ` +
+          `Make sure the API is running and CRAFTHUB_API_URL is correct. (${detail})`,
       );
     }
 
     if (!response.ok) {
-      throw new LinkHubApiError(
+      throw new CraftHubApiError(
         await this.describeError(response),
         response.status,
       );
@@ -128,18 +128,18 @@ export class LinkHubActivityClient {
         // out of the database, so its rejection message names the offending
         // field. Passing it through intact is more useful than "invalid".
         return serverMessage
-          ? `LinkHub rejected the payload: ${serverMessage}`
-          : "LinkHub rejected the payload as invalid. Re-run the extract step to regenerate the file.";
+          ? `CraftHub rejected the payload: ${serverMessage}`
+          : "CraftHub rejected the payload as invalid. Re-run the extract step to regenerate the file.";
       case 401:
         return (
-          "Invalid or expired LinkHub token. Create a fresh Personal Access Token " +
-          "in LinkHub settings and set LINKHUB_API_TOKEN. Nothing was uploaded."
+          "Invalid or expired CraftHub token. Create a fresh Personal Access Token " +
+          "in CraftHub settings and set CRAFTHUB_API_TOKEN. Nothing was uploaded."
         );
       case 403:
         return (
           "This token is missing the activity:write scope; mint a new one in " +
           "Settings → Personal access tokens with activity:write checked, and set " +
-          "it as LINKHUB_API_TOKEN. (activity:write is not granted by default, so " +
+          "it as CRAFTHUB_API_TOKEN. (activity:write is not granted by default, so " +
           "a token created for the MCP server will not have it.) Nothing was uploaded."
         );
       case 404:
@@ -148,9 +148,9 @@ export class LinkHubActivityClient {
           "against Settings → Connections."
         );
       case 429:
-        return `LinkHub is rate-limiting this token${suffix}. Wait and re-run the upload — already-accepted events will come back as duplicates.`;
+        return `CraftHub is rate-limiting this token${suffix}. Wait and re-run the upload — already-accepted events will come back as duplicates.`;
       default:
-        return `LinkHub API error (HTTP ${response.status})${suffix}.`;
+        return `CraftHub API error (HTTP ${response.status})${suffix}.`;
     }
   }
 

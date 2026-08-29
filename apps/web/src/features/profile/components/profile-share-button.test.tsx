@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProfileShareButton } from "./profile-share-button";
 
-const URL = "https://linkhub.dev/ada";
+const URL = "https://crafthub.dev/ada";
 
 function setNavigator({
   share,

@@ -117,7 +117,7 @@ export function reportError(error: unknown, context: ReportContext): void {
 
   Sentry.withScope((scope) => {
     scope.setTag("action", context.action);
-    scope.setContext("linkhub", {
+    scope.setContext("crafthub", {
       route: currentRoute(),
       ...(context.extra ?? {}),
     });

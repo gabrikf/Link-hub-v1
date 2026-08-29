@@ -2,7 +2,7 @@
 /**
  * Locale parity check — a NO-OP today, on purpose.
  *
- * LinkHub has no i18n. Every user-visible string is hardcoded English and
+ * CraftHub has no i18n. Every user-visible string is hardcoded English and
  * `index.html` says `<html lang="en">`. The plan (see the `i18n` skill) is
  * react-i18next with three locales — pt-BR, en-US, es-ES — under
  * `apps/web/src/i18n/locales/`.
@@ -51,7 +51,7 @@ function main() {
   if (!existsSync(LOCALES_DIR)) {
     console.log(
       "i18n-parity: skipped — apps/web/src/i18n/locales/ does not exist yet " +
-        "(LinkHub has no i18n; see the `i18n` skill for the planned setup).",
+        "(CraftHub has no i18n; see the `i18n` skill for the planned setup).",
     );
     return 0;
   }

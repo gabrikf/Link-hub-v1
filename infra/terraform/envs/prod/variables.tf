@@ -8,7 +8,7 @@
 variable "project_name" {
   description = "Prefixo usado para nomear todos os recursos (servidor, firewall, chave SSH, buckets, projeto Pages). Use só minúsculas, números e hífen."
   type        = string
-  default     = "linkhub"
+  default     = "crafthub"
 
   validation {
     condition     = can(regex("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", var.project_name))
@@ -17,14 +17,46 @@ variable "project_name" {
 }
 
 variable "domain" {
-  description = "Domínio raiz, já existente como zona na Cloudflare (ex.: linkhub.dev). O Terraform NÃO cria a zona — ela é lida como data source."
+  description = "Domínio raiz, já existente como zona na Cloudflare (ex.: crafthub.dev). O Terraform NÃO cria a zona — ela é lida como data source."
   type        = string
 }
 
 variable "app_subdomain" {
-  description = "Subdomínio do front (Cloudflare Pages). Resulta em <app_subdomain>.<domain>."
+  description = <<-EOT
+    Subdomínio do front (Cloudflare Pages). Resulta em <app_subdomain>.<domain>.
+
+    STRING VAZIA ("") = APEX: o front serve direto em https://<domain>. Isso funciona
+    porque a zona está na Cloudflare (obrigatório para apex no Pages) e a Cloudflare faz
+    CNAME flattening na raiz. Os registros de e-mail do apex (SPF, DMARC, MX) continuam
+    válidos — flattening não conflita com TXT nem com MX.
+
+    O default continua "app" porque é a escolha reversível: mover o app do apex para um
+    subdomínio depois quebra todo link já compartilhado, enquanto o caminho contrário não.
+  EOT
   type        = string
   default     = "app"
+
+  # Um subdomínio com ponto, espaço ou o domínio repetido no fim gera um hostname que a
+  # Cloudflare cria sem reclamar e que nunca resolve. Melhor falhar no plan.
+  validation {
+    condition     = var.app_subdomain == "" || can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", var.app_subdomain))
+    error_message = "app_subdomain deve ser um único rótulo DNS (só minúsculas, números e hífen) ou \"\" para servir no apex."
+  }
+}
+
+variable "redirect_www_to_apex" {
+  description = <<-EOT
+    Cria www.<domain> e uma Redirect Rule 301 dele para o apex.
+
+    Só faz sentido quando o front está no apex (app_subdomain = ""). Com o app em um
+    subdomínio, o destino natural de www seria esse subdomínio e a regra abaixo mandaria
+    o visitante para um hostname que não serve o app.
+
+    Custa duas entradas do orçamento do plano free da zona: um registro DNS (ilimitado) e
+    uma das 10 Single Redirect rules.
+  EOT
+  type        = bool
+  default     = false
 }
 
 variable "api_subdomain" {
@@ -114,9 +146,35 @@ variable "ssh_public_key" {
 }
 
 variable "ssh_allowed_ips" {
-  description = "CIDRs autorizados a abrir conexão SSH (porta 22) no firewall da Hetzner. O default deixa aberto para o mundo; restrinja para o IP fixo da sua casa/escritório e para os ranges do GitHub Actions se o deploy usar SSH."
+  description = <<-EOT
+    CIDRs autorizados a abrir conexão SSH (porta 22) no firewall da Hetzner.
+
+    NÃO TEM DEFAULT, de propósito. Até 2026-08 esta variável tinha
+    `["0.0.0.0/0", "::/0"]` como default, o que abria a porta 22 de produção para a
+    internet inteira em quem simplesmente não mexesse nela — exatamente o operador que
+    menos vai perceber. Um valor que só é seguro se você lembrar de trocá-lo não é um
+    default, é uma armadilha. Agora o plan falha até você declarar quem entra.
+
+    Inclua o IP fixo da sua casa/escritório e, se o deploy usar SSH (usa: ver
+    .github/workflows/deploy.yml), os ranges do runner do GitHub Actions.
+
+    Se você se trancar para fora: o Console da Hetzner (VNC pelo painel) continua
+    funcionando, não depende deste firewall. Não há como perder a máquina por aqui.
+  EOT
   type        = list(string)
-  default     = ["0.0.0.0/0", "::/0"]
+
+  validation {
+    condition     = length(var.ssh_allowed_ips) > 0
+    error_message = "ssh_allowed_ips não pode ser vazio — a Hetzner rejeita uma regra de firewall sem origem. Use [\"0.0.0.0/0\"] se realmente quiser abrir para o mundo."
+  }
+
+  validation {
+    condition = alltrue([
+      for cidr in var.ssh_allowed_ips :
+      can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$", cidr)) || can(regex("^[0-9A-Fa-f:]+/[0-9]{1,3}$", cidr))
+    ])
+    error_message = "Cada entrada de ssh_allowed_ips precisa ser um CIDR (ex.: '203.0.113.10/32'). Um IP solto sem /32 é rejeitado pela API da Hetzner."
+  }
 }
 
 variable "restrict_http_to_cloudflare" {
@@ -141,7 +199,7 @@ variable "origin_cert_validity_days" {
 }
 
 variable "origin_cert_extra_hostnames" {
-  description = "Hostnames adicionais no Origin Certificate, além de api.<domain>. Aceita curinga de um nível (ex.: '*.linkhub.dev'). Deixe vazio se só a API fala com a origem."
+  description = "Hostnames adicionais no Origin Certificate, além de api.<domain>. Aceita curinga de um nível (ex.: '*.crafthub.dev'). Deixe vazio se só a API fala com a origem."
   type        = list(string)
   default     = []
 }
@@ -153,13 +211,31 @@ variable "origin_cert_extra_hostnames" {
 variable "uploads_bucket_name" {
   description = "Nome do bucket R2 de uploads da aplicação (currículos, avatares). Nome de bucket é global dentro da conta."
   type        = string
-  default     = "linkhub-uploads"
+  default     = "crafthub-uploads"
+}
+
+variable "media_subdomain" {
+  description = <<-EOT
+    Subdomínio que serve publicamente os objetos do bucket de uploads. Resulta em
+    <media_subdomain>.<domain> e é o valor que vai em S3_PUBLIC_BASE_URL na API.
+
+    Não é opcional na prática: o provider de storage da API se recusa a construir sem
+    S3_PUBLIC_BASE_URL, e o endpoint S3 do R2 não serve para <img src> porque exige
+    assinatura SigV4 em cada GET.
+  EOT
+  type        = string
+  default     = "media"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", var.media_subdomain))
+    error_message = "media_subdomain deve ser um único rótulo DNS (minúsculas, números e hífen)."
+  }
 }
 
 variable "tfstate_bucket_name" {
   description = "Nome do bucket R2 que guarda o state deste Terraform. Precisa bater exatamente com o `bucket` do backend em versions.tf. Este bucket é criado À MÃO no bootstrap e depois adotado por um bloco import — ver README."
   type        = string
-  default     = "linkhub-tfstate"
+  default     = "crafthub-tfstate"
 }
 
 variable "r2_location_hint" {
@@ -180,7 +256,7 @@ variable "r2_location_hint" {
 variable "pages_project_name" {
   description = "Nome do projeto no Cloudflare Pages. Vira também o subdomínio <nome>.pages.dev, que é o alvo do CNAME de app.<domain>."
   type        = string
-  default     = "linkhub-web"
+  default     = "crafthub-web"
 }
 
 variable "pages_production_branch" {
@@ -203,7 +279,7 @@ variable "pages_git_source" {
     Exemplo:
       pages_git_source = {
         owner = "gabrikf"
-        repo  = "linkhub-v.1"
+        repo  = "crafthub-v.1"
       }
   EOT
   type = object({
@@ -230,15 +306,39 @@ variable "vite_google_client_id" {
   type        = string
 }
 
-variable "vite_linkedin_client_id" {
-  description = "VITE_LINKEDIN_CLIENT_ID — client ID OAuth do LinkedIn usado pelo front. Também público, e o redirect URI precisa ser cadastrado À MÃO no LinkedIn Developers."
+# NÃO EXISTEM MAIS: vite_linkedin_client_id e vite_linkedin_redirect_uri.
+#
+# Eram obrigatórias (sem default), então todo operador tinha de inventar um valor para
+# elas — e o front NUNCA as leu. O login com LinkedIn é inteiramente server-side: o botão
+# em apps/web/src/features/auth/pages/auth-page.tsx aponta para `${VITE_API_URL}/auth/linkedin`
+# e quem guarda client id, secret e redirect URI é a API (LINKEDIN_* no .env.production).
+# Confirmado com `grep -rn "import.meta.env.VITE_" apps/web/src`, que devolve exatamente
+# seis nomes: API_URL, GOOGLE_CLIENT_ID, MODEL_CDN_BASE_URL, SENTRY_DSN, SENTRY_ENVIRONMENT
+# e SENTRY_RELEASE.
+
+variable "vite_model_cdn_base_url" {
+  description = "VITE_MODEL_CDN_BASE_URL — base do CDN de onde o worker de re-rank baixa os pesos do modelo TF.js (apps/web/src/workers/reranker.worker.ts). null = não define a variável no Pages e o front usa o default embutido."
   type        = string
+  default     = null
 }
 
-variable "vite_linkedin_redirect_uri" {
-  description = "VITE_LINKEDIN_REDIRECT_URI — URL exata de callback do OAuth do LinkedIn. Precisa bater caractere a caractere com o que estiver cadastrado no LinkedIn Developers."
+variable "vite_sentry_dsn" {
+  description = "VITE_SENTRY_DSN — DSN do Sentry do front (apps/web/src/lib/report-error.ts). DSN de browser é público por construção. null = não define a variável e o relato de erro do front fica desligado."
   type        = string
+  default     = null
 }
+
+variable "vite_sentry_environment" {
+  description = "VITE_SENTRY_ENVIRONMENT — nome do ambiente no Sentry. Só é usado se vite_sentry_dsn estiver preenchida."
+  type        = string
+  default     = "production"
+}
+
+# NÃO existe uma variável para VITE_SENTRY_RELEASE de propósito: o valor certo é o SHA do
+# commit, que muda a cada build. Um valor estático nas env vars do Pages marcaria todo
+# erro com o mesmo release e tornaria o Sentry inútil para saber o que quebrou. Quem
+# injeta o SHA é o build do GitHub Actions (.github/workflows/deploy.yml), que é o caminho
+# que de fato publica o bundle.
 
 # ---------------------------------------------------------------------------------
 # Rate limit de borda (WAF)
@@ -271,6 +371,14 @@ variable "rate_limit_mitigation_timeout_seconds" {
   description = "Por quantos segundos a ação continua aplicada depois de disparar. No plano free isso também é travado em 10."
   type        = number
   default     = 10
+
+  # Mesma lista de valores aceitos que rate_limit_period_seconds — é a mesma API. Sem esta
+  # validação, um valor como 45 só era rejeitado no apply, depois de o Terraform já ter
+  # criado ou alterado outros recursos.
+  validation {
+    condition     = contains([10, 60, 120, 300, 600, 3600], var.rate_limit_mitigation_timeout_seconds)
+    error_message = "rate_limit_mitigation_timeout_seconds deve ser um de: 10, 60, 120, 300, 600, 3600."
+  }
 }
 
 variable "rate_limit_action" {
@@ -292,4 +400,161 @@ variable "manage_zone_ssl_mode" {
   description = "Se true, o Terraform força o modo SSL/TLS da zona para 'strict' (= 'Full (strict)' no painel). Isso é obrigatório para o Origin Certificate deste diretório fazer sentido: em qualquer modo abaixo disso a Cloudflare não valida o certificado da origem. Só desligue se outro processo já gerencia esse setting."
   type        = bool
   default     = true
+}
+
+# ---------------------------------------------------------------------------------
+# E-mail transacional — SPF, DKIM, DMARC e (opcional) MX
+#
+# POR QUE ISTO EXISTE AGORA: a verificação de e-mail entrou no produto, então a API passa
+# a MANDAR e-mail. Até esta versão a zona não tinha nenhum registro TXT nem MX — ou seja,
+# qualquer pessoa no mundo podia mandar e-mail dizendo ser @<domínio> e nenhum receptor
+# tinha como saber que era mentira. Um domínio que manda e-mail sem SPF/DKIM/DMARC também
+# cai em spam com frequência, e uma verificação de e-mail que cai em spam é um cadastro
+# que não se completa.
+#
+# TUDO EM UM ÚNICO OBJETO, e não em oito variáveis soltas, seguindo
+# .github/terraform-dvn-style.instructions.md (seção 6, "Group related config into a
+# single object variable"). Os oito valores só fazem sentido juntos: metade preenchida
+# não é uma configuração parcial, é uma configuração quebrada.
+#
+# DEFAULT null = NADA É CRIADO. Quem ainda não escolheu provedor de e-mail aplica este
+# diretório e não vê diferença nenhuma — nenhum registro novo, nenhum erro. A API cai no
+# MAIL_TRANSPORT=log e imprime o link de verificação no log em vez de mandar e-mail.
+# ---------------------------------------------------------------------------------
+
+variable "email_provider" {
+  description = <<-EOT
+    Registros DNS do provedor de e-mail transacional (Resend, Postmark, SendGrid, SES...).
+
+    Deixe null (default) enquanto não houver provedor: nenhum registro é criado e o apply
+    é no-op nesta parte.
+
+    Os valores NÃO são inventáveis — cada provedor mostra os seus na tela de "verify your
+    domain". Copie de lá.
+
+      spf_include        host que o provedor manda incluir no SPF. Só o host, sem o
+                         "include:". Ex.: "amazonses.com", "sendgrid.net",
+                         "_spf.resend.com".
+
+      dkim_record_name   nome do registro DKIM, RELATIVO ao domínio (o Terraform
+                         concatena o domínio). Ex.: "resend._domainkey".
+      dkim_record_type   "TXT" ou "CNAME" — depende do provedor. Resend e SES usam CNAME,
+                         Postmark e SendGrid costumam usar TXT.
+      dkim_record_value  o valor exato mostrado pelo provedor. Se for TXT, é a chave
+                         pública inteira ("v=DKIM1; k=rsa; p=MIGf...").
+
+      dmarc_policy       "none" | "quarantine" | "reject".
+                         COMECE EM "none". Ele não rejeita nada — só liga os relatórios,
+                         para você descobrir o que já manda e-mail em nome do domínio
+                         antes de bloquear. Subir para "reject" com um remetente legítimo
+                         esquecido faz e-mail de verdade sumir sem aviso.
+      dmarc_report_email endereço que recebe os relatórios agregados (rua=).
+                         Se for de OUTRO domínio, esse outro domínio precisa autorizar
+                         com um registro `<seu-domínio>._report._dmarc` — é o próprio
+                         DMARC que exige isso. Use um endereço do próprio domínio para
+                         não cair nessa.
+
+      mx                 só se você quiser RECEBER e-mail neste domínio. Mandar e-mail não
+                         precisa de MX. Default [] = nenhum MX é criado, e o e-mail do
+                         domínio (se existir em outro lugar) fica intocado.
+
+    Exemplo (Resend):
+
+      email_provider = {
+        spf_include        = "_spf.resend.com"
+        dkim_record_name   = "resend._domainkey"
+        dkim_record_type   = "CNAME"
+        dkim_record_value  = "resend._domainkey.resend.com"
+        dmarc_policy       = "none"
+        dmarc_report_email = "dmarc@example.com"
+      }
+  EOT
+
+  type = object({
+    spf_include        = string
+    dkim_record_name   = string
+    dkim_record_type   = string
+    dkim_record_value  = string
+    dmarc_policy       = string
+    dmarc_report_email = string
+
+    # SUBDOMINIO DE ENVIO (return-path / bounce domain).
+    #
+    # Provedores modernos — Resend e SES entre eles — nao pedem mais SPF no apex. Eles
+    # usam um MAIL FROM proprio, tipo `send.<dominio>`, e e NESSE nome que SPF e MX
+    # precisam existir. O cabecalho From continua `@<dominio>` e quem o autentica e o
+    # DKIM; o DMARC passa por ALINHAMENTO DE DKIM, nao de SPF.
+    #
+    # Preencha com o rotulo que o provedor mostrar (ex.: "send"). null (default) mantem o
+    # comportamento antigo: SPF e MX no apex.
+    #
+    # Consequencia que vale saber: com o subdominio, o APEX fica SEM registro SPF. Isso
+    # nao e um furo — o SPF e verificado contra o dominio do MAIL FROM, que passa a ser o
+    # subdominio. O que protege o `From: @<dominio>` e o DKIM mais o DMARC.
+    sending_subdomain = optional(string)
+
+    # Qualificador final do SPF: "-all" (hard fail), "~all" (soft fail) ou "?all".
+    #
+    # O default e "-all" porque, com um unico remetente declarado, recusar o resto e a
+    # resposta certa. MAS SIGA O PROVEDOR: o Resend publica "~all" e a infra dele passa
+    # pela Amazon SES, cujos ranges mudam. Um "-all" mais rigoroso do que o provedor
+    # recomenda transforma uma mudanca de infraestrutura DELE em e-mail seu recusado.
+    spf_qualifier = optional(string, "-all")
+
+    mx = optional(list(object({
+      host     = string
+      priority = number
+    })), [])
+  })
+
+  default = null
+
+  validation {
+    condition     = var.email_provider == null ? true : contains(["none", "quarantine", "reject"], var.email_provider.dmarc_policy)
+    error_message = "email_provider.dmarc_policy deve ser 'none', 'quarantine' ou 'reject'. Comece em 'none'."
+  }
+
+  validation {
+    condition     = var.email_provider == null ? true : contains(["TXT", "CNAME"], var.email_provider.dkim_record_type)
+    error_message = "email_provider.dkim_record_type deve ser 'TXT' ou 'CNAME' — é o que o provedor manda criar."
+  }
+
+  # O erro mais comum: colar "include:sendgrid.net" em vez de "sendgrid.net". O SPF sairia
+  # como "v=spf1 include:include:sendgrid.net -all", que é sintaticamente inválido e
+  # derruba a autenticação do domínio inteiro em silêncio.
+  validation {
+    condition     = var.email_provider == null ? true : !can(regex("^include:", var.email_provider.spf_include))
+    error_message = "email_provider.spf_include é só o host ('sendgrid.net'), sem o prefixo 'include:' — o Terraform o adiciona."
+  }
+
+  validation {
+    condition     = var.email_provider == null ? true : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.email_provider.dmarc_report_email))
+    error_message = "email_provider.dmarc_report_email precisa ser um endereço de e-mail."
+  }
+
+  validation {
+    condition     = var.email_provider == null ? true : contains(["-all", "~all", "?all"], var.email_provider.spf_qualifier)
+    error_message = "email_provider.spf_qualifier deve ser '-all', '~all' ou '?all'."
+  }
+
+  # Mesmo motivo do dkim_record_name: o rótulo é RELATIVO ao domínio. "send.crafthub.dev"
+  # aqui viraria send.crafthub.dev.crafthub.dev e o provedor nunca verificaria.
+  validation {
+    condition     = var.email_provider == null || try(var.email_provider.sending_subdomain, null) == null ? true : can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", var.email_provider.sending_subdomain))
+    error_message = "email_provider.sending_subdomain é um único rótulo relativo ao domínio (ex.: \"send\"), sem pontos e sem o domínio no fim."
+  }
+
+  # O nome DKIM é relativo ao domínio. Se vier com o domínio no fim, o registro criado
+  # seria dkim._domainkey.exemplo.com.exemplo.com — e o provedor nunca valida.
+  validation {
+    condition     = var.email_provider == null ? true : !endswith(var.email_provider.dkim_record_name, ".")
+    error_message = "email_provider.dkim_record_name é relativo ao domínio e não termina em ponto (ex.: 'resend._domainkey')."
+  }
+
+  validation {
+    condition = var.email_provider == null ? true : alltrue([
+      for record in var.email_provider.mx : record.priority >= 0 && record.priority <= 65535
+    ])
+    error_message = "A prioridade de cada MX deve ficar entre 0 e 65535."
+  }
 }

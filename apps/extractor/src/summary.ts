@@ -50,7 +50,7 @@ export function renderExtractSummary(
 
   const lines: string[] = [
     "",
-    "  LinkHub activity extract — NOTHING HAS BEEN UPLOADED",
+    "  CraftHub activity extract — NOTHING HAS BEEN UPLOADED",
     "  ───────────────────────────────────────────────────",
     "",
     `  Written to      ${outputPath}`,
@@ -75,7 +75,7 @@ export function renderExtractSummary(
     `    grep -i 'the-name-you-are-worried-about' ${outputPath}`,
     "",
     "  Nothing leaves this machine until you run:",
-    `    linkhub-extract upload ${outputPath}`,
+    `    crafthub-extract upload ${outputPath}`,
     "",
   ];
 

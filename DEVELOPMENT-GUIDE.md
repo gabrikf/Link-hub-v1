@@ -10,7 +10,7 @@
 > said the web app ran on port 3000. It never did — `apps/web/vite.config.ts`
 > has always set 5173, and `.claude/launch.json` agrees.
 
-This guide explains all available npm scripts in the LinkHub monorepo.
+This guide explains all available npm scripts in the CraftHub monorepo.
 
 ## 📦 Understanding the Monorepo
 
@@ -106,6 +106,74 @@ npm run db:seed
 ```
 
 **Note:** These use your `db-manage.sh` script.
+
+---
+
+## 📬 Seeing the e-mails the API sends
+
+Account verification means the API now **sends e-mail**. Locally there is no
+mail server, so out of the box the API runs `MAIL_TRANSPORT=log`: it prints the
+verification link to the terminal instead of sending anything. That is enough to
+click through a flow, and it is the right default — but it tells you nothing
+about whether the message actually renders, or what the subject line looks like
+in a client.
+
+**Mailpit** is a mail catcher: it speaks SMTP, accepts everything, delivers
+nothing, and shows you every message in a browser.
+
+```bash
+# Start it (it lives behind the compose `tools` profile, like pgAdmin)
+docker compose -f docker-compose.dev.yml --profile tools up -d mailpit
+
+# Or start it together with pgAdmin and the database:
+bash db-manage.sh admin
+```
+
+Then open **<http://localhost:8025>**.
+
+Point the API at it by pasting this into `apps/api/.env` (create the file if it
+does not exist — the API needs nothing to boot in development, so it is normal
+for it to be missing):
+
+```dotenv
+# Mailpit, from docker-compose.dev.yml. Accepts any credentials, no TLS, and
+# never delivers anything outside your machine.
+MAIL_TRANSPORT=smtp
+SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_SECURE=false
+SMTP_USER=crafthub
+SMTP_PASSWORD=crafthub
+MAIL_FROM=CraftHub <no-reply@localhost>
+
+# The origin used to BUILD the link inside the e-mail. Not the same thing as
+# WEB_APP_URL, which is a comma-separated CORS allow-list and may hold several
+# origins. Read server-side — it is NOT a VITE_ variable, so it belongs here and
+# never in apps/web/.env.
+APP_PUBLIC_URL=http://localhost:5173
+
+# How long a verification link stays valid. Drop it to something tiny when you
+# are testing the expired-token screen.
+EMAIL_VERIFICATION_TOKEN_TTL_HOURS=24
+```
+
+Restart the API (`npm run dev:api`), sign up, and the message appears in Mailpit
+within a second. `SMTP_USER` and `SMTP_PASSWORD` can be any two strings —
+Mailpit runs with `MP_SMTP_AUTH_ACCEPT_ANY`, so they exist only to keep the code
+path identical to production, where they are real.
+
+**Notes worth having:**
+
+- Mailpit keeps messages **in memory**. Restarting the container empties the
+  inbox — deliberately, so you are never reading last month's test data.
+- It is **development only**. It is declared in `docker-compose.dev.yml` and
+  deliberately not in `docker-compose.prod.yml`. Production sends through a real
+  provider, and the SPF/DKIM/DMARC records that make that mail deliverable are
+  managed by Terraform (`email_provider` in `infra/terraform/envs/prod`).
+- To go back to printing links in the terminal, remove `MAIL_TRANSPORT` and
+  `SMTP_HOST` from `apps/api/.env`. With no `SMTP_HOST`, the transport defaults
+  to `log` on its own.
+- The full variable list, with defaults, is in `apps/api/.env.example`.
 
 ---
 

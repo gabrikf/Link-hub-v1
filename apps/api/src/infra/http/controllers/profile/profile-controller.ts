@@ -132,7 +132,7 @@ export class ProfileController {
 
         /**
          * "Profile published" in the funnel sense. There is no separate publish
-         * route — a LinkHub profile is public as soon as it has a username, and
+         * route — a CraftHub profile is public as soon as it has a username, and
          * `PUT /profile` is the only way to set or change one. So this counts
          * profile publishes AND subsequent edits; read it as "profile write
          * activity", not as distinct users who have ever published.

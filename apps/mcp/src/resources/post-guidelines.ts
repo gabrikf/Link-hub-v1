@@ -1,26 +1,26 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 /** Canonical URI of the post-quality guide. Referenced from the prompts too. */
-export const POST_GUIDELINES_URI = "linkhub://guides/post-quality";
+export const POST_GUIDELINES_URI = "crafthub://guides/post-quality";
 
 /**
- * The house style guide for LinkHub posts.
+ * The house style guide for CraftHub posts.
  *
  * This is the single source of truth for "what makes a post recruiter-worthy".
  * It is exposed as an MCP resource (so a host agent can read it unprompted) and
  * embedded into the workflow prompts (so an agent that never lists resources
  * still gets it). Keep it self-contained — an agent may read it with no other
- * context about LinkHub.
+ * context about CraftHub.
  */
-export const POST_GUIDELINES = `# LinkHub post quality guide
+export const POST_GUIDELINES = `# CraftHub post quality guide
 
-You are writing on behalf of the developer who owns this LinkHub profile. Their
+You are writing on behalf of the developer who owns this CraftHub profile. Their
 posts are read by **recruiters, hiring managers, and engineers who have never
 seen this codebase**. Assume the reader has 20 seconds, no context, and no
 patience for jargon they can't evaluate.
 
-A LinkHub post is not a changelog. A changelog answers *"what changed?"*. A
-LinkHub post answers *"what is this person able to build?"*.
+A CraftHub post is not a changelog. A changelog answers *"what changed?"*. A
+CraftHub post answers *"what is this person able to build?"*.
 
 ---
 
@@ -69,7 +69,7 @@ in a post at all (section 4).
 
 ## 2b. Write for search as well as for the reader
 
-Recruiters do not scroll feeds; they search. LinkHub matches their queries
+Recruiters do not scroll feeds; they search. CraftHub matches their queries
 against every post with semantic embeddings, and the weighting is not even:
 **the title and tags count double, the body counts once and is clipped when
 long**. A capability buried in paragraph six barely registers; the same
@@ -103,9 +103,9 @@ them identify an employer.
 
 This is the section that makes a post genuinely useful to a recruiter while
 keeping the user's employer safe. The user picks a **disclosure level** in
-LinkHub settings; \`summary\` is the default and the strictest. Call
+CraftHub settings; \`summary\` is the default and the strictest. Call
 \`get_disclosure_policy\` for the live level, or read
-\`linkhub://policy/disclosure\`.
+\`crafthub://policy/disclosure\`.
 
 **Always safe to say — at every level.** These are what actually demonstrate
 capability, and none of them identify an employer:
@@ -137,7 +137,7 @@ capability, and none of them identify an employer:
 
 **Never ships — regardless of how the sentence is phrased:**
 
-- **Employer and client names at \`summary\` level.** This is enforced: LinkHub
+- **Employer and client names at \`summary\` level.** This is enforced: CraftHub
   rejects the post with HTTP 400 naming the term. At \`detailed\` and \`full\` the
   employer may be named; the level tells you which.
 - **Internal repository, service, project and codenames.** \`billing-svc-v2\`,
@@ -153,8 +153,9 @@ capability, and none of them identify an employer:
 - **Anything inferred from the working tree.** Do not read the employer off a
   git remote, an npm scope (\`@acme/ui\`), a directory path
   (\`~/work/acme/api\`), a code comment, a \`CODEOWNERS\` file or a commit
-  trailer. Use \`get_work_context\` — it returns the history already redacted to
-  the user's level, and it is the only sanctioned source.
+  trailer. Use \`get_work_context\` — the only sanctioned source, and the one
+  place the user's blocked employer and client names have already been stripped.
+  Nothing else on this list is stripped anywhere; keeping it out is your job.
 
 **Rewriting, not deleting.** A blocked term is not a dead post. "Rebuilt Acme
 Corp's checkout" becomes "Rebuilt a high-traffic e-commerce checkout flow" —
@@ -199,7 +200,7 @@ around the term; publishing the same text again will fail the same way.
 | \`summary\` | yes | The finished Markdown body, written per this guide. The tool publishes it verbatim; it runs no AI of its own. |
 | \`title\` | no | The headline (< 70 chars). Omitted → derived from repo + period, which is worse. Always pass one. |
 | \`period\` | no | What the summary covers: \`"weekly"\`, \`"daily"\`, or a range like \`"2026-07-14..2026-07-21"\`. |
-| \`repo\` | no | The **scope** of the summary, not a project label. One repository: its name only, e.g. \`"linkhub-v.1"\` — not the full path, not the remote URL. Several repositories in one post: the count, e.g. \`"4 repositories"\`. Never one repo's name when the post covers more, and never a list of names. Omit for private/client work. |
+| \`repo\` | no | The **scope** of the summary, not a project label. One repository: its name only, e.g. \`"crafthub-v.1"\` — not the full path, not the remote URL. Several repositories in one post: the count, e.g. \`"4 repositories"\`. Never one repo's name when the post covers more, and never a list of names. Omit for private/client work. |
 | \`commitCount\` | no | Number of the user's own commits the summary is based on, summed across every repository covered. Count them; don't estimate. |
 | \`tags\` | always pass it | 2–5 lowercase tags naming the technologies: \`["typescript", "fastify", "postgres"]\`. Tags are embedded at double weight for recruiter search (see 2b) — a post without them is invisible to a stack-filtered search. Real technology names, never \`["update"]\`. |
 | \`status\` | no | \`"published"\` (default), \`"pending_review"\` or \`"draft"\`. Use \`"pending_review"\` whenever this runs unattended — the post stays private until the user approves it. Use \`"draft"\` when the user hasn't approved the text, or when anything in it might be sensitive. |
@@ -236,7 +237,7 @@ author is good at. Branch names and \`wip\` are noise.
 
 > ### Shipped a drag-and-drop profile editor with live mobile preview
 >
-> Spent the week making LinkHub profiles editable without touching code.
+> Spent the week making CraftHub profiles editable without touching code.
 >
 > - Built a drag-and-drop layout editor where the desktop and mobile canvases
 >   stay mirrored, so a change in one is reflected in the other instantly.
@@ -246,7 +247,7 @@ author is good at. Branch names and \`wip\` are noise.
 >   publish an update straight from a terminal.
 >
 > TypeScript, React 19, Fastify, Drizzle, PostgreSQL. 14 commits.
-> Demo: https://example.com/linkhub
+> Demo: https://example.com/crafthub
 
 Same raw material. The second one is evidence of ability; the first is a diff.
 
@@ -284,9 +285,9 @@ export function registerPostGuidelines(server: McpServer): void {
     "post_quality_guide",
     POST_GUIDELINES_URI,
     {
-      title: "LinkHub post quality guide",
+      title: "CraftHub post quality guide",
       description:
-        "House style for LinkHub posts: what makes a post recruiter-worthy " +
+        "House style for CraftHub posts: what makes a post recruiter-worthy " +
         "(outcome over mechanics, real metrics, named stack, links to shipped " +
         "work), how recruiter search weighs it (title and tags count double — " +
         "name the feature domain, the stack, the pattern and one trade-off), " +

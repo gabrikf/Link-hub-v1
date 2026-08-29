@@ -1,5 +1,6 @@
 import { textBlockConfigSchema, type TextBlockConfig } from "@repo/schemas";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
@@ -20,6 +21,7 @@ export function TextBlockDialog({
   isSubmitting = false,
   onSubmit,
 }: TextBlockDialogProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function TextBlockDialog({
     });
 
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Invalid text block.");
+      setError(parsed.error.issues[0]?.message ?? t("layout.textBlock.invalid"));
       return;
     }
 
@@ -51,19 +53,21 @@ export function TextBlockDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={initialConfig ? "Edit text block" : "Add text block"}
+      title={
+        initialConfig ? t("layout.textBlock.edit") : t("layout.textBlock.add")
+      }
     >
       <div className="space-y-4">
         <Input
           id="text-block-title"
-          label="Title (optional)"
+          label={t("common.titleOptional")}
           value={title}
           maxLength={120}
           onChange={(event) => setTitle(event.target.value)}
         />
         <TextArea
           id="text-block-body"
-          label="Body"
+          label={t("common.body")}
           rows={6}
           value={body}
           onChange={(event) => setBody(event.target.value)}
@@ -76,16 +80,16 @@ export function TextBlockDialog({
             fullWidth={false}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="button"
             fullWidth={false}
             isLoading={isSubmitting}
-            loadingLabel="Saving"
+            loadingLabel={t("common.saving")}
             onClick={handleSave}
           >
-            Save
+            {t("common.save")}
           </Button>
         </div>
       </div>

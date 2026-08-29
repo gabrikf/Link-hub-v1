@@ -15,6 +15,8 @@ import {
   renameTabSchemaInput,
   reorderTabsSchemaInput,
   ReorderTabsInput,
+  setTabsEnabledSchemaInput,
+  SetTabsEnabledInput,
   tabIdParamsSchema,
   updateBlockPositionsSchemaInput,
   UpdateBlockPositionsInput,
@@ -28,6 +30,7 @@ import { CreateTabUseCase } from "../../../../core/use-case/profile-layout/creat
 import { RenameTabUseCase } from "../../../../core/use-case/profile-layout/rename-tab-use-case/rename-tab.use-case.js";
 import { DeleteTabUseCase } from "../../../../core/use-case/profile-layout/delete-tab-use-case/delete-tab.use-case.js";
 import { ReorderTabsUseCase } from "../../../../core/use-case/profile-layout/reorder-tabs-use-case/reorder-tabs.use-case.js";
+import { SetTabsEnabledUseCase } from "../../../../core/use-case/profile-layout/set-tabs-enabled-use-case/set-tabs-enabled.use-case.js";
 import { CreateBlockUseCase } from "../../../../core/use-case/profile-layout/create-block-use-case/create-block.use-case.js";
 import { UpdateBlockUseCase } from "../../../../core/use-case/profile-layout/update-block-use-case/update-block.use-case.js";
 import { DeleteBlockUseCase } from "../../../../core/use-case/profile-layout/delete-block-use-case/delete-block.use-case.js";
@@ -67,6 +70,46 @@ export class ProfileLayoutController {
         );
 
         reply.status(200).send(layout);
+      },
+    );
+
+    /**
+     * The tab-strip switch, per viewport. Deliberately its own route rather
+     * than a field on `PUT /profile`: it writes exactly one boolean column on
+     * the user row and nothing else — no tab, no block, no `isVisible` — so
+     * turning tabs off can never lose a page. The response echoes the stored
+     * value so the client never has to guess which viewport it just changed.
+     */
+    app.patch(
+      "/me/layout/tabs-enabled",
+      {
+        preHandler: authGuard,
+        schema: {
+          tags: ["Profile Layout"],
+          summary: "Enable or disable the tab strip for one viewport",
+          body: setTabsEnabledSchemaInput,
+          response: {
+            200: setTabsEnabledSchemaInput,
+            ...commonErrorResponses([
+              "badRequest",
+              "unauthorized",
+              "notFound",
+              "internalServerError",
+            ]),
+          },
+        },
+      },
+      async (request: FastifyRequest<{ Body: SetTabsEnabledInput }>, reply) => {
+        const setTabsEnabledUseCase = resolve<SetTabsEnabledUseCase>(
+          TOKENS.SetTabsEnabledUseCase,
+        );
+
+        const result = await setTabsEnabledUseCase.execute(
+          request.user!.id,
+          request.body,
+        );
+
+        reply.status(200).send(result);
       },
     );
 

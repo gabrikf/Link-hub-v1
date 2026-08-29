@@ -200,8 +200,8 @@ if (!isProduction()) {
   server.register(fastifySwagger, {
     openapi: {
       info: {
-        title: "Linkhub v1 API",
-        description: "Documentation of Linkhub v1",
+        title: "Crafthub v1 API",
+        description: "Documentation of Crafthub v1",
         version: "1.0.0",
       },
       components: {

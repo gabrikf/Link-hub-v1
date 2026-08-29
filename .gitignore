@@ -44,6 +44,12 @@ yarn-error.log*
 .DS_Store
 *.pem
 
+# TLS material the deploy job writes onto the production box. `secrets/caddy/`
+# holds the Cloudflare Origin Certificate and its PRIVATE KEY; `*.pem` above
+# already catches the certificate, but not the .key, and a whole-directory rule
+# is the one that survives someone adding a third file.
+secrets/
+
 # direnv - local only, never commit (may contain secrets)
 .envrc
 .direnv/
@@ -62,7 +68,41 @@ yarn-error.log*
 # gets un-ignored by name, right here, next to the reference one.
 scripts/visual/scenarios/*.scenario.mjs
 !scripts/visual/scenarios/public-profile.scenario.mjs
+# The i18n check is not scratch: it is the only thing that proves the three
+# locales still render, and the `i18n` skill points at it by name.
+!scripts/visual/scenarios/i18n-locales.scenario.mjs
+# Nor is the tabs toggle: every other check of "simple mode" is a unit test
+# rendering ProfileBlocks with a prop. This is the only one that proves the flag
+# survives the database, the API response and the schema parse on its way to a
+# logged-out stranger — which is the whole point of the feature.
+!scripts/visual/scenarios/profile-tabs-toggle.scenario.mjs
 
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.
 docs/qa/sessions/
+
+# QA living docs (docs/qa/, bootstrapped 2026-08-22 per .claude/skills/qa-report) —
+# generated views & bulky evidence. Source of truth is docs/qa/scenarios/, bugs/,
+# journeys/, charters/, reports/, personas.md, README.md, templates/ — all committed.
+docs/qa/state.csv
+docs/qa/evidence/
+
+# The nightly loop's runtime state. STATE.json / QUEUE.json / MEMORY.md are the
+# loop's memory across processes, and the logs are one JSON blob per iteration —
+# all of it is a record of ONE night's run, not of the repo. The durable output
+# is committed instead: docs/qa/** and docs/nightly-loop.md.
+.nightly/
+# `--fresh` archives a finished run to .nightly-<timestamp>/. The pattern above
+# does NOT match those, and one iteration committed 23 of those artifact files
+# (logs, pids, state) into the branch as a result.
+.nightly-*/
+
+# @playwright/test output. `.playwright/cli.config.json` stays versioned (it is
+# the visual-check capture contract); nothing generated does.
+.playwright/e2e-*.json
+.playwright/e2e-results/
+.playwright/e2e-html/
+.playwright/*.log
+
+# deep-review generates hundreds of artifact files per round.
+.deep-review/

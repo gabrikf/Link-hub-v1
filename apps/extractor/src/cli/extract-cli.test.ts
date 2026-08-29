@@ -49,7 +49,7 @@ function respondWith(status: number, body: unknown): ReturnType<typeof vi.fn> {
 }
 
 beforeEach(() => {
-  repo = createTempRepo("linkhub-cli-repo-");
+  repo = createTempRepo("crafthub-cli-repo-");
   setRemote(repo, "git@github.com:acme-corp/project-nightingale.git");
   commit(repo, {
     authorEmail: "me@acme-corp.com",
@@ -58,7 +58,7 @@ beforeEach(() => {
     files: { "src/a.ts": "1\n", "package-lock.json": "{}\n" },
   });
 
-  outDir = createTempDir("linkhub-cli-out-");
+  outDir = createTempDir("crafthub-cli-out-");
   out = join(outDir, "activity.json");
 
   stdout = [];
@@ -67,16 +67,16 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation((...a) => void stderr.push(a.join(" ")));
 
   resetConfigCache();
-  process.env.LINKHUB_EXTRACTOR_CONFIG = "/nonexistent/linkhub.json";
-  delete process.env.LINKHUB_CONNECTION_ID;
+  process.env.CRAFTHUB_EXTRACTOR_CONFIG = "/nonexistent/crafthub.json";
+  delete process.env.CRAFTHUB_CONNECTION_ID;
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  delete process.env.LINKHUB_API_TOKEN;
-  delete process.env.LINKHUB_API_URL;
-  delete process.env.LINKHUB_EXTRACTOR_CONFIG;
+  delete process.env.CRAFTHUB_API_TOKEN;
+  delete process.env.CRAFTHUB_API_URL;
+  delete process.env.CRAFTHUB_EXTRACTOR_CONFIG;
   resetConfigCache();
 });
 
@@ -117,7 +117,7 @@ describe("extract stops at review", () => {
     // The summary tells a nervous reader what is NOT in the file.
     expect(printed).toContain("commit messages");
     expect(printed).toContain("timezone offsets");
-    expect(printed).toContain("linkhub-extract upload");
+    expect(printed).toContain("crafthub-extract upload");
 
     // The summary is a review aid, so it must not leak what the file does not.
     expect(printed).not.toContain("nightingale");
@@ -126,7 +126,7 @@ describe("extract stops at review", () => {
 
   it("does not need a token", async () => {
     forbidNetwork();
-    delete process.env.LINKHUB_API_TOKEN;
+    delete process.env.CRAFTHUB_API_TOKEN;
 
     const code = await runExtractCli([
       repo,
@@ -180,8 +180,8 @@ describe("upload is a separate, explicit action", () => {
   it("posts the reviewed file to /me/activity with a bearer token", async () => {
     await extractFirst();
     const fetchSpy = respondWith(200, { recorded: 1, duplicates: 0 });
-    process.env.LINKHUB_API_TOKEN = "lh_pat_test";
-    process.env.LINKHUB_API_URL = "https://api.example.test";
+    process.env.CRAFTHUB_API_TOKEN = "lh_pat_test";
+    process.env.CRAFTHUB_API_URL = "https://api.example.test";
 
     expect(await runExtractCli(["upload", out])).toBe(0);
 
@@ -202,7 +202,7 @@ describe("upload is a separate, explicit action", () => {
 
   it("uploads after extracting only when --yes is passed", async () => {
     const fetchSpy = respondWith(200, { recorded: 1, duplicates: 0 });
-    process.env.LINKHUB_API_TOKEN = "lh_pat_test";
+    process.env.CRAFTHUB_API_TOKEN = "lh_pat_test";
 
     await runExtractCli([
       repo,
@@ -223,7 +223,7 @@ describe("upload is a separate, explicit action", () => {
   it("explains a 403 in terms of the scope that is missing", async () => {
     await extractFirst();
     respondWith(403, { message: "forbidden" });
-    process.env.LINKHUB_API_TOKEN = "lh_pat_test";
+    process.env.CRAFTHUB_API_TOKEN = "lh_pat_test";
 
     expect(await runExtractCli(["upload", out])).toBe(1);
     const message = stderr.join("\n");
@@ -235,7 +235,7 @@ describe("upload is a separate, explicit action", () => {
   it("explains a 401 as an expired token", async () => {
     await extractFirst();
     respondWith(401, {});
-    process.env.LINKHUB_API_TOKEN = "lh_pat_test";
+    process.env.CRAFTHUB_API_TOKEN = "lh_pat_test";
 
     expect(await runExtractCli(["upload", out])).toBe(1);
     expect(stderr.join("\n")).toContain("Personal Access Token");
@@ -243,10 +243,10 @@ describe("upload is a separate, explicit action", () => {
 
   it("asks for a token rather than failing obscurely", async () => {
     await extractFirst();
-    delete process.env.LINKHUB_API_TOKEN;
+    delete process.env.CRAFTHUB_API_TOKEN;
 
     expect(await runExtractCli(["upload", out])).toBe(1);
-    expect(stderr.join("\n")).toContain("LINKHUB_API_TOKEN");
+    expect(stderr.join("\n")).toContain("CRAFTHUB_API_TOKEN");
   });
 
   it("rejects a hand-edited file that is no longer valid", async () => {
@@ -255,7 +255,7 @@ describe("upload is a separate, explicit action", () => {
     // Someone pastes a repo name back in where a fingerprint belongs.
     edited.events[0].repoFingerprint = "acme-corp/project-nightingale";
     writeFileSync(out, JSON.stringify(edited), "utf8");
-    process.env.LINKHUB_API_TOKEN = "lh_pat_test";
+    process.env.CRAFTHUB_API_TOKEN = "lh_pat_test";
     const fetchSpy = respondWith(200, { recorded: 0, duplicates: 0 });
 
     expect(await runExtractCli(["upload", out])).toBe(1);

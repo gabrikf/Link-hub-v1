@@ -5,6 +5,7 @@ import {
   buildDefaultLayout,
   compactBlocks,
   computeNextPlacement,
+  countBlocksHiddenWithoutTabs,
   moveBlockBy,
   pickViewport,
   PROFILE_CANVAS_WIDTH,
@@ -40,9 +41,9 @@ describe("buildDefaultLayout", () => {
     const layout = buildDefaultLayout("pc");
 
     expect(layout.tabs).toHaveLength(1);
-    expect(layout.blocks.every((block) => block.gridW === GRID_COLUMNS.pc)).toBe(
-      true,
-    );
+    expect(
+      layout.blocks.every((block) => block.gridW === GRID_COLUMNS.pc),
+    ).toBe(true);
 
     const header = layout.blocks.find((block) => block.kind === "header");
     expect(header?.pinnedAllTabs).toBe(true);
@@ -55,9 +56,9 @@ describe("buildDefaultLayout", () => {
 
   it("uses the mobile column count for the mobile viewport", () => {
     const layout = buildDefaultLayout("mobile");
-    expect(layout.blocks.every((block) => block.gridW === GRID_COLUMNS.mobile)).toBe(
-      true,
-    );
+    expect(
+      layout.blocks.every((block) => block.gridW === GRID_COLUMNS.mobile),
+    ).toBe(true);
   });
 });
 
@@ -72,6 +73,7 @@ describe("resolveViewportLayout", () => {
     const custom = {
       tabs: [{ id: "t", title: "Custom", order: 0 }],
       blocks: [makeBlock({ id: "x", tabId: "t" })],
+      tabsEnabled: true,
     };
     const full = { pc: custom, mobile: buildDefaultLayout("mobile") };
 
@@ -80,11 +82,46 @@ describe("resolveViewportLayout", () => {
 
   it("falls back when the viewport has no tabs", () => {
     const full = {
-      pc: { tabs: [], blocks: [] },
+      pc: { tabs: [], blocks: [], tabsEnabled: true },
       mobile: buildDefaultLayout("mobile"),
     };
     const layout = resolveViewportLayout(full, "pc");
     expect(layout.tabs).toHaveLength(1);
+  });
+
+  it("does NOT fall back when tabs are off — an empty tab list is the right answer", () => {
+    /*
+     * The reported bug, and it needed two correct changes to appear. The public
+     * payload started omitting tabs for a profile with its tab section off, and
+     * the empty-tabs fallback read that as "legacy profile" and fabricated the
+     * default builtin blocks — so the page rendered a made-up arrangement of
+     * exactly the content the owner had just hidden.
+     */
+    const pinnedOnly = {
+      tabs: [],
+      blocks: [makeBlock({ id: "p", tabId: null, pinnedAllTabs: true })],
+      tabsEnabled: false,
+    };
+    const full = { pc: pinnedOnly, mobile: buildDefaultLayout("mobile") };
+
+    const layout = resolveViewportLayout(full, "pc");
+
+    expect(layout).toBe(pinnedOnly);
+    expect(layout.tabs).toHaveLength(0);
+    // Nothing invented: only the one pinned block the server actually sent.
+    expect(layout.blocks.map((block) => block.id)).toEqual(["p"]);
+  });
+
+  it("still returns a tabs-off viewport that does have tabs, untouched", () => {
+    // The owner's own editor payload keeps its tabs even with the section off.
+    const withTabs = {
+      tabs: [{ id: "t", title: "Main", order: 0 }],
+      blocks: [makeBlock({ id: "x", tabId: "t" })],
+      tabsEnabled: false,
+    };
+    const full = { pc: withTabs, mobile: buildDefaultLayout("mobile") };
+
+    expect(resolveViewportLayout(full, "pc")).toBe(withTabs);
   });
 });
 
@@ -129,7 +166,13 @@ describe("compactBlocks", () => {
     // editor assigned coordinates, so the middle block leaves a hole.
     const blocks = [
       makeBlock({ id: "a", gridY: 0, gridW: 12, gridH: 2 }),
-      makeBlock({ id: "hidden", gridY: 2, gridW: 12, gridH: 2, isVisible: false }),
+      makeBlock({
+        id: "hidden",
+        gridY: 2,
+        gridW: 12,
+        gridH: 2,
+        isVisible: false,
+      }),
       makeBlock({ id: "c", gridY: 4, gridW: 12, gridH: 2 }),
       makeBlock({ id: "d", gridY: 6, gridW: 12, gridH: 2 }),
     ];
@@ -153,7 +196,9 @@ describe("compactBlocks", () => {
   });
 
   it("pulls out-of-bounds blocks back inside the column count", () => {
-    const blocks = [makeBlock({ id: "wide", gridX: 10, gridY: 5, gridW: 6, gridH: 2 })];
+    const blocks = [
+      makeBlock({ id: "wide", gridX: 10, gridY: 5, gridW: 6, gridH: 2 }),
+    ];
 
     const [packed] = compactBlocks(blocks, GRID_COLUMNS.pc);
     expect(packed.gridX + packed.gridW).toBeLessThanOrEqual(GRID_COLUMNS.pc);
@@ -213,14 +258,18 @@ describe("PROFILE_CANVAS_WIDTH", () => {
 
 describe("moveBlockBy", () => {
   it("moves a block sideways within the grid", () => {
-    const blocks = [makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 })];
+    const blocks = [
+      makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 }),
+    ];
 
     const [moved] = moveBlockBy(blocks, "a", 2, 0, GRID_COLUMNS.pc);
     expect(moved.gridX).toBe(2);
   });
 
   it("clamps at the grid edges instead of pushing a block out of bounds", () => {
-    const blocks = [makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 })];
+    const blocks = [
+      makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 }),
+    ];
 
     expect(moveBlockBy(blocks, "a", -1, 0, GRID_COLUMNS.pc)[0].gridX).toBe(0);
     expect(moveBlockBy(blocks, "a", 0, -1, GRID_COLUMNS.pc)[0].gridY).toBe(0);
@@ -245,6 +294,98 @@ describe("moveBlockBy", () => {
     // b took the top row; a was pushed down and the zone stays gapless.
     expect(byId.b.gridY).toBe(0);
     expect(byId.a.gridY).toBe(2);
+  });
+
+  /**
+   * The delta the card actually sends is ONE row (`ArrowUp` -> `dy: -1` in
+   * `grid-block-card.tsx`), and real blocks are much taller than one row. One
+   * row can never clear a six-row neighbour: the vertical compactor floats the
+   * block straight back down, so the press does nothing and the user cannot
+   * reorder their profile without a mouse.
+   */
+  it("lifts a block over a taller neighbour with the one-row delta the card sends", () => {
+    const blocks = [
+      makeBlock({ id: "tall", gridX: 0, gridY: 0, gridW: 12, gridH: 6 }),
+      makeBlock({ id: "short", gridX: 0, gridY: 6, gridW: 12, gridH: 2 }),
+    ];
+
+    const moved = moveBlockBy(blocks, "short", 0, -1, GRID_COLUMNS.pc);
+    const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
+
+    expect(byId.short.gridY).toBe(0);
+    expect(byId.tall.gridY).toBe(2);
+  });
+
+  it("drops a block under a shorter neighbour with the one-row delta the card sends", () => {
+    const blocks = [
+      makeBlock({ id: "tall", gridX: 0, gridY: 0, gridW: 12, gridH: 6 }),
+      makeBlock({ id: "short", gridX: 0, gridY: 6, gridW: 12, gridH: 2 }),
+    ];
+
+    const moved = moveBlockBy(blocks, "tall", 0, 1, GRID_COLUMNS.pc);
+    const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
+
+    expect(byId.short.gridY).toBe(0);
+    expect(byId.tall.gridY).toBe(2);
+  });
+
+  it("returns the same blocks when a nudge has nowhere to go, so nothing is persisted", () => {
+    const blocks = [
+      makeBlock({ id: "tall", gridX: 0, gridY: 0, gridW: 12, gridH: 6 }),
+      makeBlock({ id: "short", gridX: 0, gridY: 6, gridW: 12, gridH: 2 }),
+    ];
+
+    expect(moveBlockBy(blocks, "tall", 0, -1, GRID_COLUMNS.pc)).toBe(blocks);
+    expect(moveBlockBy(blocks, "short", 0, 1, GRID_COLUMNS.pc)).toBe(blocks);
+  });
+
+  /**
+   * Two half-width blocks sharing a row, with a full-width block under them —
+   * a shape the 12-column grid exists for, and one the editor's own
+   * shift+Arrow resize can build.
+   *
+   * Lifting the full-width block over that shared row shoves BOTH row-mates
+   * out of the way, so intermediate rows exist where the layout changed but
+   * the focused block did not budge. Stopping at one of those is what makes a
+   * single ArrowUp fling an untouched neighbour to the bottom of the profile
+   * and save it, while the block the user was nudging never moves.
+   */
+  it("lifts a block over a shared row without flinging its occupants", () => {
+    const blocks = [
+      makeBlock({ id: "left", gridX: 0, gridY: 0, gridW: 6, gridH: 6 }),
+      makeBlock({ id: "right", gridX: 6, gridY: 0, gridW: 6, gridH: 6 }),
+      makeBlock({ id: "wide", gridX: 0, gridY: 6, gridW: 12, gridH: 6 }),
+    ];
+
+    const moved = moveBlockBy(blocks, "wide", 0, -1, GRID_COLUMNS.pc);
+    const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
+
+    // The focused block actually crossed the row above it...
+    expect(byId.wide.gridY).toBe(0);
+    // ...and its two neighbours came down together, still side by side.
+    expect(byId.left.gridY).toBe(6);
+    expect(byId.right.gridY).toBe(6);
+    expect(byId.left.gridX).toBe(0);
+    expect(byId.right.gridX).toBe(6);
+  });
+
+  it("drops one half of a shared row below the block under it, leaving its row-mate alone", () => {
+    const blocks = [
+      makeBlock({ id: "left", gridX: 0, gridY: 0, gridW: 6, gridH: 6 }),
+      makeBlock({ id: "right", gridX: 6, gridY: 0, gridW: 6, gridH: 6 }),
+      makeBlock({ id: "wide", gridX: 0, gridY: 6, gridW: 12, gridH: 6 }),
+    ];
+
+    const moved = moveBlockBy(blocks, "left", 0, 1, GRID_COLUMNS.pc);
+    const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
+
+    expect(byId.left.gridY).toBe(12);
+    // The row-mate is a bystander: it must not be dragged along or displaced.
+    expect(byId.right.gridY).toBe(0);
+    expect(byId.wide.gridY).toBe(6);
+
+    // The bottom block has nowhere further down to go: same array, no PATCH.
+    expect(moveBlockBy(blocks, "wide", 0, 1, GRID_COLUMNS.pc)).toBe(blocks);
   });
 
   it("leaves the input untouched and ignores an unknown id", () => {
@@ -286,5 +427,134 @@ describe("resizeBlockBy", () => {
 
     const [resized] = resizeBlockBy(blocks, "a", 4, 0, GRID_COLUMNS.pc);
     expect(resized.gridX + resized.gridW).toBeLessThanOrEqual(GRID_COLUMNS.pc);
+  });
+});
+
+describe("countBlocksHiddenWithoutTabs", () => {
+  const layout = (blocks: ProfileBlock[]) => ({
+    tabs: [
+      { id: "tab-1", title: "Main", order: 0 },
+      { id: "tab-2", title: "Posts", order: 1 },
+      { id: "tab-3", title: "Talks", order: 2 },
+    ],
+    blocks,
+    tabsEnabled: true,
+  });
+
+  it("ignores blocks the owner had already hidden", () => {
+    // The public profile only renders `isVisible` blocks, so one that was
+    // already off was never on the page — counting it would inflate the very
+    // warning people rely on to trust the switch.
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "a", tabId: "tab-2", isVisible: false }),
+          makeBlock({ id: "b", tabId: "tab-3", isVisible: true }),
+        ]),
+      ),
+    ).toBe(1);
+  });
+
+  it("counts nothing when every tab block is already hidden", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "a", tabId: "tab-2", isVisible: false }),
+          makeBlock({ id: "b", tabId: "tab-3", isVisible: false }),
+        ]),
+      ),
+    ).toBe(0);
+  });
+
+  // UPDATED for the tabs-v3 rule. This used to expect 3, excluding the block
+  // on the first tab, because tabs-off still published that tab. It does not
+  // any more: with tabs off the page is the always-visible zone alone, so every
+  // tab block is hidden and a count that skipped the first tab under-reported
+  // exactly the surprise this warning exists to prevent.
+  it("counts every block on every tab, the first one included", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "a", tabId: "tab-1" }),
+          makeBlock({ id: "b", tabId: "tab-2" }),
+          makeBlock({ id: "c", tabId: "tab-3" }),
+          makeBlock({ id: "d", tabId: "tab-3" }),
+        ]),
+      ),
+    ).toBe(4);
+  });
+
+  it("counts a block that sits on the FIRST tab", () => {
+    // The single case the old rule got wrong: one block, on tab 1, visible.
+    // Tabs off hides it, so the warning has to say so.
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([makeBlock({ id: "only", tabId: "tab-1" })]),
+      ),
+    ).toBe(1);
+  });
+
+  it("excludes pinned blocks — they render on every tab, so tabs-off cannot hide them", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "pin", tabId: null, pinnedAllTabs: true }),
+          // A pinned block whose stale tabId still points at a later tab must
+          // NOT be counted: `pinnedAllTabs` is what decides where it renders.
+          makeBlock({ id: "pin-stale", tabId: "tab-2", pinnedAllTabs: true }),
+          makeBlock({ id: "later", tabId: "tab-2" }),
+        ]),
+      ),
+    ).toBe(1);
+  });
+
+  // UPDATED for the tabs-v3 rule: this used to expect 0 on the grounds that
+  // the first tab kept rendering. It no longer does, so both blocks count.
+  it("counts blocks that all live on the first tab", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([
+          makeBlock({ id: "a", tabId: "tab-1" }),
+          makeBlock({ id: "b", tabId: "tab-1" }),
+        ]),
+      ),
+    ).toBe(2);
+  });
+
+  it("is zero when the layout has no tab blocks at all", () => {
+    expect(
+      countBlocksHiddenWithoutTabs(
+        layout([makeBlock({ id: "pin", tabId: null, pinnedAllTabs: true })]),
+      ),
+    ).toBe(0);
+  });
+
+  // UPDATED for the tabs-v3 rule. Tab order used to decide which blocks were
+  // spared; now nothing is spared, so the answer must be the same whatever
+  // order the tabs are stored in — the case kept, its meaning inverted.
+  it("is independent of tab order — every tab's blocks count", () => {
+    const shuffled = {
+      tabs: [
+        { id: "tab-late", title: "Late", order: 5 },
+        { id: "tab-early", title: "Early", order: 0 },
+      ],
+      blocks: [
+        makeBlock({ id: "a", tabId: "tab-early" }),
+        makeBlock({ id: "b", tabId: "tab-late" }),
+      ],
+      tabsEnabled: true,
+    };
+
+    expect(countBlocksHiddenWithoutTabs(shuffled)).toBe(2);
+  });
+
+  it("counts nothing for a layout with no tabs", () => {
+    expect(
+      countBlocksHiddenWithoutTabs({
+        tabs: [],
+        blocks: [makeBlock({ id: "a", tabId: "ghost" })],
+        tabsEnabled: true,
+      }),
+    ).toBe(0);
   });
 });

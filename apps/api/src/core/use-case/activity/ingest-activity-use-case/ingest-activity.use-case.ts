@@ -36,7 +36,7 @@ interface FingerprintedEvent {
  * Appends a batch of developer activity to the log.
  *
  * Two responsibilities, both of which exist because the callers — a Claude Code
- * hook, a forge webhook relay and a local CLI — are outside LinkHub's control:
+ * hook, a forge webhook relay and a local CLI — are outside CraftHub's control:
  *
  * 1. HASH ON ARRIVAL. A caller may send a repository identifier and reviewer ids
  *    in the clear; they are fingerprinted here and the clear values are dropped

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   LoadingLabel,
   Skeleton,
@@ -18,9 +19,10 @@ import {
  * the header block, then a stack of links.
  */
 export function PublicProfileSkeleton() {
+  const { t } = useTranslation();
   return (
     <>
-      <LoadingLabel>Loading profile</LoadingLabel>
+      <LoadingLabel>{t("dashboard.loadingProfile")}</LoadingLabel>
 
       {/* Cover strip — same height as `ProfileCover` (`h-44` at every width, so
           the meta row can clear the overlapping avatar on narrow cards). */}

@@ -352,7 +352,7 @@ describe("recruiter search — SQL boundaries", () => {
       url: "/auth/login",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "recruiter.seed@linkhub.local",
+        email: "recruiter.seed@crafthub.local",
         password: "12345678",
       }),
     });
@@ -411,7 +411,7 @@ describe("recruiter search — SQL boundaries", () => {
       url: "/auth/login",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "recruiter.seed@linkhub.local",
+        email: "recruiter.seed@crafthub.local",
         password: "12345678",
       }),
     });

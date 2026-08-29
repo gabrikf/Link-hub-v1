@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiAlertCircle, FiImage, FiLink2, FiX } from "react-icons/fi";
 
 /**
@@ -14,6 +15,7 @@ type ImageInputProps = {
   value: string | null;
   onChange: (url: string | null) => void;
   label?: string;
+  /** Defaults to a translated "https://…" when not provided. */
   placeholder?: string;
   /** Preview aspect ratio: "banner" ~3:1, "cover" ~16:9, "square" 1:1. */
   aspect?: ImageAspect;
@@ -59,11 +61,13 @@ export function ImageInput({
   value,
   onChange,
   label,
-  placeholder = "https://…",
+  placeholder,
   aspect = "cover",
   className,
   helperText,
 }: ImageInputProps) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t("common.urlPlaceholder");
   const reactId = useId();
   const inputId = `image-input-${reactId}`;
   const errorId = `${inputId}-error`;
@@ -144,7 +148,9 @@ export function ImageInput({
               <img
                 key={previewUrl}
                 src={previewUrl}
-                alt={label ? `${label} preview` : "Image preview"}
+                alt={
+                  label ? t("image.labelPreview", { label }) : t("image.preview")
+                }
                 className={[
                   "h-full w-full object-cover transition-opacity duration-300",
                   loadState === "loaded" ? "opacity-100" : "opacity-0",
@@ -156,10 +162,10 @@ export function ImageInput({
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-zinc-500 dark:text-zinc-400">
                 <FiAlertCircle className="h-6 w-6" aria-hidden="true" />
                 <span className="text-xs font-medium">
-                  Couldn't load image
+                  {t("image.couldNotLoad")}
                 </span>
                 <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                  Check the URL is a direct link to an image.
+                  {t("image.checkDirectLink")}
                 </span>
               </div>
             )}
@@ -170,7 +176,7 @@ export function ImageInput({
               <FiImage className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Add image URL
+              {t("image.addImageUrl")}
             </span>
           </div>
         )}
@@ -180,7 +186,7 @@ export function ImageInput({
           <button
             type="button"
             onClick={handleClear}
-            aria-label="Clear image"
+            aria-label={t("image.clearImage")}
             className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur transition hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black/20"
           >
             <FiX className="h-4 w-4" aria-hidden="true" />
@@ -201,7 +207,7 @@ export function ImageInput({
           type="url"
           inputMode="url"
           value={draft}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           aria-invalid={showError || undefined}
           aria-describedby={
             [showError ? errorId : null, helperText ? helperId : null]
@@ -240,7 +246,7 @@ export function ImageInput({
           className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400"
         >
           <FiAlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          Enter a valid http(s) image URL.
+          {t("image.invalidUrl")}
         </p>
       ) : helperText ? (
         <p id={helperId} className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -248,7 +254,7 @@ export function ImageInput({
         </p>
       ) : (
         <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          Paste a direct link to an image (https://…).
+          {t("image.pasteDirectLink")}
         </p>
       )}
     </div>

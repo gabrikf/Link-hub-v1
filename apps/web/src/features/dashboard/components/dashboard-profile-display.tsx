@@ -1,9 +1,9 @@
+import { useTranslation } from "react-i18next";
 import { FiBriefcase, FiEdit2, FiMapPin } from "react-icons/fi";
 import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
 import {
   accentForPreset,
-  PERSONA_LABELS,
   THEME_PRESETS,
   type Persona,
   type ThemePreset,
@@ -24,13 +24,9 @@ type DashboardProfileDisplayProps = {
   onEdit: () => void;
 };
 
-function ImageThumb({
-  label,
-  url,
-}: {
-  label: string;
-  url: string | null;
-}) {
+function ImageThumb({ label, url }: { label: string; url: string | null }) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-1">
       <span className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
@@ -39,12 +35,12 @@ function ImageThumb({
       {url ? (
         <img
           src={url}
-          alt={`${label} preview`}
+          alt={t("image.labelPreview", { label })}
           className="h-16 w-full rounded-lg border border-zinc-200 object-cover dark:border-zinc-700"
         />
       ) : (
         <div className="flex h-16 w-full items-center justify-center rounded-lg border border-dashed border-zinc-200 text-[11px] text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
-          Not set
+          {t("common.notSet")}
         </div>
       )}
     </div>
@@ -69,10 +65,14 @@ export function DashboardProfileDisplay({
   persona,
   onEdit,
 }: DashboardProfileDisplayProps) {
+  const { t } = useTranslation();
   const accent = themeAccent?.trim() || accentForPreset(themePreset);
-  const themeLabel =
-    THEME_PRESETS.find((preset) => preset.value === themePreset)?.label ??
-    "Custom";
+  const matchedPreset = THEME_PRESETS.find(
+    (preset) => preset.value === themePreset,
+  );
+  const themeLabel = matchedPreset
+    ? t(`enum.themePreset.${matchedPreset.value}`)
+    : t("common.custom");
 
   return (
     <div className="space-y-4">
@@ -80,10 +80,10 @@ export function DashboardProfileDisplay({
         <Avatar name={name} imageUrl={avatarUrl} size={56} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            {name || "Your name"}
+            {name || t("dashboard.namePlaceholder")}
           </p>
           <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">
-            @{username || "username"}
+            @{username || t("dashboard.usernamePlaceholder")}
           </p>
         </div>
         <Button
@@ -95,7 +95,7 @@ export function DashboardProfileDisplay({
           onClick={onEdit}
         >
           <FiEdit2 className="h-3.5 w-3.5" aria-hidden="true" />
-          Edit profile
+          {t("dashboard.editProfile")}
         </Button>
       </div>
 
@@ -105,18 +105,21 @@ export function DashboardProfileDisplay({
         </p>
       ) : (
         <p className="text-sm italic text-zinc-400 dark:text-zinc-500">
-          No description yet.
+          {t("dashboard.noDescriptionYet")}
         </p>
       )}
 
       <div className="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
         <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          Appearance
+          {t("common.appearance")}
         </h3>
 
         <div className="grid grid-cols-2 gap-3">
-          <ImageThumb label="Banner" url={bannerImageUrl} />
-          <ImageThumb label="Background" url={backgroundImageUrl} />
+          <ImageThumb label={t("dashboard.banner")} url={bannerImageUrl} />
+          <ImageThumb
+            label={t("dashboard.background")}
+            url={backgroundImageUrl}
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -132,7 +135,7 @@ export function DashboardProfileDisplay({
           {openToWork ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
               <FiBriefcase className="h-3 w-3" aria-hidden="true" />
-              Open to work
+              {t("common.openToWork")}
             </span>
           ) : null}
 
@@ -145,7 +148,7 @@ export function DashboardProfileDisplay({
 
           {persona ? (
             <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300">
-              {PERSONA_LABELS[persona]}
+              {t(`enum.persona.${persona}`)}
             </span>
           ) : null}
         </div>

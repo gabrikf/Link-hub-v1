@@ -5,16 +5,16 @@ import {
 } from "@repo/schemas";
 import * as Switch from "@radix-ui/react-switch";
 import type { KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { FiEdit2, FiTrash2 } from "react-icons/fi";
 import { FaGripLinesVertical } from "react-icons/fa6";
 import { Button } from "../../../shared-components/button";
 import { FOCUS_RING } from "../../../shared-components/surface";
-import { BLOCK_META } from "../block-meta";
+import { getBlockMeta } from "../block-meta";
 
 type GridBlockCardProps = {
   block: ProfileBlock;
   onToggleVisibility: (block: ProfileBlock, isVisible: boolean) => void;
-  onTogglePin: (block: ProfileBlock, pinned: boolean) => void;
   onEdit: (block: ProfileBlock) => void;
   onDelete: (block: ProfileBlock) => void;
   /** Arrow keys move the block; Shift+arrows resize it. Deltas are grid cells. */
@@ -23,6 +23,13 @@ type GridBlockCardProps = {
   /** Tabs this block can be moved to. Omitted/short-circuited when pinned. */
   tabs?: ProfileTab[];
   onMoveToTab?: (block: ProfileBlock, tabId: string) => void;
+  /**
+   * This viewport's "show tabs" switch. With tabs off, "move to tab" is a
+   * control for a concept this viewport no longer has, so it is hidden rather
+   * than left to configure something invisible. Nothing is reassigned —
+   * turning tabs back on brings the selector back unchanged.
+   */
+  tabsEnabled?: boolean;
 };
 
 const isCustom = (block: ProfileBlock) =>
@@ -38,17 +45,18 @@ const ARROW_DELTAS: Record<string, [number, number]> = {
 export function GridBlockCard({
   block,
   onToggleVisibility,
-  onTogglePin,
   onEdit,
   onDelete,
   onMove,
   onResize,
   tabs,
   onMoveToTab,
+  tabsEnabled = true,
 }: GridBlockCardProps) {
-  const meta = BLOCK_META[block.kind];
+  const { t } = useTranslation();
+  const meta = getBlockMeta(t)[block.kind];
   const custom = isCustom(block);
-  const movableTabs = block.pinnedAllTabs ? [] : (tabs ?? []);
+  const movableTabs = block.pinnedAllTabs || !tabsEnabled ? [] : (tabs ?? []);
 
   /**
    * Keyboard equivalent of drag and resize. react-grid-layout offers neither,
@@ -87,7 +95,7 @@ export function GridBlockCard({
     <div
       tabIndex={0}
       role="group"
-      aria-label={`${meta.label} block. Arrow keys move it, shift plus arrow keys resize it.`}
+      aria-label={t("layout.blockKeyboardHelp", { label: meta.label })}
       onKeyDown={handleKeyDown}
       className={[
         // The whole card is the drag surface (see editor-grid dragConfig), so
@@ -104,8 +112,8 @@ export function GridBlockCard({
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400"
-            aria-label={`Drag ${meta.label}`}
-            title="Drag the card to move it"
+            aria-label={t("layout.dragBlock", { label: meta.label })}
+            title={t("layout.dragTheCard")}
           >
             <FaGripLinesVertical className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
@@ -124,7 +132,7 @@ export function GridBlockCard({
               variant="icon"
               size="icon"
               fullWidth={false}
-              aria-label={`Edit ${meta.label}`}
+              aria-label={t("layout.editBlock", { label: meta.label })}
               onClick={() => onEdit(block)}
             >
               <FiEdit2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -134,10 +142,10 @@ export function GridBlockCard({
               variant="icon"
               size="icon"
               fullWidth={false}
-              aria-label={`Delete ${meta.label}`}
+              aria-label={t("layout.deleteBlock", { label: meta.label })}
               shouldHaveConfirmation
-              confirmationTitle="Delete block?"
-              confirmationDescription="This block will be removed from this viewport layout."
+              confirmationTitle={t("layout.deleteBlockTitle")}
+              confirmationDescription={t("layout.deleteBlockBody")}
               onClick={() => onDelete(block)}
             >
               <FiTrash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -151,25 +159,22 @@ export function GridBlockCard({
           <Switch.Root
             checked={block.isVisible}
             onCheckedChange={(checked) => onToggleVisibility(block, checked)}
-            aria-label={`Toggle ${meta.label} visibility`}
+            aria-label={t("layout.toggleBlockVisibility", {
+              label: meta.label,
+            })}
             className="h-4 w-7 cursor-pointer rounded-full bg-zinc-300 transition data-[state=checked]:bg-teal-600 dark:bg-zinc-700 dark:data-[state=checked]:bg-teal-500"
           >
             <Switch.Thumb className="block h-3 w-3 translate-x-0.5 rounded-full bg-white transition-transform duration-150 data-[state=checked]:translate-x-3.5 dark:bg-zinc-900" />
           </Switch.Root>
-          {block.isVisible ? "Visible" : "Hidden"}
+          {block.isVisible ? t("common.visible") : t("common.hidden")}
         </label>
 
-        <label className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
-          <Switch.Root
-            checked={block.pinnedAllTabs}
-            onCheckedChange={(checked) => onTogglePin(block, checked)}
-            aria-label={`Pin ${meta.label} to all tabs`}
-            className="h-4 w-7 cursor-pointer rounded-full bg-zinc-300 transition data-[state=checked]:bg-violet-600 dark:bg-zinc-700 dark:data-[state=checked]:bg-violet-500"
-          >
-            <Switch.Thumb className="block h-3 w-3 translate-x-0.5 rounded-full bg-white transition-transform duration-150 data-[state=checked]:translate-x-3.5 dark:bg-zinc-900" />
-          </Switch.Root>
-          All tabs
-        </label>
+        {/*
+          No "All tabs" pin switch. Which zone a block lives in is decided by
+          the button it was created with; flipping it here silently moved the
+          block into a different grid, which is not something a switch inside
+          the block should be able to do.
+        */}
 
         {/*
           Moving a block between tabs previously required a three-step dance —
@@ -178,12 +183,14 @@ export function GridBlockCard({
         */}
         {movableTabs.length > 1 && onMoveToTab ? (
           <label className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
-            <span className="sr-only">{`Move ${meta.label} to tab`}</span>
-            <span aria-hidden="true">Tab</span>
+            <span className="sr-only">
+              {t("layout.moveBlockToTab", { label: meta.label })}
+            </span>
+            <span aria-hidden="true">{t("common.tab")}</span>
             <select
               value={block.tabId ?? ""}
               onChange={(event) => onMoveToTab(block, event.target.value)}
-              aria-label={`Move ${meta.label} to tab`}
+              aria-label={t("layout.moveBlockToTab", { label: meta.label })}
               className="cursor-pointer rounded bg-transparent text-[11px] font-medium text-zinc-700 focus:outline-none dark:text-zinc-200"
             >
               {movableTabs.map((tab) => (

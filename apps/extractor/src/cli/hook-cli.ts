@@ -12,7 +12,7 @@ import {
 } from "../hook/settings-snippet.js";
 
 /**
- * `linkhub-hook` — the Claude Code hook entry point.
+ * `crafthub-hook` — the Claude Code hook entry point.
  *
  * Claude Code invokes it with one subcommand and a JSON object on stdin.
  *
@@ -27,15 +27,15 @@ import {
  */
 
 const HELP = `
-linkhub-hook — Claude Code hook for LinkHub activity.
+crafthub-hook — Claude Code hook for CraftHub activity.
 
 USAGE
-  linkhub-hook stop            Read a Stop payload on stdin; spool locally.
-  linkhub-hook session-end     Read a SessionEnd payload on stdin; flush the spool.
-  linkhub-hook print-settings  Print the ~/.claude/settings.json snippet.
+  crafthub-hook stop            Read a Stop payload on stdin; spool locally.
+  crafthub-hook session-end     Read a SessionEnd payload on stdin; flush the spool.
+  crafthub-hook print-settings  Print the ~/.claude/settings.json snippet.
 
 OPTIONS
-  --config <file>   Config file (default: ~/.linkhub/extractor.json).
+  --config <file>   Config file (default: ~/.crafthub/extractor.json).
   --command <path>  print-settings only: how the hook is invoked in the snippet.
 
 This command always exits 0. It never blocks or delays a Claude Code session.

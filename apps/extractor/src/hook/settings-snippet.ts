@@ -2,8 +2,8 @@
  * The Claude Code settings snippet, as data.
  *
  * This is exported as a string-producing function rather than printed inline so
- * the LinkHub web settings page can render exactly the same block for
- * copy-paste that `linkhub-hook print-settings` prints in a terminal. There is
+ * the CraftHub web settings page can render exactly the same block for
+ * copy-paste that `crafthub-hook print-settings` prints in a terminal. There is
  * one source of truth for the configuration, and it is here.
  *
  * This package NEVER writes to `~/.claude/settings.json`. A tool whose pitch is
@@ -14,16 +14,16 @@
 
 export interface SettingsSnippetOptions {
   /**
-   * How the hook is invoked. `linkhub-hook` once the package is installed
-   * globally; an absolute path to `dist/bin/linkhub-hook.js` when running from
+   * How the hook is invoked. `crafthub-hook` once the package is installed
+   * globally; an absolute path to `dist/bin/crafthub-hook.js` when running from
    * a checkout.
    */
   readonly command?: string;
-  /** Set when the user keeps config somewhere other than ~/.linkhub. */
+  /** Set when the user keeps config somewhere other than ~/.crafthub. */
   readonly configPath?: string;
 }
 
-const DEFAULT_COMMAND = "linkhub-hook";
+const DEFAULT_COMMAND = "crafthub-hook";
 
 /**
  * Timeouts, chosen against how each event actually behaves:
@@ -91,8 +91,8 @@ export function claudeSettingsSnippet(
 export const SETTINGS_SNIPPET_NOTES: readonly string[] = [
   "Paste this into ~/.claude/settings.json (all projects) or .claude/settings.json (one project).",
   "If the file already has a \"hooks\" key, merge the Stop and SessionEnd arrays into it.",
-  "Stop runs on every turn and does NO network I/O — it appends to ~/.linkhub/spool/ only when the repo's HEAD has moved.",
+  "Stop runs on every turn and does NO network I/O — it appends to ~/.crafthub/spool/ only when the repo's HEAD has moved.",
   "SessionEnd uploads the spool. It is async, so it never delays your session; if it fails the spool is kept and the next session retries.",
-  "Both hooks exit 0 on every failure, so LinkHub can never block or slow down Claude Code.",
-  "Set connectionId in ~/.linkhub/extractor.json and LINKHUB_API_TOKEN in your environment, or the hook spools quietly and uploads nothing.",
+  "Both hooks exit 0 on every failure, so CraftHub can never block or slow down Claude Code.",
+  "Set connectionId in ~/.crafthub/extractor.json and CRAFTHUB_API_TOKEN in your environment, or the hook spools quietly and uploads nothing.",
 ];

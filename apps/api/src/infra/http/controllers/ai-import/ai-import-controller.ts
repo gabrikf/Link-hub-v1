@@ -5,6 +5,7 @@ import {
   aiResumeImportParseResponseSchema,
   applyAiResumeImportInputSchema,
   parsedResumeDataSchema,
+  RESUME_TEXT_MAX_LENGTH,
   type ApplyAiResumeImportInput,
 } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
@@ -62,6 +63,16 @@ export class AiImportController {
           );
         }
 
+        // The upper bound, checked here rather than through a body schema
+        // because this route also serves multipart. Without it an over-long
+        // paste reaches the model, costs a full parse, and — once it exceeds
+        // the model's context window — comes back as an unexplained 500.
+        if (resumeText.length > RESUME_TEXT_MAX_LENGTH) {
+          throw new BadRequestError(
+            `This resume is too long to parse: ${resumeText.length.toLocaleString("en-US")} characters, and the limit is ${RESUME_TEXT_MAX_LENGTH.toLocaleString("en-US")}. Paste a shorter version or upload the file itself.`,
+          );
+        }
+
         const parseResumeUseCase = resolve<ParseResumeUseCase>(
           TOKENS.ParseResumeUseCase,
         );
@@ -69,6 +80,10 @@ export class AiImportController {
         const parsed = await parseResumeUseCase.execute({
           userId: request.user!.id,
           resumeText,
+          // Raw, not parsed: `resolveResponseLanguage` owns the Accept-Language
+          // grammar, and a controller that pre-parsed it would be a second
+          // place where quality values could be read differently.
+          acceptLanguage: request.headers["accept-language"] ?? null,
         });
 
         // After the parse succeeds: a resume rejected for being too short never

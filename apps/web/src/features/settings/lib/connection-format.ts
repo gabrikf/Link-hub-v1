@@ -8,29 +8,55 @@ import {
   type GitConnectionKind,
   type GitConnectionProvider,
 } from "@repo/schemas";
+import type { TFunction } from "i18next";
+import i18n from "../../../i18n";
 import { formatDate } from "./token-format";
 
 /** Scroll target — the Add source button and the panel are far apart. */
 export const CONNECTIONS_PANEL_ID = "connected-activity-sources";
 
+/*
+ * Everything in this file that a user reads resolves through the i18next
+ * singleton at READ time, not at import time, and keeps its original exported
+ * shape — a `Record<..., string>` stays a `Record<..., string>`, a function
+ * keeps its signature.
+ *
+ * That shape matters twice. `connection-format.test.ts` calls these directly
+ * and asserts the literal English strings; with `en-US` active in tests they
+ * still return exactly that, so the test needs no edit. And the wizard imports
+ * `PROVIDER_LABELS` as a plain record and indexes it — converting it to a
+ * function of `t` breaks that call site at runtime, not at compile time.
+ *
+ * Hence getters: same type, same access syntax, resolved fresh on every read,
+ * so a language switch relabels them instead of freezing whatever language the
+ * tab happened to start in.
+ */
 export const PROVIDER_LABELS: Record<GitConnectionProvider, string> = {
-  github: "GitHub",
-  gitlab: "GitLab",
-  claude_code: "Claude Code",
-  extractor: "Local extractor",
+  get github() {
+    return i18n.t("enum.platform.github");
+  },
+  get gitlab() {
+    return i18n.t("settings.provider.gitlab");
+  },
+  get claude_code() {
+    return i18n.t("settings.provider.claudeCode");
+  },
+  get extractor() {
+    return i18n.t("settings.provider.localExtractor");
+  },
 };
 
 /** One line each, shown under the provider picker so the choice is informed. */
-export const PROVIDER_DESCRIPTIONS: Record<GitConnectionProvider, string> = {
-  github:
-    "A repository webhook. GitHub tells LinkHub about merged pull requests, reviews and releases.",
-  gitlab:
-    "A project webhook. GitLab tells LinkHub about merged merge requests, reviews and releases.",
-  claude_code:
-    "A local hook. Records what your coding agent worked on and uploads it when a session ends.",
-  extractor:
-    "The linkhub-extract CLI. Reads local git history on your machine; you review the file before it is uploaded.",
-};
+export function getProviderDescriptions(
+  t: TFunction,
+): Record<GitConnectionProvider, string> {
+  return {
+    github: t("settings.provider.githubDescription"),
+    gitlab: t("settings.provider.gitlabDescription"),
+    claude_code: t("settings.provider.hookDescription"),
+    extractor: t("settings.provider.extractorDescription"),
+  };
+}
 
 /** Providers whose setup involves a signed webhook and a one-time secret. */
 export const FORGE_PROVIDERS = ["github", "gitlab"] as const;
@@ -49,18 +75,32 @@ export function isForgeProvider(
  * work" rather than "Both" so a connection row states the fact, not the option.
  */
 export const KIND_LABELS: Record<GitConnectionKind, string> = {
-  personal: "Personal",
-  work: "Work",
-  mixed: "Personal + work",
+  get personal() {
+    return i18n.t("common.personal");
+  },
+  get work() {
+    return i18n.t("common.work");
+  },
+  get mixed() {
+    return i18n.t("settings.kind.personalAndWork");
+  },
 };
 
-/** The one line that must travel with every mixed-kind control. */
-export const MIXED_KIND_RULE =
-  "Mixed activity is held to your work disclosure rules — once the numbers are added together, the safest rule has to win.";
+/**
+ * The one line that must travel with every mixed-kind control, and what "Both"
+ * means under the kind selector.
+ *
+ * Functions rather than constants: a `const` string is evaluated once at import
+ * time, which is exactly the staleness the getters above avoid. Both are read
+ * only from components, so the call is free.
+ */
+export function mixedKindRule(): string {
+  return i18n.t("settings.kind.mixedExplainer");
+}
 
-/** What "Both" means, shown under the kind selector rather than guessed at. */
-export const MIXED_KIND_HELPER =
-  "Both — one machine that holds personal side projects and work repos.";
+export function mixedKindHelper(): string {
+  return i18n.t("settings.kind.bothOption");
+}
 
 /** A mixed connection inherits an employer's rules, exactly like a work one. */
 export function kindInheritsWorkRules(kind: GitConnectionKind): boolean {
@@ -68,12 +108,14 @@ export function kindInheritsWorkRules(kind: GitConnectionKind): boolean {
 }
 
 /** Weekly is the floor — daily was removed so a profile can't become a firehose. */
-export const CADENCE_LABELS: Record<DigestCadence, string> = {
-  weekly: "Weekly",
-  biweekly: "Every two weeks",
-  monthly: "Monthly",
-  off: "Off",
-};
+export function getCadenceLabels(t: TFunction): Record<DigestCadence, string> {
+  return {
+    weekly: t("settings.cadence.weekly"),
+    biweekly: t("settings.cadence.biweekly"),
+    monthly: t("settings.cadence.monthly"),
+    off: t("common.off"),
+  };
+}
 
 export const CADENCE_OPTIONS: DigestCadence[] = [
   "weekly",
@@ -83,7 +125,7 @@ export const CADENCE_OPTIONS: DigestCadence[] = [
 ];
 
 export function formatLastDigest(value: Date | null): string {
-  return value ? formatDate(value) : "No digest yet";
+  return value ? formatDate(value) : i18n.t("settings.cadence.noDigestYet");
 }
 
 /**
@@ -154,11 +196,22 @@ export function resolveEffectiveDisclosure(
   };
 }
 
+/**
+ * The level's short NAME, translated.
+ *
+ * Only the name. `AGENT_DISCLOSURE_LEVELS` in @repo/schemas also carries
+ * `shortDescription`, `allows` and `blocks`, and that prose is injected into
+ * the MCP system prompt — it is written as instructions an agent follows, not
+ * as UI copy, and translating it there would translate an agent's prompt. The
+ * `defaultValue` keeps a level the catalogue does not know about rendering as
+ * the schema's own English rather than as a raw key.
+ */
 export function disclosureLevelLabel(level: AgentDisclosureLevel): string {
-  return (
+  const fallback =
     AGENT_DISCLOSURE_LEVELS.find((entry) => entry.value === level)?.label ??
-    level
-  );
+    level;
+
+  return i18n.t(`enum.disclosureLevel.${level}`, { defaultValue: fallback });
 }
 
 /** Where the level came from, phrased for the row it is rendered on. */
@@ -168,15 +221,15 @@ export function disclosureSourceLabel(
 ): string {
   if (source === "work-experience") {
     return companyName
-      ? `from ${companyName}'s own level`
-      : "from the linked role's own level";
+      ? i18n.t("settings.levelSource.company", { companyName })
+      : i18n.t("settings.levelSource.role");
   }
 
   if (source === "connection") {
-    return "from this connection's override";
+    return i18n.t("settings.levelSource.connection");
   }
 
-  return "from your account default";
+  return i18n.t("settings.levelSource.account");
 }
 
 /**
@@ -189,45 +242,49 @@ export function disclosureConsequence(
   level: AgentDisclosureLevel,
   companyName: string | null,
 ): string {
-  const employer = companyName ?? "this employer";
+  const employer = companyName ?? i18n.t("settings.levelEffect.thisEmployer");
 
   if (level === "summary") {
-    return `Digests from this connection describe what you built and never name ${employer}.`;
+    return i18n.t("settings.levelEffect.none", { employer });
   }
 
   if (level === "detailed") {
-    return `Digests from this connection may name ${employer} and public work, but never internal repositories, codenames, tickets or customers.`;
+    return i18n.t("settings.levelEffect.summary", { employer });
   }
 
-  return `Digests from this connection carry no LinkHub-side restriction — ${employer} can be named along with anything else in your profile.`;
+  return i18n.t("settings.levelEffect.full", { employer });
 }
 
 /* ------------------------------------------------------------------ *
  * Setup instructions
  * ------------------------------------------------------------------ */
 
-export const GITHUB_WEBHOOK_STEPS: readonly string[] = [
-  "In the repository, open Settings → Webhooks → Add webhook. You need admin or owner on that repository.",
-  "Payload URL: the URL above.",
-  "Content type: application/json. GitHub defaults to application/x-www-form-urlencoded, which LinkHub cannot verify or read — every delivery would fail.",
-  "Secret: the value above.",
-  "Under events, send pull requests, pull request reviews and releases.",
-];
+export function getGithubWebhookSteps(t: TFunction): readonly string[] {
+  return [
+    t("settings.webhook.githubOpen"),
+    t("settings.webhook.payloadUrl"),
+    t("settings.webhook.contentType"),
+    t("settings.webhook.secret"),
+    t("settings.webhook.githubEvents"),
+  ];
+}
 
-export const GITLAB_WEBHOOK_STEPS: readonly string[] = [
-  "In the project, open Settings → Webhooks → Add new webhook. The Maintainer role is enough — you do not need to be the Owner.",
-  "URL: the URL above.",
-  "Secret token: the value above. Do not click Generate — LinkHub already generated this one and verifies against it.",
-  "GitLab 19.0+ signs deliveries with a webhook-signature header. LinkHub prefers that signed path whenever it is present and falls back to the legacy X-Gitlab-Token, so nothing extra is needed either way.",
-  "Under triggers, enable merge request events and releases.",
-];
+export function getGitlabWebhookSteps(t: TFunction): readonly string[] {
+  return [
+    t("settings.webhook.gitlabOpen"),
+    t("settings.webhook.url"),
+    t("settings.webhook.gitlabSecret"),
+    t("settings.webhook.gitlabSignature"),
+    t("settings.webhook.gitlabTriggers"),
+  ];
+}
 
 /* ------------------------------------------------------------------ *
  * The Claude Code hook
  * ------------------------------------------------------------------ */
 
 /**
- * Byte-identical to what `linkhub-hook print-settings` emits.
+ * Byte-identical to what `crafthub-hook print-settings` emits.
  *
  * The canonical definition is `claudeSettingsHooks()` in
  * `apps/extractor/src/hook/settings-snippet.ts`, which is written as data
@@ -246,7 +303,7 @@ const CLAUDE_HOOK_SETTINGS = {
         hooks: [
           {
             type: "command",
-            command: "linkhub-hook stop",
+            command: "crafthub-hook stop",
             timeout: 5,
           },
         ],
@@ -258,7 +315,7 @@ const CLAUDE_HOOK_SETTINGS = {
         hooks: [
           {
             type: "command",
-            command: "linkhub-hook session-end",
+            command: "crafthub-hook session-end",
             timeout: 30,
             // Non-blocking: SessionEnd hooks share a ~1.5s budget, which is not
             // enough for an HTTP round trip.
@@ -275,27 +332,29 @@ export const CLAUDE_HOOK_SNIPPET = JSON.stringify(CLAUDE_HOOK_SETTINGS, null, 2)
 export const CLAUDE_HOOK_TARGET = "~/.claude/settings.json";
 
 /** The one line that must travel with the snippet wherever it is shown. */
-export const CLAUDE_HOOK_SUMMARY =
-  "The hook records session metadata locally on every turn and uploads it when a session ends — no network calls while you are working.";
+export function claudeHookSummary(): string {
+  return i18n.t("settings.local.hookRecords");
+}
 
-export const CLAUDE_HOOK_NOTES: readonly string[] = [
-  "Paste it into ~/.claude/settings.json for every project, or .claude/settings.json for one. If the file already has a \"hooks\" key, merge the Stop and SessionEnd arrays into it.",
-  "Install the CLI first: npm install -g linkhub-extract (or npx linkhub-extract@latest) — the package ships both the linkhub-extract and linkhub-hook binaries.",
-  "Put this connection's id in ~/.linkhub/extractor.json and a token with the activity:write scope in LINKHUB_API_TOKEN, or the hook spools quietly and uploads nothing.",
-];
+export function claudeHookNotes(): readonly string[] {
+  return [
+    i18n.t("settings.local.hookPaste"),
+    i18n.t("settings.local.installCli"),
+    i18n.t("settings.local.hookConfig"),
+  ];
+}
 
 /** Setup for the local extractor CLI, which has no webhook and no hook. */
-export const EXTRACTOR_NOTES: readonly string[] = [
-  "Run linkhub-extract against your repositories. It reads local git history, writes a JSON file and stops — nothing is uploaded until you run the upload command yourself.",
-  "Put this connection's id in ~/.linkhub/extractor.json, and use a token with the activity:write scope, which is not granted by default.",
-];
+export function getExtractorNotes(t: TFunction): readonly string[] {
+  return [t("settings.local.runExtract"), t("settings.local.extractorConfig")];
+}
 
 /* ------------------------------------------------------------------ *
  * Wizard snippets with real values
  * ------------------------------------------------------------------ */
 
 /** Where both the hook and the extractor CLI read their connection id from. */
-export const EXTRACTOR_CONFIG_TARGET = "~/.linkhub/extractor.json";
+export const EXTRACTOR_CONFIG_TARGET = "~/.crafthub/extractor.json";
 
 /**
  * The config file with the REAL connection id baked in. The wizard renders it
@@ -318,15 +377,15 @@ export function buildExtractorConfig(connectionId: string): string {
  * agent can only see the repository the session was started in, which quietly
  * turns a week of work across four projects into a post about one.
  *
- * `~/.linkhub/extractor.json`'s own `repos` array is the fallback, and the
+ * `~/.crafthub/extractor.json`'s own `repos` array is the fallback, and the
  * current directory is the last resort — so this file is a refinement, never a
  * prerequisite.
  */
-export const REPOS_CONFIG_TARGET = "~/.linkhub/repos.json";
+export const REPOS_CONFIG_TARGET = "~/.crafthub/repos.json";
 
 export const REPOS_CONFIG_SNIPPET = JSON.stringify(
   {
-    repos: ["/home/you/code/linkhub", "/home/you/work/payments-api"],
+    repos: ["/home/you/code/crafthub", "/home/you/work/payments-api"],
   },
   null,
   2,
@@ -341,8 +400,8 @@ export const REPOS_CONFIG_SNIPPET = JSON.stringify(
  * with a space in it.
  */
 export const REPOS_DISCOVERY_COMMAND =
-  "mkdir -p ~/.linkhub && find ~/code -maxdepth 3 -type d -name .git -exec dirname {} \\; | " +
-  "jq -R -s '{repos: (split(\"\\n\") | map(select(length > 0)))}' > ~/.linkhub/repos.json";
+  "mkdir -p ~/.crafthub && find ~/code -maxdepth 3 -type d -name .git -exec dirname {} \\; | " +
+  "jq -R -s '{repos: (split(\"\\n\") | map(select(length > 0)))}' > ~/.crafthub/repos.json";
 
 /**
  * The extractor keeps its roster in its own settings file (`repos`, used when
@@ -351,39 +410,44 @@ export const REPOS_DISCOVERY_COMMAND =
  * redirecting on purpose: `>` onto extractor.json would erase the connection
  * id that file exists to hold.
  */
-export const EXTRACTOR_REPOS_TARGET =
-  "~/.linkhub/extractor.json — merge this key in";
+export function extractorReposTarget(): string {
+  return i18n.t("settings.local.mergeThisKey");
+}
 
-export const EXTRACTOR_REPOS_CONSEQUENCE =
-  "Without a repos list, the extractor only reads the paths you type on the command line.";
+export function extractorReposConsequence(): string {
+  return i18n.t("settings.local.reposList");
+}
 
 export const REPOS_LIST_COMMAND =
   "find ~/code -maxdepth 3 -type d -name .git -exec dirname {} \\; | " +
   "jq -R -s '(split(\"\\n\") | map(select(length > 0)))'";
 
-export const REPOS_DISCOVERY_NOTE =
-  "Change ~/code to the folder your repositories actually live in, then read the file before you trust it.";
+export function reposDiscoveryNote(): string {
+  return i18n.t("settings.local.changeCodePath");
+}
 
-export const REPOS_COVERAGE_CONSEQUENCE =
-  "Without this, the agent only summarizes the repository it is currently in.";
+export function reposCoverageConsequence(): string {
+  return i18n.t("settings.local.repoScope");
+}
 
-/** `export LINKHUB_API_TOKEN=...` with the real token, or a placeholder. */
+/** `export CRAFTHUB_API_TOKEN=...` with the real token, or a placeholder. */
 export function buildTokenExport(token: string | null): string {
-  return `export LINKHUB_API_TOKEN=${token ?? "lh_pat_xxxxxxxxxxxxxxxxxxxxxxxx"}`;
+  return `export CRAFTHUB_API_TOKEN=${token ?? "lh_pat_xxxxxxxxxxxxxxxxxxxxxxxx"}`;
 }
 
 /**
- * The extract-then-review flow. `npx linkhub-extract` on purpose — the CLI is
+ * The extract-then-review flow. `npx crafthub-extract` on purpose — the CLI is
  * presented as an installed tool, never as "clone the repository".
  */
-export const EXTRACTOR_RUN_COMMAND = "npx linkhub-extract ~/path/to/repo";
+export const EXTRACTOR_RUN_COMMAND = "npx crafthub-extract ~/path/to/repo";
 
 export const EXTRACTOR_UPLOAD_COMMAND =
-  "npx linkhub-extract upload linkhub-activity.json";
+  "npx crafthub-extract upload crafthub-activity.json";
 
 /** Optional weekly automation. `--yes` skips the review stop — say so. */
 export const EXTRACTOR_CRON_SNIPPET =
-  "0 18 * * 5 npx linkhub-extract --yes ~/path/to/repo";
+  "0 18 * * 5 npx crafthub-extract --yes ~/path/to/repo";
 
-export const EXTRACTOR_CRON_CAUTION =
-  "--yes skips the review step: the file uploads without you reading it first. Only automate a repo you have already watched a few uploads from.";
+export function extractorCronCaution(): string {
+  return i18n.t("settings.local.yesFlag");
+}

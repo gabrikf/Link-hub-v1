@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { LinkHubApiClient } from "../api-client.js";
+import type { CraftHubApiClient } from "../api-client.js";
 import { errorResult, runTool, textResult } from "./shared.js";
 
 const inputSchema = {
@@ -10,14 +10,14 @@ const inputSchema = {
 /** `delete_post` — permanently delete a post by id. */
 export function registerDeletePost(
   server: McpServer,
-  client: LinkHubApiClient,
+  client: CraftHubApiClient,
 ): void {
   server.registerTool(
     "delete_post",
     {
-      title: "Delete LinkHub post",
+      title: "Delete CraftHub post",
       description:
-        "Permanently delete one of the user's LinkHub posts by id. This cannot " +
+        "Permanently delete one of the user's CraftHub posts by id. This cannot " +
         "be undone.",
       inputSchema,
     },

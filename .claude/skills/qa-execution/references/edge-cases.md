@@ -25,13 +25,13 @@ Use during Step 4 of `qa-execution` (tours & edge probes). Pair each with a pers
 
 > "Try doing unconventional actions like rapidly double-clicking buttons or links to see if the application can handle the extra events gracefully. Using the browser back and refresh buttons in the middle of a multi-step workflow… entering form fields out of order… real users might try [these]." — Testlio, *Exploratory Testing 101*
 
-A scripted test always submits a form once, in order, with valid data, from a single tab, on a stable network, in light mode. A real user does none of those things consistently — and in LinkHub, one of the "users" is an autonomous agent that writes publicly about someone's job.
+A scripted test always submits a form once, in order, with valid data, from a single tab, on a stable network, in light mode. A real user does none of those things consistently — and in CraftHub, one of the "users" is an autonomous agent that writes publicly about someone's job.
 
 ## Catalog
 
 ### Disclosure & agent-authored content edges
 
-**The highest-value section in this file.** LinkHub's defining risk is an agent revealing an employer name, a client, a repository, an internal codename or a blocked term above the level the user chose. Every charter touching posts, settings or the MCP surface draws at least two edges from here.
+**The highest-value section in this file.** CraftHub's defining risk is an agent revealing an employer name, a client, a repository, an internal codename or a blocked term above the level the user chose. Every charter touching posts, settings or the MCP surface draws at least two edges from here.
 
 | Edge case | What to try | What it surfaces |
 |---|---|---|

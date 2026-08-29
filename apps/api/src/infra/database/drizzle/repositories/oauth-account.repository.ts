@@ -83,4 +83,23 @@ export class DrizzleOAuthAccountRepository implements IOAuthAccountRepository {
       updatedAt: oauthAccount.updatedAt,
     });
   }
+
+  async findByUserId(userId: string): Promise<OAuthAccountEntity[]> {
+    const rows = await db
+      .select()
+      .from(oauthAccounts)
+      .where(eq(oauthAccounts.userId, userId));
+
+    return rows.map(
+      (row) =>
+        new OAuthAccountEntity({
+          id: row.id,
+          userId: row.userId,
+          provider: row.provider,
+          providerAccountId: row.providerAccountId,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        }),
+    );
+  }
 }

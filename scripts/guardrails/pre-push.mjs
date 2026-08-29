@@ -67,6 +67,8 @@ const MAX_ATTEMPTS = 3;
 const NEEDS_POSTGRES = [
   "src/infra/di/container-wiring.test.ts",
   "src/infra/database/drizzle/search-indexes.e2e.test.ts",
+  "src/infra/database/drizzle/user-email-verified-mapping.e2e.test.ts",
+  "src/infra/database/drizzle/user-preferences-constraints.e2e.test.ts",
   "src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts",
 ];
 
@@ -79,6 +81,16 @@ const NEEDS_OPENAI_KEY = [
   "src/infra/http/controllers/resume/test/search.e2e.test.ts",
   "src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts",
   "src/infra/database/drizzle/search-indexes.e2e.test.ts",
+];
+
+/**
+ * api test files that open a real SMTP connection to Mailpit. Also
+ * self-skips (with its own console notice) when run outside this gate, but
+ * excluded here too so the gate's own NOTICE block names it — same belt and
+ * braces as NEEDS_POSTGRES.
+ */
+const NEEDS_MAILPIT = [
+  "src/infra/providers/smtp-mail-provider.mailpit.e2e.test.ts",
 ];
 
 /**
@@ -192,6 +204,28 @@ function hasOpenAiKey() {
   return typeof key === "string" && key.trim().length > 0;
 }
 
+/**
+ * A TCP connect to Mailpit's SMTP port, same shape as `postgresReachable()`:
+ * what the test needs is a reachable relay, not a specific way of having
+ * started one (`bash db-manage.sh admin`, a bare `docker compose ... up -d
+ * mailpit`, or a developer's own Mailpit instance all count).
+ */
+function mailpitReachable(timeoutMs = 700) {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `const s=require('net').connect(1025,'127.0.0.1');` +
+        `s.setTimeout(${timeoutMs});` +
+        `s.on('connect',()=>{s.destroy();process.exit(0)});` +
+        `s.on('error',()=>process.exit(1));` +
+        `s.on('timeout',()=>{s.destroy();process.exit(1)});`,
+    ],
+    { encoding: "utf8", timeout: timeoutMs + 2000 },
+  );
+  return result.status === 0;
+}
+
 /* ────────────────────────── affected-workspace set ─────────────────────── */
 
 function resolveBase() {
@@ -266,6 +300,14 @@ function apiTests() {
       "OPENAI_API_KEY is not set — these call the live API and cost money per run.",
     );
   }
+  if (!mailpitReachable()) {
+    for (const file of NEEDS_MAILPIT) skipped.add(file);
+    reasons.push(
+      "Mailpit is not reachable on 1025 — start it with `docker compose -f " +
+        "docker-compose.dev.yml --profile tools up -d mailpit` (or `bash " +
+        "db-manage.sh admin`).",
+    );
+  }
 
   if (skipped.size > 0) {
     say("");
@@ -303,6 +345,17 @@ function otherTests(base) {
 function i18nParity() {
   return run(process.execPath, [resolve(ROOT, "scripts/guardrails/i18n-parity.mjs")])
     .status === 0;
+}
+
+/**
+ * The other half of parity: parity proves every key exists in all three
+ * locales, this proves the string became a key at all. Both are sub-second, so
+ * they run unconditionally rather than only on affected packages.
+ */
+function i18nRawStrings() {
+  return run(process.execPath, [
+    resolve(ROOT, "scripts/guardrails/i18n-raw-strings.mjs"),
+  ]).status === 0;
 }
 
 /* ──────────────────────────────── the run ──────────────────────────────── */
@@ -349,6 +402,7 @@ function main() {
   }
 
   if (ok) ok = step("i18n locale parity", i18nParity);
+  if (ok) ok = step("i18n raw strings", i18nRawStrings);
 
   const elapsed = (Date.now() - startedAt) / 1000;
   say("");
