@@ -276,6 +276,85 @@ variable "backups_max_age_days" {
   }
 }
 
+# ---------------------------------------------------------------------------------
+# Vigia do backup (Cloudflare Worker)
+# ---------------------------------------------------------------------------------
+
+variable "backup_alert_email" {
+  description = "Para onde vai o alerta quando o backup falhar ou parar de acontecer. NÃO tem default de propósito: um vigia que não sabe para quem gritar é pior que nenhum, porque parece configurado."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.backup_alert_email))
+    error_message = "backup_alert_email precisa ser um endereço de e-mail."
+  }
+}
+
+variable "backup_alert_from" {
+  description = "Remetente do alerta. Deixe null para usar 'CraftHub <no-reply@<domain>>'. O domínio precisa estar verificado no Resend — o de produção já está, porque a API manda e-mail de verificação por ele."
+  type        = string
+  default     = null
+}
+
+variable "resend_api_key" {
+  description = <<-EOT
+    Chave da API do Resend que o Worker usa para mandar o alerta.
+
+    NÃO coloque em terraform.tfvars. Passe por ambiente, como os tokens dos providers:
+
+        export TF_VAR_resend_api_key="$RESEND_API_KEY"
+
+    Basta uma chave restrita a envio ("sending access"). O Worker só chama POST /emails.
+  EOT
+  type        = string
+  sensitive   = true
+}
+
+variable "backup_watchdog_cron" {
+  description = "Quando o vigia roda, em cron UTC. O default é 05:30, cerca de uma hora depois do backup das 04:17 — margem suficiente para um dump lento sem esperar o dia inteiro para saber."
+  type        = string
+  default     = "30 5 * * *"
+}
+
+variable "backup_watchdog_max_age_hours" {
+  description = <<-EOT
+    Idade máxima aceitável do backup mais recente, em horas.
+
+    A ARITMÉTICA IMPORTA, e é onde este alerta seria inútil sem parecer:
+    com o backup às 04:17 e o vigia às 05:30, um backup saudável tem ~1,2h quando é
+    olhado. Se o backup de hoje falhar, o mais recente passa a ser o de ontem: ~25,2h.
+    Um limite de 26h (que parece o "óbvio" de um ciclo diário) NÃO dispararia — só
+    depois de DOIS dias perdidos, com ~49h. O limite tem que ficar acima de 1,2 e
+    abaixo de 25,2. 24 fica confortavelmente no meio.
+  EOT
+  type        = number
+  default     = 24
+
+  validation {
+    condition     = var.backup_watchdog_max_age_hours > 2 && var.backup_watchdog_max_age_hours < 25
+    error_message = "backup_watchdog_max_age_hours deve ficar entre 2 e 25 (exclusive). Acima de 25 o alerta deixa de pegar um único dia perdido, que é justamente o caso que ele existe para pegar."
+  }
+}
+
+variable "backup_watchdog_min_bytes" {
+  description = "Tamanho mínimo aceitável do backup mais recente. Em 2026-08-29 o dump comprimido tinha ~40.760 bytes; 20.000 é metade disso, folgado para o banco crescer e apertado o bastante para pegar um dump truncado. É independente do MIN_DUMP_BYTES do script, que só protege quando o script roda."
+  type        = number
+  default     = 20000
+}
+
+variable "backup_watchdog_heartbeat_weekday" {
+  description = <<-EOT
+    Dia da semana (UTC, 0=domingo) em que o vigia manda um e-mail dizendo que está vivo,
+    mesmo com tudo bem. String vazia desliga.
+
+    Existe porque um vigia morto é tão silencioso quanto um backup saudável. Sem o
+    batimento, você não teria como distinguir "nada de errado" de "ninguém olhando" —
+    que é exatamente o problema que este Worker veio resolver, um nível acima.
+  EOT
+  type        = string
+  default     = "1"
+}
+
 variable "tfstate_bucket_name" {
   description = "Nome do bucket R2 que guarda o state deste Terraform. Precisa bater exatamente com o `bucket` do backend em versions.tf. Este bucket é criado À MÃO no bootstrap e depois adotado por um bloco import — ver README."
   type        = string

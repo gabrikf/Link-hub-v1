@@ -284,6 +284,56 @@ tail -20 /var/log/crafthub-backup.log
 
 ---
 
+# O vigia
+
+Um Cloudflare Worker (`crafthub-backup-watchdog`) roda **05:30 UTC** todo dia, olha o
+bucket e manda e-mail quando o backup mais recente tem mais de 24h, é menor que 20 KB, ou
+não existe. Código em `infra/cloudflare/backup-watchdog/worker.js`.
+
+Ele olha o **arquivo no bucket**, não o código de saída do script — porque em 2026-08-29 o
+script saiu com 0 sem ter subido nada, e um alerta baseado em "terminou bem" teria dito
+que estava tudo certo.
+
+### Recebi "[CraftHub] BACKUP COM PROBLEMA"
+
+O e-mail traz o motivo e a idade do backup mais recente. O primeiro comando é sempre:
+
+```bash
+ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy 'tail -30 /var/log/crafthub-backup.log; echo ---; crontab -l'
+```
+
+- **Log com `ERROR`** → a mensagem diz o que falhou. Rode `/srv/crafthub/scripts/backup.sh`
+  à mão para ver de novo.
+- **Log parado numa data antiga** → o cron não está disparando. Confira `crontab -l` e
+  `systemctl is-active cron`. Um deploy pode ter revertido o script (`git checkout --force`).
+- **Log vazio ou sem permissão** → o `/var/log/crafthub-backup.log` perdeu o dono `deploy`,
+  provavelmente numa rotação. Veja "Armadilhas".
+
+Se você não conseguir consertar rápido, **rode um backup à mão** antes de investigar. A
+janela de retenção continua correndo.
+
+### Como saber se o VIGIA está vivo
+
+Toda segunda-feira ele manda "[CraftHub] backup ok (batimento semanal)". **Se essa mensagem
+parar de chegar, quem caiu foi o vigia** — e o silêncio dele não quer dizer que o backup
+está bem.
+
+Para conferir a qualquer momento, sem painel:
+
+```bash
+ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy 'rclone cat r2:crafthub-backups/watchdog/last-run.json'
+```
+
+Ele grava esse marcador em toda execução. `checkedAt` velho = vigia parado.
+
+### O que o vigia NÃO faz
+
+Ele não sabe se o dump **restaura**. Ele confere que existe um arquivo recente e de
+tamanho plausível — nada mais. A única coisa que responde "isso volta a ser um banco?" é o
+simulado abaixo.
+
+---
+
 # Simulado
 
 Backup que nunca foi restaurado não é backup, é esperança. **Uma vez por trimestre**, rode o

@@ -111,6 +111,19 @@ vite_google_client_id = "000000000000-placeholderplaceholderplaceholder.apps.goo
 # backups_bucket_name = "crafthub-backups"   # precisa bater com RCLONE_BUCKET em scripts/backup.sh
 # r2_backups_location_hint = "weur"          # servidor em Nuremberg; dump e dados ficam na Europa
 
+# --- Vigia do backup (obrigatório) --------------------------------------------------
+# Para onde vai o alerta quando o backup falhar ou parar de acontecer. Sem default de
+# propósito: vigia sem destinatário parece configurado e não é.
+backup_alert_email = "voce@example.com"
+#
+# A chave do Resend NÃO vem daqui. Ela é segredo e vai por ambiente, junto dos tokens:
+#     export TF_VAR_resend_api_key="$RESEND_API_KEY"
+#
+# backup_watchdog_cron              = "30 5 * * *"   # UTC, ~1h depois do backup
+# backup_watchdog_max_age_hours     = 24             # ver a aritmética em variables.tf
+# backup_watchdog_min_bytes         = 20000
+# backup_watchdog_heartbeat_weekday = "1"            # segunda; "" desliga
+
 # tfstate_bucket_name = "crafthub-tfstate"   # precisa bater com o backend em versions.tf
 # r2_location_hint    = "enam"
 
