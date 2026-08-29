@@ -32,12 +32,34 @@
 #     region>            auto
 #     endpoint>          https://<account-id>.r2.cloudflarestorage.com
 #
+# Then add TWO settings the interactive config does not prompt for:
+#
+#     no_head = true          # required, see below
+#     no_check_bucket = true  # the scoped token cannot list buckets
+#
+# `no_head = true` IS NOT OPTIONAL ON R2. After a PUT, rclone re-reads the object with
+# `HEAD /<key>?versionId=<id>`, using the version id R2 returns in the PUT response. R2
+# returns that header but does not implement the `?versionId` subresource, so the HEAD
+# gets 501 Not Implemented and the upload is reported as failed. Verified on rclone
+# 1.60.1 (Ubuntu 24.04 apt): 3 out of 3 first attempts fail without it.
+#
+# What made this expensive to diagnose: with `--retries 3` the job still "succeeds".
+# The retry finds the object already uploaded and matching, so it skips the upload and
+# exits 0. The backup was working by accident, logging an ERROR every night.
+#
+# Nothing is lost by disabling that HEAD — the integrity check that matters is the
+# `rclone size` comparison below, which is also the one that gates pruning.
+#
 # Use a SEPARATE R2 token from the one the app uses for uploads, scoped to the
 # backup bucket only. The app's token has object-write on the public media
 # bucket; a backup job does not need that, and a backup token that can also
 # delete user avatars is a needless coupling.
 #
-# Verify with:  rclone lsd r2:
+# Verify with:  rclone ls r2:crafthub-backups
+#
+# NOT with `rclone lsd r2:` — listing buckets is an account-level permission that a
+# correctly scoped token does not have, so that command returns 403 when everything is
+# in fact working.
 #
 # ---------------------------------------------------------------------------
 # RESTORE (write this down somewhere that is not this VPS)
@@ -48,6 +70,10 @@
 #
 # A backup that has never been restored is a hypothesis. Test it once a quarter
 # against a scratch database.
+#
+# THE FULL PROCEDURE IS docs/backup-restore.md — written to be followed under
+# pressure, covering both "the data is gone" and "the server is gone", and executed
+# end to end on 2026-08-29. The three lines above are a reminder, not the runbook.
 
 set -euo pipefail
 
@@ -72,10 +98,30 @@ command -v docker >/dev/null || die "docker is not installed or not on PATH"
 
 # POSTGRES_USER / POSTGRES_DB come from the same file the container was started
 # with, so the dump can never target a database the app is not using.
-set -a
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
+#
+# READ IT, DO NOT SOURCE IT. This file is Docker Compose's `env_file`, and Compose's
+# parser is not the shell. `MAIL_FROM=CraftHub <no-reply@crafthub.dev>` is a valid
+# literal to Compose and a redirection to bash, so `. "$ENV_FILE"` died with a syntax
+# error on a mail setting that has nothing to do with backups — and would have died on
+# any future value holding a space, a quote, `$`, `&` or `#`.
+#
+# Quoting the env file to please bash is the wrong direction: the file belongs to
+# Compose, Compose has to keep reading it, and its quote handling has changed between
+# versions. Sourcing also executes 88 lines of someone else's config as code, and
+# imports 50 unrelated secrets into this shell's environment, where any child process
+# inherits them.
+#
+# Two keys, read literally. `tail -n 1` takes the last assignment, which is how both the
+# shell and Compose resolve a repeated key. Surrounding quotes are stripped, and so is a
+# trailing CR, in case the file is ever saved with CRLF endings.
+env_value() {
+  sed -n "s/^[[:space:]]*$1=//p" "$ENV_FILE" \
+    | tail -n 1 \
+    | sed -e 's/\r$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
+
+POSTGRES_USER="$(env_value POSTGRES_USER)"
+POSTGRES_DB="$(env_value POSTGRES_DB)"
 
 : "${POSTGRES_USER:?POSTGRES_USER is not set in $ENV_FILE}"
 : "${POSTGRES_DB:?POSTGRES_DB is not set in $ENV_FILE}"
@@ -94,12 +140,19 @@ DUMP_PATH="$WORK_DIR/$DUMP_NAME"
 
 log "Dumping $POSTGRES_DB from $POSTGRES_CONTAINER"
 
-# -T because there is no TTY under cron and pg_dump would otherwise get one and
-# corrupt the stream with control characters.
+# NO -t, AND NO -T EITHER. `-T` is a `docker compose exec` flag; plain `docker exec`
+# does not have it and exits with "unknown shorthand flag: 'T'" before pg_dump ever
+# starts. The two CLIs look alike and are not.
+#
+# The concern behind it was real — a pseudo-TTY would mangle the dump stream with
+# control characters — but `docker exec` allocates one only when asked with `-t`, so
+# the correct fix is to pass nothing. `-i` is not needed either: pg_dump writes to
+# stdout and reads no stdin.
+#
 # --clean --if-exists makes the dump restorable over an existing database.
 # The pipeline runs under `set -o pipefail`, so a pg_dump failure fails the
 # script even though gzip on the right-hand side exits 0.
-if ! docker exec -T "$POSTGRES_CONTAINER" \
+if ! docker exec "$POSTGRES_CONTAINER" \
   pg_dump --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --clean --if-exists --no-owner \
   | gzip -9 > "$DUMP_PATH"; then
   die "pg_dump failed — nothing uploaded"
