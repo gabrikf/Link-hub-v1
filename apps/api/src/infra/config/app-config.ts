@@ -284,6 +284,19 @@ export const telemetryConfig = () => ({
    * the api + two worker containers (DAU, queue depth) key off this.
    */
   role: readString("SERVICE_ROLE") ?? "api",
+  /**
+   * Whether `register.ts` installed the OpenTelemetry ESM loader hook.
+   *
+   * DEFAULTS TO FALSE, and the default is load-bearing: the hook installs
+   * import-in-the-middle, which intercepts every ESM import and makes
+   * `openai@4` throw on its own `_shims` initialisation. Turning it on with
+   * that dependency in place crash-loops the API at boot. The reasoning, and
+   * what it costs to leave off, is in `observability/register.ts`.
+   *
+   * `register.ts` reads this same variable straight from `process.env` — it
+   * runs before this module can safely be imported — so the two must agree.
+   */
+  esmLoaderHook: readBoolean("OTEL_ESM_LOADER_HOOK", false),
 });
 
 export const sentryConfig = () => ({

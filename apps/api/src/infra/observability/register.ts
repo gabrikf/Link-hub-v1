@@ -4,19 +4,53 @@
  * module is loaded, which is the only point at which instrumentation can patch
  * anything.
  *
- * WHY THE LOADER HOOK IS NOT OPTIONAL: `apps/api` is `"type": "module"` and
- * compiles to ESM. OpenTelemetry's auto-instrumentation patches modules by
- * intercepting the loader, and the CommonJS interception it uses by default
- * never sees an ESM `import`. Without registering the hook below you get a
- * process that starts cleanly, reports no errors, and produces no spans — the
- * classic silent failure. `module.register()` needs Node >= 20.6; this repo is
- * on Node 22.
+ * ---------------------------------------------------------------------------
+ * THE ESM LOADER HOOK IS OPT-IN AND DEFAULTS TO OFF. Read this before setting
+ * OTEL_ESM_LOADER_HOOK=true.
+ * ---------------------------------------------------------------------------
+ * `@opentelemetry/instrumentation/hook.mjs` installs import-in-the-middle,
+ * which intercepts EVERY ESM import in the process rather than only the ones an
+ * instrumentation asked to patch. `openai@4` resolves its runtime through the
+ * `_shims` subsystem at module-evaluation time, and under IITM that module ends
+ * up evaluated twice: the second `init()` finds shims already set and throws
  *
- * WHY EVERYTHING IS GUARDED: with no OTEL_EXPORTER_OTLP_ENDPOINT this file
- * returns before touching anything, so a developer who never sets a telemetry
- * variable pays nothing and sees nothing. And because a broken telemetry setup
- * must never be the reason the API fails to boot, every step is wrapped — the
- * worst case is a warning on stderr and an app that runs untraced.
+ *   Error: you must `import 'openai/shims/node'` before importing anything else
+ *          from openai
+ *
+ * at load time, before a single handler runs. On 2026-08-29 that put the
+ * production API into a crash-loop the moment OTEL_EXPORTER_OTLP_ENDPOINT was
+ * first set — six minutes of 503 from a change that only added an env var.
+ *
+ * WHAT LEAVING IT OFF COSTS: distributed traces, and nothing else. The five
+ * instrumentations that need module patching (http, fastify, pg, ioredis,
+ * undici) produce spans. Every metric the dashboards in `infra/grafana` query
+ * is recorded by hand in `metrics.ts`, and RuntimeNodeInstrumentation reads
+ * `perf_hooks` instead of patching modules — so the dashboards and the runtime
+ * metrics are unaffected by this switch.
+ *
+ * `openai` v5 deleted `_shims`, and this repo is now on v7 — a local probe
+ * confirms the module imports cleanly with the hook registered, so the original
+ * crash is gone. The default stays false anyway until telemetry has been seen
+ * working in production: the app imports far more than `openai`, import-in-the-
+ * middle wraps all of it, and turning this on at the same moment telemetry was
+ * first enabled is precisely what made the last failure ambiguous. Flip it on
+ * its own, as one env change that can be reverted in isolation.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE TRY/CATCH BELOW IS NOT THE SAFETY NET IT LOOKS LIKE
+ * ---------------------------------------------------------------------------
+ * It guards the *registration*. The hook it installs changes how every
+ * subsequent import in the process behaves, and that failure surfaces long
+ * after this block has already returned successfully. An earlier version of
+ * this comment promised that a broken telemetry setup could never be the reason
+ * the API failed to boot. That promise was false, and production is what
+ * proved it.
+ *
+ * WHY EVERYTHING IS STILL GUARDED: with no OTEL_EXPORTER_OTLP_ENDPOINT this
+ * file returns before touching anything, so a developer who never sets a
+ * telemetry variable pays nothing and sees nothing.
+ *
+ * `module.register()` needs Node >= 20.6; this repo is on Node 22.
  *
  * Local development does not go through this file at all: `npm run dev` uses
  * `tsx watch src/index.ts` with no `--import`.
@@ -24,11 +58,17 @@
 
 if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
   try {
-    const { register } = await import("node:module");
-
-    // The only loader hook OpenTelemetry supports. It wraps
-    // import-in-the-middle so ESM imports become patchable.
-    register("@opentelemetry/instrumentation/hook.mjs", import.meta.url);
+    /**
+     * Raw `process.env`, not `telemetryConfig()`. Reading the config module
+     * here would load app-config and everything it imports *before* the hook
+     * could patch them, which is the one ordering this file exists to control.
+     * `otel.ts` reads the same variable via `telemetryConfig().esmLoaderHook`;
+     * the two must agree, which is what the test in `app-config.test.ts` pins.
+     */
+    if (process.env.OTEL_ESM_LOADER_HOOK === "true") {
+      const { register } = await import("node:module");
+      register("@opentelemetry/instrumentation/hook.mjs", import.meta.url);
+    }
 
     const { startTelemetry } = await import("./otel.js");
     startTelemetry();
