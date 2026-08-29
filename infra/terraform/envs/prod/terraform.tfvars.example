@@ -108,6 +108,9 @@ vite_google_client_id = "000000000000-placeholderplaceholderplaceholder.apps.goo
 
 # --- R2 -----------------------------------------------------------------------------
 # uploads_bucket_name = "crafthub-uploads"
+# backups_bucket_name = "crafthub-backups"   # precisa bater com RCLONE_BUCKET em scripts/backup.sh
+# r2_backups_location_hint = "weur"          # servidor em Nuremberg; dump e dados ficam na Europa
+
 # tfstate_bucket_name = "crafthub-tfstate"   # precisa bater com o backend em versions.tf
 # r2_location_hint    = "enam"
 

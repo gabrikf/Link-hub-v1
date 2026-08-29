@@ -307,19 +307,30 @@ just naming the cost.
 
 ---
 
-### P2-d · The backup bucket is unmanaged · **NOT FIXED**
+### P2-d · The backup bucket is unmanaged · **FIXED 2026-08-29**
 
-`scripts/backup.sh:58` writes to `RCLONE_BUCKET="${RCLONE_BUCKET:-crafthub-backups}"`.
-No Terraform resource creates `crafthub-backups`; `cloudflare_r2.tf` manages only
-`uploads` and `tfstate`. Backups therefore go to a bucket that exists only if
-someone made it by hand, with no lifecycle policy and no Terraform-visible
-retention.
+`cloudflare_r2.tf` now manages `cloudflare_r2_bucket.backups` (`prevent_destroy`),
+a `cloudflare_account_token.r2_backups` scoped to that bucket alone, and a
+`cloudflare_r2_bucket_lifecycle.backups` rule. The collision risk that held this
+back was checked, not assumed: the account API listed only `crafthub-tfstate` and
+`crafthub-uploads`, so a *create* was correct and no `import` was needed.
 
-**Why not fixed here.** Adding the resource is easy; deciding whether it should
-be `import`ed (like the tfstate bucket) or created, and what its lifecycle rules
-should be, is a data-retention decision that belongs with whoever owns the backup
-policy. Creating it blind would risk a Terraform *create* colliding with an
-existing hand-made bucket, and that failure lands mid-apply.
+The retention decision: the R2 rule expires at **45 days**, deliberately longer
+than the script's 30-day `RETENTION_DAYS`. Only the script knows whether the day's
+upload actually succeeded before it prunes; the bucket rule knows nothing but age.
+Equal values would let the ignorant one win the race on some days. A `validation`
+on `backups_max_age_days` fails the plan if anyone sets it to 30 or less.
+
+**What this does NOT fix, and it matters:** the lifecycle rule offers no protection
+against a dead cron. It deletes by age regardless of whether anything new is
+arriving, so a cron that stops today leaves an empty bucket in 45 days, silently.
+Only failure alerting closes that, and it does not exist yet.
+
+The backup path was also exercised end to end for the first time on 2026-08-29 —
+which surfaced two bugs in `scripts/backup.sh` that had never let it run at all,
+both now fixed. A restore was verified against a scratch database: 23 of 23 tables
+matching production in both row count and content hash. Procedure in
+`docs/backup-restore.md`, baseline in `docs/backup-baseline-2026-08-29.md`.
 
 ---
 

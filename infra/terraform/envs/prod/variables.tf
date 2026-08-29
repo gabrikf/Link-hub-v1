@@ -232,6 +232,50 @@ variable "media_subdomain" {
   }
 }
 
+variable "backups_bucket_name" {
+  description = "Nome do bucket R2 onde o cron da VPS deposita os dumps do Postgres. Precisa bater com RCLONE_BUCKET em scripts/backup.sh, que usa 'crafthub-backups' por padrão."
+  type        = string
+  default     = "crafthub-backups"
+}
+
+variable "r2_backups_location_hint" {
+  description = <<-EOT
+    Dica de localização do bucket de BACKUPS: apac, eeur, enam, weur, wnam, oc.
+
+    'weur' e não 'enam' (o default do bucket de uploads) porque o servidor está em
+    Nuremberg: o dump sobe da Europa, e os dados são de usuários que a Cloudflare
+    passa a guardar na Europa. É best-effort e só vale na criação do bucket — depois
+    de criado, mudar aqui não move nada.
+  EOT
+  type        = string
+  default     = "weur"
+
+  validation {
+    condition     = contains(["apac", "eeur", "enam", "weur", "wnam", "oc"], var.r2_backups_location_hint)
+    error_message = "r2_backups_location_hint deve ser um de: apac, eeur, enam, weur, wnam, oc."
+  }
+}
+
+variable "backups_max_age_days" {
+  description = <<-EOT
+    Idade máxima, em dias, de um objeto no bucket de backups, aplicada pelo próprio R2.
+
+    NÃO é a retenção do backup — quem manda nisso é RETENTION_DAYS em scripts/backup.sh
+    (30 dias), que só apaga depois de confirmar que o upload do dia foi bem-sucedido.
+    Este valor é maior de propósito, para ser rede de segurança contra crescimento sem
+    limite e não a poda principal.
+
+    O valor vira segundos no resource; não escreva segundos aqui.
+  EOT
+  type        = number
+  default     = 45
+
+  validation {
+    condition     = var.backups_max_age_days > 30
+    error_message = "backups_max_age_days deve ser MAIOR que os 30 dias de RETENTION_DAYS em scripts/backup.sh. Igual ou menor faz a regra do bucket — que não sabe se o backup do dia subiu — ganhar a corrida da poda do script, que sabe."
+  }
+}
+
 variable "tfstate_bucket_name" {
   description = "Nome do bucket R2 que guarda o state deste Terraform. Precisa bater exatamente com o `bucket` do backend em versions.tf. Este bucket é criado À MÃO no bootstrap e depois adotado por um bloco import — ver README."
   type        = string

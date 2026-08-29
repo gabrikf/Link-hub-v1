@@ -125,6 +125,33 @@ output "s3_secret_access_key" {
 }
 
 # -------------------------------------------------------------------------------------
+# R2 / credenciais do cron de backup
+#
+# Estes dois vão para o rclone.conf DA VPS, e para mais lugar nenhum. Não commite, não
+# cole em chat, não redirecione para dentro do repositório. Ver docs/backup-restore.md.
+#
+#     terraform output -raw r2_backups_access_key_id
+#     terraform output -raw r2_backups_secret_access_key
+# -------------------------------------------------------------------------------------
+
+output "r2_backups_bucket" {
+  description = "Nome do bucket R2 de backups do Postgres."
+  value       = cloudflare_r2_bucket.backups.name
+}
+
+output "r2_backups_access_key_id" {
+  description = "access_key_id do remote rclone 'r2' na VPS. É o id do API token escopado ao bucket de backups."
+  value       = local.r2_backups_access_key_id
+  sensitive   = true
+}
+
+output "r2_backups_secret_access_key" {
+  description = "secret_access_key do remote rclone 'r2' na VPS. É o SHA-256 do value do token, não o value."
+  value       = local.r2_backups_secret_access_key
+  sensitive   = true
+}
+
+# -------------------------------------------------------------------------------------
 # Pages
 # -------------------------------------------------------------------------------------
 
