@@ -18,7 +18,7 @@ charter:
   environment:
     web: http://localhost:5173
     api: http://localhost:3333
-    account: <seed account, e.g. seed-react-frontend-003 or recruiter.seed@linkhub.local>
+    account: <seed account, e.g. seed-react-frontend-003 or recruiter.seed@crafthub.local>
   guidance:
     must_try:
       - "<2-4 specific things to attempt — for a Disclosure Tour, draw from the disclosure

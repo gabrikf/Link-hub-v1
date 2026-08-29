@@ -164,7 +164,7 @@ the profile this bug was *filed* against (`seed-react-frontend-003`; the fixer
 walked `seed-go-sre-026`), the two band edges nobody had sampled (**1100** and
 **1152**), and a real click at `top+3` in **both** themes rather than light only.
 Ten widths × two themes: **20/20 pass** — no stolen hit-test point anywhere,
-every click navigates to `/`, and the saved `linkhub-theme` survives it.
+every click navigates to `/`, and the saved `crafthub-theme` survives it.
 `login.top=52` against `toggle.bottom=48` on every row, with no dependence on
 width. Both themes were looked at, not just asserted
 (`.nightly/evidence/i60-review/i60-390-dark.png`, `i60-1024-light.png`): the

@@ -45,9 +45,9 @@ whole suite is green.
 1. ID=mtbot0md
 2. Two CONCURRENT POST /auth/register (see ESC-20260827-register-case-race — the
    race is what still produces the pair today):
-     T124.Lock.$ID@linkhub.local  login t124up$ID  password PassUPPER111  -> 201
-     t124.lock.$ID@linkhub.local  login t124lo$ID  password PassLOWER111  -> 201
-3. psql: SELECT ctid,id,email,login FROM users WHERE lower(email)=lower('T124.Lock.'||$ID||'@linkhub.local');
+     T124.Lock.$ID@crafthub.local  login t124up$ID  password PassUPPER111  -> 201
+     t124.lock.$ID@crafthub.local  login t124lo$ID  password PassLOWER111  -> 201
+3. psql: SELECT ctid,id,email,login FROM users WHERE lower(email)=lower('T124.Lock.'||$ID||'@crafthub.local');
      (17,30) | 8105414c-5e38-42d9-b432-57fbd44f55ec | T124.Lock.… | t124upmtbot0md
      (18,7)  | 96798ea2-d84a-49eb-9126-327253de44f2 | t124.lock.… | t124lomtbot0md
 4. POST /auth/login  UPPERCASE address + PassUPPER111  -> 200, user 8105414c…
@@ -72,11 +72,11 @@ broken hash: the same password succeeds in step 7.
 
 - Reproduced from scratch at triage, not taken from the queue on trust:
   `.nightly/evidence/i102-triage/cand-0124-login-lockout.txt`
-- The colliding pair `t124.lock.mtbot0md@linkhub.local` is **deliberately left in
-  `linkhub_dev`** so FIX can verify against the real Drizzle path. Six mailboxes
+- The colliding pair `t124.lock.mtbot0md@crafthub.local` is **deliberately left in
+  `crafthub_dev`** so FIX can verify against the real Drizzle path. Six mailboxes
   in the dev database now hold a pair; all six were created by this loop.
 - Sequential registration is correctly refused (`409`, one row) — verified at
-  triage with mailbox `t127.seq.mtboteie@linkhub.local`. The pair requires either
+  triage with mailbox `t127.seq.mtboteie@crafthub.local`. The pair requires either
   the concurrency race or a row that predates the 08-23 fix.
 
 ## Judgement at triage
@@ -132,7 +132,7 @@ interface for those tests to be honest.
    already present, registering that mailbox again still throws
    `DuplicateResourceError`.
 5. **Drizzle path, out of band** — the hermetic suite cannot reach
-   `DrizzleUserRepository`. Construct it in-process against `linkhub_dev` (the
+   `DrizzleUserRepository`. Construct it in-process against `crafthub_dev` (the
    `.nightly/probes/i71-drizzle-email-case.ts` pattern) against the pair left in
    the database, and re-walk steps 4-7 above live. Heed the 08-23 review's method
    note: after any checkout, `tsx watch` serves stale code until the listener pid
@@ -199,11 +199,11 @@ ignored) are all green.
 
 ### The reproduction re-walked live
 
-Against the running api on the colliding pair triage left in `linkhub_dev`:
+Against the running api on the colliding pair triage left in `crafthub_dev`:
 
 ```
-UP addr + UP pw -> 200  8105414c-…  T124.Lock.mtbot0md@linkhub.local
-LO addr + LO pw -> 200  96798ea2-…  t124.lock.mtbot0md@linkhub.local   (was 401 — the harm)
+UP addr + UP pw -> 200  8105414c-…  T124.Lock.mtbot0md@crafthub.local
+LO addr + LO pw -> 200  96798ea2-…  t124.lock.mtbot0md@crafthub.local   (was 401 — the harm)
 UP addr + LO pw -> 401  INVALIDCREDENTIALS
 LO addr + UP pw -> 401  INVALIDCREDENTIALS                             (was 200, wrong account)
 ```

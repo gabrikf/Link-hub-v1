@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Post } from "@repo/schemas";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { LinkHubApiError } from "../api-client.js";
+import { CraftHubApiError } from "../api-client.js";
 import {
   describePost,
   errorResult,
@@ -86,7 +86,7 @@ describe("runTool", () => {
     await expect(runTool(async () => success)).resolves.toBe(success);
   });
 
-  it("turns a LinkHubApiError into an isError result carrying the message VERBATIM", async () => {
+  it("turns a CraftHubApiError into an isError result carrying the message VERBATIM", async () => {
     // This is the disclosure-rejection path: the api answers 400 with a message
     // that names the blocked term, and the whole point is that the term reaches
     // the host agent so it can rewrite around it rather than retry.
@@ -95,7 +95,7 @@ describe("runTool", () => {
       "policy blocks. Rewrite the post without that name.";
 
     const result = await runTool(async () => {
-      throw new LinkHubApiError(message, 400);
+      throw new CraftHubApiError(message, 400);
     });
 
     expect(result).toEqual({
@@ -105,9 +105,9 @@ describe("runTool", () => {
     expect(textOf(result)).toContain("Acme Financial");
   });
 
-  it("does not prefix a LinkHubApiError message with 'Unexpected error'", async () => {
+  it("does not prefix a CraftHubApiError message with 'Unexpected error'", async () => {
     const result = await runTool(async () => {
-      throw new LinkHubApiError("Post not found.", 404);
+      throw new CraftHubApiError("Post not found.", 404);
     });
 
     expect(textOf(result)).toBe("Post not found.");

@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreatePostInput, UpdatePostInput } from "@repo/schemas";
-import { LinkHubApiClient, LinkHubApiError } from "./api-client.js";
-import type { LinkHubConfig } from "./config.js";
+import { CraftHubApiClient, CraftHubApiError } from "./api-client.js";
+import type { CraftHubConfig } from "./config.js";
 
 /**
- * Characterization tests for the LinkHub API client.
+ * Characterization tests for the CraftHub API client.
  *
  * This class is the only thing standing between an MCP host and the user's
- * LinkHub account, so these tests pin what it does TODAY: the exact URL and
+ * CraftHub account, so these tests pin what it does TODAY: the exact URL and
  * init object handed to `fetch`, the query string it builds, the path encoding,
  * and the message every failure status is translated into. They assert current
  * behaviour, not desired behaviour — where the two differ it is called out with
@@ -19,7 +19,7 @@ import type { LinkHubConfig } from "./config.js";
  * object literal does not have.
  */
 
-const CONFIG: LinkHubConfig = {
+const CONFIG: CraftHubConfig = {
   apiUrl: "http://api.test",
   token: "lh_pat_test",
 };
@@ -43,8 +43,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function client(config: LinkHubConfig = CONFIG): LinkHubApiClient {
-  return new LinkHubApiClient(config);
+function client(config: CraftHubConfig = CONFIG): CraftHubApiClient {
+  return new CraftHubApiClient(config);
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -90,11 +90,11 @@ async function captureThrown(promise: Promise<unknown>): Promise<unknown> {
 
 async function captureApiError(
   promise: Promise<unknown>,
-): Promise<LinkHubApiError> {
+): Promise<CraftHubApiError> {
   const err = await captureThrown(promise);
-  if (!(err instanceof LinkHubApiError)) {
+  if (!(err instanceof CraftHubApiError)) {
     throw new Error(
-      `expected a LinkHubApiError, got ${String(err)} (${typeof err})`,
+      `expected a CraftHubApiError, got ${String(err)} (${typeof err})`,
     );
   }
   return err;
@@ -110,7 +110,7 @@ interface PrivateRequest {
   request(method: string, path: string, body?: unknown): Promise<unknown>;
 }
 
-function reachPrivateRequest(instance: LinkHubApiClient): PrivateRequest {
+function reachPrivateRequest(instance: CraftHubApiClient): PrivateRequest {
   return instance as unknown as PrivateRequest;
 }
 
@@ -185,11 +185,11 @@ describe("request shape", () => {
   it("sends the token from the config it was constructed with", async () => {
     respondWith(jsonResponse([]));
 
-    await client({ apiUrl: "https://linkhub.dev/api", token: "lh_pat_other" })
+    await client({ apiUrl: "https://crafthub.dev/api", token: "lh_pat_other" })
       .listPosts();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://linkhub.dev/api/me/posts",
+      "https://crafthub.dev/api/me/posts",
       expect.objectContaining({
         headers: {
           "Content-Type": "application/json",
@@ -373,7 +373,7 @@ describe("response body", () => {
     await expect(client().deletePost("post-1")).resolves.toBeUndefined();
   });
 
-  it("CHARACTERIZATION: a 200 with a non-JSON body throws a raw SyntaxError, not a LinkHubApiError", async () => {
+  it("CHARACTERIZATION: a 200 with a non-JSON body throws a raw SyntaxError, not a CraftHubApiError", async () => {
     // Suspected wrong. A proxy, a captive portal or a misrouted request answers
     // 200 with HTML; the MCP host then sees "Unexpected token '<'" instead of
     // one of this client's actionable messages, and `status` is absent.
@@ -382,7 +382,7 @@ describe("response body", () => {
     const err = await captureThrown(client().getPost("post-1"));
 
     expect(err).toBeInstanceOf(SyntaxError);
-    expect(err).not.toBeInstanceOf(LinkHubApiError);
+    expect(err).not.toBeInstanceOf(CraftHubApiError);
   });
 
   it("CHARACTERIZATION: a whitespace-only 200 body also throws a raw SyntaxError", async () => {
@@ -414,10 +414,10 @@ describe("error mapping", () => {
 
     const err = await captureApiError(client().createPost(CREATE_INPUT));
 
-    expect(err).toBeInstanceOf(LinkHubApiError);
+    expect(err).toBeInstanceOf(CraftHubApiError);
     expect(err.message).toBe(serverMessage);
     expect(err.status).toBe(400);
-    expect(err.name).toBe("LinkHubApiError");
+    expect(err.name).toBe("CraftHubApiError");
   });
 
   it("400 passes an `error` key through verbatim too", async () => {
@@ -433,7 +433,7 @@ describe("error mapping", () => {
 
     const err = await captureApiError(client().createPost(CREATE_INPUT));
 
-    expect(err.message).toBe("LinkHub rejected the request as invalid.");
+    expect(err.message).toBe("CraftHub rejected the request as invalid.");
     expect(err.status).toBe(400);
   });
 
@@ -442,7 +442,7 @@ describe("error mapping", () => {
 
     const err = await captureApiError(client().createPost(CREATE_INPUT));
 
-    expect(err.message).toBe("LinkHub rejected the request as invalid.");
+    expect(err.message).toBe("CraftHub rejected the request as invalid.");
   });
 
   it("401 names the env var and ignores whatever the server said", async () => {
@@ -452,7 +452,7 @@ describe("error mapping", () => {
 
     expect(err.status).toBe(401);
     expect(err.message).toBe(
-      "Invalid or expired LinkHub token. Create a fresh Personal Access Token in LinkHub settings and set LINKHUB_API_TOKEN.",
+      "Invalid or expired CraftHub token. Create a fresh Personal Access Token in CraftHub settings and set CRAFTHUB_API_TOKEN.",
     );
     expect(err.message).not.toContain("jwt malformed");
   });
@@ -498,7 +498,7 @@ describe("error mapping", () => {
 
     expect(err.status).toBe(403);
     expect(err.message).toBe(
-      "Your LinkHub token is not allowed to perform this action (posts:write required). Ensure it has the posts:write / posts:read scopes.",
+      "Your CraftHub token is not allowed to perform this action (posts:write required). Ensure it has the posts:write / posts:read scopes.",
     );
   });
 
@@ -508,7 +508,7 @@ describe("error mapping", () => {
     const err = await captureApiError(client().listPosts({ limit: 5 }));
 
     expect(err.message).toBe(
-      "Your LinkHub token is not allowed to perform this action. Ensure it has the posts:write / posts:read scopes.",
+      "Your CraftHub token is not allowed to perform this action. Ensure it has the posts:write / posts:read scopes.",
     );
   });
 
@@ -535,7 +535,7 @@ describe("error mapping", () => {
     const err = await captureApiError(client().listPosts());
 
     expect(err.status).toBe(500);
-    expect(err.message).toBe("LinkHub API error (HTTP 500).");
+    expect(err.message).toBe("CraftHub API error (HTTP 500).");
   });
 
   it("an unmapped 429 appends the server message", async () => {
@@ -544,17 +544,17 @@ describe("error mapping", () => {
     const err = await captureApiError(client().createPost(CREATE_INPUT));
 
     expect(err.status).toBe(429);
-    expect(err.message).toBe("LinkHub API error (HTTP 429) (Too many requests).");
+    expect(err.message).toBe("CraftHub API error (HTTP 429) (Too many requests).");
   });
 
-  it("a 502 with an unparseable body still yields a LinkHubApiError carrying the status", async () => {
+  it("a 502 with an unparseable body still yields a CraftHubApiError carrying the status", async () => {
     respondWith(textResponse("<html>bad gateway</html>", 502));
 
     const err = await captureApiError(client().getPost("post-1"));
 
-    expect(err).toBeInstanceOf(LinkHubApiError);
+    expect(err).toBeInstanceOf(CraftHubApiError);
     expect(err.status).toBe(502);
-    expect(err.message).toBe("LinkHub API error (HTTP 502).");
+    expect(err.message).toBe("CraftHub API error (HTTP 502).");
   });
 });
 
@@ -638,16 +638,16 @@ describe("extractMessage", () => {
 // ── Transport failure ────────────────────────────────────────────────────────
 
 describe("transport failure", () => {
-  it("wraps a rejected fetch in a LinkHubApiError with no status", async () => {
+  it("wraps a rejected fetch in a CraftHubApiError with no status", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"));
 
     const err = await captureApiError(client().listPosts());
 
-    expect(err).toBeInstanceOf(LinkHubApiError);
+    expect(err).toBeInstanceOf(CraftHubApiError);
     expect(err.status).toBeUndefined();
     expect(err.message).toBe(
-      "Could not reach the LinkHub API at http://api.test. " +
-        "Make sure the API is running and LINKHUB_API_URL is correct. (fetch failed)",
+      "Could not reach the CraftHub API at http://api.test. " +
+        "Make sure the API is running and CRAFTHUB_API_URL is correct. (fetch failed)",
     );
   });
 
@@ -655,11 +655,11 @@ describe("transport failure", () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
     const err = await captureApiError(
-      client({ apiUrl: "https://linkhub.dev/api", token: "t" }).getAgentPolicy(),
+      client({ apiUrl: "https://crafthub.dev/api", token: "t" }).getAgentPolicy(),
     );
 
-    expect(err.message).toContain("https://linkhub.dev/api");
-    expect(err.message).toContain("LINKHUB_API_URL");
+    expect(err.message).toContain("https://crafthub.dev/api");
+    expect(err.message).toContain("CRAFTHUB_API_URL");
     expect(err.message).toContain("(ECONNREFUSED)");
   });
 
@@ -677,7 +677,7 @@ describe("transport failure", () => {
 
     const err = await captureApiError(client().createPost(CREATE_INPUT));
 
-    expect(err).toBeInstanceOf(LinkHubApiError);
+    expect(err).toBeInstanceOf(CraftHubApiError);
     expect(err.status).toBeUndefined();
   });
 });

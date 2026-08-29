@@ -20,6 +20,7 @@ import {
   subscribeToSystemTheme,
   type Theme,
 } from "./theme";
+import { PREFERENCES_QUERY_KEY } from "./query-client";
 import { useUserInfoStore } from "./user-info-store";
 
 /**
@@ -35,16 +36,42 @@ import { useUserInfoStore } from "./user-info-store";
  * the server corrects it when it answers, and every server value is mirrored
  * back into local storage so the NEXT load's pre-paint read is already right.
  *
- * The visible cost is one correction on the first load on a new device. The
- * alternative — waiting for the server before painting — is a blank screen on
- * every load, and dropping the local read entirely is a flash of the wrong
- * theme on every load. This is the least-bad of the three.
+ * DECISION CHANGED — a signed-in load now DOES wait for the server.
+ *
+ * This module used to argue the opposite: that "waiting for the server before
+ * painting is a blank screen on every load", so one visible correction on a new
+ * device was the least-bad option. Two things made that wrong in practice.
+ *
+ * 1. The correction was not reliably visible at all. It rode on
+ *    `useEffect(..., [preferences])`, and on a second sign-in in the same tab
+ *    the cached entry is still fresh (`staleTime: Infinity`) and identical by
+ *    reference, so the effect never re-ran — the account silently inherited the
+ *    previous one's theme and language until an unrelated toggle wrote a new
+ *    object into the cache. That was the reported bug: "the theme only becomes
+ *    mine when I click the switch."
+ * 2. "Blank screen" was a false choice. `lib/app-boot.ts` resolves the session
+ *    and the preferences BEFORE the router mounts and shows a designed loading
+ *    state — the same `RoutePending` idiom every route already uses — instead
+ *    of nothing.
+ *
+ * So the order is now: boot resolves and APPLIES the server values, and this
+ * hook stays as the in-session channel — it keeps the cache and the rendered
+ * theme in step after a save, and covers a sign-in that happens without a page
+ * load. The local mirror still seeds the first frame, which is what keeps a
+ * returning user's boot flash-free.
  *
  * Anonymous visitors never reach any of this: the query is disabled without a
  * session, so a logged-out person reading a public profile keeps the purely
  * local behaviour they have today, with no request and no 401.
  */
-export const PREFERENCES_QUERY_KEY = ["preferences"] as const;
+/*
+ * Re-exported from the local binding rather than with `export { X } from "..."`.
+ * The forwarding form creates no local binding, and this module reads the key
+ * in three places — with both forms present the bundler drops the import as
+ * redundant and the reads become `ReferenceError` at runtime, which `tsc`
+ * cannot see. (It happened. The login page rendered from the error boundary.)
+ */
+export { PREFERENCES_QUERY_KEY };
 
 type PreferencesSyncOptions = {
   /** The preference the app is currently rendering. */

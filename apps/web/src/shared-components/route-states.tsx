@@ -100,7 +100,7 @@ export function RouteNotFound() {
           className={`inline-flex h-10 items-center justify-center gap-2 rounded-md bg-violet-700 px-4 text-sm text-white transition hover:bg-violet-800 dark:bg-violet-600 dark:hover:bg-violet-500 ${FOCUS_RING_PAGE}`}
         >
           <FiCompass className="h-4 w-4" aria-hidden="true" />
-          {t("notFound.backToLinkHub")}
+          {t("notFound.backToCraftHub")}
         </Link>
       </div>
     </RouteShell>
@@ -111,8 +111,15 @@ export function RouteNotFound() {
  * Shown while a lazily-loaded route chunk is in flight. Deliberately minimal —
  * routes render their own content skeletons once mounted; this only covers the
  * network fetch of the chunk itself.
+ *
+ * `labelKey` exists so the boot gate can say what it is actually waiting for
+ * without forking the skeleton. The router passes no props at all.
  */
-export function RoutePending() {
+export function RoutePending({
+  labelKey = "notFound.loadingPage",
+}: {
+  labelKey?: "notFound.loadingPage" | "common.loadingApp";
+}) {
   const { t } = useTranslation();
   return (
     <div
@@ -120,9 +127,26 @@ export function RoutePending() {
       role="status"
       aria-live="polite"
     >
-      <span className="sr-only">{t("notFound.loadingPage")}</span>
+      <span className="sr-only">{t(labelKey)}</span>
       <div className="anim-sheen h-8 w-48 rounded-full bg-zinc-200/80 dark:bg-zinc-800" />
       <div className="anim-sheen h-56 w-full rounded-2xl bg-zinc-200/80 dark:bg-zinc-800" />
+    </div>
+  );
+}
+
+/**
+ * The whole-app loading state: what is on screen while `lib/app-boot.ts`
+ * resolves the session and the stored preferences, before the router mounts.
+ *
+ * It has to carry the page background itself, because `App` — which normally
+ * paints it — is the root ROUTE component and has not rendered yet. Same
+ * classes as `App`'s shell on purpose: the gate must look like the app warming
+ * up, not like a different page that flashes past.
+ */
+export function BootPending() {
+  return (
+    <div className="relative min-h-screen bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <RoutePending labelKey="common.loadingApp" />
     </div>
   );
 }

@@ -235,8 +235,8 @@ editor back. Screenshots: `.visual/review-layout-error-{error-light,error-dark,f
 **Still open for a human** (unchanged, not a blocker for this fix):
 `e2e/journeys/05-profile-appearance.spec.ts:874-877` still asserts the fabricated
 `Profile header block` group is present on a 500 — that assertion now encodes the
-bug. Separately, `npm run visual:login` writes only `linkhub.auth.tokens` and not
-`linkhub.auth.user-info`, so every authed visual scenario bounces to `/` with
+bug. Separately, `npm run visual:login` writes only `crafthub.auth.tokens` and not
+`crafthub.auth.user-info`, so every authed visual scenario bounces to `/` with
 "Session expired"; this review had to write both keys by hand.
 
 **Not verified by this review:** Playwright journeys were not run (the storage

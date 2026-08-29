@@ -45,7 +45,7 @@ Categories 2–7 are not a denylist problem. "Ticket and issue ids" is a pattern
 "unreleased product names" and "internal architecture specifics" are judgement
 calls that need a model. Both mean an unbounded false-positive rate on a path
 that **rejects a user's post with HTTP 400** — shipping that the night before a
-deploy trades a disclosure risk for a "LinkHub won't let me post" support queue.
+deploy trades a disclosure risk for a "CraftHub won't let me post" support queue.
 Same line that was drawn for `ESC-20260827-disclosure-slash-gap`: repairing a
 self-contradiction is cheap, widening a matcher is not.
 
@@ -53,7 +53,7 @@ self-contradiction is cheap, widening a matcher is not.
 
 Three options, in increasing cost:
 
-1. **Narrow the promise.** Rewrite `blocks` so it distinguishes what LinkHub
+1. **Narrow the promise.** Rewrite `blocks` so it distinguishes what CraftHub
    enforces from what the agent is trusted with, and mirror that split in the
    settings UI. Cheapest, honest, no new failure mode — but it tells users the
    product does less than they assumed.

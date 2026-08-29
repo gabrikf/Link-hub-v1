@@ -30,12 +30,12 @@ import { SnippetBlock } from "./snippet-block";
 /**
  * Survives route changes and reloads within the tab, and dies with the tab —
  * matching the one-time nature of the plaintext webhook secret itself. Exactly
- * the treatment `linkhub:last-created-token` gets, and for exactly the same
+ * the treatment `crafthub:last-created-token` gets, and for exactly the same
  * reason: the setup block is useless if dismissing a dialog destroys the only
  * copy of the secret, and the only recovery is creating a second connection
  * and orphaning the first.
  */
-const STASHED_CONNECTION_KEY = "linkhub:last-created-connection";
+const STASHED_CONNECTION_KEY = "crafthub:last-created-connection";
 
 /** Only what the setup block needs. Never merged into the cached read model. */
 export type StashedConnection = {

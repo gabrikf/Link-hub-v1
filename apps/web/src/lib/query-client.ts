@@ -18,6 +18,18 @@ export const RETRY_BEHIND_AN_ERROR_STATE = {
   retryDelay: 300,
 } as const;
 
+/**
+ * Lives here rather than next to the hook that reads it because `app-boot.ts`
+ * seeds and evicts this entry before any hook has mounted, and it imports
+ * `session.ts` — which `preferences-sync` transitively imports through
+ * `auth-api`. Keeping the key on the query client, which imports nothing of
+ * ours, is what breaks that cycle.
+ *
+ * Sign-out no longer names it: `signOut()` clears the whole cache, because
+ * every cached answer belongs to the session that is ending.
+ */
+export const PREFERENCES_QUERY_KEY = ["preferences"] as const;
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

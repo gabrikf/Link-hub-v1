@@ -18,10 +18,10 @@ How one persona walks one journey and produces evidence someone else can audit. 
 Before the first interaction, materialize the charter's persona physically:
 
 - **Viewport/device:** resize to the persona's screen — 375×812 for phone-small, 768 for tablet, 1440×900 as the desktop baseline (also verify 1024×768, per `visual-check`). Sessions per profile, not one desktop window for everything. The profile editor (`/dashboard/layout`) mirrors a desktop and a mobile arrangement, so a layout charter walks both explicitly.
-- **Theme:** LinkHub themes through a `.dark` class on `<html>`, persisted in `localStorage["linkhub-theme"]` (`@custom-variant dark` in `apps/web/src/index.css`). **Every browser leg is walked in light AND dark.** A surface that lost its `dark:` variant renders dark-on-dark text or a white card in a black page — invisible, not subtle. Record the theme on every screenshot path.
+- **Theme:** CraftHub themes through a `.dark` class on `<html>`, persisted in `localStorage["crafthub-theme"]` (`@custom-variant dark` in `apps/web/src/index.css`). **Every browser leg is walked in light AND dark.** A surface that lost its `dark:` variant renders dark-on-dark text or a white card in a black page — invisible, not subtle. Record the theme on every screenshot path.
 - **Network:** throttle to the persona's reality (slow 3G for the mobile persona) when the tooling allows; otherwise record the gap. The recruiter's TensorFlow.js re-rank runs in the browser — on a slow device that is a perceived-performance surface, not a backend one.
 - **Entry:** arrive the way the persona arrives — the auth screen at `/`, the dashboard nav, a public profile link someone pasted into a chat. Never paste an internal URL the persona wouldn't have. `/profile/<username>` is public by design and is the one URL a stranger legitimately arrives at cold.
-- **Auth:** the real auth path the persona uses, against seeded accounts (`bash db-manage.sh seed-all`): recruiter `recruiter.seed@linkhub.local`, candidates `seed-<slug>-<NN>`, password `12345678` for all of them. The session lives in `.playwright/auth.json`, seeded by `node scripts/visual/session.mjs login` and reused across sessions *of the same persona only* — never carry the recruiter's session into a candidate's walk, and never the reverse. Cross-persona session bleed is itself one of the bugs these sessions exist to find. A scenario that walks a public surface declares `export const requiresAuth = false` and gets no session at all, which is exactly how a stranger arrives.
+- **Auth:** the real auth path the persona uses, against seeded accounts (`bash db-manage.sh seed-all`): recruiter `recruiter.seed@crafthub.local`, candidates `seed-<slug>-<NN>`, password `12345678` for all of them. The session lives in `.playwright/auth.json`, seeded by `node scripts/visual/session.mjs login` and reused across sessions *of the same persona only* — never carry the recruiter's session into a candidate's walk, and never the reverse. Cross-persona session bleed is itself one of the bugs these sessions exist to find. A scenario that walks a public surface declares `export const requiresAuth = false` and gets no session at all, which is exactly how a stranger arrives.
 
 ## The core loop (browser)
 
@@ -91,7 +91,7 @@ Log every session as it runs (this feeds the session debrief in the report):
 
 ## The agent persona (MCP journeys)
 
-The coding agent that publishes posts is a first-class persona, and it does not use a browser. It walks through the `linkhub` MCP server (`apps/mcp`, stdio, a thin HTTP client over the API) with exactly the tools a real agent is given:
+The coding agent that publishes posts is a first-class persona, and it does not use a browser. It walks through the `crafthub` MCP server (`apps/mcp`, stdio, a thin HTTP client over the API) with exactly the tools a real agent is given:
 
 | Loop step | Tool |
 |---|---|
@@ -135,7 +135,7 @@ Exploratory legs are the exception, not the default. A first pass at an unfamili
 | Evidence | `shot(name)` → `.visual/` | copy checkpoints into the run's evidence dir with the theme in the filename |
 | Diagnostics | the run's console/network gate | read it every step, not only at the end |
 | Persona device | `resize(w, h)` | 375×812 phone-small, 768 tablet, 1440×900 desktop baseline, 1024×768 also |
-| Theme | toggle as the product does — its own control or `localStorage["linkhub-theme"]` | both themes, every visual leg |
+| Theme | toggle as the product does — its own control or `localStorage["crafthub-theme"]` | both themes, every visual leg |
 | A stranger's view | `export const requiresAuth = false` | no session at all, which is how the public profile is really read |
 
 **A walked flow worth protecting graduates into a committed test.** The locators used in a session become a `scripts/visual/scenarios/<name>.scenario.mjs` walk, or a **vitest** + `@testing-library/react` test beside the component — the screenshot proves today, the test protects tomorrow (`testing-boss` owns how to write it). Tests in this repo are vitest; there is no jest.

@@ -10,7 +10,7 @@ type UserInfoState = {
   clearUserInfo: () => void;
 };
 
-const USER_INFO_STORAGE_KEY = "linkhub.auth.user-info";
+const USER_INFO_STORAGE_KEY = "crafthub.auth.user-info";
 
 export const useUserInfoStore = create<UserInfoState>()(
   persist(

@@ -177,7 +177,7 @@ describe("detectLanguage — abstains instead of guessing", () => {
     ["a one-word greeting", "hi"],
     ["a bare number", "42"],
     ["a phone number", "+55 11 98765-4321"],
-    ["a URL", "https://github.com/gabrielk/linkhub/pull/42"],
+    ["a URL", "https://github.com/gabrielk/crafthub/pull/42"],
     ["an email address", "gabriel@example.com"],
     [
       "a list of framework names",

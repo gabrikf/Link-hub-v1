@@ -90,7 +90,7 @@ describe("disclosure copy", () => {
       "may name Acme Corp",
     );
     expect(disclosureConsequence("full", "Acme Corp")).toContain(
-      "no LinkHub-side restriction",
+      "no CraftHub-side restriction",
     );
   });
 });
@@ -98,19 +98,19 @@ describe("disclosure copy", () => {
 describe("buildWebhookUrl", () => {
   it("builds the forge URL from the connection id, which is how a delivery is attributed", () => {
     expect(
-      buildWebhookUrl("https://api.linkhub.example", "github", "conn-1"),
-    ).toBe("https://api.linkhub.example/webhooks/github/conn-1");
+      buildWebhookUrl("https://api.crafthub.example", "github", "conn-1"),
+    ).toBe("https://api.crafthub.example/webhooks/github/conn-1");
     expect(
-      buildWebhookUrl("https://api.linkhub.example/", "gitlab", "conn-1"),
-    ).toBe("https://api.linkhub.example/webhooks/gitlab/conn-1");
+      buildWebhookUrl("https://api.crafthub.example/", "gitlab", "conn-1"),
+    ).toBe("https://api.crafthub.example/webhooks/gitlab/conn-1");
   });
 
   it("has no URL for providers that never receive a webhook", () => {
     expect(
-      buildWebhookUrl("https://api.linkhub.example", "claude_code", "conn-1"),
+      buildWebhookUrl("https://api.crafthub.example", "claude_code", "conn-1"),
     ).toBeNull();
     expect(
-      buildWebhookUrl("https://api.linkhub.example", "extractor", "conn-1"),
+      buildWebhookUrl("https://api.crafthub.example", "extractor", "conn-1"),
     ).toBeNull();
   });
 });
@@ -125,14 +125,14 @@ describe("formatLastDigest", () => {
 });
 
 /**
- * Pinned byte-for-byte against `linkhub-hook print-settings`, whose canonical
+ * Pinned byte-for-byte against `crafthub-hook print-settings`, whose canonical
  * definition is `claudeSettingsHooks()` in
  * `apps/extractor/src/hook/settings-snippet.ts`. `apps/web` cannot import a Node
  * CLI, so this is the thing that stops the two drifting — and drift here is
  * silent: a malformed hook simply never fires.
  */
 describe("CLAUDE_HOOK_SNIPPET", () => {
-  it("matches what linkhub-hook print-settings emits, exactly", () => {
+  it("matches what crafthub-hook print-settings emits, exactly", () => {
     expect(CLAUDE_HOOK_SNIPPET).toBe(
       `{
   "hooks": {
@@ -142,7 +142,7 @@ describe("CLAUDE_HOOK_SNIPPET", () => {
         "hooks": [
           {
             "type": "command",
-            "command": "linkhub-hook stop",
+            "command": "crafthub-hook stop",
             "timeout": 5
           }
         ]
@@ -154,7 +154,7 @@ describe("CLAUDE_HOOK_SNIPPET", () => {
         "hooks": [
           {
             "type": "command",
-            "command": "linkhub-hook session-end",
+            "command": "crafthub-hook session-end",
             "timeout": 30,
             "async": true
           }
@@ -187,15 +187,15 @@ describe("KIND_LABELS", () => {
 
 describe("repos coverage snippets", () => {
   it("ships a two-path repos.json example the agent can actually read", () => {
-    expect(REPOS_CONFIG_TARGET).toBe("~/.linkhub/repos.json");
+    expect(REPOS_CONFIG_TARGET).toBe("~/.crafthub/repos.json");
     expect(JSON.parse(REPOS_CONFIG_SNIPPET)).toEqual({
-      repos: ["/home/you/code/linkhub", "/home/you/work/payments-api"],
+      repos: ["/home/you/code/crafthub", "/home/you/work/payments-api"],
     });
   });
 
   it("generates the file in one line without GNU-only flags", () => {
-    expect(REPOS_DISCOVERY_COMMAND).toContain("> ~/.linkhub/repos.json");
-    expect(REPOS_DISCOVERY_COMMAND).toContain("mkdir -p ~/.linkhub");
+    expect(REPOS_DISCOVERY_COMMAND).toContain("> ~/.crafthub/repos.json");
+    expect(REPOS_DISCOVERY_COMMAND).toContain("mkdir -p ~/.crafthub");
     expect(REPOS_DISCOVERY_COMMAND).toContain("-maxdepth 3");
     // `-printf` is GNU find only; `dirname` runs everywhere.
     expect(REPOS_DISCOVERY_COMMAND).not.toContain("-printf");

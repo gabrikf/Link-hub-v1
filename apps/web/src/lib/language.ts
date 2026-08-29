@@ -23,7 +23,7 @@ export type Language = UiLanguage;
 /** English is the source language — every string in the app started as one. */
 export const DEFAULT_LANGUAGE: Language = DEFAULT_UI_LANGUAGE;
 
-const LANGUAGE_STORAGE_KEY = "linkhub-language";
+const LANGUAGE_STORAGE_KEY = "crafthub-language";
 
 export const resolveLanguage = resolveUiLanguage;
 

@@ -5,7 +5,7 @@ import {
   type UpdatePostInput,
 } from "@repo/schemas";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { LinkHubApiClient } from "../api-client.js";
+import type { CraftHubApiClient } from "../api-client.js";
 import { describePost, errorResult, runTool, textResult } from "./shared.js";
 
 const inputSchema = {
@@ -26,7 +26,7 @@ const inputSchema = {
     .describe(
       "Change status. Only 'draft' -> 'published' is accepted here. A post " +
         "in 'pending_review' is waiting for the user, and only the user, " +
-        "signed in to LinkHub, can publish it — publishing it from this tool " +
+        "signed in to CraftHub, can publish it — publishing it from this tool " +
         "is refused with 403, so ask them to approve it in the app instead. " +
         "A published post can never be moved back to 'draft' or " +
         "'pending_review' — take it down with delete_post instead.",
@@ -36,14 +36,14 @@ const inputSchema = {
 /** `update_post` — PATCH an existing post with any subset of updatable fields. */
 export function registerUpdatePost(
   server: McpServer,
-  client: LinkHubApiClient,
+  client: CraftHubApiClient,
 ): void {
   server.registerTool(
     "update_post",
     {
-      title: "Update LinkHub post",
+      title: "Update CraftHub post",
       description:
-        "Update an existing LinkHub post by id. Provide only the fields you " +
+        "Update an existing CraftHub post by id. Provide only the fields you " +
         "want to change (title, body, coverImageUrl, images, externalUrl, " +
         "tags, status). IMPORTANT: only posts the user wrote themselves " +
         "(source='manual') accept content edits. A machine-authored post " +

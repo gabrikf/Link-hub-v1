@@ -10,7 +10,7 @@ highest-value lane not yet covered. Run **one** lane per iteration:
 
 | Lane | What it is |
 |---|---|
-| `deep-review` | Follow `.claude/skills/deep-review/SKILL.md` against `--base develop`. It reviews the branch diff against this repo's own rubric and the six LinkHub priorities. |
+| `deep-review` | Follow `.claude/skills/deep-review/SKILL.md` against `--base develop`. It reviews the branch diff against this repo's own rubric and the six CraftHub priorities. |
 | `qa-execution` | Follow `.claude/skills/qa-execution/SKILL.md`. A persona walks a journey in the browser, in both themes, and reports what a real user experiences. |
 | `journey-probe` | Drive the five journey specs' surfaces harder than the specs do: edge inputs, back/forward, double-submit, refresh mid-flow, slow network (`page.route` with a delay), session expiry. |
 | `perf-cost` | Measure. Request counts per user action, duplicate queries, N+1 through Drizzle, unbounded OpenAI calls, payload sizes, React re-render counts. Numbers or it did not happen. |

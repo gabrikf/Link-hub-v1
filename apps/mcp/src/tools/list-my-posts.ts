@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { LinkHubApiClient } from "../api-client.js";
+import type { CraftHubApiClient } from "../api-client.js";
 import { runTool, summarizePostLine, textResult } from "./shared.js";
 
 const inputSchema = {
@@ -22,14 +22,14 @@ const inputSchema = {
 /** `list_my_posts` — list the authenticated user's posts. */
 export function registerListMyPosts(
   server: McpServer,
-  client: LinkHubApiClient,
+  client: CraftHubApiClient,
 ): void {
   server.registerTool(
     "list_my_posts",
     {
-      title: "List my LinkHub posts",
+      title: "List my CraftHub posts",
       description:
-        "List the authenticated user's LinkHub posts (most recent first), " +
+        "List the authenticated user's CraftHub posts (most recent first), " +
         "returning id, title, status, source and createdAt for each. Supports " +
         "limit/offset pagination.",
       inputSchema,

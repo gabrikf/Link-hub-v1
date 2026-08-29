@@ -27,7 +27,7 @@
  *     assert(await page.getByText('No posts yet').isVisible(), 'empty state renders');
  *   }
  *
- * `requiresAuth` exists because LinkHub genuinely has public pages —
+ * `requiresAuth` exists because CraftHub genuinely has public pages —
  * `/profile/$username` is the shareable artifact the whole product is for. A
  * runner that demanded a session for every capture could not check the one page
  * that matters most.
@@ -314,7 +314,7 @@ function createScenarioContext({
   async function setTheme(theme, target = page) {
     await target.addInitScript(
       ([key, value]) => window.localStorage.setItem(key, value),
-      ["linkhub-theme", theme],
+      ["crafthub-theme", theme],
     );
     await target.reload({ waitUntil: "load" });
   }
@@ -361,7 +361,7 @@ function checkStoredSession() {
   }
   const state = JSON.parse(readFileSync(STATE_PATH, "utf8"));
   const hasCookies = (state.cookies || []).length > 0;
-  // LinkHub keeps its JWTs in localStorage under `linkhub.auth.tokens`, not in
+  // CraftHub keeps its JWTs in localStorage under `crafthub.auth.tokens`, not in
   // a cookie, so a cookies-only check would report every valid session as dead.
   const hasOrigins = (state.origins || []).some(
     (origin) => (origin.localStorage || []).length > 0,

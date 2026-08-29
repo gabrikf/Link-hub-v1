@@ -55,6 +55,19 @@ resource "hcloud_firewall" "main" {
     source_ips  = local.http_source_ips
     description = var.restrict_http_to_cloudflare ? "HTTPS (somente ranges Cloudflare)" : "HTTPS (aberto)"
   }
+
+  # Segunda linha de defesa para a lista de IPs da Cloudflare, que é montada a partir de
+  # uma resposta HTTP externa (ver locals.tf). As postconditions de lá já pegam corpo
+  # vazio e corpo malformado; esta precondition existe porque o custo de errar aqui é
+  # produção fora do ar, e uma checagem redundante no ponto exato do uso vale o parágrafo
+  # que ocupa. Uma lista vazia é o modo de falha silencioso: o firewall seria criado sem
+  # nenhuma origem permitida em 80/443 e a API pararia de responder sem erro nenhum.
+  lifecycle {
+    precondition {
+      condition     = length(local.http_source_ips) > 0
+      error_message = "A lista de origens permitidas em 80/443 ficou vazia. Isso deixaria a origem inalcançável. Confira o download dos ranges da Cloudflare em locals.tf ou aplique com restrict_http_to_cloudflare = false."
+    }
+  }
 }
 
 # -------------------------------------------------------------------------------------

@@ -1,5 +1,4 @@
 import { OAuthAccountEntity } from "../../../entity/oauth-account/oauth-account-entity.js";
-import { RefreshTokenEntity } from "../../../entity/refresh-token/refresh-token-entity.js";
 import { UserEntity } from "../../../entity/user/user-entity.js";
 import { InvalidCredentialsError } from "../../../errors/index.js";
 import { IHashProvider } from "../../../providers/hash/hash-provider.js";
@@ -8,6 +7,7 @@ import { IOAuthAccountRepository } from "../../../repositories/oauth-account/oau
 import { IRefreshTokenRepository } from "../../../repositories/refresh-token/refresh-token-repository.js";
 import { IUsersRepository } from "../../../repositories/user/user-repository.js";
 import { IOAuthSignInUseCaseInput } from "../../types.js";
+import { issueSession } from "../issue-session.js";
 
 export class OAuthSignInUseCase {
   constructor(
@@ -80,6 +80,12 @@ export class OAuthSignInUseCase {
             description: null,
             googleId:
               data.provider === "google" ? data.providerAccountId : null,
+            // Verified at creation: the guard at the top of this method already
+            // refused a provider profile whose email was not confirmed, so the
+            // provider has proved control of this mailbox. Sending our own
+            // verification email on top of that would be asking the user to
+            // prove something we already know.
+            emailVerifiedAt: new Date(),
           }),
         );
       }
@@ -106,26 +112,28 @@ export class OAuthSignInUseCase {
     if (data.provider === "google") {
       user.updateGoogleId(data.providerAccountId);
     }
+    /**
+     * Covers the case the creation branch above cannot: an UNVERIFIED password
+     * account that just linked this provider by matching email. The provider
+     * has proved control of the address, so the account is verified from here —
+     * and this is the escape hatch for a user whose verification email never
+     * arrived. They sign in with Google or LinkedIn and are simply in.
+     *
+     * `markEmailVerified` is idempotent, so a returning OAuth user keeps the
+     * original date rather than having it rewritten on every sign-in.
+     */
+    user.markEmailVerified();
     user = await this.usersRepository.update(user);
 
-    const accessToken = await this.jwtProvider.sign({ sub: user.id });
-
-    const refreshTokenValue = crypto.randomUUID();
-    const refreshTokenExpiresAt = new Date();
-    refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 7);
-
-    await this.refreshTokenRepository.create(
-      RefreshTokenEntity.create({
-        userId: user.id,
-        token: refreshTokenValue,
-        expiresAt: refreshTokenExpiresAt,
-      }),
-    );
+    const session = await issueSession({
+      jwtProvider: this.jwtProvider,
+      refreshTokenRepository: this.refreshTokenRepository,
+      userId: user.id,
+    });
 
     return {
       user: user.toPublic(),
-      accessToken,
-      refreshToken: refreshTokenValue,
+      ...session,
       isNewUser,
     };
   }

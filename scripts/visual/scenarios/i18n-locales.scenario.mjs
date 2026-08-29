@@ -105,9 +105,9 @@ export default async function i18nLocales({
   );
   assert(
     await page.evaluate(
-      () => window.localStorage.getItem("linkhub-language") === "pt-BR",
+      () => window.localStorage.getItem("crafthub-language") === "pt-BR",
     ),
-    "switcher: the choice is persisted next to linkhub-theme",
+    "switcher: the choice is persisted next to crafthub-theme",
   );
 
   // And it survives a reload, which is the whole point of persisting it.
@@ -124,7 +124,7 @@ export default async function i18nLocales({
     // a value forced in after the fact.
     await page.addInitScript(
       ([key, value]) => window.localStorage.setItem(key, value),
-      ["linkhub-language", locale],
+      ["crafthub-language", locale],
     );
 
     await goto(PROFILE);

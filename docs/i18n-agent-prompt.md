@@ -1,4 +1,4 @@
-# Prompt: adicionar i18n ao LinkHub
+# Prompt: adicionar i18n ao CraftHub
 
 Cole o bloco abaixo numa **sessão nova do Claude Code** neste repositório, com o
 modelo em **Opus**. Ele orquestra; os subagentes rodam em Sonnet.
@@ -19,7 +19,7 @@ com a fase 2 opcional. Leia a seção "Persistência" antes de decidir.
 ---
 
 ```
-Adicione i18n ao apps/web do LinkHub. Você é o orquestrador: fanout agressivo
+Adicione i18n ao apps/web do CraftHub. Você é o orquestrador: fanout agressivo
 para subagentes Sonnet, e você (Opus) fica com o que exige julgamento.
 
 LEIA PRIMEIRO, NESTA ORDEM — não pule:
@@ -108,7 +108,7 @@ O QUE VOCÊ MESMO FAZ
 PERSISTÊNCIA — leia antes de decidir
 ════════════════════════════════════════════════════════════════════
 
-FASE 1 (faça sempre): persista em localStorage, ao lado de `linkhub-theme`.
+FASE 1 (faça sempre): persista em localStorage, ao lado de `crafthub-theme`.
 `apps/web/src/lib/theme.ts` já é exatamente esse padrão — copie a forma dele.
 Zero risco de banco, e entrega o recurso inteiro.
 
@@ -182,7 +182,7 @@ Alemão e português são mais longos que inglês; procure botão estourando e t
 truncado. Verifique os dois temas.
 
 Se as portas 5173/3333 estiverem ocupadas por outro projeto (acontece nesta
-máquina), o LinkHub sobe assim:
+máquina), o CraftHub sobe assim:
   PORT=3344 WEB_APP_URL=http://localhost:5273 npm run dev --workspace=api
   VITE_API_URL=http://localhost:3344 npm run dev --workspace=web -- --port 5273 --strictPort
   export E2E_API_URL=http://localhost:3344 E2E_WEB_URL=http://localhost:5273

@@ -40,7 +40,7 @@ Pick the mode before writing the mission:
 - **Freestyle** — mission + persona + time-box only; improvise from what you observe. Use for brand-new surfaces where edges aren't understood yet.
 - **Scenario-based** — walk a realistic end-to-end story in plain language. *"As Priya, who has a React front-end role to fill: paste the JD out of the ATS, work the shortlist, open the top three profiles, and decide who to contact."* Use to validate a journey under realistic conditions.
 - **Strategy-based** — apply one technique throughout (error guessing, state-transition probing). Use for input-heavy or stateful surfaces — the disclosure policy's level transitions are the best example in this product.
-- **Adversarial-agent** — a LinkHub-specific mode. The Autonomous Agent persona is given a realistic, *innocent* task whose honest completion brushes against the disclosure boundary, and the session watches what it publishes. Not a jailbreak attempt: a real agent doing real work is what actually leaks. Use for every Disclosure Tour charter on the MCP surface.
+- **Adversarial-agent** — a CraftHub-specific mode. The Autonomous Agent persona is given a realistic, *innocent* task whose honest completion brushes against the disclosure boundary, and the session watches what it publishes. Not a jailbreak attempt: a real agent doing real work is what actually leaks. Use for every Disclosure Tour charter on the MCP surface.
 - **Collaborative** — two personas pair on one surface; one drives, one proposes. Use for the agent-plus-human loop: Atlas publishes, Diego reviews, and the session watches the seam between them.
 
 ## Time-box guidance

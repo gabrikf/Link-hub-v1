@@ -157,6 +157,112 @@ export const aiQuotaConfig = () => ({
   } satisfies Record<AiQuotaOperation, number>,
 });
 
+/**
+ * Which mail implementation the container builds.
+ *
+ * "log" is not a stub — it is the supported development transport: it prints
+ * the verification link so the whole flow works with nothing configured. The
+ * default follows SMTP_HOST because "I set up SMTP" is the only reason anyone
+ * would want the other one.
+ */
+export type MailTransport = "smtp" | "log";
+
+function readMailTransport(): MailTransport {
+  const raw = readString("MAIL_TRANSPORT")?.toLowerCase();
+
+  if (raw === "smtp" || raw === "log") {
+    return raw;
+  }
+
+  // Includes the typo case on purpose: MAIL_TRANSPORT=stmp falls back to the
+  // configured-or-not rule rather than throwing at boot.
+  return readString("SMTP_HOST") !== undefined ? "smtp" : "log";
+}
+
+/**
+ * The single canonical origin links in outbound email are built from.
+ *
+ * NOT the same thing as WEB_APP_URL, which is a comma-separated CORS allow-list
+ * and can legitimately hold three origins. A link has to pick one, and picking
+ * "whichever the operator listed first" silently is worse than saying so — so
+ * APP_PUBLIC_URL exists to make the choice explicit, and falls back to the
+ * first WEB_APP_URL entry only so nothing new is required to boot.
+ */
+export const appPublicUrl = (): string =>
+  readString("APP_PUBLIC_URL")?.replace(/\/+$/, "") ??
+  readList("WEB_APP_URL")[0] ??
+  "http://localhost:5173";
+
+export const mailConfig = () => ({
+  transport: readMailTransport(),
+  from: readString("MAIL_FROM") ?? "CraftHub <no-reply@localhost>",
+  smtp: {
+    host: readString("SMTP_HOST"),
+    port: readNumber("SMTP_PORT", 587),
+    // 587 is the submission port and upgrades with STARTTLS, so false is the
+    // right default for it. Set true together with SMTP_PORT=465.
+    secure: readBoolean("SMTP_SECURE", false),
+    user: readString("SMTP_USER"),
+    password: readString("SMTP_PASSWORD"),
+  },
+});
+
+/**
+ * How long an emailed verification link stays usable. A day is long enough to
+ * survive "I'll do it tonight" and short enough that a link forwarded or left
+ * in a shared inbox stops working.
+ */
+export const emailVerificationConfig = () => ({
+  tokenTtlHours: readNumber("EMAIL_VERIFICATION_TOKEN_TTL_HOURS", 24),
+});
+
+/**
+ * How long an emailed password-reset link stays usable.
+ *
+ * MINUTES, not hours, and much shorter than the verification TTL: a reset token
+ * IS the account, so OWASP's guidance is that it should live no longer than 20
+ * minutes. A verification link is nearly worthless to a thief by comparison,
+ * which is why the two have their own knobs rather than sharing one.
+ */
+export const passwordResetConfig = () => ({
+  tokenTtlMinutes: readNumber("PASSWORD_RESET_TOKEN_TTL_MINUTES", 20),
+});
+
+/**
+ * The production floor. Half a second is far above what either branch of those
+ * endpoints costs on a healthy deployment (single-digit ms locally, tens of ms
+ * with a real relay), so the timer — not the work — is what the caller measures.
+ * It is also short enough that nobody waiting for a reset link notices.
+ */
+export const AUTH_EMAIL_RESPONSE_FLOOR_DEFAULT_MS = 500;
+
+/**
+ * Fixed wall-clock time `POST /auth/forgot-password` and
+ * `POST /auth/resend-verification` take to answer, whichever branch they ran.
+ *
+ * This is a SECURITY control, not a tuning knob: without it the two endpoints
+ * answer a known address far slower than an unknown one, which is an
+ * account-existence oracle regardless of the identical response body. See
+ * `src/infra/http/utils/response-time-floor.ts` for the measurements and the
+ * mechanism.
+ *
+ * The environment variable exists so the hermetic HTTP suite can run hundreds
+ * of requests without paying half a second each — `build-test-app.ts` sets it,
+ * and says so. Lowering it in a deployment re-opens the oracle in proportion,
+ * and setting it to 0 re-opens it completely; that is left possible because an
+ * operator who types 0 has said what they mean.
+ */
+export const authEmailResponseFloorMs = (): number => {
+  const configured = readNumber(
+    "AUTH_EMAIL_RESPONSE_FLOOR_MS",
+    AUTH_EMAIL_RESPONSE_FLOOR_DEFAULT_MS,
+  );
+
+  // A negative floor is a typo, not a request to turn the control off, so it
+  // falls back to the default instead of quietly collapsing to zero.
+  return configured >= 0 ? configured : AUTH_EMAIL_RESPONSE_FLOOR_DEFAULT_MS;
+};
+
 export const imageOptimizationConfig = () => ({
   enabled: readBoolean("IMAGE_OPTIMIZATION_ENABLED", true),
   maxDimension: readNumber("IMAGE_MAX_DIMENSION", 1600),
@@ -169,8 +275,8 @@ export const imageOptimizationConfig = () => ({
  */
 export const telemetryConfig = () => ({
   enabled: readString("OTEL_EXPORTER_OTLP_ENDPOINT") !== undefined,
-  serviceName: readString("OTEL_SERVICE_NAME") ?? "linkhub-api",
-  serviceNamespace: readString("OTEL_SERVICE_NAMESPACE") ?? "linkhub",
+  serviceName: readString("OTEL_SERVICE_NAME") ?? "crafthub-api",
+  serviceNamespace: readString("OTEL_SERVICE_NAMESPACE") ?? "crafthub",
   deploymentEnvironment: readString("DEPLOYMENT_ENVIRONMENT") ?? nodeEnv(),
   metricExportIntervalMs: readNumber("OTEL_METRIC_EXPORT_INTERVAL_MS", 60_000),
   /**
@@ -217,6 +323,20 @@ export function assertProductionConfig(): void {
 
   if (readString("DATABASE_URL") === undefined) {
     problems.push("DATABASE_URL is not set.");
+  }
+
+  const mail = mailConfig();
+
+  if (mail.transport === "log") {
+    problems.push(
+      "MAIL_TRANSPORT resolves to 'log' (set SMTP_HOST, or MAIL_TRANSPORT explicitly) — verification emails would be written to the container log instead of delivered, so no new account could ever be confirmed and every signup would dead-end at 'check your inbox'.",
+    );
+  }
+
+  if (mail.transport === "smtp" && mail.smtp.host === undefined) {
+    problems.push(
+      "MAIL_TRANSPORT=smtp but SMTP_HOST is not set — the mail provider cannot be constructed and every verification email would fail to send.",
+    );
   }
 
   if (readString("REDIS_URL") === undefined) {

@@ -288,7 +288,7 @@ describe("SettingsPage advanced settings", () => {
       await screen.findByText("lh_pat_ONE_TIME_PLAINTEXT"),
     ).toBeInTheDocument();
     expect(
-      window.sessionStorage.getItem("linkhub:last-created-token"),
+      window.sessionStorage.getItem("crafthub:last-created-token"),
     ).toContain("lh_pat_ONE_TIME_PLAINTEXT");
 
     // The scroll target sits inside the collapsed manual-setup disclosure;

@@ -1,5 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { FiArrowLeft, FiInbox, FiLock } from "react-icons/fi";
 import { getAuthTokens } from "../../../lib/auth-tokens";
@@ -33,15 +32,8 @@ import { selectPendingReview } from "../lib/post-format";
  */
 export function ReviewQueuePage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
-
-  useEffect(() => {
-    if (!hasSession) {
-      navigate({ to: "/" });
-    }
-  }, [hasSession, navigate]);
 
   const postsQuery = useMyPosts(hasSession);
   const approvePost = useApprovePost();

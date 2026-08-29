@@ -4,20 +4,20 @@ import type {
   Post,
   UpdatePostInput,
 } from "@repo/schemas";
-import type { LinkHubConfig } from "./config.js";
+import type { CraftHubConfig } from "./config.js";
 
 /**
  * Error raised by the API client. `status` is the HTTP status when the failure
  * came from the server (absent for network/transport failures). `message` is
  * already human-readable and safe to surface directly to the MCP client.
  */
-export class LinkHubApiError extends Error {
+export class CraftHubApiError extends Error {
   constructor(
     message: string,
     readonly status?: number,
   ) {
     super(message);
-    this.name = "LinkHubApiError";
+    this.name = "CraftHubApiError";
   }
 }
 
@@ -67,16 +67,16 @@ export interface WorkContext {
 const PROFILE_READ_PATHS = new Set(["/me/agent-policy", "/me/work-context"]);
 
 /**
- * Thin, typed HTTP client for the LinkHub `/me/posts` API. It is a pure
+ * Thin, typed HTTP client for the CraftHub `/me/posts` API. It is a pure
  * transport layer: it authenticates with the PAT, (de)serializes JSON, and
- * translates HTTP failures into clear LinkHubApiError messages. It contains no
+ * translates HTTP failures into clear CraftHubApiError messages. It contains no
  * business logic and never calls any AI.
  */
-export class LinkHubApiClient {
+export class CraftHubApiClient {
   private readonly baseUrl: string;
   private readonly token: string;
 
-  constructor(config: LinkHubConfig) {
+  constructor(config: CraftHubConfig) {
     this.baseUrl = config.apiUrl;
     this.token = config.token;
   }
@@ -144,14 +144,14 @@ export class LinkHubApiClient {
       });
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      throw new LinkHubApiError(
-        `Could not reach the LinkHub API at ${this.baseUrl}. ` +
-          `Make sure the API is running and LINKHUB_API_URL is correct. (${detail})`,
+      throw new CraftHubApiError(
+        `Could not reach the CraftHub API at ${this.baseUrl}. ` +
+          `Make sure the API is running and CRAFTHUB_API_URL is correct. (${detail})`,
       );
     }
 
     if (!response.ok) {
-      throw new LinkHubApiError(
+      throw new CraftHubApiError(
         await this.describeError(response, path),
         response.status,
       );
@@ -179,24 +179,24 @@ export class LinkHubApiClient {
         // rather than wrapped in a generic "invalid request".
         return serverMessage
           ? serverMessage
-          : "LinkHub rejected the request as invalid.";
+          : "CraftHub rejected the request as invalid.";
       case 401:
-        return "Invalid or expired LinkHub token. Create a fresh Personal Access Token in LinkHub settings and set LINKHUB_API_TOKEN.";
+        return "Invalid or expired CraftHub token. Create a fresh Personal Access Token in CraftHub settings and set CRAFTHUB_API_TOKEN.";
       case 403:
         if (PROFILE_READ_PATHS.has(basePath)) {
           return (
             "Your token is missing the profile:read scope — create a new token in " +
-            "LinkHub settings (Settings → Personal access tokens → Create token) " +
-            "with profile:read checked, and set it as LINKHUB_API_TOKEN. Without " +
+            "CraftHub settings (Settings → Personal access tokens → Create token) " +
+            "with profile:read checked, and set it as CRAFTHUB_API_TOKEN. Without " +
             "it this server cannot read your disclosure policy, so it will assume " +
             "the strictest one."
           );
         }
-        return `Your LinkHub token is not allowed to perform this action${suffix}. Ensure it has the posts:write / posts:read scopes.`;
+        return `Your CraftHub token is not allowed to perform this action${suffix}. Ensure it has the posts:write / posts:read scopes.`;
       case 404:
         return `Post not found${suffix}.`;
       default:
-        return `LinkHub API error (HTTP ${response.status})${suffix}.`;
+        return `CraftHub API error (HTTP ${response.status})${suffix}.`;
     }
   }
 

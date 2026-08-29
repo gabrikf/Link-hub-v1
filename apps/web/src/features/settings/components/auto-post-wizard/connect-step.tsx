@@ -68,7 +68,7 @@ function NumberedFlow({
 /**
  * The repo roster, kept deliberately secondary.
  *
- * `weekly_update` summarizes every path in `~/.linkhub/repos.json`, falling
+ * `weekly_update` summarizes every path in `~/.crafthub/repos.json`, falling
  * back to the extractor config's `repos` array and then to the current
  * directory. That last fallback works, which is exactly why this is easy to
  * miss: a week spent across four projects silently posts as one.

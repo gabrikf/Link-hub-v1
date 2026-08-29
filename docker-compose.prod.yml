@@ -5,29 +5,71 @@
 # The explicit project name below is load-bearing, not cosmetic. Compose derives
 # the project from the containing DIRECTORY, and `docker-compose.dev.yml` lives
 # in this same directory and also declares a volume called `postgres_data`.
-# Without `name:`, both files resolve to the project `linkhub-v1` and therefore
-# to the SAME physical volume `linkhub-v1_postgres_data` — so this stack boots on
+# Without `name:`, both files resolve to the project `crafthub-v1` and therefore
+# to the SAME physical volume `crafthub-v1_postgres_data` — so this stack boots on
 # the development data directory, silently ignores POSTGRES_USER/PASSWORD
 # (Postgres only reads them when initialising an empty data dir) and fails
 # authentication. Caught by running this stack on a machine that had the dev one.
 #
-name: linkhub-prod
+name: crafthub-prod
 #
 # Configuration comes from `.env.production` next to this file (gitignored — see
 # apps/api/.env.example for the full variable list). The only value compose
 # itself interpolates is the image tag, which scripts/deploy.sh exports.
 #
+# WHAT `.env.production` HAS TO CONTAIN, in groups:
+#
+#   Postgres        POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD — read by the
+#                   postgres image on FIRST BOOT ONLY, and by this file's
+#                   healthcheck. DATABASE_URL must agree with all three.
+#   Core            NODE_ENV=production, DATABASE_URL, REDIS_URL, JWT_SECRET,
+#                   WEB_APP_URL. Hard-required by assertProductionConfig(); the
+#                   API refuses to boot without them.
+#   Public origin   APP_PUBLIC_URL — the ONE canonical https origin used to build
+#                   links that get emailed (account verification). Distinct from
+#                   WEB_APP_URL, which is a comma-separated CORS allow-list and
+#                   may hold several origins. Defaults to the first entry of
+#                   WEB_APP_URL. It is read SERVER-SIDE; it is NOT a VITE_
+#                   variable and putting it in the web build does nothing.
+#   Mail            MAIL_TRANSPORT (smtp | log), SMTP_HOST, SMTP_PORT (587),
+#                   SMTP_SECURE (false), SMTP_USER, SMTP_PASSWORD, MAIL_FROM,
+#                   EMAIL_VERIFICATION_TOKEN_TTL_HOURS (24).
+#                   MAIL_TRANSPORT defaults to `smtp` when SMTP_HOST is set and
+#                   `log` otherwise. `log` means every verification link is
+#                   printed to the container log and no user ever receives one,
+#                   so assertProductionConfig() REFUSES TO BOOT on it — a
+#                   container that will not start beats a signup flow that
+#                   dead-ends at "check your inbox". Set SMTP_HOST.
+#                   The matching SPF/DKIM/DMARC records are Terraform's job:
+#                   `email_provider` in infra/terraform/envs/prod.
+#   Proxy           TRUST_PROXY — defaults to true in production, which is
+#                   correct here because Caddy is the sole ingress and the API
+#                   publishes on 127.0.0.1 only. It is what lets
+#                   @fastify/rate-limit read the X-Real-IP that Caddy sets from
+#                   CF-Connecting-IP. Only set it to false if the API ever
+#                   becomes directly reachable, at which point a client could
+#                   forge the header and mint itself unlimited rate-limit
+#                   buckets.
+#   Storage / AI    S3_* (R2), OPENAI_API_KEY, and the observability block
+#                   (OTEL_*, SENTRY_DSN). All optional-ish: absent OPENAI_API_KEY
+#                   swaps in deterministic providers, absent OTEL endpoint
+#                   registers no telemetry SDK at all.
+#   Caddy           DOMAIN — substituted as {$DOMAIN} in the Caddyfile.
+#                   ACME_EMAIL is NO LONGER USED: TLS is now the Cloudflare
+#                   Origin Certificate delivered by the deploy job, not
+#                   Let's Encrypt. An old value left in the file is harmless.
+#
 # One `env_file` is shared by every service, which means the postgres and caddy
-# containers also see OPENAI_API_KEY, JWT_SECRET and the R2 credentials. On a
-# single-tenant VPS where all six containers are the same trust boundary that is
-# an acceptable trade for having exactly one file to manage. If that stops being
-# true, split it into .env.production (app) and .env.postgres (POSTGRES_*) and
-# give each service the file it needs.
+# containers also see OPENAI_API_KEY, JWT_SECRET, SMTP_PASSWORD and the R2
+# credentials. On a single-tenant VPS where all six containers are the same trust
+# boundary that is an acceptable trade for having exactly one file to manage. If
+# that stops being true, split it into .env.production (app) and .env.postgres
+# (POSTGRES_*) and give each service the file it needs.
 #
 # ---------------------------------------------------------------------------
 # RUNNING IT WITHOUT CADDY (local verification of the image on your laptop)
 # ---------------------------------------------------------------------------
-#   IMAGE_TAG=local docker build -t linkhub-api:local .
+#   IMAGE_TAG=local docker build -t crafthub-api:local .
 #   IMAGE_TAG=local docker compose -f docker-compose.prod.yml \
 #       up -d postgres redis api worker-embedding worker-digest
 #   curl -s http://127.0.0.1:3333/health
@@ -58,7 +100,7 @@ services:
   # -------------------------------------------------------------------------
   postgres:
     image: pgvector/pgvector:pg15
-    container_name: linkhub-postgres
+    container_name: crafthub-postgres
     restart: unless-stopped
     # NO `ports:`. The database is reachable only over the compose network. This
     # is the single most important line in the file: a published 5432 on a VPS
@@ -104,14 +146,14 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - linkhub-network
+      - crafthub-network
 
   # -------------------------------------------------------------------------
   # redis — BullMQ queues, rate-limit counters, AI quota counters
   # -------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: linkhub-redis
+    container_name: crafthub-redis
     restart: unless-stopped
     # No published port, same reasoning as postgres.
     #
@@ -145,7 +187,7 @@ services:
     mem_limit: 384m
     logging: *default_logging
     networks:
-      - linkhub-network
+      - crafthub-network
 
   # -------------------------------------------------------------------------
   # api — the HTTP service
@@ -155,8 +197,8 @@ services:
     # than through env_file: env_file variables go *into* containers, they are
     # not available for compose-level interpolation. Pinning the tag per deploy
     # is what makes `up -d` with the previous tag a working rollback.
-    image: ${IMAGE_NAME:-linkhub-api}:${IMAGE_TAG:-latest}
-    container_name: linkhub-api
+    image: ${IMAGE_NAME:-crafthub-api}:${IMAGE_TAG:-latest}
+    container_name: crafthub-api
     restart: unless-stopped
     init: true
     env_file: .env.production
@@ -180,15 +222,15 @@ services:
     mem_limit: 768m
     logging: *default_logging
     networks:
-      - linkhub-network
+      - crafthub-network
 
   # -------------------------------------------------------------------------
   # worker-embedding — resume embedding jobs
   # -------------------------------------------------------------------------
   # Same image as api. Only `command` and SERVICE_ROLE differ.
   worker-embedding:
-    image: ${IMAGE_NAME:-linkhub-api}:${IMAGE_TAG:-latest}
-    container_name: linkhub-worker-embedding
+    image: ${IMAGE_NAME:-crafthub-api}:${IMAGE_TAG:-latest}
+    container_name: crafthub-worker-embedding
     restart: unless-stopped
     init: true
     command:
@@ -218,14 +260,14 @@ services:
     mem_limit: 512m
     logging: *default_logging
     networks:
-      - linkhub-network
+      - crafthub-network
 
   # -------------------------------------------------------------------------
   # worker-digest — activity digest jobs
   # -------------------------------------------------------------------------
   worker-digest:
-    image: ${IMAGE_NAME:-linkhub-api}:${IMAGE_TAG:-latest}
-    container_name: linkhub-worker-digest
+    image: ${IMAGE_NAME:-crafthub-api}:${IMAGE_TAG:-latest}
+    container_name: crafthub-worker-digest
     restart: unless-stopped
     init: true
     command:
@@ -249,14 +291,14 @@ services:
     mem_limit: 384m
     logging: *default_logging
     networks:
-      - linkhub-network
+      - crafthub-network
 
   # -------------------------------------------------------------------------
   # caddy — TLS termination and reverse proxy
   # -------------------------------------------------------------------------
   caddy:
     image: caddy:2-alpine
-    container_name: linkhub-caddy
+    container_name: crafthub-caddy
     restart: unless-stopped
     ports:
       - "80:80"
@@ -264,13 +306,26 @@ services:
       - "443:443/udp" # HTTP/3
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # caddy_data holds the ACME account key and the issued certificates.
-      # LOSING THIS VOLUME MEANS RE-ISSUING CERTIFICATES ON EVERY RESTART, which
-      # runs into Let's Encrypt's rate limit (5 duplicate certs per week) and
-      # leaves the site on an expired cert until the window rolls over.
+      # The Cloudflare Origin Certificate. `api.<domain>` is orange-clouded, so
+      # the ACME challenge can never reach this box and Let's Encrypt issuance
+      # cannot work — Terraform mints this certificate instead
+      # (infra/terraform/envs/prod/cloudflare_tls.tf) and the deploy workflow
+      # writes these two files before `compose up` runs.
+      #
+      # THESE ARE BIND MOUNTS OF FILES, NOT DIRECTORIES. If a path does not
+      # exist, Docker silently creates a DIRECTORY there and Caddy then fails
+      # with a confusing "is a directory" error. scripts/deploy.sh refuses to
+      # start the stack unless both are present, non-empty and PEM-shaped, so
+      # that failure is caught before anything restarts.
+      - ./secrets/caddy/origin.pem:/etc/caddy/origin.pem:ro
+      - ./secrets/caddy/origin.key:/etc/caddy/origin.key:ro
+      # caddy_data still holds Caddy's own state. It no longer holds an ACME
+      # account or issued certificates — nothing here is issued any more — but
+      # keeping it named means an eventual return to automatic issuance does not
+      # start from a fresh, rate-limit-hungry account.
       - caddy_data:/data
       - caddy_config:/config
-    env_file: .env.production # DOMAIN and ACME_EMAIL, read as {$DOMAIN} in the Caddyfile
+    env_file: .env.production # DOMAIN, read as {$DOMAIN} in the Caddyfile
     # `service_started`, NOT `service_healthy`. Gating the reverse proxy on the
     # API being healthy sounds stricter but inverts the failure mode: a bad API
     # image then means Caddy never starts at all, so the site has no TLS
@@ -287,7 +342,7 @@ services:
     mem_limit: 128m
     logging: *default_logging
     networks:
-      - linkhub-network
+      - crafthub-network
 
 volumes:
   postgres_data:
@@ -300,5 +355,5 @@ volumes:
     driver: local
 
 networks:
-  linkhub-network:
+  crafthub-network:
     driver: bridge

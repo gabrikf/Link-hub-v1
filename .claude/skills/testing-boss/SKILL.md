@@ -50,7 +50,7 @@ Each reference ends with its own sources; `references/sources.md` is the consoli
 
 ---
 
-# LinkHub binding — the doctrine, concrete in this repo
+# CraftHub binding — the doctrine, concrete in this repo
 
 The Iron Laws and the references are framework-agnostic. This section is what they mean **here**.
 It is not optional.
@@ -195,7 +195,7 @@ somebody adds a second one.
 
 ## LLM features need evals, not assertions
 
-LinkHub runs resume parsing, recruiter-query conversion and embedding through OpenAI, plus an
+CraftHub runs resume parsing, recruiter-query conversion and embedding through OpenAI, plus an
 in-browser TensorFlow.js re-rank. **None of those have a single correct output**, so a
 `toEqual` against one golden string is a test that will fail on a model version bump for reasons
 unrelated to quality — and pass while quality degrades.

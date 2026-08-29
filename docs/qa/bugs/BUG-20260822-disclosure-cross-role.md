@@ -18,7 +18,7 @@ for. One of his jobs is different — an open-source employer, or a client who h
 already announced the work publicly — so he opens that single role and marks it
 `full`. He has said one thing: *you may name this one*.
 
-LinkHub hears something else. From that moment, any post his agent attributes to
+CraftHub hears something else. From that moment, any post his agent attributes to
 that permissive role may name **every** employer in his history, including the one
 under NDA that he deliberately left at `summary`. The post publishes straight to
 his public profile and anonymous visitors read it.
@@ -29,7 +29,7 @@ same sentence, sent without a role attached, is refused with a clear 400.
 ## Reproduction
 
 - **Charter:** none yet — direct api probe · **Tour:** the-back-door tour
-- **Environment:** curl + psql, no browser · web http://localhost:5273 · api http://localhost:3344 · seed account `seed.node-backend.040@linkhub.local` / `12345678` (login `seed-node-backend-040`)
+- **Environment:** curl + psql, no browser · web http://localhost:5273 · api http://localhost:3344 · seed account `seed.node-backend.040@crafthub.local` / `12345678` (login `seed-node-backend-040`)
 
 1. Confirm the shape the fixture already has:
    `SELECT login, agent_disclosure_level FROM users WHERE login='seed-node-backend-040'` → `summary`;
@@ -117,7 +117,7 @@ Nothing below was taken from the fix commit's message.
   `["Globo","PagBank","iFood"]` with VTEX correctly absent, and the bug's own
   attack sentence is caught. Postgres holds no leftover repro post naming PagBank.
 
-**Not verified.** No live curl/PAT walk through a running LinkHub api: port 3333
+**Not verified.** No live curl/PAT walk through a running CraftHub api: port 3333
 is serving an unrelated project this run (`/docs/json` → "Retro DOC API",
 `/login` 404s) and restarting dev servers is forbidden inside the loop — the e2e
 lane above is the substitute and exercises the same route through the same app

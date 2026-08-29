@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { FiActivity } from "react-icons/fi";
 import {
   revealCandidateContact,
@@ -12,7 +11,6 @@ import {
   trackInteraction,
   type RecruiterSearchResponse,
 } from "../../../lib/auth-api";
-import { getAuthTokens } from "../../../lib/auth-tokens";
 import { reportError, reportHandled } from "../../../lib/report-error";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { SearchChatComposer } from "../components/search-chat-composer";
@@ -48,7 +46,6 @@ function createSearchSessionId(): string {
 
 export function AdvancedSearchPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resultsRef = useRef<HTMLElement | null>(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -100,12 +97,6 @@ export function AdvancedSearchPage() {
   });
 
   const { rerank, warmUp, isModelLoading } = useAiRerank();
-
-  useEffect(() => {
-    if (!getAuthTokens()) {
-      navigate({ to: "/" });
-    }
-  }, [navigate]);
 
   // Start fetching the reranker bundle as soon as the page mounts, so it is
   // already in memory by the time the first query is submitted.

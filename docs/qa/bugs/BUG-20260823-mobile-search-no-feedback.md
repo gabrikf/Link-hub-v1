@@ -39,7 +39,7 @@ desktop**, which is why it survived to iteration 54.
 ## Reproduction
 
 - **Charter:** none yet · **Tour:** the-mobile tour
-- **Environment:** Chromium 390×844 · nightly stack web http://localhost:5273 · api http://localhost:3344 (dev stack: 5173 / 3333) · `bash db-manage.sh seed-all`, signed in as `seed.react-frontend.003@linkhub.local`
+- **Environment:** Chromium 390×844 · nightly stack web http://localhost:5273 · api http://localhost:3344 (dev stack: 5173 / 3333) · `bash db-manage.sh seed-all`, signed in as `seed.react-frontend.003@crafthub.local`
 
 1. Sign in as a seeded developer and open `/dashboard/search` in a 390×844 viewport.
 2. Type `Senior React frontend engineer with TypeScript` into "Who are you looking for?".

@@ -17,7 +17,6 @@ import {
 } from "@repo/schemas";
 import * as Switch from "@radix-ui/react-switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import {
   useEffect,
   useMemo,
@@ -278,7 +277,6 @@ function LayoutLoadFailed({
 
 export function ProfileLayoutPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
@@ -362,12 +360,6 @@ export function ProfileLayoutPage() {
       document.removeEventListener("keydown", handleKey);
     };
   }, [addMenuZone]);
-
-  useEffect(() => {
-    if (!hasSession) {
-      navigate({ to: "/" });
-    }
-  }, [hasSession, navigate]);
 
   const meQuery = useQuery({
     queryKey: ["me"],

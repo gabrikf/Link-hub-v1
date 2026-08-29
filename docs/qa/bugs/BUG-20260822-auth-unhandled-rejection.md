@@ -13,7 +13,7 @@
 
 ## Summary
 
-A wrong password is the most common failure in any app. On LinkHub every one of
+A wrong password is the most common failure in any app. On CraftHub every one of
 them throws an uncaught promise rejection out of the form.
 
 The visible behaviour is fine — the error renders, no tokens are written — so

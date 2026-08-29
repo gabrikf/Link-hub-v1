@@ -19,6 +19,8 @@ import {
   useSavePreferences,
   useSystemThemeFollow,
 } from "./preferences-sync";
+import { PREFERENCES_QUERY_KEY, queryClient } from "./query-client";
+import { signOut } from "./session";
 import { useUserInfoStore } from "./user-info-store";
 
 const mockedFetch = vi.mocked(fetchPreferences);
@@ -34,13 +36,17 @@ const signIn = () => {
       description: null,
       avatarUrl: null,
       googleId: null,
+      // Added by the auth workstream's `userResponseSchema` change; the value
+      // is irrelevant to preferences, the field's presence is not.
+      emailVerified: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     },
   });
 };
 
-const signOut = () => useUserInfoStore.setState({ userInfo: null });
+/** Just the store — NOT the app's `signOut()`, which also evicts the cache. */
+const clearStoredUser = () => useUserInfoStore.setState({ userInfo: null });
 
 const newQueryClient = () =>
   new QueryClient({
@@ -116,7 +122,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
   document.documentElement.className = "";
-  signOut();
+  clearStoredUser();
 });
 
 afterEach(async () => {
@@ -128,7 +134,7 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     // The bug: sign out on a dark-mode laptop, sign in as an account whose
     // stored preference is light, and keep getting dark forever because
     // localStorage was consulted last.
-    window.localStorage.setItem("linkhub-theme", "dark");
+    window.localStorage.setItem("crafthub-theme", "dark");
     signIn();
     mockedFetch.mockResolvedValue(preferences({ theme: "light" }));
 
@@ -138,7 +144,7 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     await waitFor(() =>
       expect(onThemePreferenceChange).toHaveBeenCalledWith("light"),
     );
-    expect(window.localStorage.getItem("linkhub-theme")).toBe("light");
+    expect(window.localStorage.getItem("crafthub-theme")).toBe("light");
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 
@@ -151,7 +157,7 @@ describe("usePreferencesSync — inbound (server → app)", () => {
 
     // Nothing to change on screen, but the next pre-paint read needs the value.
     await waitFor(() =>
-      expect(window.localStorage.getItem("linkhub-theme")).toBe("dark"),
+      expect(window.localStorage.getItem("crafthub-theme")).toBe("dark"),
     );
     expect(onThemePreferenceChange).not.toHaveBeenCalled();
   });
@@ -163,27 +169,27 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     renderSync("system", vi.fn());
 
     await waitFor(() => expect(i18n.resolvedLanguage).toBe("pt-BR"));
-    expect(window.localStorage.getItem("linkhub-language")).toBe("pt-BR");
+    expect(window.localStorage.getItem("crafthub-language")).toBe("pt-BR");
   });
 
   it("clears a mirrored language when the account follows the device", async () => {
     // Otherwise a previous account's language outlives the preference it was
     // copied from, and the next visitor on this browser gets their locale.
-    window.localStorage.setItem("linkhub-language", "es-ES");
+    window.localStorage.setItem("crafthub-language", "es-ES");
     signIn();
     mockedFetch.mockResolvedValue(preferences({ language: null }));
 
     renderSync("system", vi.fn());
 
     await waitFor(() =>
-      expect(window.localStorage.getItem("linkhub-language")).toBeNull(),
+      expect(window.localStorage.getItem("crafthub-language")).toBeNull(),
     );
   });
 
   it("degrades to local behaviour when the endpoint fails", async () => {
     signIn();
     mockedFetch.mockRejectedValue(new Error("preferences are down"));
-    window.localStorage.setItem("linkhub-theme", "dark");
+    window.localStorage.setItem("crafthub-theme", "dark");
 
     const onThemePreferenceChange = vi.fn();
     renderSync("dark", onThemePreferenceChange);
@@ -191,7 +197,82 @@ describe("usePreferencesSync — inbound (server → app)", () => {
     await waitFor(() => expect(mockedFetch).toHaveBeenCalled());
     // A preference endpoint being down is never allowed to change the UI.
     expect(onThemePreferenceChange).not.toHaveBeenCalled();
-    expect(window.localStorage.getItem("linkhub-theme")).toBe("dark");
+    expect(window.localStorage.getItem("crafthub-theme")).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+  });
+});
+
+describe("signing out — what the next account inherits", () => {
+  /*
+   * Rendered against the REAL `queryClient` singleton on purpose: `signOut()`
+   * evicts from that one, and a test with its own throwaway client would prove
+   * nothing about the wiring the Logout button actually goes through.
+   */
+  const renderAgainstAppCache = (
+    themePreference: ThemePreference,
+    onThemePreferenceChange: (preference: ThemePreference) => void,
+  ) =>
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SyncProbe
+          themePreference={themePreference}
+          onThemePreferenceChange={onThemePreferenceChange}
+        />
+      </QueryClientProvider>,
+    );
+
+  afterEach(() => queryClient.clear());
+
+  it("drops the previous account's preferences", async () => {
+    signIn();
+    mockedFetch.mockResolvedValue(preferences({ theme: "dark" }));
+    renderAgainstAppCache("system", vi.fn());
+    await waitFor(() =>
+      expect(queryClient.getQueryData(PREFERENCES_QUERY_KEY)).toEqual({
+        language: null,
+        theme: "dark",
+      }),
+    );
+
+    signOut();
+
+    expect(queryClient.getQueryData(PREFERENCES_QUERY_KEY)).toBeUndefined();
+  });
+
+  /**
+   * THE REGRESSION TEST FOR THE REPORTED BUG, in the shape a user meets it:
+   * sign out, sign back in as somebody else in the same tab, and get the first
+   * account's theme until you touch an unrelated switch.
+   *
+   * The mechanism is `staleTime: Infinity`. A surviving cache entry is still
+   * FRESH for the second account, so React Query serves it without refetching —
+   * and because it is the same object by reference, the effect that applies
+   * preferences never re-runs. Nothing about the second account is ever asked
+   * for or applied.
+   */
+  it("lets the next account fetch and apply its own", async () => {
+    signIn();
+    mockedFetch.mockResolvedValue(preferences({ theme: "dark" }));
+    const onThemePreferenceChange = vi.fn();
+    const view = renderAgainstAppCache("system", onThemePreferenceChange);
+    await waitFor(() =>
+      expect(onThemePreferenceChange).toHaveBeenCalledWith("dark"),
+    );
+
+    // The Logout button's funnel, then a fresh sign-in on the same tab.
+    signOut();
+    view.unmount();
+    onThemePreferenceChange.mockClear();
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(preferences({ theme: "light" }));
+    signIn();
+
+    renderAgainstAppCache("dark", onThemePreferenceChange);
+
+    await waitFor(() =>
+      expect(onThemePreferenceChange).toHaveBeenCalledWith("light"),
+    );
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 });

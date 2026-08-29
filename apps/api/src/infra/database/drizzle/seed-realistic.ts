@@ -1,6 +1,8 @@
 import "reflect-metadata";
 import "dotenv/config";
+import { container } from "tsyringe";
 import { setupContainer, TOKENS, resolve } from "../../di/container.js";
+import type { IMailProvider } from "../../../core/providers/mail/mail-provider.js";
 import { seedDefaultCatalog } from "./seed.js";
 import {
   DEFAULT_SKILLS,
@@ -72,8 +74,8 @@ type CandidateBlueprint = {
 };
 
 const RECRUITER_SEED = {
-  name: "LinkHub Recruiter",
-  email: "recruiter.seed@linkhub.local",
+  name: "CraftHub Recruiter",
+  email: "recruiter.seed@crafthub.local",
   login: "recruiter-seed",
   password: "12345678",
 };
@@ -1298,7 +1300,7 @@ function buildCandidateSeeds(count: number): CandidateSeed[] {
 
       candidates.push({
         name: `${blueprint.baseLabel} Candidate ${pad(sequence)}`,
-        email: `seed.${normalizeWords(blueprint.slug)}.${pad(sequence)}@linkhub.local`,
+        email: `seed.${normalizeWords(blueprint.slug)}.${pad(sequence)}@crafthub.local`,
         login: `seed-${normalizeWords(blueprint.slug)}-${pad(sequence)}`,
         password: "12345678",
         persona: blueprint.persona,
@@ -1387,6 +1389,25 @@ async function ensureUser(params: {
     avatarUrl: null,
     persona: params.persona ?? null,
   });
+
+  /**
+   * Seeded accounts are PRE-VERIFIED.
+   *
+   * `CreateUserUseCase` deliberately creates an unverified account and emails a
+   * link — which for a seed would mean ~300 accounts nobody can log into, and
+   * ~300 verification links printed into the seed output. A fixture whose
+   * documented password does not work is not a fixture.
+   *
+   * Done here rather than by weakening the use case: production signups must
+   * keep going through the real path, and the seed is the only caller that has
+   * standing to skip it.
+   */
+  const createdUser = await usersRepository.findById(created.user.id);
+
+  if (createdUser) {
+    createdUser.markEmailVerified();
+    await usersRepository.update(createdUser);
+  }
 
   return created.user.id;
 }
@@ -1627,6 +1648,17 @@ async function main(): Promise<void> {
   const candidates = buildCandidateSeeds(candidateCount);
 
   setupContainer();
+
+  /**
+   * No mail from a seed run.
+   *
+   * `CreateUserUseCase` sends a verification email per account, and the default
+   * dev transport prints the whole message — which would bury this script's own
+   * output under ~300 verification emails for accounts the seed verifies
+   * directly two lines later anyway.
+   */
+  const silentMailProvider: IMailProvider = { send: async () => {} };
+  container.registerInstance(TOKENS.MailProvider, silentMailProvider);
 
   await seedDefaultCatalog();
 

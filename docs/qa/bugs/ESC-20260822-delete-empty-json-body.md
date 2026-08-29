@@ -24,7 +24,7 @@ This is global request-parsing behaviour, not a bug in one route.
 ## Reproduction
 
 - **Environment:** nightly stack, api `:3344`, authenticated as
-  `seed.go-sre.026@linkhub.local`. (The ports in `AGENTS.md` — 3333/5173 — are
+  `seed.go-sre.026@crafthub.local`. (The ports in `AGENTS.md` — 3333/5173 — are
   the daytime ports; `:3333` on this machine answers for an unrelated project.)
 
 ```

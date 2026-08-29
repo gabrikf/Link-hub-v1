@@ -124,7 +124,7 @@ export function assertReviewReleaseIsHumanConsent(
   if (authType === "pat" && from === "pending_review" && to === "published") {
     throw new ForbiddenError(
       "This post is waiting for review, and only its owner — signed in to " +
-        "LinkHub — can publish it. An API token may not approve a post it " +
+        "CraftHub — can publish it. An API token may not approve a post it " +
         "wrote: that review step is the human's consent to text written by " +
         "software. Leave the post as it is and ask the user to approve it, or " +
         "delete it and write a new one.",

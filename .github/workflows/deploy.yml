@@ -50,8 +50,21 @@ jobs:
       # create, store and rotate — no registry username, no registry password,
       # no cloud IAM user. The token is scoped to this repository and expires
       # when the job ends. The package inherits the repo's visibility, so a
-      # private repo yields a private image, and the VPS pulls it with a
-      # read:packages PAT (GHCR_PULL_TOKEN) that has no write access anywhere.
+      # private repo yields a private image.
+      #
+      # THE VPS PULLS WITH THE SAME EPHEMERAL TOKEN. An earlier version of this
+      # comment described a long-lived read:packages PAT called
+      # GHCR_PULL_TOKEN. No such secret exists and nothing here has ever read
+      # one: the deploy step below forwards this run's GITHUB_TOKEN as
+      # GHCR_TOKEN and the box runs `docker login` with it. That is better than
+      # the PAT it described — the credential dies with the job — but a
+      # documented secret that does not exist is worse than either, because the
+      # first person to debug a failed pull goes looking for it.
+      #
+      # The one consequence worth knowing: the login on the box expires, so a
+      # MANUAL `./scripts/deploy.sh` run on the VPS can fail to pull from a
+      # private registry. The recovery path is the no-argument mode, which
+      # builds the image locally instead.
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -98,6 +111,27 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Fail here, on the runner, rather than three minutes later on the box with
+      # a Caddy that will not start. `secrets.*` cannot be used in an `if:` on a
+      # step, so this is a plain guard step. It prints only whether each value is
+      # empty — never any part of the value.
+      - name: Check that the Origin Certificate secrets are present
+        env:
+          CADDY_ORIGIN_CERT_B64: ${{ secrets.CADDY_ORIGIN_CERT_B64 }}
+          CADDY_ORIGIN_KEY_B64: ${{ secrets.CADDY_ORIGIN_KEY_B64 }}
+        run: |
+          missing=""
+          [ -n "$CADDY_ORIGIN_CERT_B64" ] || missing="$missing CADDY_ORIGIN_CERT_B64"
+          [ -n "$CADDY_ORIGIN_KEY_B64" ] || missing="$missing CADDY_ORIGIN_KEY_B64"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Caddy terminates TLS with the Cloudflare Origin Certificate; api.<domain> is proxied by Cloudflare, so Let's Encrypt can never validate against this origin and the site would answer 525."
+            echo "Produce the two values from infra/terraform/envs/prod:"
+            echo "  terraform output -raw origin_certificate | base64 -w0   # -> CADDY_ORIGIN_CERT_B64"
+            echo "  terraform output -raw origin_private_key | base64 -w0   # -> CADDY_ORIGIN_KEY_B64"
+            exit 1
+          fi
+
       # The workflow does NOT reimplement deploy logic. `scripts/deploy.sh` owns
       # the whole sequence and its ordering is the safety property:
       # pull -> build -> MIGRATE (before anything restarts) -> compose up ->
@@ -127,6 +161,13 @@ jobs:
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # BASE64, AND ON ONE LINE. `envs:` below hands values to the remote
+          # shell through the SSH environment, which does not survive an
+          # embedded newline — and a PEM is multi-line by definition. Encoding
+          # sidesteps quoting entirely. It is transport, not protection: the
+          # secrecy is still GitHub Secrets'.
+          CADDY_ORIGIN_CERT_B64: ${{ secrets.CADDY_ORIGIN_CERT_B64 }}
+          CADDY_ORIGIN_KEY_B64: ${{ secrets.CADDY_ORIGIN_KEY_B64 }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -141,16 +182,57 @@ jobs:
           # `envs:` is how appleboy/ssh-action gets values across; interpolating
           # them straight into the script would put the token in the remote
           # shell's history and in `ps` output.
-          envs: IMAGE_NAME,IMAGE_TAG,GHCR_USER,GHCR_TOKEN
+          envs: IMAGE_NAME,IMAGE_TAG,GHCR_USER,GHCR_TOKEN,CADDY_ORIGIN_CERT_B64,CADDY_ORIGIN_KEY_B64
           script: |
             set -euo pipefail
-            cd "${{ vars.VPS_APP_DIR || '/srv/linkhub' }}"
+            cd "${{ vars.VPS_APP_DIR || '/srv/crafthub' }}"
 
             # The compose file, Caddyfile and scripts must match the image being
             # deployed. --ff-only so a dirty or diverged server refuses rather
             # than silently deploying something else.
             git fetch --prune origin
             git checkout --force "$IMAGE_TAG" 2>/dev/null || git pull --ff-only
+
+            # -----------------------------------------------------------------
+            # Deliver the Cloudflare Origin Certificate.
+            # -----------------------------------------------------------------
+            # This step is the missing half of the TLS design. Terraform mints
+            # the certificate (cloudflare_tls.tf) and outputs.tf has always said
+            # "GitHub Actions delivers it" — but nothing did, so a from-scratch
+            # deploy produced a Caddy looping on ACME orders it could never
+            # complete and a 525 at the edge.
+            #
+            # AFTER the checkout above, on purpose: `git checkout --force` must
+            # not be able to touch these. They land in secrets/, which is
+            # untracked and gitignored, so it would not — writing afterwards
+            # just removes the question.
+            #
+            # Rewritten on every deploy so that rotating the certificate is
+            # "update two secrets, re-run the workflow" and nothing else. The
+            # write is atomic-ish via a temp file + mv so a half-written PEM can
+            # never be what Caddy mounts.
+            umask 077
+            mkdir -p secrets/caddy
+
+            printf '%s' "$CADDY_ORIGIN_CERT_B64" | base64 -d > secrets/caddy/origin.pem.tmp
+            printf '%s' "$CADDY_ORIGIN_KEY_B64"  | base64 -d > secrets/caddy/origin.key.tmp
+
+            # Check the decode BEFORE either file is in place. A secret that was
+            # pasted un-encoded decodes to garbage rather than failing outright,
+            # so test the content, not just base64's exit status.
+            grep -q "BEGIN CERTIFICATE" secrets/caddy/origin.pem.tmp \
+              || { rm -f secrets/caddy/origin.*.tmp; echo "CADDY_ORIGIN_CERT_B64 did not decode to a PEM certificate. It must be the base64 of 'terraform output -raw origin_certificate', on a single line."; exit 1; }
+            grep -q "PRIVATE KEY" secrets/caddy/origin.key.tmp \
+              || { rm -f secrets/caddy/origin.*.tmp; echo "CADDY_ORIGIN_KEY_B64 did not decode to a PEM private key. It must be the base64 of 'terraform output -raw origin_private_key', on a single line."; exit 1; }
+
+            mv secrets/caddy/origin.pem.tmp secrets/caddy/origin.pem
+            mv secrets/caddy/origin.key.tmp secrets/caddy/origin.key
+
+            # The certificate is public information; the key is not. Caddy runs
+            # as root in the container, so 0600 owned by the deploy user is
+            # still readable through the bind mount.
+            chmod 0644 secrets/caddy/origin.pem
+            chmod 0600 secrets/caddy/origin.key
 
             # Needed to pull from ghcr.io, which is private for a private repo.
             # --password-stdin keeps the token out of ps and shell history.

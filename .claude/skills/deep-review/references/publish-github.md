@@ -8,7 +8,7 @@ Recipes for `--publish`. Everything goes through `gh api`; `R` is `owner/repo`, 
 R=$(gh repo view --json nameWithOwner --jq .nameWithOwner)   # or: git remote -v
 ```
 
-LinkHub currently lives at `https://github.com/gabrikf/Link-hub-v1.git` with default branch `main`, but read it rather than hardcoding it — a fork or a rename silently publishes the review to the wrong repository. Confirm `gh auth status` passes before Step 5 begins.
+CraftHub currently lives at `https://github.com/gabrikf/Link-hub-v1.git` with default branch `main`, but read it rather than hardcoding it — a fork or a rename silently publishes the review to the wrong repository. Confirm `gh auth status` passes before Step 5 begins.
 
 ## Reviewer identity
 

@@ -1,6 +1,6 @@
 ---
 name: spec-writer
-description: Use when WRITING a feature spec for LinkHub from product requirements (user stories, PRD, GitHub issue) plus a design (Claude/Figma HTML, screenshot). Runs a short interview, aligns with the monorepo architecture (apps/web, apps/api, @repo/schemas), and generates a complete, implementable spec with a verification harness in docs/specs/[feature-name]/. Supports --all-default.
+description: Use when WRITING a feature spec for CraftHub from product requirements (user stories, PRD, GitHub issue) plus a design (Claude/Figma HTML, screenshot). Runs a short interview, aligns with the monorepo architecture (apps/web, apps/api, @repo/schemas), and generates a complete, implementable spec with a verification harness in docs/specs/[feature-name]/. Supports --all-default.
 ---
 
 ## Spec Writer — From Idea to Implementable Spec
@@ -311,7 +311,7 @@ A short file that defines, unambiguously:
 | **States** | every possible state of each entity and what the UI shows in each — **including the ones the design did not draw** |
 | **Business rules** | numbered (BR-01, BR-02…), each testable, each referenced by an acceptance criterion |
 | **Permissions** | who sees, who edits, what happens to someone who cannot — including whether the route is public (`/profile/$username`) or session-gated |
-| **Copy** | the user-visible strings this feature introduces. **LinkHub has no i18n yet** — user-visible strings are hardcoded English. The `i18n` skill documents the planned setup; **a spec must not invent `t()` calls.** Listing the copy here still matters: it is what makes the strings reviewable and, later, extractable. |
+| **Copy** | the user-visible strings this feature introduces. **CraftHub has no i18n yet** — user-visible strings are hardcoded English. The `i18n` skill documents the planned setup; **a spec must not invent `t()` calls.** Listing the copy here still matters: it is what makes the strings reviewable and, later, extractable. |
 
 **Why it exists:** ambiguity of definition is what makes an agent (and a junior dev) invent. If "published block" is not defined, each screen implements it differently — and that is an inconsistency bug.
 

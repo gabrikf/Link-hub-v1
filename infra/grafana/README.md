@@ -1,13 +1,13 @@
 # Grafana Cloud dashboards
 
-Three importable dashboards for the LinkHub API, versioned next to the code that
+Three importable dashboards for the CraftHub API, versioned next to the code that
 emits the metrics.
 
 | File | Dashboard | UID | Answers |
 | --- | --- | --- | --- |
-| `dashboards/api-health.json` | LinkHub — API health | `linkhub-api-health` | Is it up, is it fast, are the queues draining? |
-| `dashboards/business.json` | LinkHub — Business | `linkhub-business` | Are people signing up, publishing and searching? |
-| `dashboards/ai-cost.json` | LinkHub — AI cost | `linkhub-ai-cost` | What is OpenAI costing, and who is hitting the quota? |
+| `dashboards/api-health.json` | CraftHub — API health | `crafthub-api-health` | Is it up, is it fast, are the queues draining? |
+| `dashboards/business.json` | CraftHub — Business | `crafthub-business` | Are people signing up, publishing and searching? |
+| `dashboards/ai-cost.json` | CraftHub — AI cost | `crafthub-ai-cost` | What is OpenAI costing, and who is hitting the quota? |
 
 They are plain dashboard JSON, not a provisioning bundle — import them by hand,
 or point Grafana's file provisioner at this directory if you would rather manage
@@ -43,7 +43,7 @@ the source of truth.
 ### Variables you will see at the top
 
 - **Data source** — every dashboard. Which Prometheus to query.
-- **Job** — every dashboard. The OTel service, in case more than one LinkHub
+- **Job** — every dashboard. The OTel service, in case more than one CraftHub
   deployment ever shares a Prometheus tenant. Leave it on `All`.
 - **Route** — API health only. The route template, already normalised (see
   below).
@@ -76,8 +76,8 @@ service).
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | **yes — this is the on/off switch** | Your Grafana Cloud OTLP gateway URL. Its presence alone starts the SDK; with it unset, no provider is registered, every instrument is a no-op, and nothing is exported. |
 | `GRAFANA_CLOUD_INSTANCE_ID` | yes (unless using `OTEL_EXPORTER_OTLP_HEADERS`) | The numeric instance/user ID of your stack's OTLP endpoint. Becomes the Basic-auth username. |
 | `GRAFANA_CLOUD_API_TOKEN` | yes (unless using `OTEL_EXPORTER_OTLP_HEADERS`) | A Grafana Cloud access policy token with write scopes. Becomes the Basic-auth password. |
-| `OTEL_SERVICE_NAME` | no — defaults to `linkhub-api` | Service name on every span, metric and log. |
-| `OTEL_SERVICE_NAMESPACE` | no — defaults to `linkhub` | Groups the API and its workers. |
+| `OTEL_SERVICE_NAME` | no — defaults to `crafthub-api` | Service name on every span, metric and log. |
+| `OTEL_SERVICE_NAMESPACE` | no — defaults to `crafthub` | Groups the API and its workers. |
 | `DEPLOYMENT_ENVIRONMENT` | no — defaults to `NODE_ENV` | `deployment.environment.name` resource attribute. |
 | `OTEL_METRIC_EXPORT_INTERVAL_MS` | no — defaults to `60000` | How often metrics are pushed. Lowering it costs data points, not series; on the free tier, 60 s is already generous. |
 | `SERVICE_ROLE` | set per container: `api`, `worker-embedding`, `worker-digest` | Decides which process reports the once-per-cluster gauges. **Exactly one container may claim `api`**, or daily-active-users and queue depth arrive three times under three different instance IDs. `docker-compose.prod.yml` already sets this correctly. |
@@ -138,7 +138,7 @@ queries here use suffixes that do not appear in the TypeScript:
   suffix is not doubled).
 - **Histograms** become `_bucket`, `_sum` and `_count` series; latency
   percentiles come from `histogram_quantile()` over the `_bucket` series.
-- **Observable gauges** (`queue_depth`, `linkhub_daily_active_users`) keep their
+- **Observable gauges** (`queue_depth`, `crafthub_daily_active_users`) keep their
   name as-is.
 
 ### The cardinality rule

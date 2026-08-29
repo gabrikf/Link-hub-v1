@@ -48,10 +48,10 @@ function spoolFiles(): string[] {
 }
 
 beforeEach(() => {
-  repo = createTempRepo("linkhub-hook-repo-");
+  repo = createTempRepo("crafthub-hook-repo-");
   setRemote(repo, "git@github.com:acme-corp/project-nightingale.git");
   commit(repo, { files: { "src/a.ts": "1\n" }, date: "2026-04-01" });
-  spoolDir = createTempDir("linkhub-hook-spool-");
+  spoolDir = createTempDir("crafthub-hook-spool-");
 });
 
 describe("Stop: stop_hook_active", () => {
@@ -90,7 +90,7 @@ describe("Stop: the agent's own prose", () => {
 
   it("stays absent when the setting is merely missing or falsy", () => {
     for (const value of [undefined, false, null, 0, "true"] as unknown[]) {
-      const dir = createTempDir("linkhub-spool-falsy-");
+      const dir = createTempDir("crafthub-spool-falsy-");
       handleStop(stopPayload(), {
         settings: settings({ includeAgentSummary: value as boolean }),
         spoolDir: dir,
@@ -144,7 +144,7 @@ describe("Stop: debounce", () => {
   });
 
   it("keeps two repositories in one session apart", () => {
-    const other = createTempRepo("linkhub-hook-other-");
+    const other = createTempRepo("crafthub-hook-other-");
     setRemote(other, "git@github.com:acme-corp/other.git");
     commit(other, { files: { "main.go": "1\n" } });
 
@@ -194,8 +194,8 @@ describe("SessionEnd: flushing", () => {
     expect(new Spool(spoolDir).read()).toHaveLength(1);
 
     // No token: the common case of installing the hook before minting a PAT.
-    const previous = process.env.LINKHUB_API_TOKEN;
-    delete process.env.LINKHUB_API_TOKEN;
+    const previous = process.env.CRAFTHUB_API_TOKEN;
+    delete process.env.CRAFTHUB_API_TOKEN;
     try {
       const result = await handleSessionEnd(
         { session_id: "session-abc", cwd: repo, session_end_reason: "exit" },
@@ -204,7 +204,7 @@ describe("SessionEnd: flushing", () => {
       expect(result.flushed).toBe(0);
       expect(result.reason).toBe("no_token");
     } finally {
-      if (previous !== undefined) process.env.LINKHUB_API_TOKEN = previous;
+      if (previous !== undefined) process.env.CRAFTHUB_API_TOKEN = previous;
     }
 
     // Nothing lost: the next session that ends successfully carries it.
@@ -254,11 +254,11 @@ describe("the settings snippet", () => {
     const stop = hooks.hooks.Stop?.[0]?.hooks?.[0];
     const sessionEnd = hooks.hooks.SessionEnd?.[0]?.hooks?.[0];
 
-    expect(stop?.command).toBe("linkhub-hook stop");
+    expect(stop?.command).toBe("crafthub-hook stop");
     expect(stop?.async).toBeUndefined();
 
     // SessionEnd hooks share a ~1.5s budget; the network call must not sit in it.
-    expect(sessionEnd?.command).toBe("linkhub-hook session-end");
+    expect(sessionEnd?.command).toBe("crafthub-hook session-end");
     expect(sessionEnd?.async).toBe(true);
 
     expect(hooks.hooks.Stop?.[0]?.matcher).toBe("");
@@ -267,10 +267,10 @@ describe("the settings snippet", () => {
 
   it("threads a custom command and config path through", () => {
     const snippet = claudeSettingsSnippet({
-      command: "/opt/linkhub/bin/linkhub-hook",
-      configPath: "/etc/linkhub.json",
+      command: "/opt/crafthub/bin/crafthub-hook",
+      configPath: "/etc/crafthub.json",
     });
-    expect(snippet).toContain("/opt/linkhub/bin/linkhub-hook stop --config /etc/linkhub.json");
+    expect(snippet).toContain("/opt/crafthub/bin/crafthub-hook stop --config /etc/crafthub.json");
   });
 });
 
@@ -284,11 +284,11 @@ describe("the executable never blocks a session", () => {
   const packageRoot = join(here, "..", "..");
   // tsx is hoisted to the monorepo root by npm workspaces.
   const tsx = join(packageRoot, "..", "..", "node_modules", ".bin", "tsx");
-  const bin = join(packageRoot, "src", "bin", "linkhub-hook.ts");
+  const bin = join(packageRoot, "src", "bin", "crafthub-hook.ts");
 
   /** A real config file, so the "wrote nothing" assertions are not vacuous. */
   function writeConfig(spool: string): string {
-    const dir = createTempDir("linkhub-bin-config-");
+    const dir = createTempDir("crafthub-bin-config-");
     const path = join(dir, "extractor.json");
     writeFileSync(
       path,
@@ -304,7 +304,7 @@ describe("the executable never blocks a session", () => {
       encoding: "utf8",
       env: {
         ...process.env,
-        LINKHUB_EXTRACTOR_CONFIG: configPath ?? "/nonexistent/linkhub.json",
+        CRAFTHUB_EXTRACTOR_CONFIG: configPath ?? "/nonexistent/crafthub.json",
       },
     });
     // A spawn that never started would make every `status === 0` assertion
@@ -314,7 +314,7 @@ describe("the executable never blocks a session", () => {
   }
 
   it("exits 0 and writes nothing when stop_hook_active is true", () => {
-    const spool = createTempDir("linkhub-bin-spool-");
+    const spool = createTempDir("crafthub-bin-spool-");
     const config = writeConfig(spool);
 
     // Control: the same payload WITHOUT the flag does spool, so the assertion
@@ -323,7 +323,7 @@ describe("the executable never blocks a session", () => {
     expect(control.status).toBe(0);
     expect(existsSync(join(spool, "events.jsonl"))).toBe(true);
 
-    const blocked = createTempDir("linkhub-bin-spool-blocked-");
+    const blocked = createTempDir("crafthub-bin-spool-blocked-");
     const result = runHook(
       ["stop"],
       JSON.stringify(stopPayload({ stop_hook_active: true })),
@@ -341,7 +341,7 @@ describe("the executable never blocks a session", () => {
   });
 
   it("exits 0 when the API is unreachable, and keeps the spool", () => {
-    const spool = createTempDir("linkhub-bin-spool-offline-");
+    const spool = createTempDir("crafthub-bin-spool-offline-");
     const config = writeConfig(spool);
     runHook(["stop"], JSON.stringify(stopPayload()), config);
     expect(new Spool(spool).read()).toHaveLength(1);
@@ -354,10 +354,10 @@ describe("the executable never blocks a session", () => {
         encoding: "utf8",
         env: {
           ...process.env,
-          LINKHUB_EXTRACTOR_CONFIG: config,
-          LINKHUB_API_TOKEN: "lh_pat_definitely_not_valid",
+          CRAFTHUB_EXTRACTOR_CONFIG: config,
+          CRAFTHUB_API_TOKEN: "lh_pat_definitely_not_valid",
           // Nothing is listening here; this is the offline case.
-          LINKHUB_API_URL: "http://127.0.0.1:9",
+          CRAFTHUB_API_URL: "http://127.0.0.1:9",
         },
       },
     );

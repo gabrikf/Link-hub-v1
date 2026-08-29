@@ -3,8 +3,8 @@ import type {
   Post,
   UpdatePostInput,
 } from "@repo/schemas";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiChevronRight,
@@ -66,18 +66,11 @@ function resolveMutationError(
 
 export function PostsPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
-
-  useEffect(() => {
-    if (!hasSession) {
-      navigate({ to: "/" });
-    }
-  }, [hasSession, navigate]);
 
   const postsQuery = useMyPosts(hasSession);
   const createPost = useCreatePost();

@@ -125,7 +125,7 @@ export function HowItWorksDialog({
           <FlowArrow />
           <FlowPanel
             title={t("common.brandName")}
-            detail={t("settings.how.linkhubBody")}
+            detail={t("settings.how.crafthubBody")}
           />
         </div>
 

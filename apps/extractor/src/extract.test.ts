@@ -37,7 +37,7 @@ const CONFIDENTIAL = [
 ];
 
 function buildConfidentialRepo(): { repo: string; author: string } {
-  const repo = createTempRepo("linkhub-acme-");
+  const repo = createTempRepo("crafthub-acme-");
   setRemote(repo, "git@github.com:acme-corp/project-nightingale.git");
   createBranch(repo, "feature/nightingale-rollout");
 
@@ -255,7 +255,7 @@ describe("re-running the extractor", () => {
 
   it("gives the same ids from a second clone at a different path", () => {
     const { repo, author } = buildConfidentialRepo();
-    const clone = createTempRepo("linkhub-clone-");
+    const clone = createTempRepo("crafthub-clone-");
     // A clone of the same work repo on another machine: different path, same
     // remote, so the same repo fingerprint and the same delivery ids.
     setRemote(clone, "git@github.com:acme-corp/project-nightingale.git");

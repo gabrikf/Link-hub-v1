@@ -138,8 +138,8 @@ describe("Trans markup slots", () => {
       const plural = many.container.textContent ?? "";
 
       expect(singular).not.toBe(plural);
-      expect(singular).toContain("LINKHUB_API_TOKEN");
-      expect(plural).toContain("LINKHUB_API_TOKEN");
+      expect(singular).toContain("CRAFTHUB_API_TOKEN");
+      expect(plural).toContain("CRAFTHUB_API_TOKEN");
       expect(singular).not.toContain("<token>");
       expect(plural).not.toContain("<scopes>");
     },

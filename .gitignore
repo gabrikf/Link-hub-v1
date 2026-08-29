@@ -44,6 +44,12 @@ yarn-error.log*
 .DS_Store
 *.pem
 
+# TLS material the deploy job writes onto the production box. `secrets/caddy/`
+# holds the Cloudflare Origin Certificate and its PRIVATE KEY; `*.pem` above
+# already catches the certificate, but not the .key, and a whole-directory rule
+# is the one that survives someone adding a third file.
+secrets/
+
 # direnv - local only, never commit (may contain secrets)
 .envrc
 .direnv/

@@ -237,7 +237,7 @@ function buildGuidance(
           snippet: {
             target: cronTarget(cadence, t),
             language: "bash",
-            code: `${cronPrefix(cadence)} claude -p "${prompt}" --allowedTools "mcp__linkhub"`,
+            code: `${cronPrefix(cadence)} claude -p "${prompt}" --allowedTools "mcp__crafthub"`,
           },
           note: t("wizard.schedule.cronAbsolutePath"),
         },
@@ -285,7 +285,7 @@ function buildGuidance(
           snippet: {
             target: cronTarget(cadence, t),
             language: "bash",
-            code: `${cronPrefix(cadence)} agent -p "Run the linkhub weekly_update workflow"`,
+            code: `${cronPrefix(cadence)} agent -p "Run the crafthub weekly_update workflow"`,
           },
         },
         fallback: {
@@ -301,7 +301,7 @@ function buildGuidance(
           snippet: {
             target: cronTarget(cadence, t),
             language: "bash",
-            code: `${cronPrefix(cadence)} copilot -p "Run the linkhub weekly_update workflow" --allow-tool 'linkhub'`,
+            code: `${cronPrefix(cadence)} copilot -p "Run the crafthub weekly_update workflow" --allow-tool 'crafthub'`,
           },
           note: t("wizard.schedule.copilotMcpConfig"),
         },

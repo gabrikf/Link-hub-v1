@@ -5,7 +5,7 @@ import {
 } from "../disclosure.js";
 
 /** Canonical URI of the active disclosure contract. */
-export const DISCLOSURE_POLICY_URI = "linkhub://policy/disclosure";
+export const DISCLOSURE_POLICY_URI = "crafthub://policy/disclosure";
 
 /**
  * Exposes the ACTIVE policy (not the generic list of levels) as a resource, so
@@ -20,11 +20,11 @@ export function registerDisclosurePolicy(
     "disclosure_policy",
     DISCLOSURE_POLICY_URI,
     {
-      title: `LinkHub disclosure policy (${context.info.label})`,
+      title: `CraftHub disclosure policy (${context.info.label})`,
       description:
         "The user's active privacy contract for anything you publish about " +
         "their employment: the current disclosure level with its exact " +
-        "allow/block lists, any terms they banned outright, how LinkHub " +
+        "allow/block lists, any terms they banned outright, how CraftHub " +
         "enforces it server-side, and where employment facts must come from " +
         "(get_work_context — never git remotes or directory names). Read this " +
         "before writing about where the user works.",

@@ -8,10 +8,17 @@ import { FiLoader, FiUserPlus } from "react-icons/fi";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
 import { Button } from "../../../shared-components/button";
 import { Input } from "../../../shared-components/input";
+import { FOCUS_RING } from "../../../shared-components/surface";
 
 type RegisterFormProps = {
   isPending: boolean;
   errorMessage?: string;
+  /**
+   * Opens the "reset your password" screen. It belongs on this tab too: a
+   * person who cannot get in often assumes they never registered, and lands
+   * here rather than on the sign-in tab.
+   */
+  onForgotPassword?: () => void;
   // Rejects when the registration fails. The parent owns how that reads to the
   // user and passes it back down as `errorMessage`.
   onSubmit: (data: CreateUserInput) => Promise<void>;
@@ -35,6 +42,7 @@ const getPersonaOptions = (
 export function RegisterForm({
   isPending,
   errorMessage,
+  onForgotPassword,
   onSubmit,
 }: RegisterFormProps) {
   const { t } = useTranslation();
@@ -148,6 +156,20 @@ export function RegisterForm({
           </>
         )}
       </Button>
+
+      {/* Footer placement, under the primary action: on this tab it is a way
+          out for somebody in the wrong place, not a step in signing up. */}
+      {onForgotPassword && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={onForgotPassword}
+            className={`rounded-md text-xs font-medium text-violet-700 underline-offset-2 hover:underline dark:text-violet-300 ${FOCUS_RING}`}
+          >
+            {t("auth.forgotPassword")}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

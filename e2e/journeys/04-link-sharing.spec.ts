@@ -26,9 +26,9 @@ const OWNER = JOURNEY_ACCOUNTS.links;
 const PUBLIC_PATH = `/profile/${OWNER.login}`;
 
 /** Must match THEME_STORAGE_KEY in apps/web/src/lib/theme.ts. */
-const THEME_KEY = "linkhub-theme";
+const THEME_KEY = "crafthub-theme";
 /** Must match USER_INFO_STORAGE_KEY in apps/web/src/lib/user-info-store.ts. */
-const USER_INFO_KEY = "linkhub.auth.user-info";
+const USER_INFO_KEY = "crafthub.auth.user-info";
 
 /**
  * Every row this journey creates carries this prefix so `sweepE2eLinks` can
@@ -767,7 +767,7 @@ test("a javascript: URL never reaches a public href", async ({
   browser,
 }) => {
   const title = e2eTitle("xss");
-  const hostileUrl = "javascript:alert('linkhub-e2e-xss')";
+  const hostileUrl = "javascript:alert('crafthub-e2e-xss')";
 
   const accessToken = await openDashboard(page);
   const stranger = await openStranger(browser);

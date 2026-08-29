@@ -164,13 +164,13 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg15
         env:
-          POSTGRES_DB: linkhub_test
-          POSTGRES_USER: linkhub_user
-          POSTGRES_PASSWORD: linkhub_password
+          POSTGRES_DB: crafthub_test
+          POSTGRES_USER: crafthub_user
+          POSTGRES_PASSWORD: crafthub_password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U linkhub_user -d linkhub_test"
+          --health-cmd "pg_isready -U crafthub_user -d crafthub_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -187,7 +187,7 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql://linkhub_user:linkhub_password@localhost:5432/linkhub_test
+      DATABASE_URL: postgresql://crafthub_user:crafthub_password@localhost:5432/crafthub_test
       REDIS_URL: redis://localhost:6379
       NODE_ENV: test
       # No OPENAI_API_KEY. See the "Declare the excluded tests" step below.

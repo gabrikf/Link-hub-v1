@@ -15,11 +15,11 @@
 
 Diego keeps his agent disclosure level at `summary` — the default, whose whole
 promise is "describe the work, never say who it was for". He has watched the
-policy hold: when his agent tried to write "shipped a ledger at PagBank", LinkHub
+policy hold: when his agent tried to write "shipped a ledger at PagBank", CraftHub
 refused with a clear 400 and the agent rewrote the sentence. He trusts the gate.
 
 Then the agent attaches the pull request it just read. The URL is
-`https://github.com/pagbank-internal/pix-ledger/pull/4471`. LinkHub accepts it,
+`https://github.com/pagbank-internal/pix-ledger/pull/4471`. CraftHub accepts it,
 publishes the post immediately, and renders that URL as the post's clickable link
 on his public profile — where a recruiter, or his current employer, reads it.
 
@@ -30,9 +30,9 @@ to `status: "published"`.
 ## Reproduction
 
 - **Charter:** none yet — direct api probe · **Tour:** the-back-door tour (same input, a different field)
-- **Environment:** curl + psql, no browser · web http://localhost:5273 · api http://localhost:3344 · seed account `seed.node-backend.040@linkhub.local` / `12345678` (login `seed-node-backend-040`)
+- **Environment:** curl + psql, no browser · web http://localhost:5273 · api http://localhost:3344 · seed account `seed.node-backend.040@crafthub.local` / `12345678` (login `seed-node-backend-040`)
 
-1. Confirm the policy state: `docker exec linkhub-postgres-dev psql -U linkhub_user -d linkhub_dev -c "SELECT login, agent_disclosure_level FROM users WHERE login='seed-node-backend-040'"` → `summary`, and the same user has a `work_experiences` row with `company_name = 'PagBank'`.
+1. Confirm the policy state: `docker exec crafthub-postgres-dev psql -U crafthub_user -d crafthub_dev -c "SELECT login, agent_disclosure_level FROM users WHERE login='seed-node-backend-040'"` → `summary`, and the same user has a `work_experiences` row with `company_name = 'PagBank'`.
 2. `POST /auth/login`, then `POST /me/tokens` with scopes `["posts:write"]` to mint a PAT — this is exactly what a user hands their coding agent.
 3. **Control.** `POST /me/posts` over the PAT with `body: "Shipped a reconciliation ledger at PagBank this quarter."` → **HTTP 400**, `Post mentions "PagBank", which your disclosure level (summary) does not allow`.
 4. **The hole.** The same request with a *clean* title, body and tags, plus
@@ -69,7 +69,7 @@ rather than as a rendered logged-out profile. The render is asserted from code
 - **Root Cause (taxonomy):** disclosure-policy
 - **Fix commit:** `b65d6d5` (red first in `c547eae`). `PostDisclosureContent` now models `externalUrl` / `coverImageUrl` / `images` and the haystack includes them; `create-post.use-case.ts` and `update-post.use-case.ts` pass them, the update path through `afterPatch` so a partial patch is checked against the full resulting post. The matcher was **not** touched. `metadata` is deliberately still excluded and the code now says why (`publicPostResponseSchema` omits it; the digest path, its only writer, scans it in `assertTemplateIsClean`).
 - **Regression test:** a unit test beside `apps/api/src/core/use-case/agent-policy/enforce-post-disclosure.test.ts` — account level `summary`, company `PagBank`, clean title/body/tags, `externalUrl` containing `pagbank-internal` → expect `BadRequestError`. It must be seen failing first (today the function returns silently). Then an HTTP test through `build-test-app.ts` + `server.inject` on `POST /me/posts` over a PAT asserting 400.
-- **Gate:** `guardrails PASS` — `build @repo/schemas`, `check-types (affected)`, `lint (changed files, ratcheted)`, `test — api` (docker up, actually run), `test — other workspaces (affected)`. `i18n locale parity` skipped by design: LinkHub has no locale files.
+- **Gate:** `guardrails PASS` — `build @repo/schemas`, `check-types (affected)`, `lint (changed files, ratcheted)`, `test — api` (docker up, actually run), `test — other workspaces (affected)`. `i18n locale parity` skipped by design: CraftHub has no locale files.
 
 ## Verification
 

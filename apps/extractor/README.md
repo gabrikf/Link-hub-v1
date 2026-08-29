@@ -1,15 +1,15 @@
-# LinkHub Activity Extractor
+# CraftHub Activity Extractor
 
 Get credit on a public profile for the work you do in your employer's private
 repositories — without shipping their code, their repo names, or their people's
-email addresses to anyone, including LinkHub.
+email addresses to anyone, including CraftHub.
 
 Two commands:
 
-- **`linkhub-extract`** reads local git history and writes a JSON file of
+- **`crafthub-extract`** reads local git history and writes a JSON file of
   hashed, aggregated metadata. It prints a summary and **stops**. Uploading is a
   second command you type.
-- **`linkhub-hook`** is a Claude Code hook that records agent sessions the same
+- **`crafthub-hook`** is a Claude Code hook that records agent sessions the same
   way, spooling locally and flushing when a session ends.
 
 Analysis happens on your machine. The only thing that can leave it is a file you
@@ -24,11 +24,11 @@ about thirty seconds.
 
 | Guarantee | Check it |
 | --- | --- |
-| Repo names, remotes and paths never leave your machine — only a sha-256 fingerprint does | `grep -i your-repo-name linkhub-activity.json` |
-| Commit messages are never sent — in fact they are **never read**. The extractor asks git for `%(trailers:key=Co-authored-by)`, not `%B`, so the message never enters the process | `grep -i 'some words from a commit message' linkhub-activity.json` |
-| File paths and diffs are never sent; a changeset becomes a set of technology tags and a file count | `grep -i AcmeInvoiceService linkhub-activity.json` |
-| Collaborators' emails are hashed before they touch a file | `grep -i @your-company.com linkhub-activity.json` |
-| Dates only — never an hour, never a timezone offset. A profile cannot show when you sleep | `grep -E '[0-9]{2}:[0-9]{2}' linkhub-activity.json` |
+| Repo names, remotes and paths never leave your machine — only a sha-256 fingerprint does | `grep -i your-repo-name crafthub-activity.json` |
+| Commit messages are never sent — in fact they are **never read**. The extractor asks git for `%(trailers:key=Co-authored-by)`, not `%B`, so the message never enters the process | `grep -i 'some words from a commit message' crafthub-activity.json` |
+| File paths and diffs are never sent; a changeset becomes a set of technology tags and a file count | `grep -i AcmeInvoiceService crafthub-activity.json` |
+| Collaborators' emails are hashed before they touch a file | `grep -i @your-company.com crafthub-activity.json` |
+| Dates only — never an hour, never a timezone offset. A profile cannot show when you sleep | `grep -E '[0-9]{2}:[0-9]{2}' crafthub-activity.json` |
 | Branch names, issue keys and customer names are never collected at all | open the file; every event has six fields |
 | Nothing is uploaded by `extract` | run it with your network off — it works |
 | Re-running is a no-op, not a duplicate | run it twice, `diff` the two files |
@@ -84,15 +84,15 @@ npm link --workspace=extractor       # optional: puts both commands on PATH
 Set up auth. Extraction needs neither of these — only uploading does:
 
 ```bash
-export LINKHUB_API_TOKEN='lh_pat_…'  # Settings → Personal access tokens
-export LINKHUB_API_URL='http://localhost:3333'   # default
+export CRAFTHUB_API_TOKEN='lh_pat_…'  # Settings → Personal access tokens
+export CRAFTHUB_API_URL='http://localhost:3333'   # default
 ```
 
 The token needs the **`activity:write`** scope, which is *not* granted by
 default — a token you minted for the MCP server will not have it. A 403 says so
 explicitly.
 
-Optionally, `~/.linkhub/extractor.json` so you can stop passing flags:
+Optionally, `~/.crafthub/extractor.json` so you can stop passing flags:
 
 ```json
 {
@@ -110,10 +110,10 @@ Optionally, `~/.linkhub/extractor.json` so you can stop passing flags:
 
 ```bash
 # Extract, review, stop. No network. No token needed.
-linkhub-extract ~/work/api ~/work/web --since 180.days.ago
+crafthub-extract ~/work/api ~/work/web --since 180.days.ago
 
 # Read the file. Grep it. Then, separately:
-linkhub-extract upload linkhub-activity.json
+crafthub-extract upload crafthub-activity.json
 ```
 
 **Multiple author emails are first-class.** Most people commit as one address at
@@ -123,7 +123,7 @@ read each repository's own `git config user.email` — it checks every repo, not
 just the first:
 
 ```bash
-linkhub-extract ~/work/api -a me@work.example -a me@personal.dev
+crafthub-extract ~/work/api -a me@work.example -a me@personal.dev
 ```
 
 Useful flags: `--since` / `--until` (default `90.days.ago`), `--repo`
@@ -139,7 +139,7 @@ Print the snippet (this command does **not** edit your settings — paste it
 yourself):
 
 ```bash
-linkhub-hook print-settings
+crafthub-hook print-settings
 ```
 
 ```json
@@ -148,7 +148,7 @@ linkhub-hook print-settings
     "Stop": [
       {
         "matcher": "",
-        "hooks": [{ "type": "command", "command": "linkhub-hook stop", "timeout": 5 }]
+        "hooks": [{ "type": "command", "command": "crafthub-hook stop", "timeout": 5 }]
       }
     ],
     "SessionEnd": [
@@ -157,7 +157,7 @@ linkhub-hook print-settings
         "hooks": [
           {
             "type": "command",
-            "command": "linkhub-hook session-end",
+            "command": "crafthub-hook session-end",
             "timeout": 30,
             "async": true
           }
@@ -176,7 +176,7 @@ project). If you already have a `hooks` key, merge into it.
 `Stop` fires once **per turn**, not once per task. Hooking it naively means an
 HTTP request on every single agent response — latency you pay for all day, and
 an ingestion firehose. So `Stop` does no network I/O at all: it appends one line
-to `~/.linkhub/spool/events.jsonl`, and only when the repository's `HEAD` has
+to `~/.crafthub/spool/events.jsonl`, and only when the repository's `HEAD` has
 moved since the last line it wrote for this session. Idle turns — a question
 answered, some code read — cost nothing. It also exits immediately when
 `stop_hook_active` is true, which is how hook loops start.

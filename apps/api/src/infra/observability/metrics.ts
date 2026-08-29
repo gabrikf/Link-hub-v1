@@ -14,7 +14,7 @@ import { metrics } from "@opentelemetry/api";
  * function call that returns immediately. Nothing here needs an env guard.
  */
 
-const meter = metrics.getMeter("linkhub-api");
+const meter = metrics.getMeter("crafthub-api");
 
 // ---------------------------------------------------------------- RED (16) --
 
@@ -157,26 +157,26 @@ export const queueDepth = meter.createObservableGauge("queue_depth", {
 
 // --------------------------------------------------- Product funnel (17.e) --
 
-export const signupsTotal = meter.createCounter("linkhub_signups_total", {
+export const signupsTotal = meter.createCounter("crafthub_signups_total", {
   description: "Completed registrations, labelled by method",
 });
 
 export const resumesSubmittedTotal = meter.createCounter(
-  "linkhub_resumes_submitted_total",
+  "crafthub_resumes_submitted_total",
   { description: "Resumes successfully submitted for AI parsing" },
 );
 
 export const profilesPublishedTotal = meter.createCounter(
-  "linkhub_profiles_published_total",
+  "crafthub_profiles_published_total",
   { description: "Successful profile publish/update operations" },
 );
 
-export const searchesTotal = meter.createCounter("linkhub_searches_total", {
+export const searchesTotal = meter.createCounter("crafthub_searches_total", {
   description: "Recruiter searches executed",
 });
 
 export const postsCreatedTotal = meter.createCounter(
-  "linkhub_posts_created_total",
+  "crafthub_posts_created_total",
   {
     description:
       "Posts created, labelled source=human|agent so automatic posts can be split out",
@@ -195,7 +195,7 @@ export const aiQuotaRejectionsTotal = meter.createCounter(
  * series per user. Registered with a callback in `observable-metrics.ts`.
  */
 export const dailyActiveUsers = meter.createObservableGauge(
-  "linkhub_daily_active_users",
+  "crafthub_daily_active_users",
   { description: "Distinct authenticated users seen today (HyperLogLog estimate)" },
 );
 

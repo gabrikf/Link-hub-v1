@@ -12,7 +12,7 @@
       }
     ]
   },
-  "description": "RED signals for the LinkHub API plus BullMQ queue health. Metrics come from the OpenTelemetry SDK inside the Node process (apps/api/src/infra/observability/metrics.ts) and reach Prometheus/Mimir over OTLP, so counters carry a _total suffix and histograms expose _bucket/_sum/_count.",
+  "description": "RED signals for the CraftHub API plus BullMQ queue health. Metrics come from the OpenTelemetry SDK inside the Node process (apps/api/src/infra/observability/metrics.ts) and reach Prometheus/Mimir over OTLP, so counters carry a _total suffix and histograms expose _bucket/_sum/_count.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -854,7 +854,7 @@
   "preload": false,
   "refresh": "1m",
   "schemaVersion": 39,
-  "tags": ["linkhub", "api", "red", "queues"],
+  "tags": ["crafthub", "api", "red", "queues"],
   "templating": {
     "list": [
       {
@@ -878,7 +878,7 @@
         "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
         "definition": "label_values(http_server_requests_total, job)",
-        "description": "Scrape job / OTel service. Leave on All unless several LinkHub deployments share one Prometheus tenant.",
+        "description": "Scrape job / OTel service. Leave on All unless several CraftHub deployments share one Prometheus tenant.",
         "hide": 0,
         "includeAll": true,
         "label": "Job",
@@ -924,8 +924,8 @@
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "LinkHub — API health",
-  "uid": "linkhub-api-health",
+  "title": "CraftHub — API health",
+  "uid": "crafthub-api-health",
   "version": 1,
   "weekStart": ""
 }

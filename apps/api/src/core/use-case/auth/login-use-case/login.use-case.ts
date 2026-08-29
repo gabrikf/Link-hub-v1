@@ -1,19 +1,23 @@
-import { UserEntity } from "../../../entity/user/user-entity.js";
-import { RefreshTokenEntity } from "../../../entity/refresh-token/refresh-token-entity.js";
 import { IUsersRepository } from "../../../repositories/user/user-repository.js";
 import { IRefreshTokenRepository } from "../../../repositories/refresh-token/refresh-token-repository.js";
+import { IOAuthAccountRepository } from "../../../repositories/oauth-account/oauth-account-repository.js";
 import { IHashProvider } from "../../../providers/hash/hash-provider.js";
 import { IJwtProvider } from "../../../providers/jwt/jwt-provider.js";
-import { InvalidCredentialsError } from "../../../errors/index.js";
+import {
+  EmailNotVerifiedError,
+  InvalidCredentialsError,
+} from "../../../errors/index.js";
 import { ILoginUseCaseInput } from "../../types.js";
+import { issueSession } from "../issue-session.js";
 
 export class LoginUseCase {
   constructor(
     private usersRepository: IUsersRepository,
     private refreshTokenRepository: IRefreshTokenRepository,
+    private oauthAccountRepository: IOAuthAccountRepository,
     private hashProvider: IHashProvider,
     private jwtProvider: IJwtProvider,
-    private validator: (input: unknown) => ILoginUseCaseInput
+    private validator: (input: unknown) => ILoginUseCaseInput,
   ) {}
 
   async execute(input: ILoginUseCaseInput) {
@@ -30,35 +34,58 @@ export class LoginUseCase {
     // 3. Verify password
     const isPasswordValid = await this.hashProvider.compare(
       data.password,
-      user.password
+      user.password,
     );
 
     if (!isPasswordValid) {
       throw new InvalidCredentialsError();
     }
 
-    // 4. Generate access token (JWT) - short-lived
-    const accessToken = await this.jwtProvider.sign({ sub: user.id });
+    // 4. The credentials are correct — now, is the address proved?
+    //
+    //    Checked AFTER the password on purpose: answering "verify your email"
+    //    to any address typed with a wrong password would turn this endpoint
+    //    into an account-existence oracle.
+    if (!(await this.isEmailVerified(user.id, user.isEmailVerified()))) {
+      throw new EmailNotVerifiedError();
+    }
 
-    // 5. Generate refresh token - long-lived (e.g., 7 days)
-    const refreshTokenValue = crypto.randomUUID(); // Secure random token
-    const refreshTokenExpiresAt = new Date();
-    refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 7); // 7 days from now
-
-    const refreshToken = RefreshTokenEntity.create({
+    // 5. Mint the session
+    const session = await issueSession({
+      jwtProvider: this.jwtProvider,
+      refreshTokenRepository: this.refreshTokenRepository,
       userId: user.id,
-      token: refreshTokenValue,
-      expiresAt: refreshTokenExpiresAt,
     });
 
-    // 6. Save the refresh token to the database
-    await this.refreshTokenRepository.create(refreshToken);
-
-    // 7. Return the user, access token, and refresh token
     return {
       user: user.toPublic(),
-      accessToken,
-      refreshToken: refreshTokenValue,
+      ...session,
     };
+  }
+
+  /**
+   * An account with a linked OAuth provider is verified by construction: the
+   * provider proved control of the mailbox before it ever handed us the email.
+   *
+   * The entity covers `google_id`; this covers the `oauth_accounts` row, which
+   * is the only signal LinkedIn leaves. Without it a user who signed up with
+   * LinkedIn and later set a password could be refused a login for an email
+   * nobody ever needed to send.
+   *
+   * The extra query runs ONLY when the flag is already false, so the ordinary
+   * verified login still costs exactly what it did before.
+   */
+  private async isEmailVerified(
+    userId: string,
+    verifiedOnEntity: boolean,
+  ): Promise<boolean> {
+    if (verifiedOnEntity) {
+      return true;
+    }
+
+    const oauthAccounts =
+      await this.oauthAccountRepository.findByUserId(userId);
+
+    return oauthAccounts.length > 0;
   }
 }

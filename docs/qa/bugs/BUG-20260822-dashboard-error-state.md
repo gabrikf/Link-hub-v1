@@ -25,7 +25,7 @@ autosave that turns it into data loss.
 ## Reproduction
 
 - **Charter:** none yet · **Tour:** the-broken-network tour
-- **Environment:** web **:5273** · api **:3344** (ports 5173/3333 belong to a different project on this machine) · `seed.react-frontend.003@linkhub.local` / `12345678`, with `GET /me` intercepted and returned as 500
+- **Environment:** web **:5273** · api **:3344** (ports 5173/3333 belong to a different project on this machine) · `seed.react-frontend.003@crafthub.local` / `12345678`, with `GET /me` intercepted and returned as 500
 
 1. Sign in as the seeded developer and open `/dashboard` with `GET http://localhost:3344/me` mocked to 500.
 2. **Wait past the retries.** For the first ~7 seconds the panel shows the "Loading profile" skeleton — TanStack Query's default 3 retries keep `meQuery.isLoading` true, and a check that samples at 2.5s wrongly reports the bug handled.
@@ -106,7 +106,7 @@ dark mobile capture; no psql, since this is a read path and nothing was written.
 The `deep-review` skill's full artifact pipeline was not run — it is a
 multi-agent round sized for hundreds of files, and this diff is 2 files / 69
 lines; its rubric was applied by hand against `AGENTS.md`, `DESIGN.md` and the
-six LinkHub priorities, and its linter lanes were covered by the full gate.
+six CraftHub priorities, and its linter lanes were covered by the full gate.
 
 **Advisory, out of scope:** the `meQuery.data?.x ?? ""` shape that caused this
 bug still feeds the Edit dialog's `initialValues` (`dashboard-page.tsx:333-343`)

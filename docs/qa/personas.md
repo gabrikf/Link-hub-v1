@@ -1,6 +1,6 @@
-# LinkHub Personas
+# CraftHub Personas
 
-LinkHub is a developer-profile platform: a developer imports a structured resume, arranges a drag-and-drop public profile, recruiters search it by job description using pgvector semantic search plus an in-browser TensorFlow.js re-rank shown as "AI Match %", and coding agents publish posts to that profile through an MCP server and a local extractor — behind a per-user disclosure policy limiting what an agent may reveal about the user's employers.
+CraftHub is a developer-profile platform: a developer imports a structured resume, arranges a drag-and-drop public profile, recruiters search it by job description using pgvector semantic search plus an in-browser TensorFlow.js re-rank shown as "AI Match %", and coding agents publish posts to that profile through an MCP server and a local extractor — behind a per-user disclosure policy limiting what an agent may reveal about the user's employers.
 
 Its users are three distinct species, and one of them is not a person. These five are derived from the seed catalog in `.claude/skills/qa-report/references/personas.md`, adapted to the real seeded accounts (`bash db-manage.sh seed-all`, password `12345678` for every seeded account).
 
@@ -104,5 +104,5 @@ Where they live: `/profile/<username>`, logged out.
 ## Notes
 
 - **Accessibility-Reliant is not optional.** When a cycle folds it into Sam rather than running it separately, that is recorded in the cycle's report; a full skip is recorded there too, with reasoning. The layout editor's drag-and-drop (`/dashboard/layout`) is the surface most likely to have no keyboard path at all — CAND-0105 (dnd-kit keyboard sensor does not lift on the grip button) and BUG-20260822-layout-vertical-keyboard were both found this way.
-- **Locale is not a persona axis here.** LinkHub has no i18n — `<html lang="en">`, every string hardcoded English. Do not plan a bilingual persona or a translation sweep.
+- **Locale is not a persona axis here.** CraftHub has no i18n — `<html lang="en">`, every string hardcoded English. Do not plan a bilingual persona or a translation sweep.
 - **Theme is a persona axis.** Diego and Sam live in dark mode; Nina and Priya arrive in whatever their OS gave them. Every browser charter names the themes it walks.

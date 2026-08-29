@@ -13,6 +13,22 @@ import {
   linkSchema,
   loginSchemaInput,
   loginSchemaOutput,
+  verifyEmailSchemaInput,
+  verifyEmailSchemaOutput,
+  resendVerificationSchemaInput,
+  resendVerificationSchemaOutput,
+  forgotPasswordSchemaInput,
+  forgotPasswordSchemaOutput,
+  resetPasswordSchemaInput,
+  resetPasswordSchemaOutput,
+  type VerifyEmailInput,
+  type VerifyEmailOutput,
+  type ResendVerificationInput,
+  type ResendVerificationOutput,
+  type ForgotPasswordInput,
+  type ForgotPasswordOutput,
+  type ResetPasswordInput,
+  type ResetPasswordOutput,
   publicResumeSchema,
   recruiterSearchInputSchema,
   recruiterSearchResultSchema,
@@ -104,6 +120,7 @@ import axios, {
 } from "axios";
 import { z } from "zod";
 import i18n from "../i18n";
+import { ApiRequestError } from "./api-error";
 import { applyAuthHeaders, getAuthTokens } from "./auth-tokens";
 import { reportError, reportHandled } from "./report-error";
 import {
@@ -128,6 +145,12 @@ export const getLinkedInSignInUrl = (): string => {
 
 type ApiErrorShape = {
   message?: string;
+  /**
+   * The API's machine-readable failure code — see the global error handler in
+   * `apps/api/src/infra/http/middleware/global-error-handler.ts`. Present on
+   * every application error it serialises, absent on a transport failure.
+   */
+  code?: string;
 };
 
 export type UpsertResumeInput = z.input<typeof upsertResumeInputSchema>;
@@ -322,6 +345,30 @@ const readErrorMessage = (error: unknown): string => {
   return i18n.t("common.requestFailed");
 };
 
+/**
+ * The envelope's `code`, so a caller can branch on WHICH failure this is.
+ *
+ * Kept separate from `readErrorMessage` because the two answer different
+ * questions: the message is what a person reads (and is translated by the API,
+ * so it is not an identifier), the code is what the app decides with.
+ */
+const readErrorCode = (error: unknown): string | null => {
+  if (!axios.isAxiosError(error)) {
+    return null;
+  }
+
+  const responseData = error.response?.data as ApiErrorShape | undefined;
+  return typeof responseData?.code === "string" ? responseData.code : null;
+};
+
+/**
+ * The rejection every auth request throws: the readable message, plus the code
+ * behind it. `ApiRequestError extends Error`, so `error.message` still reads
+ * the same at every existing call site.
+ */
+const authFailure = (error: unknown): ApiRequestError =>
+  new ApiRequestError(readErrorMessage(error), readErrorCode(error));
+
 export async function loginRequest(
   credentials: LoginInput,
 ): Promise<LoginOutput> {
@@ -332,7 +379,82 @@ export async function loginRequest(
     return loginSchemaOutput.parse(response.data);
   } catch (error) {
     reportError(error, { action: "auth.login" });
-    throw new Error(readErrorMessage(error));
+    // Carries the code so the caller can tell "wrong password" (401) from
+    // "correct password, unproved address" (403 EMAIL_NOT_VERIFIED), which are
+    // two completely different screens.
+    throw authFailure(error);
+  }
+}
+
+/**
+ * Proves control of the mailbox and, unlike registering, MINTS A SESSION — see
+ * `verifyEmailSchemaOutput`. The caller stores the tokens exactly as it does
+ * after a sign-in.
+ */
+export async function verifyEmailRequest(
+  payload: VerifyEmailInput,
+): Promise<VerifyEmailOutput> {
+  const body = verifyEmailSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/verify-email", body);
+    return verifyEmailSchemaOutput.parse(response.data);
+  } catch (error) {
+    reportError(error, { action: "auth.verify-email" });
+    throw authFailure(error);
+  }
+}
+
+/**
+ * Always resolves to `{ status: "sent" }` when the API is reachable — for an
+ * unknown address and an already-verified one alike. A caller that renders
+ * anything address-specific from the RESULT would undo that; the confirmation
+ * has to read the same either way.
+ */
+export async function resendVerificationRequest(
+  payload: ResendVerificationInput,
+): Promise<ResendVerificationOutput> {
+  const body = resendVerificationSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/resend-verification", body);
+    return resendVerificationSchemaOutput.parse(response.data);
+  } catch (error) {
+    reportError(error, { action: "auth.resend-verification" });
+    throw authFailure(error);
+  }
+}
+
+/** Same silence as `resendVerificationRequest`, for the same reason. */
+export async function forgotPasswordRequest(
+  payload: ForgotPasswordInput,
+): Promise<ForgotPasswordOutput> {
+  const body = forgotPasswordSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/forgot-password", body);
+    return forgotPasswordSchemaOutput.parse(response.data);
+  } catch (error) {
+    reportError(error, { action: "auth.forgot-password" });
+    throw authFailure(error);
+  }
+}
+
+/**
+ * Changes the password and deliberately returns NO SESSION — the user signs in
+ * afterwards with what they just chose. See `resetPasswordSchemaOutput`.
+ */
+export async function resetPasswordRequest(
+  payload: ResetPasswordInput,
+): Promise<ResetPasswordOutput> {
+  const body = resetPasswordSchemaInput.parse(payload);
+
+  try {
+    const response = await apiClient.post("/auth/reset-password", body);
+    return resetPasswordSchemaOutput.parse(response.data);
+  } catch (error) {
+    reportError(error, { action: "auth.reset-password" });
+    throw authFailure(error);
   }
 }
 

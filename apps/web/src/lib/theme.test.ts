@@ -92,12 +92,12 @@ describe("stored preference", () => {
   it("keeps reading values written before 'system' existed", () => {
     // The storage key is unchanged and the two old values are still valid
     // preferences, so nobody gets reset mid-session by this feature landing.
-    window.localStorage.setItem("linkhub-theme", "dark");
+    window.localStorage.setItem("crafthub-theme", "dark");
     expect(getStoredThemePreference()).toBe("dark");
   });
 
   it("ignores a corrupt value rather than trusting it", () => {
-    window.localStorage.setItem("linkhub-theme", "sepia");
+    window.localStorage.setItem("crafthub-theme", "sepia");
     expect(getStoredThemePreference()).toBeNull();
   });
 

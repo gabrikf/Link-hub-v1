@@ -238,7 +238,7 @@ export function SourceStep({
         </div>
       ) : null}
 
-      {/* MCP creates no connection on LinkHub's side, so a kind and a display
+      {/* MCP creates no connection on CraftHub's side, so a kind and a display
           name would be collected and then thrown away — the step said as much
           while still asking. Only the explanation survives. */}
       {sourceKey === "mcp" ? (

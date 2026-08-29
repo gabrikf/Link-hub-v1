@@ -514,7 +514,7 @@
   "preload": false,
   "refresh": "5m",
   "schemaVersion": 39,
-  "tags": ["linkhub", "ai", "cost", "openai"],
+  "tags": ["crafthub", "ai", "cost", "openai"],
   "templating": {
     "list": [
       {
@@ -538,7 +538,7 @@
         "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
         "definition": "label_values(openai_requests_total, job)",
-        "description": "Scrape job / OTel service. Leave on All unless several LinkHub deployments share one Prometheus tenant.",
+        "description": "Scrape job / OTel service. Leave on All unless several CraftHub deployments share one Prometheus tenant.",
         "hide": 0,
         "includeAll": true,
         "label": "Job",
@@ -594,8 +594,8 @@
   "time": { "from": "now-7d", "to": "now" },
   "timepicker": {},
   "timezone": "utc",
-  "title": "LinkHub — AI cost",
-  "uid": "linkhub-ai-cost",
+  "title": "CraftHub — AI cost",
+  "uid": "crafthub-ai-cost",
   "version": 1,
   "weekStart": ""
 }

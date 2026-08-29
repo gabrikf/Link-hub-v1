@@ -53,7 +53,7 @@ Space drops and persists — the documented dnd-kit sortable keyboard path.
 - Independent read path: the assertion is on the re-read DOM order after the drop, not on an event handler firing.
 - **Mouse control, same page and session:** dragging the same grip with the pointer changes the order *and* fires `PATCH /links/reorder`.
 - **Persistence read back from Postgres, not inferred from a 2xx:**
-  `docker exec linkhub-postgres-dev psql -U linkhub_user -d linkhub_dev -tAc 'SELECT title, "order" FROM links ...'`
+  `docker exec crafthub-postgres-dev psql -U crafthub_user -d crafthub_dev -tAc 'SELECT title, "order" FROM links ...'`
   returns `I30-Bravo|0`, `I30-Alpha|1`, `I30-Charlie|2` after the mouse drag.
   So `handleDragEnd`, the mutation, the route, the use case and the write are all
   healthy end to end. The keyboard path simply never reaches them: the live

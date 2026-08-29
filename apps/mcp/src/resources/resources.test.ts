@@ -23,8 +23,8 @@ import {
  *
  * A host agent binds to these URIs and reads them before it writes anything, so
  * the names, the URIs and the mime types are contract. The bodies matter just as
- * much: `linkhub://policy/disclosure` is the privacy contract, and
- * `linkhub://guides/post-quality` is what the tool descriptions point at when
+ * much: `crafthub://policy/disclosure` is the privacy contract, and
+ * `crafthub://guides/post-quality` is what the tool descriptions point at when
  * they say "full house style: read the resource".
  *
  * Driven through an in-memory fake host — no network, no stdio.
@@ -150,8 +150,8 @@ describe("registerAllResources", () => {
   it("pins the canonical URIs the tools and prompts point at", () => {
     const host = registerWith(SUMMARY);
 
-    expect(POST_GUIDELINES_URI).toBe("linkhub://guides/post-quality");
-    expect(DISCLOSURE_POLICY_URI).toBe("linkhub://policy/disclosure");
+    expect(POST_GUIDELINES_URI).toBe("crafthub://guides/post-quality");
+    expect(DISCLOSURE_POLICY_URI).toBe("crafthub://policy/disclosure");
     expect(resourceNamed(host, "post_quality_guide").uri).toBe(
       POST_GUIDELINES_URI,
     );
@@ -174,24 +174,24 @@ describe("registerAllResources", () => {
     const host = registerWith(SUMMARY);
 
     expect(readOnlyText(resourceNamed(host, "post_quality_guide")).uri).toBe(
-      "linkhub://guides/post-quality",
+      "crafthub://guides/post-quality",
     );
     expect(readOnlyText(resourceNamed(host, "disclosure_policy")).uri).toBe(
-      "linkhub://policy/disclosure",
+      "crafthub://policy/disclosure",
     );
   });
 });
 
-// ── linkhub://policy/disclosure ─────────────────────────────────────────────
+// ── crafthub://policy/disclosure ─────────────────────────────────────────────
 
 describe("disclosure_policy resource", () => {
   it("names the active level in its title, so a resource list already shows it", () => {
     expect(
       resourceNamed(registerWith(SUMMARY), "disclosure_policy").config.title,
-    ).toBe("LinkHub disclosure policy (Summary)");
+    ).toBe("CraftHub disclosure policy (Summary)");
     expect(
       resourceNamed(registerWith(FULL), "disclosure_policy").config.title,
-    ).toBe("LinkHub disclosure policy (Full)");
+    ).toBe("CraftHub disclosure policy (Full)");
   });
 
   it("points the agent at get_work_context in its description", () => {
@@ -236,7 +236,7 @@ describe("disclosure_policy resource", () => {
     expect(text).toContain(
       "`get_work_context` is the ONLY sanctioned source.",
     );
-    expect(text).toContain('LinkHub Settings →\n"What your agent may share"');
+    expect(text).toContain('CraftHub Settings →\n"What your agent may share"');
   });
 
   it("renders the empty-blocks branch at the `full` level", () => {
@@ -301,7 +301,7 @@ describe("disclosure_policy resource", () => {
   });
 });
 
-// ── linkhub://guides/post-quality ───────────────────────────────────────────
+// ── crafthub://guides/post-quality ───────────────────────────────────────────
 
 describe("post_quality_guide resource", () => {
   it("carries its title and serves POST_GUIDELINES verbatim", () => {
@@ -310,7 +310,7 @@ describe("post_quality_guide resource", () => {
       "post_quality_guide",
     );
 
-    expect(resource.config.title).toBe("LinkHub post quality guide");
+    expect(resource.config.title).toBe("CraftHub post quality guide");
     expect(resource.config.description).toContain(
       "Read this before writing any post.",
     );
@@ -330,7 +330,7 @@ describe("post_quality_guide resource", () => {
 
   it("keeps its sections, in order", () => {
     const headings = [
-      "# LinkHub post quality guide",
+      "# CraftHub post quality guide",
       "## 1. The one rule: outcome over mechanics",
       "## 2. What a strong post contains",
       "## 2b. Write for search as well as for the reader",
@@ -354,16 +354,16 @@ describe("post_quality_guide resource", () => {
 
 /**
  * `create_commit_summary_post`'s description tells the host agent that the
- * "full house style" lives at `linkhub://guides/post-quality`. These pin the
+ * "full house style" lives at `crafthub://guides/post-quality`. These pin the
  * specific claims that description makes, so the resource cannot quietly stop
  * delivering on them.
  */
 describe("post_quality_guide keeps the promises the tools make for it", () => {
   it("holds the house style the tool description delegates to", () => {
     // The tool says: "Full house style: read the resource
-    // linkhub://guides/post-quality".
-    expect(POST_GUIDELINES).toContain("# LinkHub post quality guide");
-    expect(POST_GUIDELINES_URI).toBe("linkhub://guides/post-quality");
+    // crafthub://guides/post-quality".
+    expect(POST_GUIDELINES).toContain("# CraftHub post quality guide");
+    expect(POST_GUIDELINES_URI).toBe("crafthub://guides/post-quality");
   });
 
   it("repeats the outcome-over-mechanics rule the tool asks for", () => {
@@ -476,7 +476,7 @@ describe("post_quality_guide agrees with the shared schemas", () => {
 
 // ── BUG-20260827-mcp-overstates-redaction ───────────────────────────────────
 
-describe("post_quality_guide does not overstate what LinkHub redacts", () => {
+describe("post_quality_guide does not overstate what CraftHub redacts", () => {
   it("stops calling get_work_context's payload already redacted", () => {
     expect(POST_GUIDELINES).not.toContain("already redacted");
     expect(POST_GUIDELINES).toContain(

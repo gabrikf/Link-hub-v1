@@ -39,14 +39,14 @@ already has one. Their profile, links and resume appear to be wiped.
 - **Environment:** nightly stack api `http://localhost:3344` (dev stack: 3333). Plain `curl`; no browser needed.
 
 ```
-1. POST /auth/register  {name, email: "I69.Case.i6979696@linkhub.local",
+1. POST /auth/register  {name, email: "I69.Case.i6979696@crafthub.local",
                          login: "i69-case-i6979696", password: "Password123"}   -> 201
 2. POST /auth/login     with that exact address, same password                  -> 200  (tokens issued)
-3. POST /auth/login     with "i69.case.i6979696@linkhub.local"                  -> 401
+3. POST /auth/login     with "i69.case.i6979696@crafthub.local"                  -> 401
                         {"error":"INVALIDCREDENTIALS","message":"Invalid email or password"}
 4. POST /auth/register  the lowercase form, a different login                   -> 201  (duplicate check missed)
 5. psql  SELECT id, email, login FROM users
-         WHERE lower(email) = lower('I69.Case.i6979696@linkhub.local');
+         WHERE lower(email) = lower('I69.Case.i6979696@crafthub.local');
          1ebb7541-0cdc-4bd0-906a-289d262d8783 | I69.Case.… | i69-case-i6979696
          485add3e-b3e2-4dea-b4fe-e098d9f30b2b | i69.case.… | i69-case-dup-i6979696
 ```
@@ -180,22 +180,22 @@ cannot drift apart. That is the precise failure mode triage warned about.
 ## Drizzle proved directly, not through the dev server
 
 The hermetic suite cannot reach `DrizzleUserRepository`, so the branch's own
-repository was constructed in-process against `linkhub_dev`
+repository was constructed in-process against `crafthub_dev`
 (`.nightly/probes/i71-drizzle-email-case.ts`), with a row inserted by psql holding
 capitals:
 
 ```
-findByEmailOrLogin(lowercase)     caf30a3f… I71.Probe.i71p30726@linkhub.local
-findByEmailOrLogin(UPPERCASE)     caf30a3f… I71.Probe.i71p30726@linkhub.local
-findByEmailOrLogin(exact)         caf30a3f… I71.Probe.i71p30726@linkhub.local
+findByEmailOrLogin(lowercase)     caf30a3f… I71.Probe.i71p30726@crafthub.local
+findByEmailOrLogin(UPPERCASE)     caf30a3f… I71.Probe.i71p30726@crafthub.local
+findByEmailOrLogin(exact)         caf30a3f… I71.Probe.i71p30726@crafthub.local
 findByEmailOrLogin(login handle)  caf30a3f… probe-i71p30726
-findByEmail(lowercase)            caf30a3f… I71.Probe.i71p30726@linkhub.local
+findByEmail(lowercase)            caf30a3f… I71.Probe.i71p30726@crafthub.local
 findByEmail(absent)               null
 findByEmailOrLogin(absent login)  null
 ```
 
 A second probe pushed `' OR '1'='1`, `x' OR lower(email) LIKE '%` and
-`%@linkhub.local` through `findByEmail`: **all null**. The ``sql`` `` template
+`%@crafthub.local` through `findByEmail`: **all null**. The ``sql`` `` template
 binds parameters and does not over-match.
 
 ## The user-visible harm is gone
@@ -213,7 +213,7 @@ Re-walked from the bug's own entry point on a **verified fresh** api process:
 psql lower(email)=…      exactly 1 row
 ```
 
-Mailbox `I71.Ok.i71ok10506018@linkhub.local`; every success returns the same user
+Mailbox `I71.Ok.i71ok10506018@crafthub.local`; every success returns the same user
 id `e541370b-c118-44c3-af70-b2fe2d65c85c`. The negative cases still reject, so the
 lookup was widened by case only.
 

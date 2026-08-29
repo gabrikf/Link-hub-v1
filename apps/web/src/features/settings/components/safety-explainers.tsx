@@ -20,7 +20,7 @@ const cx = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
 
 /**
- * What LinkHub's servers enforce vs. what the model is merely instructed to
+ * What CraftHub's servers enforce vs. what the model is merely instructed to
  * do. The two used to be blended into one flat promise; the difference is
  * exactly what a user needs to understand before pointing this at a work
  * laptop, so they are separated explicitly.

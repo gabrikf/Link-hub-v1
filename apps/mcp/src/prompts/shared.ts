@@ -38,7 +38,7 @@ function buildDisclosureSection(context?: DisclosureContext): string {
       : "- _Nothing at this level beyond the terms the user banned outright._";
 
   const degraded = context.degraded
-    ? `\n> **The policy could not be read from LinkHub, so the STRICTEST level is\n> assumed.** The token is probably missing the \`profile:read\` scope — tell the\n> user, and write as if nothing about the employer may be named.\n`
+    ? `\n> **The policy could not be read from CraftHub, so the STRICTEST level is\n> assumed.** The token is probably missing the \`profile:read\` scope — tell the\n> user, and write as if nothing about the employer may be named.\n`
     : "";
 
   const terms =
@@ -63,14 +63,14 @@ ${allows}
 
 ${blocks}
 ${terms}
-**Employer and client names are enforced, not advised.** LinkHub applies the
+**Employer and client names are enforced, not advised.** CraftHub applies the
 same denylist server-side when a post is created: a post naming one is rejected
 with HTTP 400 that names the offending term. If that happens, rewrite the post
 around the term — retrying the same text will fail again.
 
 **Every other item above is yours to enforce.** A post carrying one of them is
 accepted and published exactly as written — nothing catches it after you.
-LinkHub does not scan for ticket ids, customer names, internal codenames, unreleased products, architecture details or headcount figures.
+CraftHub does not scan for ticket ids, customer names, internal codenames, unreleased products, architecture details or headcount figures.
 
 For anything about where the user has worked, call **\`get_work_context\`**.
 It returns their history with those same employer and client names stripped, and nothing else removed.
@@ -116,7 +116,7 @@ here, a mobile app there, a side project — and one post should cover all of it
 Work out the repository set BEFORE anything else, taking the FIRST source below
 that answers:
 
-1. **\`~/.linkhub/repos.json\`** — written by the LinkHub setup wizard, and the
+1. **\`~/.crafthub/repos.json\`** — written by the CraftHub setup wizard, and the
    answer whenever it exists:
 
    \`\`\`json
@@ -130,7 +130,7 @@ that answers:
    file. If the file exists but is empty, unparseable, or lists no repository
    that survives that check, fall through to the next source and say so.
 
-2. **\`~/.linkhub/extractor.json\`** — the local extractor's settings file, whose
+2. **\`~/.crafthub/extractor.json\`** — the local extractor's settings file, whose
    \`repos\` array holds absolute paths in the same shape. Read it only when
    \`repos.json\` is absent, so a user who already configured the extractor does
    not have to write the same list twice. Same git check, same reporting.
@@ -138,7 +138,7 @@ that answers:
 3. **The current working directory alone** — \`git rev-parse --show-toplevel\`.
    When you land here, tell the user plainly in your report: this post covers
    only that one repository, and listing every repository they work in under
-   \`"repos"\` in \`~/.linkhub/repos.json\` makes the next run cover all of them.
+   \`"repos"\` in \`~/.crafthub/repos.json\` makes the next run cover all of them.
 
 **Never go looking for repositories yourself.** Do not scan the home directory,
 do not walk \`~/code\` or \`~/projects\`, do not glob for \`.git\`. It is slow, and
@@ -157,9 +157,9 @@ Call the surviving list \`<REPOS>\` and hold it for the rest of the workflow.`;
       ? `Publish with \`status: "draft"\`. Tell the user where to review it.`
       : `Publish with \`status: "published"\` — but only after the user has seen the final text. If you cannot show it to them first, or anything in it is uncertain or sensitive, publish as \`"draft"\` instead and say why.`;
 
-  return `# Turn my commits into a LinkHub post
+  return `# Turn my commits into a CraftHub post
 
-You are writing a LinkHub post for the developer whose profile this MCP server
+You are writing a CraftHub post for the developer whose profile this MCP server
 is authenticated against. Target window: **${windowLabel}**.
 
 ${repoLine}
@@ -269,7 +269,7 @@ Merge everything you gathered into this one list. If a slot is genuinely empty,
 leave it empty — do not fill it with a guess.
 
 1. **Scope marker** — how many repositories actually contributed commits. One
-   repo: its name (e.g. \`linkhub-v.1\`), never the path or remote URL. Several:
+   repo: its name (e.g. \`crafthub-v.1\`), never the path or remote URL. Several:
    the count, written as \`"4 repositories"\`. This is the \`repo\` argument. It is
    metadata rather than body text, but it ships with the post on the public
    profile too, so it may be a bare name or a count and nothing else — and for
@@ -303,7 +303,7 @@ leave it empty — do not fill it with a guess.
 
 ## Step 6 — Write the post
 
-Write it per the LinkHub post quality guide, reproduced in full below (also
+Write it per the CraftHub post quality guide, reproduced in full below (also
 available as the MCP resource \`${POST_GUIDELINES_URI}\`).
 
 The short version: **outcome over mechanics**. 80–200 words, Markdown, first

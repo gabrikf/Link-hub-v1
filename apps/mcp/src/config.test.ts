@@ -12,7 +12,7 @@ async function freshLoadConfig() {
   return await import("./config.js");
 }
 
-const ENV_KEYS = ["LINKHUB_API_URL", "LINKHUB_API_TOKEN"] as const;
+const ENV_KEYS = ["CRAFTHUB_API_URL", "CRAFTHUB_API_TOKEN"] as const;
 
 describe("loadConfig", () => {
   const saved = new Map<string, string | undefined>();
@@ -36,18 +36,18 @@ describe("loadConfig", () => {
     const { loadConfig, ConfigError } = await freshLoadConfig();
 
     expect(() => loadConfig()).toThrow(ConfigError);
-    expect(() => loadConfig()).toThrow(/LINKHUB_API_TOKEN is not set/);
+    expect(() => loadConfig()).toThrow(/CRAFTHUB_API_TOKEN is not set/);
   });
 
   it("treats a whitespace-only token as missing", async () => {
-    process.env.LINKHUB_API_TOKEN = "   ";
+    process.env.CRAFTHUB_API_TOKEN = "   ";
     const { loadConfig, ConfigError } = await freshLoadConfig();
 
     expect(() => loadConfig()).toThrow(ConfigError);
   });
 
   it("defaults the api url to localhost:3333 and trims the token", async () => {
-    process.env.LINKHUB_API_TOKEN = "  lh_pat_abc  ";
+    process.env.CRAFTHUB_API_TOKEN = "  lh_pat_abc  ";
     const { loadConfig } = await freshLoadConfig();
 
     expect(loadConfig()).toEqual({
@@ -57,19 +57,19 @@ describe("loadConfig", () => {
   });
 
   it("strips every trailing slash from the api url", async () => {
-    process.env.LINKHUB_API_URL = "  https://api.linkhub.dev///  ";
-    process.env.LINKHUB_API_TOKEN = "lh_pat_abc";
+    process.env.CRAFTHUB_API_URL = "  https://api.crafthub.dev///  ";
+    process.env.CRAFTHUB_API_TOKEN = "lh_pat_abc";
     const { loadConfig } = await freshLoadConfig();
 
-    expect(loadConfig().apiUrl).toBe("https://api.linkhub.dev");
+    expect(loadConfig().apiUrl).toBe("https://api.crafthub.dev");
   });
 
   it("memoizes: a later environment change does not reach a second call", async () => {
-    process.env.LINKHUB_API_TOKEN = "lh_pat_first";
+    process.env.CRAFTHUB_API_TOKEN = "lh_pat_first";
     const { loadConfig } = await freshLoadConfig();
     const first = loadConfig();
 
-    process.env.LINKHUB_API_TOKEN = "lh_pat_second";
+    process.env.CRAFTHUB_API_TOKEN = "lh_pat_second";
 
     expect(loadConfig()).toBe(first);
     expect(loadConfig().token).toBe("lh_pat_first");

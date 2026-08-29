@@ -145,7 +145,7 @@ describe("registerAllPrompts", () => {
   it("gives weekly_update its title and the three documented arguments", () => {
     const prompt = promptNamed(registerWith(SUMMARY), "weekly_update");
 
-    expect(prompt.config.title).toBe("Turn my commits into a LinkHub post");
+    expect(prompt.config.title).toBe("Turn my commits into a CraftHub post");
     expect(Object.keys(prompt.config.argsSchema ?? {})).toEqual([
       "period",
       "repo",
@@ -160,7 +160,7 @@ describe("registerAllPrompts", () => {
     const prompt = promptNamed(registerWith(SUMMARY), "since_last_post");
 
     expect(prompt.config.title).toBe(
-      "Post everything I've shipped since my last LinkHub update",
+      "Post everything I've shipped since my last CraftHub update",
     );
     expect(Object.keys(prompt.config.argsSchema ?? {})).toEqual([
       "repo",
@@ -183,7 +183,7 @@ describe("weekly_update result shape", () => {
     expect(message?.role).toBe("user");
     expect(message?.content.type).toBe("text");
     expect(onlyMessageText(result)).toContain(
-      "# Turn my commits into a LinkHub post",
+      "# Turn my commits into a CraftHub post",
     );
   });
 
@@ -191,10 +191,10 @@ describe("weekly_update result shape", () => {
     const prompt = promptNamed(registerWith(SUMMARY), "weekly_update");
 
     expect(prompt.handler({}).description).toBe(
-      "Turn the last 7 days of commits across every configured repository into a LinkHub post",
+      "Turn the last 7 days of commits across every configured repository into a CraftHub post",
     );
-    expect(prompt.handler({ repo: "linkhub-v.1" }).description).toBe(
-      "Turn the last 7 days of commits in linkhub-v.1 into a LinkHub post",
+    expect(prompt.handler({ repo: "crafthub-v.1" }).description).toBe(
+      "Turn the last 7 days of commits in crafthub-v.1 into a CraftHub post",
     );
   });
 
@@ -282,22 +282,22 @@ describe("repository scope", () => {
     expect(text).toContain(
       "The user did not name a repository, so this post covers **every repository they work in**",
     );
-    expect(text).toContain("`~/.linkhub/repos.json`");
-    expect(text).toContain("`~/.linkhub/extractor.json`");
+    expect(text).toContain("`~/.crafthub/repos.json`");
+    expect(text).toContain("`~/.crafthub/extractor.json`");
     expect(text).toContain("**Never go looking for repositories yourself.**");
     expect(text).toContain("- `repo` — the scope marker from Step 5");
   });
 
   it("with a repo, narrows to that one and skips the resolution ladder", () => {
-    const text = render("weekly_update", { repo: "  linkhub-v.1  " });
+    const text = render("weekly_update", { repo: "  crafthub-v.1  " });
 
     expect(text).toContain(
-      "The user named the repository **linkhub-v.1**, which NARROWS this run",
+      "The user named the repository **crafthub-v.1**, which NARROWS this run",
     );
     expect(text).toContain("so the set is exactly that one repository");
     expect(text).toContain("a set of one");
-    expect(text).toContain('- `repo` — `"linkhub-v.1"`');
-    expect(text).not.toContain("`~/.linkhub/repos.json`");
+    expect(text).toContain('- `repo` — `"crafthub-v.1"`');
+    expect(text).not.toContain("`~/.crafthub/repos.json`");
   });
 
   // CHARACTERIZATION: today's behaviour, suspected wrong — a whitespace-only
@@ -312,7 +312,7 @@ describe("repository scope", () => {
       "The user did not name a repository",
     );
     expect(result.description).toBe(
-      "Turn the last 7 days of commits in     into a LinkHub post",
+      "Turn the last 7 days of commits in     into a CraftHub post",
     );
   });
 });
@@ -432,7 +432,7 @@ describe("disclosure policy embedding", () => {
       const text = render(name, {}, DEGRADED);
 
       expect(text).toContain(
-        "> **The policy could not be read from LinkHub, so the STRICTEST level is\n> assumed.**",
+        "> **The policy could not be read from CraftHub, so the STRICTEST level is\n> assumed.**",
       );
       expect(text).toContain("`profile:read` scope");
       // Failing closed: the strictest level's blocks are still rendered.
@@ -443,7 +443,7 @@ describe("disclosure policy embedding", () => {
   it("does not print the degraded warning when the policy was read", () => {
     const text = render("weekly_update", {}, SUMMARY);
 
-    expect(text).not.toContain("The policy could not be read from LinkHub");
+    expect(text).not.toContain("The policy could not be read from CraftHub");
   });
 });
 
@@ -515,15 +515,15 @@ describe("buildWorkflowText", () => {
 // ── since_last_post ─────────────────────────────────────────────────────────
 
 describe("since_last_post", () => {
-  it("derives its window from LinkHub's own history rather than a period", () => {
+  it("derives its window from CraftHub's own history rather than a period", () => {
     const prompt = promptNamed(registerWith(SUMMARY), "since_last_post");
     const text = onlyMessageText(prompt.handler({}));
 
     expect(prompt.handler({}).description).toBe(
-      "Summarize everything shipped across every configured repository since the last LinkHub commit summary",
+      "Summarize everything shipped across every configured repository since the last CraftHub commit summary",
     );
     expect(text).toContain(
-      "Target window: **everything since the last LinkHub commit summary**",
+      "Target window: **everything since the last CraftHub commit summary**",
     );
     expect(text).toContain("- `period` — `\"since-last-post\"`");
     expect(text).toContain("Call **`list_my_posts`** (`limit: 20`)");
@@ -536,14 +536,14 @@ describe("since_last_post", () => {
 
   it("takes repo and status the same way weekly_update does", () => {
     const prompt = promptNamed(registerWith(SUMMARY), "since_last_post");
-    const result = prompt.handler({ repo: "  linkhub-v.1  ", status: "DRAFT" });
+    const result = prompt.handler({ repo: "  crafthub-v.1  ", status: "DRAFT" });
     const text = onlyMessageText(result);
 
     expect(result.description).toBe(
-      "Summarize everything shipped in   linkhub-v.1   since the last LinkHub commit summary",
+      "Summarize everything shipped in   crafthub-v.1   since the last CraftHub commit summary",
     );
-    expect(text).toContain("The user named the repository **linkhub-v.1**");
-    expect(text).toContain('- `repo` — `"linkhub-v.1"`');
+    expect(text).toContain("The user named the repository **crafthub-v.1**");
+    expect(text).toContain('- `repo` — `"crafthub-v.1"`');
     expect(text).toContain('- `status` — Publish with `status: "draft"`');
   });
 
@@ -552,13 +552,13 @@ describe("since_last_post", () => {
     const text = onlyMessageText(prompt.handler({ period: "monthly" }));
 
     expect(text).toContain(
-      "Target window: **everything since the last LinkHub commit summary**",
+      "Target window: **everything since the last CraftHub commit summary**",
     );
     expect(text).not.toContain("the last 30 days");
   });
 });
 
-// ── What Step 7b claims LinkHub enforces ────────────────────────────────────
+// ── What Step 7b claims CraftHub enforces ────────────────────────────────────
 
 /**
  * BUG-20260827-mcp-overstates-redaction.
@@ -584,7 +584,7 @@ describe("Step 7b claims enforcement only where the server enforces", () => {
 
     expect(text).toContain("**Every other item above is yours to enforce.**");
     expect(text).toContain(
-      "LinkHub does not scan for ticket ids, customer names, internal " +
+      "CraftHub does not scan for ticket ids, customer names, internal " +
         "codenames, unreleased products, architecture details or headcount " +
         "figures",
     );

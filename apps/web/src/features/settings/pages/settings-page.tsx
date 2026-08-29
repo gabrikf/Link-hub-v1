@@ -1,5 +1,4 @@
 import type { ApiToken, CreateApiTokenOutput, GitConnection } from "@repo/schemas";
-import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -218,7 +217,6 @@ export const ADVANCED_SETTINGS_ID = "advanced-settings";
 
 export function SettingsPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const userInfo = useUserInfoStore((state) => state.userInfo);
   const hasSession = Boolean(getAuthTokens() && userInfo);
 
@@ -250,12 +248,6 @@ export function SettingsPage() {
       revealAndScrollTo(CONNECT_PANEL_ID);
     });
   };
-
-  useEffect(() => {
-    if (!hasSession) {
-      navigate({ to: "/" });
-    }
-  }, [hasSession, navigate]);
 
   // Same reason, for the links the panels point at each other with: the
   // disclosure panel now sits inside the collapsed advanced area.

@@ -80,7 +80,7 @@ function resolveMcpCommand(): { command: string; args: string[] } {
     return { command: "node", args: [built] };
   }
   throw new Error(
-    "Cannot start the LinkHub MCP server: neither node_modules/.bin/tsx nor apps/mcp/dist/index.js exists. Run `npm install` (or `npm run build`) first.",
+    "Cannot start the CraftHub MCP server: neither node_modules/.bin/tsx nor apps/mcp/dist/index.js exists. Run `npm install` (or `npm run build`) first.",
   );
 }
 
@@ -107,8 +107,8 @@ async function callAgentTool(
     cwd: REPO_ROOT,
     env: {
       ...process.env,
-      LINKHUB_API_URL: API_URL,
-      LINKHUB_API_TOKEN: token,
+      CRAFTHUB_API_URL: API_URL,
+      CRAFTHUB_API_TOKEN: token,
     },
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -161,7 +161,7 @@ async function callAgentTool(
     await request("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "linkhub-e2e", version: "1.0.0" },
+      clientInfo: { name: "crafthub-e2e", version: "1.0.0" },
     });
     child.stdin?.write(
       `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`,
@@ -229,7 +229,7 @@ let humanUserInfo: unknown = null;
  * Deliberately local to this spec rather than folded into the shared `loginAs`,
  * which other journeys are using concurrently.
  */
-const USER_INFO_KEY = "linkhub.auth.user-info";
+const USER_INFO_KEY = "crafthub.auth.user-info";
 
 /** Signs the page in as the journey account, session store included. */
 async function signInAsHuman(page: Page): Promise<void> {
@@ -402,7 +402,7 @@ test.describe("journey 2 — my agents write posts while I code", () => {
       title,
       summary: `Rewrote the retry pipeline behind the payment worker so a duplicate webhook can no longer double-charge. Written by the agent for ${MARKER}.`,
       period: "weekly",
-      repo: "linkhub-v.1",
+      repo: "crafthub-v.1",
       commitCount: 7,
       tags: ["typescript", "postgres"],
       status: "pending_review",
@@ -424,7 +424,7 @@ test.describe("journey 2 — my agents write posts while I code", () => {
     await expect(card.getByText("Pending review")).toBeVisible();
     await expect(card.getByText("Commit", { exact: true })).toBeVisible();
     await expect(
-      card.getByText("Generated from your commit activity in linkhub-v.1"),
+      card.getByText("Generated from your commit activity in crafthub-v.1"),
     ).toBeVisible();
 
     await card.getByRole("button", { name: /Approve & publish/ }).click();

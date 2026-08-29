@@ -1,4 +1,4 @@
-# LinkHub QA — living docs
+# CraftHub QA — living docs
 
 This is the durable QA tree: journeys, session charters, the scenario tracker, and the global bug registry. It is committed and appended to by every QA round; it is not per-run scratch space. Per-run output (dated reports, evidence) lives alongside it and is described below.
 
@@ -18,7 +18,7 @@ Neither absorbs the other.
 ```
 docs/qa/
 ├── README.md            — this file
-├── personas.md           — the five real LinkHub audiences (Nina, Diego, Priya, Atlas, Sam)
+├── personas.md           — the five real CraftHub audiences (Nina, Diego, Priya, Atlas, Sam)
 ├── scenarios/            — one file per scenario, <AREA>-<slug>.md, living qa_status tracker
 ├── journeys/             — J-<slug>.md, flow maps (YAML + Mermaid) per user journey
 ├── charters/             — CH-<slug>.md, session charters (immutable once written; re-run across cycles)
@@ -52,7 +52,7 @@ Scenario ids are `<AREA>-<slug>`. Area codes map to `apps/web/src/features/` and
 ```bash
 npm run build:schemas                       # always first
 bash db-manage.sh start                     # Postgres/pgvector 5432, Redis 6379
-bash db-manage.sh seed-all                  # recruiter.seed@linkhub.local + seed-<slug>-<NN>, password 12345678
+bash db-manage.sh seed-all                  # recruiter.seed@crafthub.local + seed-<slug>-<NN>, password 12345678
 npm run dev:api                             # http://localhost:3333 (Swagger at /docs)
 npm run dev:web                             # http://localhost:5173
 node scripts/guardrails/pre-push.mjs        # the gate

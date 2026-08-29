@@ -205,7 +205,7 @@ pins are in place; that is expected under this review form.
 
 ### Live re-walk — real MCP server, real api, real PAT
 
-Logged in as `seed.python-data.042@linkhub.local` (`POST /auth/login`), minted a
+Logged in as `seed.python-data.042@crafthub.local` (`POST /auth/login`), minted a
 PAT (`POST /me/tokens`), and drove `npx tsx src/index.ts` over stdio with the
 real `@modelcontextprotocol/sdk` client. `GET /me/work-context` returned
 `disclosureLevel: "summary"`, 4 roles, `companyName: null` throughout — the one
@@ -214,17 +214,17 @@ enforced category is live.
 What the agent now reads:
 
 - **tool description** — "…with the employer and client names on their denylist
-  ALREADY STRIPPED by LinkHub, and nothing else removed."
+  ALREADY STRIPPED by CraftHub, and nothing else removed."
 - **output header** — "…that is the ONLY category it removes. Ticket ids,
   customer names, internal codenames, unreleased products, architecture details
   and headcount figures are NOT stripped and may still appear below: leaving them
-  out of the post is your job, not LinkHub's."
+  out of the post is your job, not CraftHub's."
 - **achievements label** — "- Achievements (employer and client names stripped;
   nothing else is):"
 - **Step 7b** — "**Employer and client names are enforced, not advised.**" then
   "**Every other item above is yours to enforce.**" The true HTTP 400 sentence is
   kept verbatim.
-- **`linkhub://guides/post-quality`** — "the one place the user's blocked employer
+- **`crafthub://guides/post-quality`** — "the one place the user's blocked employer
   and client names have already been stripped. Nothing else on this list is
   stripped anywhere; keeping it out is your job."
 

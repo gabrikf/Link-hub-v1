@@ -120,8 +120,8 @@ git checkout -b feat/feature-name
 # Run G0 here, once, before branching out
 # ... liveness probe ...
 
-git worktree add ../linkhub-wt-g1 -b feat/feature-name-g1
-git worktree add ../linkhub-wt-g2 -b feat/feature-name-g2
+git worktree add ../crafthub-wt-g1 -b feat/feature-name-g1
+git worktree add ../crafthub-wt-g2 -b feat/feature-name-g2
 ```
 
 **Each worktree needs its own bootstrap** — npm workspace symlinks and the built `dist/` do not carry across:
@@ -158,8 +158,8 @@ git merge feat/feature-name-g2 --no-ff
 **Cleanup:**
 
 ```bash
-git worktree remove ../linkhub-wt-g1
-git worktree remove ../linkhub-wt-g2
+git worktree remove ../crafthub-wt-g1
+git worktree remove ../crafthub-wt-g2
 git branch -d feat/feature-name-g1
 git branch -d feat/feature-name-g2
 ```

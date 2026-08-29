@@ -2,6 +2,18 @@ export abstract class BaseError extends Error {
   abstract readonly statusCode: number;
   abstract readonly isOperational: boolean;
 
+  /**
+   * The machine-readable `code` this error answers with.
+   *
+   * The global handler otherwise derives it from the class name
+   * (`NotFoundError` -> `NOTFOUND`), which is fine for the generic HTTP shapes
+   * but cannot produce a snake-cased domain code: `EmailNotVerifiedError` would
+   * become `EMAILNOTVERIFIED`, and a client branching on the code would be
+   * branching on a string nobody would ever write down. Subclasses that are
+   * part of a published contract set this explicitly.
+   */
+  readonly errorCode?: string;
+
   constructor(
     message: string,
     public readonly cause?: Error
@@ -106,6 +118,63 @@ export class ResourceNotFoundError extends NotFoundError {
 
 export class InvalidCredentialsError extends UnauthorizedError {
   constructor(message: string = "Invalid email or password", cause?: Error) {
+    super(message, cause);
+  }
+}
+
+/**
+ * A password login against an account whose address has not been proved.
+ *
+ * 403, not 401: the credentials were CORRECT. A 401 would send the web client
+ * into its refresh-then-sign-out path and show "wrong password", which is both
+ * wrong and unactionable — the user's actual next step is to open their inbox
+ * or ask for a new link.
+ */
+export class EmailNotVerifiedError extends ForbiddenError {
+  readonly errorCode = "EMAIL_NOT_VERIFIED";
+
+  constructor(
+    message: string = "Confirm your email address before signing in. Check your inbox for the verification link, or request a new one.",
+    cause?: Error,
+  ) {
+    super(message, cause);
+  }
+}
+
+/**
+ * ONE error for every way a PASSWORD RESET token can fail — unknown, expired,
+ * already used, or pointing at a user who no longer exists.
+ *
+ * Separate from `InvalidVerificationTokenError` because the two links land on
+ * two different screens and the client has to be able to tell them apart; the
+ * indistinguishability that matters is WITHIN each kind, not across them.
+ */
+export class InvalidResetTokenError extends BadRequestError {
+  readonly errorCode = "INVALID_RESET_TOKEN";
+
+  constructor(
+    message: string = "This password reset link is invalid or has expired. Request a new one.",
+    cause?: Error,
+  ) {
+    super(message, cause);
+  }
+}
+
+/**
+ * ONE error for every way a verification token can fail — unknown, expired,
+ * already used, or pointing at a user who no longer exists.
+ *
+ * Deliberately undifferentiated: telling a caller "expired" rather than
+ * "unknown" confirms that the token was real, which is the only useful signal
+ * an attacker guessing tokens could get back.
+ */
+export class InvalidVerificationTokenError extends BadRequestError {
+  readonly errorCode = "INVALID_VERIFICATION_TOKEN";
+
+  constructor(
+    message: string = "This verification link is invalid or has expired. Request a new one.",
+    cause?: Error,
+  ) {
     super(message, cause);
   }
 }

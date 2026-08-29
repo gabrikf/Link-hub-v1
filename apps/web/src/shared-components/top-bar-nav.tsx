@@ -18,7 +18,8 @@ import {
   FiUser,
   FiX,
 } from "react-icons/fi";
-import { clearAuthTokens, getAuthTokens } from "../lib/auth-tokens";
+import { getAuthTokens } from "../lib/auth-tokens";
+import { signOut } from "../lib/session";
 import { useUserInfoStore } from "../lib/user-info-store";
 import { BrandLogo } from "./brand-logo";
 import { Button } from "./button";
@@ -79,7 +80,6 @@ export function TopBarNav() {
     select: (state) => state.location.pathname,
   });
   const userInfo = useUserInfoStore((state) => state.userInfo);
-  const clearUserInfo = useUserInfoStore((state) => state.clearUserInfo);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const hasSession = Boolean(getAuthTokens() && userInfo?.login);
@@ -88,10 +88,15 @@ export function TopBarNav() {
     return null;
   }
 
+  /*
+   * `signOut()` rather than clearing the two stores by hand: it is also what
+   * drops the cached `["preferences"]` entry, without which the next account to
+   * sign in on this tab inherits this one's theme and language (see
+   * `lib/session.ts`).
+   */
   const logout = () => {
     setIsMobileMenuOpen(false);
-    clearAuthTokens();
-    clearUserInfo();
+    signOut();
     navigate({ to: "/" });
   };
 

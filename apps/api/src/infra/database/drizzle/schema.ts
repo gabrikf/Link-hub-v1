@@ -80,6 +80,19 @@ export const users = pgTable("users", {
     .notNull()
     .default([]),
   password: text("password").notNull(),
+  /*
+   * When this address was proved, or NULL while it is still unproved.
+   *
+   * NOT derivable from `password`: that column is notNull and an OAuth signup
+   * gets a random hash nobody knows, so "has a password" is true for every row
+   * and says nothing about how the account was created. The OAuth signal is the
+   * absence of a `google_id` and of any `oauth_accounts` row.
+   *
+   * Nullable with no default, and migration 0022 backfills every pre-existing
+   * row to now(): a default of NULL alone would have locked ~301 seeded
+   * accounts and every real dev account out of password login on deploy.
+   */
+  emailVerifiedAt: timestamp("email_verified_at"),
   googleId: text("google_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
@@ -87,6 +100,77 @@ export const users = pgTable("users", {
     .defaultNow()
     .$onUpdateFn(() => new Date()),
 });
+
+/**
+ * One row per verification link ever emailed.
+ *
+ * Only the sha256 of the token is stored (`token_hash`), so this table is worth
+ * nothing to whoever reads it — the raw value lives in the user's inbox and
+ * nowhere else. Rows are single-use: `consumed_at` is stamped on the token that
+ * was spent AND on every other outstanding token for that user, so the older
+ * links sitting in the same inbox stop working the moment one succeeds.
+ */
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    // Both non-lookup reads are per user: the resend cooldown wants the newest
+    // row for one user, and a successful verify invalidates that user's others.
+    index("email_verification_tokens_user_id_created_at_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * One row per password-reset link ever emailed.
+ *
+ * A SEPARATE table from `email_verification_tokens` rather than a `purpose`
+ * column on it: the two have different lifetimes (20 minutes vs 24 hours) and
+ * very different blast radii — a leaked reset token IS the account — so keeping
+ * them apart means no query can ever accidentally accept one where the other
+ * was meant.
+ *
+ * Same rules otherwise: only the sha256 is stored, and `consumed_at` is stamped
+ * both when a link is issued (invalidating older ones) and when one is spent.
+ */
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    index("password_reset_tokens_user_id_created_at_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  ],
+);
 
 export const refreshTokens = pgTable("refresh_tokens", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -832,9 +916,31 @@ export const refreshTokenRelations = relations(refreshTokens, ({ one }) => ({
   }),
 }));
 
+export const passwordResetTokenRelations = relations(
+  passwordResetTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [passwordResetTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const emailVerificationTokenRelations = relations(
+  emailVerificationTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [emailVerificationTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
 export const userRelations = relations(users, ({ one, many }) => ({
   preferences: one(userPreferences),
   refreshTokens: many(refreshTokens),
+  emailVerificationTokens: many(emailVerificationTokens),
+  passwordResetTokens: many(passwordResetTokens),
   oauthAccounts: many(oauthAccounts),
   links: many(links),
   posts: many(posts),

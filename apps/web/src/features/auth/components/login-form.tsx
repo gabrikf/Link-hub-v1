@@ -7,10 +7,17 @@ import { FiLoader, FiLogIn } from "react-icons/fi";
 import { Input } from "../../../shared-components/input";
 import { Button } from "../../../shared-components/button";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
+import { FOCUS_RING } from "../../../shared-components/surface";
 
 type LoginFormProps = {
   isPending: boolean;
   errorMessage?: string;
+  /**
+   * Opens the "reset your password" screen. A callback rather than a `<Link>`
+   * so this form stays presentational and needs no router context — the parent
+   * owns every navigation on this page already.
+   */
+  onForgotPassword?: () => void;
   // Rejects when the sign-in fails. The parent owns how that reads to the user
   // and passes it back down as `errorMessage`.
   onSubmit: (data: LoginInput) => Promise<void>;
@@ -19,6 +26,7 @@ type LoginFormProps = {
 export function LoginForm({
   isPending,
   errorMessage,
+  onForgotPassword,
   onSubmit,
 }: LoginFormProps) {
   const { t } = useTranslation();
@@ -65,6 +73,23 @@ export function LoginForm({
         error={errors.password?.message}
         {...register("password")}
       />
+
+      {/*
+        Directly under the password field, which is where somebody realises
+        they do not know it. `type="button"` matters: inside a form, the default
+        submits it.
+      */}
+      {onForgotPassword && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onForgotPassword}
+            className={`rounded-md text-xs font-medium text-violet-700 underline-offset-2 hover:underline dark:text-violet-300 ${FOCUS_RING}`}
+          >
+            {t("auth.forgotPassword")}
+          </button>
+        </div>
+      )}
 
       {errorMessage && <FeedbackMessage message={errorMessage} tone="error" />}
 

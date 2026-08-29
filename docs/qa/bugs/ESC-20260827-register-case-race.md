@@ -38,13 +38,13 @@ still open.
 ```
 Concurrent — the bug:
   Fire two POST /auth/register at once, same mailbox in two cases, different logins:
-    T124.Lock.mtbot0md@linkhub.local  -> 201   (createdAt 15:38:10.487Z)
-    t124.lock.mtbot0md@linkhub.local  -> 201   (createdAt 15:38:10.500Z)
+    T124.Lock.mtbot0md@crafthub.local  -> 201   (createdAt 15:38:10.487Z)
+    t124.lock.mtbot0md@crafthub.local  -> 201   (createdAt 15:38:10.500Z)
   psql: two rows, ctid (17,30) and (18,7).
 
 Sequential — correctly refused, the control:
-    POST /auth/register T127.Seq.mtboteie@linkhub.local  -> 201
-    POST /auth/register t127.seq.mtboteie@linkhub.local  -> 409
+    POST /auth/register T127.Seq.mtboteie@crafthub.local  -> 201
+    POST /auth/register t127.seq.mtboteie@crafthub.local  -> 409
   psql count(*) WHERE lower(email)=… -> 1
 ```
 
@@ -70,7 +70,7 @@ A check-then-insert race cannot be closed in application code — the fix is a
 existing `DuplicateResourceError`. That migration needs a decision this loop is
 not allowed to make:
 
-1. **It will fail on existing data.** `linkhub_dev` already holds **six**
+1. **It will fail on existing data.** `crafthub_dev` already holds **six**
    colliding mailboxes. Production may hold more, all created by the pre-08-23
    code, which is exactly the population the index would reject.
 2. **Choosing which of two real accounts survives is a product decision.** Both

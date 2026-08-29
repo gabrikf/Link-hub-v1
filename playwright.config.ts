@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * The e2e contract for LinkHub's five load-bearing journeys.
+ * The e2e contract for CraftHub's five load-bearing journeys.
  *
  * WHY THIS EXISTS ALONGSIDE `scripts/visual/run.mjs`: the visual runner is a
  * *camera* — it walks a screen's four states and fails on console errors so a

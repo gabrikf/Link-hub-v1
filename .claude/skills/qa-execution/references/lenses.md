@@ -19,7 +19,7 @@ This pass is intentionally lightweight — full audits (WCAG conformance, Lighth
 
 ## 1. Disclosure integrity
 
-**LinkHub's defining lens.** The product's promise is that a coding agent can write publicly about your work *without* saying who you work for beyond what you allowed. Every surface that renders agent-authored content — the posts list, the review queue, the public profile, the API payload behind it — is answerable to the policy set in `/dashboard/settings`.
+**CraftHub's defining lens.** The product's promise is that a coding agent can write publicly about your work *without* saying who you work for beyond what you allowed. Every surface that renders agent-authored content — the posts list, the review queue, the public profile, the API payload behind it — is answerable to the policy set in `/dashboard/settings`.
 
 Walk the surface and answer each, citing the journey step:
 
@@ -92,7 +92,7 @@ Smoke the changed surface across the minimum matrix:
 | Viewport | 1280, 768, 375 |
 | Reduced motion | On AND off |
 
-Theme is listed first on purpose. LinkHub themes through a `.dark` class (`@custom-variant dark` in `apps/web/src/index.css`); a surface authored without its `dark:` variants renders unreadable rather than merely off-brand, and it is the cheapest bug in this repo to ship and the easiest to catch. Every state counts — empty, loading, error, disabled, focused, hovered — not just the happy one. `DESIGN.md` is the arbiter.
+Theme is listed first on purpose. CraftHub themes through a `.dark` class (`@custom-variant dark` in `apps/web/src/index.css`); a surface authored without its `dark:` variants renders unreadable rather than merely off-brand, and it is the cheapest bug in this repo to ship and the easiest to catch. Every state counts — empty, loading, error, disabled, focused, hovered — not just the happy one. `DESIGN.md` is the arbiter.
 
 Layout/CSS changes make viewport coverage mandatory; form changes make mobile Safari mandatory (autofill diverges). Severity by user impact, not by which browser.
 

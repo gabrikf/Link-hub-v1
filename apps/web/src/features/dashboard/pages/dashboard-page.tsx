@@ -16,7 +16,6 @@ import {
 } from "@dnd-kit/sortable";
 import type { LinkIcon, LinkResponse } from "@repo/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -96,7 +95,6 @@ function resolveLinkMutationError(
 
 export function DashboardPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userInfo = useUserInfoStore((state) => state.userInfo);
 
@@ -182,12 +180,6 @@ export function DashboardPage() {
     queryClient.invalidateQueries({ queryKey: ["public-profile"] });
     queryClient.invalidateQueries({ queryKey: ["public-resume"] });
   };
-
-  useEffect(() => {
-    if (!hasSession) {
-      navigate({ to: "/" });
-    }
-  }, [hasSession, navigate]);
 
   /**
    * The AI-import prompt used to auto-open a modal over a dashboard the user

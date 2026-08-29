@@ -62,7 +62,7 @@ function buildViolationMessage(
     `and your own blocked terms always apply, so raising one role never un-blocks another. ` +
     `Describe the capability without naming the employer or client — what you built, ` +
     `the stack, the practices and the outcome are all still allowed — or raise the ` +
-    `disclosure level of the role in question in LinkHub settings under ` +
+    `disclosure level of the role in question in CraftHub settings under ` +
     `"What your agent may share".`
   );
 }

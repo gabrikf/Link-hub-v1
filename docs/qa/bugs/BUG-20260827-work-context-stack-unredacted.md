@@ -1,7 +1,7 @@
 # BUG-20260827-work-context-stack-unredacted: `role.stack` is the one field `get_work_context` never redacts, so a blocked term in a role's tech stack is handed to the agent verbatim
 
 - **Status:** fixed (red 9b3ee27 → fix 15a8468; reviewed and approved at iteration 116)
-- **Impact (user-side):** A developer who set their disclosure level to `summary` — or typed a client codename into their own blocked-terms list — still has that term shipped to their coding agent inside the payload LinkHub calls "the only sanctioned source of employment detail", and then gets a 400 refusing the very word LinkHub just gave them
+- **Impact (user-side):** A developer who set their disclosure level to `summary` — or typed a client codename into their own blocked-terms list — still has that term shipped to their coding agent inside the payload CraftHub calls "the only sanctioned source of employment detail", and then gets a 400 refusing the very word CraftHub just gave them
 - **Severity:** Minor · **Priority:** P2
 - **Persona Affected:** Diego, the curating developer, and Atlas, the coding agent
 - **Journey Step:** J-agent-publish-post
@@ -46,7 +46,7 @@ does enforce, and the fix needs no new heuristics.
 
 - **Charter:** none · **Tour:** the-data tour
 - **Environment:** dev stack, api `:3333`, account
-  `seed.javascript-fullstack.001@linkhub.local`, real JWT from `POST /auth/login`.
+  `seed.javascript-fullstack.001@crafthub.local`, real JWT from `POST /auth/login`.
   `GET /me/agent-policy` → `{"disclosureLevel":"summary","blockedTerms":[],"perEmployer":[]}`
   — the denylist is the automatic one (every employer whose own role is at
   `summary`), so **no settings were changed** to produce this.
@@ -95,9 +95,9 @@ left is still real:
    `summary` so that software acting on their behalf never sees the name. The
    payload hands it over anyway, to a model that is often a third-party hosted
    one, labelled as safe.
-2. **A self-contradicting publish loop.** `linkhub://guides/post-quality` tells
+2. **A self-contradicting publish loop.** `crafthub://guides/post-quality` tells
    the agent to name the stack twice — as prose and as `tags`. An agent that
-   follows the guide using the payload LinkHub gave it gets a 400 naming a term
+   follows the guide using the payload CraftHub gave it gets a 400 naming a term
    it read out of `get_work_context`, and its obvious retry — the same stack —
    fails identically.
 3. **The shipped README is literally wrong because of this one field.**

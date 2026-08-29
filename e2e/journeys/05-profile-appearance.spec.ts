@@ -25,9 +25,9 @@ const PUBLIC_PATH = `/profile/${ACCOUNT.login}`;
 const API_ORIGIN = new URL(API_URL).origin;
 
 /** Must match USER_INFO_STORAGE_KEY in apps/web/src/lib/user-info-store.ts. */
-const USER_INFO_KEY = "linkhub.auth.user-info";
+const USER_INFO_KEY = "crafthub.auth.user-info";
 /** Must match THEME_STORAGE_KEY in apps/web/src/lib/theme.ts. */
-const THEME_KEY = "linkhub-theme";
+const THEME_KEY = "crafthub-theme";
 
 /* -------------------------------------------------------------------------- */
 /* Session                                                                     */
@@ -903,7 +903,26 @@ test("the dashboard profile panel renders all four states", async ({
     },
   );
   await page.goto("/dashboard");
-  await expect(page.getByText("Loading profile")).toBeAttached();
+
+  /*
+   * THE LOADING STATE MOVED, and this assertion moved with it.
+   *
+   * It used to be the dashboard's own "Loading profile" skeleton. `GET /me` is
+   * now resolved by `lib/app-boot.ts` BEFORE the router mounts — the boot gate
+   * hands the profile straight to the `["me"]` query cache — so on a hard load
+   * the dashboard panel never has a pending state to render: it mounts with the
+   * data already there. What a person actually looks at during those two
+   * delayed seconds is `BootPending`.
+   *
+   * Asserting the old string here would now be asserting that the app is slower
+   * than it is. Asserting nothing would drop the state from the four-state rule
+   * entirely, so the delayed `/me` still has to prove SOMETHING designed is on
+   * screen — it is just a different component now.
+   *
+   * The panel's own skeleton is still live and still covered: it is what shows
+   * on an in-session refetch, which the `empty` step below exercises.
+   */
+  await expect(page.getByText("Loading CraftHub")).toBeAttached();
 
   /* -------------------------------- filled -------------------------------- */
   await expect(page.getByRole("button", { name: "Edit profile" })).toBeVisible({

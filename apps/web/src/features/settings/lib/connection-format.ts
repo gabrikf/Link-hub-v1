@@ -284,7 +284,7 @@ export function getGitlabWebhookSteps(t: TFunction): readonly string[] {
  * ------------------------------------------------------------------ */
 
 /**
- * Byte-identical to what `linkhub-hook print-settings` emits.
+ * Byte-identical to what `crafthub-hook print-settings` emits.
  *
  * The canonical definition is `claudeSettingsHooks()` in
  * `apps/extractor/src/hook/settings-snippet.ts`, which is written as data
@@ -303,7 +303,7 @@ const CLAUDE_HOOK_SETTINGS = {
         hooks: [
           {
             type: "command",
-            command: "linkhub-hook stop",
+            command: "crafthub-hook stop",
             timeout: 5,
           },
         ],
@@ -315,7 +315,7 @@ const CLAUDE_HOOK_SETTINGS = {
         hooks: [
           {
             type: "command",
-            command: "linkhub-hook session-end",
+            command: "crafthub-hook session-end",
             timeout: 30,
             // Non-blocking: SessionEnd hooks share a ~1.5s budget, which is not
             // enough for an HTTP round trip.
@@ -354,7 +354,7 @@ export function getExtractorNotes(t: TFunction): readonly string[] {
  * ------------------------------------------------------------------ */
 
 /** Where both the hook and the extractor CLI read their connection id from. */
-export const EXTRACTOR_CONFIG_TARGET = "~/.linkhub/extractor.json";
+export const EXTRACTOR_CONFIG_TARGET = "~/.crafthub/extractor.json";
 
 /**
  * The config file with the REAL connection id baked in. The wizard renders it
@@ -377,15 +377,15 @@ export function buildExtractorConfig(connectionId: string): string {
  * agent can only see the repository the session was started in, which quietly
  * turns a week of work across four projects into a post about one.
  *
- * `~/.linkhub/extractor.json`'s own `repos` array is the fallback, and the
+ * `~/.crafthub/extractor.json`'s own `repos` array is the fallback, and the
  * current directory is the last resort — so this file is a refinement, never a
  * prerequisite.
  */
-export const REPOS_CONFIG_TARGET = "~/.linkhub/repos.json";
+export const REPOS_CONFIG_TARGET = "~/.crafthub/repos.json";
 
 export const REPOS_CONFIG_SNIPPET = JSON.stringify(
   {
-    repos: ["/home/you/code/linkhub", "/home/you/work/payments-api"],
+    repos: ["/home/you/code/crafthub", "/home/you/work/payments-api"],
   },
   null,
   2,
@@ -400,8 +400,8 @@ export const REPOS_CONFIG_SNIPPET = JSON.stringify(
  * with a space in it.
  */
 export const REPOS_DISCOVERY_COMMAND =
-  "mkdir -p ~/.linkhub && find ~/code -maxdepth 3 -type d -name .git -exec dirname {} \\; | " +
-  "jq -R -s '{repos: (split(\"\\n\") | map(select(length > 0)))}' > ~/.linkhub/repos.json";
+  "mkdir -p ~/.crafthub && find ~/code -maxdepth 3 -type d -name .git -exec dirname {} \\; | " +
+  "jq -R -s '{repos: (split(\"\\n\") | map(select(length > 0)))}' > ~/.crafthub/repos.json";
 
 /**
  * The extractor keeps its roster in its own settings file (`repos`, used when
@@ -430,23 +430,23 @@ export function reposCoverageConsequence(): string {
   return i18n.t("settings.local.repoScope");
 }
 
-/** `export LINKHUB_API_TOKEN=...` with the real token, or a placeholder. */
+/** `export CRAFTHUB_API_TOKEN=...` with the real token, or a placeholder. */
 export function buildTokenExport(token: string | null): string {
-  return `export LINKHUB_API_TOKEN=${token ?? "lh_pat_xxxxxxxxxxxxxxxxxxxxxxxx"}`;
+  return `export CRAFTHUB_API_TOKEN=${token ?? "lh_pat_xxxxxxxxxxxxxxxxxxxxxxxx"}`;
 }
 
 /**
- * The extract-then-review flow. `npx linkhub-extract` on purpose — the CLI is
+ * The extract-then-review flow. `npx crafthub-extract` on purpose — the CLI is
  * presented as an installed tool, never as "clone the repository".
  */
-export const EXTRACTOR_RUN_COMMAND = "npx linkhub-extract ~/path/to/repo";
+export const EXTRACTOR_RUN_COMMAND = "npx crafthub-extract ~/path/to/repo";
 
 export const EXTRACTOR_UPLOAD_COMMAND =
-  "npx linkhub-extract upload linkhub-activity.json";
+  "npx crafthub-extract upload crafthub-activity.json";
 
 /** Optional weekly automation. `--yes` skips the review stop — say so. */
 export const EXTRACTOR_CRON_SNIPPET =
-  "0 18 * * 5 npx linkhub-extract --yes ~/path/to/repo";
+  "0 18 * * 5 npx crafthub-extract --yes ~/path/to/repo";
 
 export function extractorCronCaution(): string {
   return i18n.t("settings.local.yesFlag");

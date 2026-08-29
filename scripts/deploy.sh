@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Deploy LinkHub to the production VPS.
+# Deploy CraftHub to the production VPS.
 #
 #   ./scripts/deploy.sh              manual deploy: git pull, build here, deploy
 #   ./scripts/deploy.sh <tag>        deploy a prebuilt image already tagged <tag>
@@ -41,7 +41,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$REPO_DIR/docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-$REPO_DIR/.env.production}"
-IMAGE_NAME="${IMAGE_NAME:-linkhub-api}"
+IMAGE_NAME="${IMAGE_NAME:-crafthub-api}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3333/health}"
 HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-120}"
 HEALTH_INTERVAL_SECONDS=3
@@ -60,6 +60,49 @@ cd "$REPO_DIR"
 command -v docker >/dev/null || die "docker is not installed"
 command -v curl >/dev/null || die "curl is not installed (needed for the health check)"
 docker compose version >/dev/null 2>&1 || die "docker compose v2 is required"
+
+# --- TLS material -----------------------------------------------------------
+# Caddy terminates TLS with the Cloudflare Origin Certificate, not with
+# Let's Encrypt: api.<domain> is orange-clouded, so an ACME challenge is answered
+# by Cloudflare's edge and never reaches this box.
+#
+# Checked HERE, before anything else runs, for two reasons. First,
+# docker-compose.prod.yml bind-mounts these as FILES — Docker silently creates a
+# DIRECTORY at any missing bind-mount path, and the resulting Caddy error names
+# neither the deploy nor the missing secret. Second, a missing certificate means
+# the site answers 525 to every visitor, and finding that out after migrations
+# have been applied is strictly worse than finding it out now.
+#
+# .github/workflows/deploy.yml writes both files immediately before calling this
+# script. To place them by hand:
+#
+#   cd infra/terraform/envs/prod
+#   mkdir -p "$REPO_DIR/secrets/caddy"
+#   terraform output -raw origin_certificate > "$REPO_DIR/secrets/caddy/origin.pem"
+#   terraform output -raw origin_private_key > "$REPO_DIR/secrets/caddy/origin.key"
+#   chmod 0600 "$REPO_DIR/secrets/caddy/origin.key"
+CADDY_TLS_DIR="${CADDY_TLS_DIR:-$REPO_DIR/secrets/caddy}"
+
+check_pem() {
+  local path="$1" label="$2" marker="$3"
+
+  [ -e "$path" ] || die "$label is missing: $path. Caddy cannot start without it and the site would answer 525. See the comment above this check for how to place it."
+  # An `if`, not `[ -d "$path" ] && die ...`. Under `set -e` that AND-list exits
+  # the script with status 1 whenever the test is FALSE — i.e. on every healthy
+  # deploy — because the list as a whole then evaluates non-zero.
+  #
+  # A directory here is the Docker bind-mount footgun, and it is worth naming
+  # explicitly: the error Caddy produces for it looks nothing like a missing file.
+  if [ -d "$path" ]; then
+    die "$path is a DIRECTORY, not a file. Docker created it by bind-mounting a path that did not exist. Remove it (sudo rm -rf '$path') and let the deploy write the real file."
+  fi
+  [ -f "$path" ] || die "$label exists but is not a regular file: $path"
+  [ -s "$path" ] || die "$label is empty: $path. The secret it comes from is probably unset or was decoded from a bad base64 value."
+  grep -q "$marker" "$path" || die "$label does not look like PEM ($marker not found in $path). Check that the repository secret holds the raw output of 'terraform output -raw ...', base64-encoded on a single line."
+}
+
+check_pem "$CADDY_TLS_DIR/origin.pem" "The Cloudflare Origin Certificate" "BEGIN CERTIFICATE"
+check_pem "$CADDY_TLS_DIR/origin.key" "The Origin Certificate private key" "PRIVATE KEY"
 
 # ---------------------------------------------------------------------------
 # 0. Record what is running RIGHT NOW, before anything changes.
@@ -171,7 +214,7 @@ compose up -d postgres redis
 # connection error that looks exactly like a bad DATABASE_URL, so wait on the
 # healthcheck the compose file already defines.
 pg_deadline=$((SECONDS + 90))
-until [ "$(docker inspect --format '{{.State.Health.Status}}' linkhub-postgres 2>/dev/null || echo starting)" = "healthy" ]; do
+until [ "$(docker inspect --format '{{.State.Health.Status}}' crafthub-postgres 2>/dev/null || echo starting)" = "healthy" ]; do
   [ "$SECONDS" -lt "$pg_deadline" ] || die "postgres did not become healthy within 90s. Nothing was migrated or restarted."
   sleep 2
 done
@@ -190,15 +233,23 @@ fi
 # 4. Restart the stack on the new image
 # ---------------------------------------------------------------------------
 log "Starting $NEW_IMAGE"
-# NOT bare, despite `set -e`. `caddy` waits on `api: service_healthy`, so when
-# the new image is broken — the exact case this script's rollback exists for —
-# `up` blocks until the api healthcheck gives up and then exits non-zero.
-# Under `set -e` that killed the script here, leaving migrations applied, the
-# reverse proxy never started, and steps 5 and 6 below unreached. A failed
-# deploy took the whole site offline and abandoned it.
+# NOT bare, despite `set -e`.
 #
-# Swallow the status and let the health poll be the judge: it reaches the same
-# conclusion, but on a path that continues into the rollback.
+# HISTORY, because the reason changed and the comment did not: `caddy` used to
+# wait on `api: service_healthy`, so a broken image — the exact case this
+# script's rollback exists for — made `up` block until the api healthcheck gave
+# up and then exit non-zero. Under `set -e` that killed the script right here,
+# leaving migrations applied, the reverse proxy never started, and steps 5 and 6
+# below unreached: a failed deploy took the whole site offline and abandoned it.
+#
+# That dependency is now `condition: service_started`
+# (docker-compose.prod.yml), so `up` no longer blocks on the API's health. The
+# swallowed exit status still earns its place: `up` also fails for a pull error,
+# a bad bind mount, or any other service failing to start, and every one of those
+# must reach the health poll and the rollback rather than aborting here.
+#
+# Let the health poll be the judge: it reaches the same conclusion, but on a path
+# that continues into the rollback.
 if ! compose up -d --remove-orphans; then
   warn "'compose up' reported a failure (a service may never have become healthy). Continuing to the health check so the rollback below can run."
 fi

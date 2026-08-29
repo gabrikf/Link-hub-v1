@@ -5,7 +5,7 @@ import {
   type AgentPolicy,
 } from "@repo/schemas";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { LinkHubApiClient } from "./api-client.js";
+import type { CraftHubApiClient } from "./api-client.js";
 import {
   levelInfo,
   loadDisclosureContext,
@@ -31,8 +31,8 @@ interface PolicySource {
   getAgentPolicy: () => Promise<AgentPolicy>;
 }
 
-function asClient(source: PolicySource): LinkHubApiClient {
-  return source as unknown as LinkHubApiClient;
+function asClient(source: PolicySource): CraftHubApiClient {
+  return source as unknown as CraftHubApiClient;
 }
 
 function clientReturning(policy: AgentPolicy) {
@@ -207,8 +207,8 @@ describe("loadDisclosureContext — happy path", () => {
 describe("loadDisclosureContext — fails closed", () => {
   it("falls back to the default level on a network failure", async () => {
     const message =
-      "Could not reach the LinkHub API at http://localhost:3333. " +
-      "Make sure the API is running and LINKHUB_API_URL is correct. (fetch failed)";
+      "Could not reach the CraftHub API at http://localhost:3333. " +
+      "Make sure the API is running and CRAFTHUB_API_URL is correct. (fetch failed)";
     const { client } = clientRejectingWith(new Error(message));
 
     const context = await loadDisclosureContext(client);
@@ -224,10 +224,10 @@ describe("loadDisclosureContext — fails closed", () => {
   it("falls back on a 403 and keeps the missing-scope message as the reason", async () => {
     const message =
       "Your token is missing the profile:read scope — create a new token in " +
-      "LinkHub settings (Settings → Personal access tokens → Create token) " +
-      "with profile:read checked, and set it as LINKHUB_API_TOKEN.";
+      "CraftHub settings (Settings → Personal access tokens → Create token) " +
+      "with profile:read checked, and set it as CRAFTHUB_API_TOKEN.";
     const error = Object.assign(new Error(message), {
-      name: "LinkHubApiError",
+      name: "CraftHubApiError",
       status: 403,
     });
     const { client } = clientRejectingWith(error);
@@ -291,10 +291,10 @@ describe("renderPolicyForToolDescription", () => {
     );
 
     expect(healthy.startsWith("DISCLOSURE POLICY: ")).toBe(true);
-    expect(healthy).not.toContain("could not be read from LinkHub");
+    expect(healthy).not.toContain("could not be read from CraftHub");
     expect(healthy).not.toContain("STRICTEST");
 
-    expect(degraded).toContain("could not be read from LinkHub");
+    expect(degraded).toContain("could not be read from CraftHub");
     expect(degraded).toContain("assuming the STRICTEST level");
     expect(degraded).toContain("profile:read");
   });
@@ -305,7 +305,7 @@ describe("renderPolicyForToolDescription", () => {
     const rendered = renderPolicyForToolDescription(
       contextFor("summary", {
         degraded: true,
-        degradedReason: "Could not reach the LinkHub API at http://10.0.0.7:3333",
+        degradedReason: "Could not reach the CraftHub API at http://10.0.0.7:3333",
       }),
     );
 
@@ -351,7 +351,7 @@ describe("renderPolicyForToolDescription", () => {
           "Never infer the employer from git remotes, package names, directory paths or code comments",
         );
         expect(rendered).toContain("call get_work_context");
-        expect(rendered).toContain("LinkHub ENFORCES this server-side");
+        expect(rendered).toContain("CraftHub ENFORCES this server-side");
         expect(rendered).toContain("rejected with a 400 naming the term");
       }
     }

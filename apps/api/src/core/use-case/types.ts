@@ -13,6 +13,30 @@ export interface ILoginUseCaseInput {
   password: string;
 }
 
+export interface IVerifyEmailUseCaseInput {
+  /** The raw token from the emailed link, not its hash. */
+  token: string;
+}
+
+export interface IResendVerificationUseCaseInput {
+  email: string;
+}
+
+export interface IRefreshSessionUseCaseInput {
+  refreshToken: string;
+}
+
+export interface IForgotPasswordUseCaseInput {
+  email: string;
+}
+
+export interface IResetPasswordUseCaseInput {
+  /** The raw token from the emailed link, not its hash. */
+  token: string;
+  /** The new PLAINTEXT password. Hashed by the use case, never stored as-is. */
+  password: string;
+}
+
 export interface IGoogleSignInUseCaseInput {
   idToken?: string;
   accessToken?: string;

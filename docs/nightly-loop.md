@@ -1,7 +1,7 @@
 # The nightly QA loop
 
 An autonomous overnight loop that hunts **real, user-impacting bugs** in
-LinkHub, proves each one with a failing test, fixes it, and has an independent
+CraftHub, proves each one with a failing test, fixes it, and has an independent
 agent review the fix before it counts.
 
 It exists because a release-eve QA pass is bounded by two things a single agent
@@ -228,7 +228,7 @@ So every invocation passes `--strict-mcp-config` and no MCP servers load.
 use psql directly instead, which is equivalent for reading:
 
 ```bash
-docker exec linkhub-postgres-dev psql -U linkhub_user -d linkhub_dev -c "SELECT ..."
+docker exec crafthub-postgres-dev psql -U crafthub_user -d crafthub_dev -c "SELECT ..."
 ```
 
 The invocations also redirect `</dev/null`, since a detached `nohup` run
@@ -264,14 +264,14 @@ which would move the whole run onto per-token USD billing.
 `3333` and `5173` are common defaults, and another project on this machine can
 own them. The health check originally asked only "is something listening?" —
 which a different repo's api on 3333 answers perfectly well. That would have
-meant a full night of QA against the wrong application, and "fixes" to LinkHub
+meant a full night of QA against the wrong application, and "fixes" to CraftHub
 derived from another app's behaviour, with nothing in the results to show it.
 
-Preflight now probes a route only LinkHub serves and refuses to start otherwise,
+Preflight now probes a route only CraftHub serves and refuses to start otherwise,
 naming the directory that owns each port. The same check runs between
 iterations, in case a restart lands on a port something else has since taken.
 
-To run alongside another project, give LinkHub its own ports:
+To run alongside another project, give CraftHub its own ports:
 
 ```bash
 bash scripts/nightly/run.sh start --api-port 3344 --web-port 5273 --hours 8
@@ -450,18 +450,18 @@ $ curl http://localhost:3333/profile/__nightly_probe__/posts
 
 **Resolved mid-`REPORT`, by a human, not by the loop.** Commit `60547b7`
 ("refuse to QA the wrong app, and support alternate ports") landed the
-`verify_is_linkhub()` identity preflight and the `--api-port` / `--web-port`
-plumbing, and LinkHub was brought up alongside retro-doc:
+`verify_is_crafthub()` identity preflight and the `--api-port` / `--web-port`
+plumbing, and CraftHub was brought up alongside retro-doc:
 
 ```
 $ curl -s http://localhost:5273/ | grep -o '<title>[^<]*</title>'
-<title>LinkHub</title>
+<title>CraftHub</title>
 $ curl http://localhost:3344/profile/__nightly_probe__/posts
 {"error":"RESOURCENOTFOUND","message":"User with identifier '__nightly_probe__' not found", ...}
 ```
 
-LinkHub's own error envelope, not Fastify's route-not-found — so **api 3344 /
-web 5273 is a verified LinkHub**, and the next run has a real target. Nothing
+CraftHub's own error envelope, not Fastify's route-not-found — so **api 3344 /
+web 5273 is a verified CraftHub**, and the next run has a real target. Nothing
 about that retroactively tests this build.
 
 ### Which guards fired
@@ -525,7 +525,7 @@ regression and are not one.
 
 One decision, and it blocked everything else: **ports 3333 / 5173 are owned by
 `weg/retro-doc`.** It was largely answered while this section was being written —
-`60547b7` landed the preflight and the port flags, and LinkHub is verified up on
+`60547b7` landed the preflight and the port flags, and CraftHub is verified up on
 3344 / 5273. What is left:
 
 1. **Re-run on 3344 / 5273 now.** The servers are up and identity-verified;
@@ -594,7 +594,7 @@ The e2e baseline stays as recorded at hand-off (42 total / 32 passed / 9 failed 
 ### How to run it again, and what to change
 
 ```bash
-# recommended — retro-doc keeps 3333/5173, LinkHub is already up here:
+# recommended — retro-doc keeps 3333/5173, CraftHub is already up here:
 nohup bash scripts/nightly/run.sh start --hours 8 --fresh \
   --api-port 3344 --web-port 5273 > .nightly/logs/run.log 2>&1 &
 
@@ -605,7 +605,7 @@ nohup bash scripts/nightly/run.sh start --hours 8 --fresh > .nightly/logs/run.lo
 What this run says should change about the loop itself:
 
 1. **Identity, not liveness, in the preflight.** The single highest-value change,
-   and the one this run bought: probe a route only LinkHub serves and exit FATAL
+   and the one this run bought: probe a route only CraftHub serves and exit FATAL
    before the gate runs. Anything else is a guard that passes when it should
    scream. **Landed in `60547b7` during this run** — unreviewed by the loop, and
    worth a human read before the next night depends on it.
@@ -646,7 +646,7 @@ fabricated or empty-looking data instead of an error.
 The gate is green and the offline suites pass — but **not one user journey was
 walked tonight**, so "the journeys walk clean" cannot be claimed at all. Clearing
 this verdict needs a real BOOTSTRAP → HUNT → TRIAGE → FIX round actually run —
-which, with LinkHub now verified on 3344 / 5273, is finally possible.
+which, with CraftHub now verified on 3344 / 5273, is finally possible.
 
 ---
 
@@ -783,7 +783,7 @@ Three decisions left for a human. Full write-ups in `docs/qa/bugs/ESC-*.md`.
 
 1. **`ESC-20260827-register-case-race` (major)** — two concurrent registrations
    of one mailbox in two cases both succeed. *Options:* ship the unique index now
-   (it will fail on existing data — `linkhub_dev` holds six colliding mailboxes);
+   (it will fail on existing data — `crafthub_dev` holds six colliding mailboxes);
    ship only the login fix (done); or audit → merge → backfill → index
    concurrently. **Recommendation: the third, as its own task after the deploy.**
    The login fix already removed the lockout. The same
@@ -890,7 +890,7 @@ harness, named in the QA report.
 ### How to run it again
 
 ```bash
-# LinkHub is on the alternate ports; 3333/5173 belong to another project here.
+# CraftHub is on the alternate ports; 3333/5173 belong to another project here.
 nohup bash scripts/nightly/run.sh start --hours 8 --fresh \
   --api-port 3344 --web-port 5273 > .nightly/logs/run.log 2>&1 &
 ```

@@ -83,7 +83,7 @@ LAST_LIMIT_STDOUT=""
 LAST_LIMIT_STDERR=""
 
 # Ports are overridable because 3333/5173 are popular defaults and another
-# project on this machine may already own them. See verify_is_linkhub().
+# project on this machine may already own them. See verify_is_crafthub().
 API_PORT=3333
 WEB_PORT=5173
 API_URL="http://localhost:$API_PORT"
@@ -111,16 +111,16 @@ wait_for_url() {
 # 3333 and 5173 are common defaults, and another project on this machine can own
 # them. `port_open` only proves something answers — it was perfectly happy with
 # a different repo's api sitting on 3333, which would have meant a whole night
-# of QA against the wrong application, and "fixes" to LinkHub derived from
-# another app's behaviour. So probe an endpoint only LinkHub serves.
-verify_is_linkhub() {
+# of QA against the wrong application, and "fixes" to CraftHub derived from
+# another app's behaviour. So probe an endpoint only CraftHub serves.
+verify_is_crafthub() {
   local body
   body="$(curl -s --max-time 6 "$API_URL/docs" 2>/dev/null)" || return 1
-  # /docs is Swagger UI; the reliable discriminator is a LinkHub route existing.
+  # /docs is Swagger UI; the reliable discriminator is a CraftHub route existing.
   local code
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 \
     "$API_URL/profile/__nightly_probe__/posts" 2>/dev/null)"
-  # A LinkHub api answers 200 (empty) or 404-with-a-user-not-found body for an
+  # A CraftHub api answers 200 (empty) or 404-with-a-user-not-found body for an
   # unknown username, but NEVER "Route ... not found", which is Fastify saying
   # the route is not registered at all.
   local msg
@@ -134,15 +134,15 @@ verify_is_linkhub() {
 
 # A SERVER THAT IS STILL BOOTING IS NOT THE WRONG APP.
 #
-# `verify_is_linkhub` is a single HTTP probe, and a Fastify process one second
+# `verify_is_crafthub` is a single HTTP probe, and a Fastify process one second
 # old answers before its routes are registered. Run bare in the health check, it
 # killed an 8-hour run one second after ensure_stack restarted the api — the
 # app was fine, the probe was just early. Anything that can end the night needs
 # to be sure, so this retries before it is believed.
-verify_is_linkhub_settled() {
+verify_is_crafthub_settled() {
   local attempts="${1:-12}" gap="${2:-3}" i
   for i in $(seq 1 "$attempts"); do
-    if verify_is_linkhub; then return 0; fi
+    if verify_is_crafthub; then return 0; fi
     sleep "$gap"
   done
   return 1
@@ -157,7 +157,7 @@ whoami_on_port() {
 
 ensure_stack() {
   log "checking docker stack…"
-  if ! docker ps --format '{{.Names}}' | grep -q linkhub-postgres-dev; then
+  if ! docker ps --format '{{.Names}}' | grep -q crafthub-postgres-dev; then
     log "postgres is down — starting it"
     bash "$ROOT/db-manage.sh" start >>"$LOGS/stack.log" 2>&1
   fi
@@ -189,7 +189,7 @@ ensure_stack() {
   wait_for_url "$WEB_URL" "web"
   # "Port answers" is weaker than "routes registered". Wait for the real thing,
   # otherwise the caller's identity check races a half-started server.
-  verify_is_linkhub_settled 12 3 || log "WARN: :$API_PORT is up but not answering as LinkHub yet"
+  verify_is_crafthub_settled 12 3 || log "WARN: :$API_PORT is up but not answering as CraftHub yet"
 }
 
 # ──────────────────────────── plan usage limits ────────────────────────────
@@ -294,7 +294,7 @@ handle_usage_limit() {
 #     turns every iteration into a full --iteration-timeout stall recorded as a
 #     failure, and three of those end the night. Loading no MCP servers is the
 #     price of a loop that terminates. Iterations query the database through
-#     `docker exec linkhub-postgres-dev psql` instead, which is what the
+#     `docker exec crafthub-postgres-dev psql` instead, which is what the
 #     preamble tells them to do.
 #
 #   </dev/null  Without it `claude` waits ~3s for stdin that a detached nohup
@@ -305,7 +305,7 @@ handle_usage_limit() {
 # the state files tell it what has happened, and it reads the repo for the rest.
 build_preamble() {
   cat <<PREAMBLE
-You are ONE ITERATION of LinkHub's autonomous nightly QA loop. You are a fresh
+You are ONE ITERATION of CraftHub's autonomous nightly QA loop. You are a fresh
 process with no memory of previous iterations.
 
 REBUILD YOUR CONTEXT FIRST, in this order:
@@ -327,7 +327,7 @@ NON-NEGOTIABLE RULES FOR EVERY ITERATION
     postgres MCP server keeps a print-mode process alive forever and would stall
     every iteration. AGENTS.md tells you to verify database writes through the
     postgres MCP; do it with psql instead, which is equivalent for reading:
-      docker exec linkhub-postgres-dev psql -U linkhub_user -d linkhub_dev -c "SELECT ..."
+      docker exec crafthub-postgres-dev psql -U crafthub_user -d crafthub_dev -c "SELECT ..."
     The rule behind that instruction still stands: "the endpoint returned 201"
     is not evidence. Query the row back by a correlation id you control.
   - The bar for a bug is REAL USER IMPACT. If a real user would not be hurt, it
@@ -624,18 +624,18 @@ preflight() {
   # 3am across eight hours of edits.
   # Do this BEFORE the gate: a night spent QA-ing the wrong app is the most
   # expensive failure available here, and it is invisible in the results.
-  log "  verifying :$API_PORT and :$WEB_PORT actually serve LinkHub…"
-  if port_open "$API_PORT" && ! verify_is_linkhub; then
-    log "FATAL: something is listening on :$API_PORT but it is NOT the LinkHub api."
+  log "  verifying :$API_PORT and :$WEB_PORT actually serve CraftHub…"
+  if port_open "$API_PORT" && ! verify_is_crafthub; then
+    log "FATAL: something is listening on :$API_PORT but it is NOT the CraftHub api."
     log "  owner of :$API_PORT -> $(whoami_on_port "$API_PORT")"
     log "  owner of :$WEB_PORT -> $(whoami_on_port "$WEB_PORT")"
     log "  Running now would QA the WRONG APPLICATION all night and produce"
-    log "  \"fixes\" to LinkHub derived from another app's behaviour."
-    log "  Either stop that project, or give LinkHub its own ports:"
+    log "  \"fixes\" to CraftHub derived from another app's behaviour."
+    log "  Either stop that project, or give CraftHub its own ports:"
     log "      bash scripts/nightly/run.sh start --api-port 3344 --web-port 5273 --hours $HOURS"
     exit 1
   fi
-  log "  ports: serving LinkHub"
+  log "  ports: serving CraftHub"
 
   log "  checking the gate is green before starting…"
   if node "$ROOT/scripts/guardrails/pre-push.mjs" >"$LOGS/preflight-gate.log" 2>&1; then
@@ -727,8 +727,8 @@ cmd_start() {
     port_open "$API_PORT" || { log "api died — restarting"; ensure_stack; }
     port_open "$WEB_PORT" || { log "web died — restarting"; ensure_stack; }
     # A restart could land on a port another project has since taken.
-    if ! verify_is_linkhub_settled 12 3; then
-      log "FATAL: :$API_PORT is not serving LinkHub after 36s of retries."
+    if ! verify_is_crafthub_settled 12 3; then
+      log "FATAL: :$API_PORT is not serving CraftHub after 36s of retries."
       log "  owner of :$API_PORT -> $(whoami_on_port "$API_PORT")"
       log "  Stopping rather than QA-ing the wrong app."
       break

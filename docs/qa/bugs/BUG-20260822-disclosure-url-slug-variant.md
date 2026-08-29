@@ -176,13 +176,13 @@ re-measured on this tree.
   form is ≤ 4 characters ever draws a real complaint, gate the empty-gap
   alternative on a minimum glued length instead of removing the tolerance.
 
-**Not verified.** No live walk through a running LinkHub api: port 3333 is
+**Not verified.** No live walk through a running CraftHub api: port 3333 is
 serving an unrelated project this run (`/health` → `{"status":"ok"}` but
-`/me/posts` → 404 with no LinkHub route table) and restarting dev servers is
+`/me/posts` → 404 with no CraftHub route table) and restarting dev servers is
 forbidden inside the loop — the `server.inject` e2e case is the substitute and
 exercises the real route with a real PAT through the real app. The disclosure
 evidence gap recorded at triage is therefore **still open**: no settings
 screenshot and no rendered logged-out public profile showing the slug absent.
 The full `npm run guardrails` was not re-run by this review beyond the two
 targeted vitest runs plus the Stop hook on this same tree. No rows were written
-to `linkhub_dev` — reads only.
+to `crafthub_dev` — reads only.

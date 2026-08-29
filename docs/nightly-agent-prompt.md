@@ -19,7 +19,7 @@ the loop overnight, then use this to finish anything it escalated.
 ---
 
 ```
-Work through LinkHub's QA backlog on the current branch (nightly/qa-hardening).
+Work through CraftHub's QA backlog on the current branch (nightly/qa-hardening).
 Use subagents aggressively — you are the coordinator, not the worker.
 
 START BY READING, in this order:
@@ -35,7 +35,7 @@ PRECONDITIONS (verify, do not assume):
     blocked agent starts editing unrelated code to get past it. That has already
     happened once in this repo; do not let it happen again.
   - No MCP servers. Query the database with:
-      docker exec linkhub-postgres-dev psql -U linkhub_user -d linkhub_dev -c "SELECT ..."
+      docker exec crafthub-postgres-dev psql -U crafthub_user -d crafthub_dev -c "SELECT ..."
 
 THE BAR — this is the whole point. A finding is only a bug if you can name the
 user, the action, and the harm. File data loss, blocked flows, privacy leaks,

@@ -1,7 +1,7 @@
 import type { UiLanguage } from "@repo/schemas";
 
 /**
- * Deterministic language identification for the three locales LinkHub ships.
+ * Deterministic language identification for the three locales CraftHub ships.
  *
  * WHY THIS IS NOT AN LLM CALL
  *

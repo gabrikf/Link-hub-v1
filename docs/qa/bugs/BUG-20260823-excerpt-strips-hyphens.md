@@ -60,7 +60,7 @@ collapses whitespace. The character-stripping regex is web-only.
 ## Reproduction
 
 - **Charter:** none · **Tour:** the-data tour
-- **Environment:** Chromium 1440×1000 · nightly stack web http://localhost:5273 · api http://localhost:3344 (dev stack: 5173 / 3333) · `bash db-manage.sh seed-all`, `seed.react-frontend.003@linkhub.local` / `12345678`
+- **Environment:** Chromium 1440×1000 · nightly stack web http://localhost:5273 · api http://localhost:3344 (dev stack: 5173 / 3333) · `bash db-manage.sh seed-all`, `seed.react-frontend.003@crafthub.local` / `12345678`
 
 1. Sign in as the seeded developer and publish a post whose body is ordinary
    hyphenated technical prose:

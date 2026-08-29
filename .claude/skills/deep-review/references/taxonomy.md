@@ -69,7 +69,7 @@ Profile, volume, low severity, and personal taste are not suppression reasons.
 
 There is no numeric cap. Find broadly, refute actively, report every survivor, and account for every investigated rejection. One root cause becomes one result; search every occurrence and list the rest under `also_applies`.
 
-## LinkHub review priorities
+## CraftHub review priorities
 
 The grammar above is universal. These six are what actually goes wrong in **this** repo — check every one against every diff that touches its scope, and calibrate severity as stated. They are priorities, not a checklist: a diff that clears all six can still carry defects.
 

@@ -16,9 +16,9 @@ const argsSchema = {
     .string()
     .optional()
     .describe(
-      "Narrow the run to ONE repository, e.g. 'linkhub-v.1'. Omit it — the " +
+      "Narrow the run to ONE repository, e.g. 'crafthub-v.1'. Omit it — the " +
         "normal case — and the post covers every repository listed in " +
-        "~/.linkhub/repos.json (or the extractor's settings, or the current " +
+        "~/.crafthub/repos.json (or the extractor's settings, or the current " +
         "working directory if neither exists).",
     ),
   status: z
@@ -26,7 +26,7 @@ const argsSchema = {
     .optional()
     .describe(
       "'published' (default) or 'draft'. Use 'draft' to review the post in " +
-        "LinkHub before it goes live.",
+        "CraftHub before it goes live.",
     ),
 };
 
@@ -94,7 +94,7 @@ function resolveWindow(period?: string): Window {
  * `weekly_update` — the headline prompt.
  *
  * Invoking it hands the host agent the complete commits-to-post workflow: how
- * to read the git history, which facts to extract, the LinkHub house style, the
+ * to read the git history, which facts to extract, the CraftHub house style, the
  * safety pass, and the exact `create_commit_summary_post` field mapping. The
  * user never has to paste any rules of their own.
  */
@@ -105,14 +105,14 @@ export function registerWeeklyUpdate(
   server.registerPrompt(
     "weekly_update",
     {
-      title: "Turn my commits into a LinkHub post",
+      title: "Turn my commits into a CraftHub post",
       description:
-        "Summarize recent git work into a recruiter-quality LinkHub post — one " +
+        "Summarize recent git work into a recruiter-quality CraftHub post — one " +
         "post covering EVERY repository the user configured in " +
-        "~/.linkhub/repos.json, not just the current directory. " +
+        "~/.crafthub/repos.json, not just the current directory. " +
         "Walks you through resolving the repository set, reading each one's git " +
         "log for the period, extracting what " +
-        "actually shipped and its impact, writing it in LinkHub house style " +
+        "actually shipped and its impact, writing it in CraftHub house style " +
         "(outcome over mechanics, real metrics, named stack), stripping " +
         "secrets and internal identifiers, and publishing with " +
         "create_commit_summary_post. Arguments: period, repo, status.",
@@ -126,7 +126,7 @@ export function registerWeeklyUpdate(
       return {
         description: `Turn ${window.label} of commits${
           args.repo ? ` in ${args.repo}` : " across every configured repository"
-        } into a LinkHub post`,
+        } into a CraftHub post`,
         messages: [
           {
             role: "user",

@@ -106,7 +106,7 @@ export function isMachineAuthored(source: PostSource): boolean {
  * Where a post came from, in the author's own terms.
  *
  * `metadata.repo` sharpens the sentence when the commit flow supplied it
- * ("from your commits in linkhub-v.1"), because "some automated tool wrote
+ * ("from your commits in crafthub-v.1"), because "some automated tool wrote
  * this" is not enough for someone deciding whether to make it public.
  */
 export function describePostProvenance(

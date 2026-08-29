@@ -4,7 +4,7 @@ import { ILinkedInOAuthProvider } from "../../../../core/providers/oauth/linkedi
 import { OAuthSignInUseCase } from "../../../../core/use-case/auth/oauth-sign-in-use-case/oauth-sign-in.use-case.js";
 import { signupsTotal } from "../../../observability/metrics.js";
 
-const LINKEDIN_STATE_COOKIE = "linkhub.linkedin.oauth.state";
+const LINKEDIN_STATE_COOKIE = "crafthub.linkedin.oauth.state";
 const OAUTH_STATE_TTL_SECONDS = 60 * 10;
 
 const readWebAppUrl = (): string => {

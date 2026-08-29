@@ -6,6 +6,17 @@ import type {
 import { DrizzleActivityEventRepository } from "../database/drizzle/repositories/activity-event.repository.js";
 import { DrizzleGitConnectionRepository } from "../database/drizzle/repositories/git-connection.repository.js";
 import { CryptoWebhookSecretProvider } from "../providers/crypto-webhook-secret-provider.js";
+import { LogMailProvider } from "../providers/log-mail-provider.js";
+import { SmtpMailProvider } from "../providers/smtp-mail-provider.js";
+import { DrizzleEmailVerificationTokenRepository } from "../database/drizzle/repositories/email-verification-token.repository.js";
+import { DrizzlePasswordResetTokenRepository } from "../database/drizzle/repositories/password-reset-token.repository.js";
+import { CreateUserUseCase } from "../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
+import { LoginUseCase } from "../../core/use-case/auth/login-use-case/login.use-case.js";
+import { VerifyEmailUseCase } from "../../core/use-case/auth/verify-email-use-case/verify-email.use-case.js";
+import { ResendVerificationUseCase } from "../../core/use-case/auth/resend-verification-use-case/resend-verification.use-case.js";
+import { RefreshSessionUseCase } from "../../core/use-case/auth/refresh-session-use-case/refresh-session.use-case.js";
+import { ForgotPasswordUseCase } from "../../core/use-case/auth/forgot-password-use-case/forgot-password.use-case.js";
+import { ResetPasswordUseCase } from "../../core/use-case/auth/reset-password-use-case/reset-password.use-case.js";
 import { CreateGitConnectionUseCase } from "../../core/use-case/activity/create-git-connection-use-case/create-git-connection.use-case.js";
 import { ListGitConnectionsUseCase } from "../../core/use-case/activity/list-git-connections-use-case/list-git-connections.use-case.js";
 import { UpdateGitConnectionUseCase } from "../../core/use-case/activity/update-git-connection-use-case/update-git-connection.use-case.js";
@@ -210,6 +221,124 @@ describe("container wiring — candidate interactions", () => {
       );
       expect(depsOf(useCase).findResumeOwnerId).toBeTypeOf("function");
     }
+  });
+});
+
+describe("container wiring — auth, email and password reset", () => {
+  /**
+   * `build-test-app.ts` registers its OWN auth wiring, so nothing else in the
+   * suite ever observes what `setupContainer()` actually assembled here. A
+   * typo'd token would surface as a 500 on somebody's first signup.
+   */
+  it.each([
+    ["EmailVerificationTokenRepository", DrizzleEmailVerificationTokenRepository],
+    ["PasswordResetTokenRepository", DrizzlePasswordResetTokenRepository],
+  ] as const)("resolves %s to its Drizzle implementation", (token, impl) => {
+    expect(resolve(TOKENS[token])).toBeInstanceOf(impl);
+  });
+
+  it.each([
+    ["CreateUserUseCase", CreateUserUseCase],
+    ["LoginUseCase", LoginUseCase],
+    ["VerifyEmailUseCase", VerifyEmailUseCase],
+    ["ResendVerificationUseCase", ResendVerificationUseCase],
+    ["RefreshSessionUseCase", RefreshSessionUseCase],
+    ["ForgotPasswordUseCase", ForgotPasswordUseCase],
+    ["ResetPasswordUseCase", ResetPasswordUseCase],
+  ] as const)("resolves %s from the real container", (token, impl) => {
+    expect(resolve(TOKENS[token])).toBeInstanceOf(impl);
+  });
+
+  /**
+   * The mail transport is chosen from the environment, so these two tests must
+   * SET that environment rather than read whatever the developer happens to
+   * have in `apps/api/.env`.
+   *
+   * The first version of this asserted the LogMailProvider fallback against the
+   * ambient env, which made it a test of the machine rather than of the
+   * container: it passed on a bare checkout and failed the moment a developer
+   * pointed their local API at Mailpit — which `DEVELOPMENT-GUIDE.md` now tells
+   * them to do. Controlling the variables here also buys the branch that was
+   * never covered at all: that an SMTP host actually selects the SMTP provider.
+   *
+   * `container.reset()` + `setupContainer()` is what re-reads the env: the
+   * registration is an `instanceCachingFactory`, so the first resolve after a
+   * reset is the one that samples `process.env`.
+   */
+  describe.each([
+    {
+      name: "falls back to the log mail provider when no SMTP host is configured",
+      env: { MAIL_TRANSPORT: undefined, SMTP_HOST: undefined },
+      expected: LogMailProvider,
+    },
+    {
+      name: "selects the SMTP provider when a host is configured",
+      env: { MAIL_TRANSPORT: "smtp", SMTP_HOST: "127.0.0.1" },
+      expected: SmtpMailProvider,
+    },
+  ])("mail transport selection", ({ name, env, expected }) => {
+    it(name, () => {
+      const saved = {
+        MAIL_TRANSPORT: process.env.MAIL_TRANSPORT,
+        SMTP_HOST: process.env.SMTP_HOST,
+      };
+
+      try {
+        for (const [key, value] of Object.entries(env)) {
+          if (value === undefined) {
+            delete process.env[key];
+          } else {
+            process.env[key] = value;
+          }
+        }
+
+        container.reset();
+        setupContainer();
+
+        expect(resolve(TOKENS.MailProvider)).toBeInstanceOf(expected);
+      } finally {
+        // Restore both the env and the container, so the tests after this one
+        // see exactly what they saw before it ran.
+        for (const [key, value] of Object.entries(saved)) {
+          if (value === undefined) {
+            delete process.env[key];
+          } else {
+            process.env[key] = value;
+          }
+        }
+        container.reset();
+        setupContainer();
+      }
+    });
+  });
+
+  it("hands out ONE mail provider, because the SMTP one owns a connection pool", () => {
+    // Cached on purpose: a transient registration would build a fresh pool —
+    // and a fresh TCP+TLS handshake — for every single email.
+    expect(resolve(TOKENS.MailProvider)).toBe(resolve(TOKENS.MailProvider));
+  });
+
+  it("gives LoginUseCase the oauth-account lookup that keeps OAuth users out of the verification gate", () => {
+    const useCase = resolve<LoginUseCase>(TOKENS.LoginUseCase);
+    const injected = useCase as unknown as {
+      oauthAccountRepository?: { findByUserId?: unknown };
+    };
+
+    // Without this a LinkedIn user — who leaves no column on `users` — could be
+    // refused a login over an email nobody ever needed to send them.
+    expect(injected.oauthAccountRepository?.findByUserId).toBeTypeOf("function");
+  });
+
+  it("gives ResetPasswordUseCase the refresh-token repository it revokes sessions through", () => {
+    const useCase = resolve<ResetPasswordUseCase>(TOKENS.ResetPasswordUseCase);
+    const injected = useCase as unknown as {
+      refreshTokenRepository?: { deleteByUserId?: unknown };
+    };
+
+    // A reset that cannot revoke sessions locks the attacker out of nothing.
+    expect(injected.refreshTokenRepository?.deleteByUserId).toBeTypeOf(
+      "function",
+    );
   });
 });
 

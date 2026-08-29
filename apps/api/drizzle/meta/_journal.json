@@ -155,6 +155,20 @@
       "when": 1787881588624,
       "tag": "0021_gray_ser_duncan",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787923187343,
+      "tag": "0022_boring_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787924121361,
+      "tag": "0023_acoustic_genesis",
+      "breakpoints": true
     }
   ]
 }

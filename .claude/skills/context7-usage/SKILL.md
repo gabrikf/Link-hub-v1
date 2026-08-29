@@ -2,7 +2,7 @@
 name: context7-usage
 description: >-
   Consult Context7 for up-to-date library documentation BEFORE writing or
-  modifying code that touches LinkHub's stack — Fastify 5 and @fastify/*,
+  modifying code that touches CraftHub's stack — Fastify 5 and @fastify/*,
   fastify-type-provider-zod, Drizzle ORM + pgvector, BullMQ, tsyringe, the
   openai SDK, zod 4, React 19, Vite 8, TanStack Router/Query, Tailwind CSS v4,
   Radix UI, dnd-kit, react-grid-layout, react-hook-form, TensorFlow.js,
@@ -14,7 +14,7 @@ description: >-
 
 # Context7 — Current Docs Before Implementation
 
-Model memory for fast-moving libraries is stale by construction. Several of LinkHub's
+Model memory for fast-moving libraries is stale by construction. Several of CraftHub's
 dependencies shipped a **major** version whose API changed while keeping the same
 package name and the same import paths, so a wrong implementation looks plausible,
 type-checks in places, and fails at runtime or at build. Consult Context7 first,
@@ -48,7 +48,7 @@ These are recent majors whose APIs an agent will get wrong from memory:
   this repo. Theme tokens, variants and plugins are declared in CSS with `@theme`,
   `@custom-variant`, `@utility`, `@plugin`, and the import is `@import "tailwindcss"`,
   not the v3 `@tailwind base/components/utilities` triple. Any answer that reaches for
-  a JS config object is a v3 answer and is wrong here. LinkHub's design language and
+  a JS config object is a v3 answer and is wrong here. CraftHub's design language and
   token names live in `DESIGN.md` at the repo root — read that alongside the Tailwind
   docs before styling anything.
 - **zod 4** — the repo's schemas import from **`zod/v4`**, not bare `zod`. Error
@@ -58,7 +58,7 @@ These are recent majors whose APIs an agent will get wrong from memory:
   workspace types against.
 - **Vite 8** — config, plugin hooks, environment API and the dev-server surface moved
   since v5/v6. Do not copy a Vite 5 `vite.config.ts` shape from memory.
-- **TanStack Router — code-based routing.** LinkHub declares its routes **in code** in
+- **TanStack Router — code-based routing.** CraftHub declares its routes **in code** in
   `apps/web/src/router.tsx`. There is **no file-based route tree**, no `routeTree.gen.ts`,
   and no `@tanstack/router-plugin` file-route generation. Most published examples and
   most generated snippets assume file-based routing and **do not apply here**. When you

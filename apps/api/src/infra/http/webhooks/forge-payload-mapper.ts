@@ -4,7 +4,7 @@ import type { ActivityEventKind } from "@repo/schemas";
  * Translates a forge webhook payload into the ingestion contract.
  *
  * The mapper is where a rich, chatty, identity-laden forge payload becomes the
- * four or five facts LinkHub is willing to keep. What it must NEVER carry out
+ * four or five facts CraftHub is willing to keep. What it must NEVER carry out
  * the other side, no matter how convenient the source field is:
  *
  * - repository names, branch names, file paths, commit messages, PR/issue titles;
@@ -73,7 +73,7 @@ export function mapGithubDelivery(
     case "release":
       return mapGithubRelease(body, repo, receivedAt);
     default:
-      // An event type LinkHub does not model is not an error — GitHub sends
+      // An event type CraftHub does not model is not an error — GitHub sends
       // whatever the hook is subscribed to, and a 4xx here would only make the
       // delivery look broken in the forge's UI.
       return [];

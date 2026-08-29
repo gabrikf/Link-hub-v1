@@ -234,7 +234,7 @@ export class PostsController {
             "Publishes a post that is waiting for review. This is the only way " +
             "a machine-authored post becomes public — its content stays " +
             "immutable, so approving is consent to the text as written. Only " +
-            "the owner signed in to LinkHub may approve: an API token is " +
+            "the owner signed in to CraftHub may approve: an API token is " +
             "refused with 403, even for a post it wrote itself.",
           params: postParamsSchema,
           response: {

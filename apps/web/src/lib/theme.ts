@@ -15,14 +15,14 @@ export type Theme = "light" | "dark";
 export type { ThemePreference };
 
 /**
- * Unchanged on purpose. `DESIGN.md` tells contributors to set `linkhub-theme`
+ * Unchanged on purpose. `DESIGN.md` tells contributors to set `crafthub-theme`
  * and reload rather than forcing the `.dark` class, and the visual scenarios do
  * exactly that. The key now holds a *preference* (`light` / `dark` / `system`)
  * instead of only a resolved theme, and the two old values are still valid
  * preferences — so every previously stored value keeps working with no
  * migration and no reset for anyone mid-session.
  */
-const THEME_STORAGE_KEY = "linkhub-theme";
+const THEME_STORAGE_KEY = "crafthub-theme";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 

@@ -140,6 +140,6 @@ The api side is covered by the committed `app.inject()` test, which asserts the
 existed would therefore still reach the public profile's `href`. Triage is right
 that tightening the response schema instead would turn one legacy row into a
 **500 on the entire profile**, which is strictly worse than the latent harm.
-`linkhub_dev` is clean (`0` of `1` rows non-http, re-queried at review). Closing
+`crafthub_dev` is clean (`0` of `1` rows non-http, re-queried at review). Closing
 this needs a production data audit plus a render-time guard — a separate task,
 not a reason to hold the fix.

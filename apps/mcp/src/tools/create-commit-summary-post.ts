@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { postStatusSchema } from "@repo/schemas";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { LinkHubApiClient } from "../api-client.js";
+import type { CraftHubApiClient } from "../api-client.js";
 import {
   renderPolicyForToolDescription,
   type DisclosureContext,
@@ -33,7 +33,7 @@ const inputSchema = {
       "SCOPE of the summary. Stored as post metadata: shown in the user's " +
         "review queue, and served alongside the post on their public profile — " +
         "so treat it as publishable, not as a private note. One repository: its " +
-        "name, e.g. 'linkhub-v.1' (name only, never a path or remote URL). " +
+        "name, e.g. 'crafthub-v.1' (name only, never a path or remote URL). " +
         "SEVERAL repositories aggregated into one post: the count instead, e.g. " +
         "'4 repositories' — never one repo's name, which would claim the post " +
         "covers only that repo, and never a list of names. Omit it entirely for " +
@@ -96,7 +96,7 @@ function deriveTitle(repo?: string, period?: string): string {
  */
 export function registerCreateCommitSummaryPost(
   server: McpServer,
-  client: LinkHubApiClient,
+  client: CraftHubApiClient,
   disclosure: DisclosureContext,
 ): void {
   server.registerTool(
@@ -104,7 +104,7 @@ export function registerCreateCommitSummaryPost(
     {
       title: "Publish a commit summary post",
       description:
-        "Publish a summary of recent git work to the user's LinkHub profile, " +
+        "Publish a summary of recent git work to the user's CraftHub profile, " +
         "where recruiters and hiring managers read it. THIS TOOL RUNS NO AI: " +
         "it publishes `summary` verbatim, so the post is only as good as the " +
         "text you send. It also accepts work spanning SEVERAL repositories as " +
@@ -129,7 +129,7 @@ export function registerCreateCommitSummaryPost(
         "unattended, or status='draft' if the user has not approved the text. " +
         "A commit-sourced post cannot be edited after creation — only approved " +
         "or deleted. Full house style: read the resource " +
-        "linkhub://guides/post-quality, or invoke the `weekly_update` prompt " +
+        "crafthub://guides/post-quality, or invoke the `weekly_update` prompt " +
         "for the whole guided workflow. Saved with source='commit' and " +
         "metadata { repo, commitCount, period }. " +
         renderPolicyForToolDescription(disclosure),

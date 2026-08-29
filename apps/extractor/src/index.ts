@@ -2,8 +2,8 @@
  * Library surface of the extractor package.
  *
  * The CLIs are the product, but two things are worth importing: the settings
- * snippet (so the LinkHub web settings page renders exactly the block
- * `linkhub-hook print-settings` prints, from one source of truth) and the
+ * snippet (so the CraftHub web settings page renders exactly the block
+ * `crafthub-hook print-settings` prints, from one source of truth) and the
  * privacy primitives (so anything else that needs to fingerprint an identity
  * uses the same hash rather than inventing a second one).
  */
@@ -30,6 +30,6 @@ export {
 } from "./technologies.js";
 export { buildEnvelope, extract, resolveAuthors } from "./extract.js";
 export { OMITTED_FROM_PAYLOAD, renderExtractSummary } from "./summary.js";
-export { LinkHubActivityClient, LinkHubApiError } from "./api-client.js";
+export { CraftHubActivityClient, CraftHubApiError } from "./api-client.js";
 export { ConfigError, loadConfig } from "./config.js";
 export type { ExtractorSettings } from "./settings.js";

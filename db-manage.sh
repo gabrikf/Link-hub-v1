@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# LinkHub Development Database Management Script
+# CraftHub Development Database Management Script
 
 set -e
 
@@ -55,7 +55,7 @@ start_db() {
         print_warning "Database took longer than expected to start, but it might be ready"
     fi
     
-    print_status "Database URL: postgresql://linkhub_user:linkhub_password@localhost:5432/linkhub_dev"
+    print_status "Database URL: postgresql://crafthub_user:crafthub_password@localhost:5432/crafthub_dev"
 }
 
 # Stop the database
@@ -74,8 +74,8 @@ start_with_admin() {
     sleep 10
     
     print_status "Services started!"
-    print_status "Database URL: postgresql://linkhub_user:linkhub_password@localhost:5432/linkhub_dev"
-    print_status "pgAdmin: http://localhost:5050 (admin@linkhub.com / admin123)"
+    print_status "Database URL: postgresql://crafthub_user:crafthub_password@localhost:5432/crafthub_dev"
+    print_status "pgAdmin: http://localhost:5050 (admin@crafthub.com / admin123)"
 }
 
 # Show logs
@@ -92,7 +92,7 @@ connect() {
     fi
     
     print_status "Connecting to database..."
-    docker compose -f docker-compose.dev.yml exec postgres psql -U linkhub_user -d linkhub_dev
+    docker compose -f docker-compose.dev.yml exec postgres psql -U crafthub_user -d crafthub_dev
 }
 
 # Reset database (remove volumes)
@@ -103,7 +103,7 @@ reset() {
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         print_status "Stopping and removing database..."
         docker compose -f docker-compose.dev.yml down -v
-        docker volume rm linkhub-v1_postgres_data 2>/dev/null || true
+        docker volume rm crafthub-v1_postgres_data 2>/dev/null || true
         print_status "Database reset complete"
     else
         print_status "Reset cancelled"
@@ -135,7 +135,7 @@ reseed_realistic() {
     check_docker
     print_warning "Resetting database volume for a fresh realistic dataset..."
     docker compose -f docker-compose.dev.yml down -v
-    docker volume rm linkhub-v1_postgres_data 2>/dev/null || true
+    docker volume rm crafthub-v1_postgres_data 2>/dev/null || true
 
     start_db
 
@@ -153,7 +153,7 @@ status() {
 
 # Show help
 show_help() {
-    echo "LinkHub Development Database Management"
+    echo "CraftHub Development Database Management"
     echo ""
     echo "Usage: $0 [command]"
     echo ""

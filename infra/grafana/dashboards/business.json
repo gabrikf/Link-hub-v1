@@ -12,7 +12,7 @@
       }
     ]
   },
-  "description": "Product funnel and engagement for LinkHub. Every series here is deliberately low-cardinality: daily active users come from a Redis HyperLogLog reported as a single gauge, never one series per user. See the cardinality rule at the bottom of apps/api/src/infra/observability/metrics.ts.",
+  "description": "Product funnel and engagement for CraftHub. Every series here is deliberately low-cardinality: daily active users come from a Redis HyperLogLog reported as a single gauge, never one series per user. See the cardinality rule at the bottom of apps/api/src/infra/observability/metrics.ts.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -78,7 +78,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "max(linkhub_daily_active_users{job=~\"$job\"})",
+          "expr": "max(crafthub_daily_active_users{job=~\"$job\"})",
           "legendFormat": "daily active users",
           "range": true,
           "refId": "A"
@@ -118,7 +118,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "max(linkhub_daily_active_users{job=~\"$job\"})",
+          "expr": "max(crafthub_daily_active_users{job=~\"$job\"})",
           "legendFormat": "peak DAU",
           "range": true,
           "refId": "A"
@@ -171,7 +171,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(increase(linkhub_signups_total{job=~\"$job\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(crafthub_signups_total{job=~\"$job\"}[$__range])) or vector(0)",
           "instant": true,
           "legendFormat": "1. Signups",
           "refId": "A"
@@ -179,7 +179,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(increase(linkhub_resumes_submitted_total{job=~\"$job\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(crafthub_resumes_submitted_total{job=~\"$job\"}[$__range])) or vector(0)",
           "instant": true,
           "legendFormat": "2. Resumes submitted",
           "refId": "B"
@@ -187,7 +187,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(increase(linkhub_profiles_published_total{job=~\"$job\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(crafthub_profiles_published_total{job=~\"$job\"}[$__range])) or vector(0)",
           "instant": true,
           "legendFormat": "3. Profiles published",
           "refId": "C"
@@ -195,7 +195,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(increase(linkhub_posts_created_total{job=~\"$job\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(crafthub_posts_created_total{job=~\"$job\"}[$__range])) or vector(0)",
           "instant": true,
           "legendFormat": "4. Posts created",
           "refId": "D"
@@ -203,7 +203,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(increase(linkhub_searches_total{job=~\"$job\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(crafthub_searches_total{job=~\"$job\"}[$__range])) or vector(0)",
           "instant": true,
           "legendFormat": "5. Recruiter searches",
           "refId": "E"
@@ -214,7 +214,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "description": "The same funnel counters as rates over time, so a step change is visible rather than being averaged into a single bar. Scaled to events per hour because at LinkHub's volume per-second rates round to zero on the axis.",
+      "description": "The same funnel counters as rates over time, so a step change is visible rather than being averaged into a single bar. Scaled to events per hour because at CraftHub's volume per-second rates round to zero on the axis.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -264,7 +264,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(rate(linkhub_signups_total{job=~\"$job\"}[$__rate_interval])) * 3600",
+          "expr": "sum(rate(crafthub_signups_total{job=~\"$job\"}[$__rate_interval])) * 3600",
           "legendFormat": "signups",
           "range": true,
           "refId": "A"
@@ -272,7 +272,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(rate(linkhub_resumes_submitted_total{job=~\"$job\"}[$__rate_interval])) * 3600",
+          "expr": "sum(rate(crafthub_resumes_submitted_total{job=~\"$job\"}[$__rate_interval])) * 3600",
           "legendFormat": "resumes submitted",
           "range": true,
           "refId": "B"
@@ -280,7 +280,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(rate(linkhub_profiles_published_total{job=~\"$job\"}[$__rate_interval])) * 3600",
+          "expr": "sum(rate(crafthub_profiles_published_total{job=~\"$job\"}[$__rate_interval])) * 3600",
           "legendFormat": "profiles published",
           "range": true,
           "refId": "C"
@@ -288,7 +288,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum(rate(linkhub_searches_total{job=~\"$job\"}[$__rate_interval])) * 3600",
+          "expr": "sum(rate(crafthub_searches_total{job=~\"$job\"}[$__rate_interval])) * 3600",
           "legendFormat": "recruiter searches",
           "range": true,
           "refId": "D"
@@ -349,7 +349,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum by (method) (increase(linkhub_signups_total{job=~\"$job\"}[$__interval]))",
+          "expr": "sum by (method) (increase(crafthub_signups_total{job=~\"$job\"}[$__interval]))",
           "legendFormat": "{{method}}",
           "range": true,
           "refId": "A"
@@ -423,7 +423,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "editorMode": "code",
-          "expr": "sum by (source) (increase(linkhub_posts_created_total{job=~\"$job\"}[$__interval]))",
+          "expr": "sum by (source) (increase(crafthub_posts_created_total{job=~\"$job\"}[$__interval]))",
           "legendFormat": "{{source}}",
           "range": true,
           "refId": "A"
@@ -571,7 +571,7 @@
   "preload": false,
   "refresh": "5m",
   "schemaVersion": 39,
-  "tags": ["linkhub", "business", "funnel"],
+  "tags": ["crafthub", "business", "funnel"],
   "templating": {
     "list": [
       {
@@ -595,7 +595,7 @@
         "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
         "definition": "label_values(http_server_requests_total, job)",
-        "description": "Scrape job / OTel service. Leave on All unless several LinkHub deployments share one Prometheus tenant.",
+        "description": "Scrape job / OTel service. Leave on All unless several CraftHub deployments share one Prometheus tenant.",
         "hide": 0,
         "includeAll": true,
         "label": "Job",
@@ -618,8 +618,8 @@
   "time": { "from": "now-7d", "to": "now" },
   "timepicker": {},
   "timezone": "utc",
-  "title": "LinkHub — Business",
-  "uid": "linkhub-business",
+  "title": "CraftHub — Business",
+  "uid": "crafthub-business",
   "version": 1,
   "weekStart": ""
 }

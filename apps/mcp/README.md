@@ -1,16 +1,16 @@
-# LinkHub MCP Server
+# CraftHub MCP Server
 
-Publish what you shipped to your LinkHub profile, from the terminal where you
+Publish what you shipped to your CraftHub profile, from the terminal where you
 shipped it — without pasting writing rules into your agent, and without leaking
 your employer's name.
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that runs
-locally over **stdio**, authenticates to the LinkHub API with a personal access
+locally over **stdio**, authenticates to the CraftHub API with a personal access
 token, and gives any MCP client (Claude Desktop, Claude Code, Cursor, VS Code)
 the tools, prompts and resources for turning real work into a post a recruiter
 can actually read.
 
-It is a thin, authenticated HTTP client over the LinkHub API. It stores no state
+It is a thin, authenticated HTTP client over the CraftHub API. It stores no state
 and calls no AI of its own — the host agent does the writing.
 
 ---
@@ -56,7 +56,7 @@ is a suggestion a model can ignore, and it only takes one published post to
 matter.
 
 So the privacy rule is not advice here. You pick a **disclosure level** in
-LinkHub settings, and LinkHub applies it *server-side*, on both sides of the
+CraftHub settings, and CraftHub applies it *server-side*, on both sides of the
 wire:
 
 - **Reads** — `get_work_context` returns your work history already redacted. At
@@ -80,18 +80,18 @@ npm run build --workspace=mcp
 # 2. Print the absolute path your MCP client needs
 echo "$(git rev-parse --show-toplevel)/apps/mcp/dist/index.js"
 
-# 3. Create a token in LinkHub: Settings → Personal access tokens → Create token
+# 3. Create a token in CraftHub: Settings → Personal access tokens → Create token
 #    Check posts:read, posts:write and profile:read.
 
 # 4. Add it to your client (below), then in your agent:
-#    /linkhub:weekly_update
+#    /crafthub:weekly_update
 ```
 
 ---
 
 ## Getting a token, and which scopes it needs
 
-In the LinkHub web app: **Settings → Personal access tokens → Create token**.
+In the CraftHub web app: **Settings → Personal access tokens → Create token**.
 The plaintext token (`lh_pat_…`) is shown **once**. Copy it immediately — it can
 never be retrieved again, only replaced.
 
@@ -120,12 +120,12 @@ Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
-    "linkhub": {
+    "crafthub": {
       "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/linkhub-v.1/apps/mcp/dist/index.js"],
+      "args": ["/ABSOLUTE/PATH/TO/crafthub-v.1/apps/mcp/dist/index.js"],
       "env": {
-        "LINKHUB_API_URL": "http://localhost:3333",
-        "LINKHUB_API_TOKEN": "lh_pat_your_token_here"
+        "CRAFTHUB_API_URL": "http://localhost:3333",
+        "CRAFTHUB_API_TOKEN": "lh_pat_your_token_here"
       }
     }
   }
@@ -141,9 +141,9 @@ One command, from anywhere inside the repo — the shell resolves the entry path
 so there is nothing to hand-edit but the token:
 
 ```bash
-claude mcp add linkhub \
-  --env LINKHUB_API_URL=http://localhost:3333 \
-  --env LINKHUB_API_TOKEN=lh_pat_your_token_here \
+claude mcp add crafthub \
+  --env CRAFTHUB_API_URL=http://localhost:3333 \
+  --env CRAFTHUB_API_TOKEN=lh_pat_your_token_here \
   -- node "$(git rev-parse --show-toplevel)/apps/mcp/dist/index.js"
 ```
 
@@ -153,19 +153,19 @@ here, so this one needs no path editing at all:
 ```json
 {
   "mcpServers": {
-    "linkhub": {
+    "crafthub": {
       "command": "node",
       "args": ["./apps/mcp/dist/index.js"],
       "env": {
-        "LINKHUB_API_URL": "http://localhost:3333",
-        "LINKHUB_API_TOKEN": "lh_pat_your_token_here"
+        "CRAFTHUB_API_URL": "http://localhost:3333",
+        "CRAFTHUB_API_TOKEN": "lh_pat_your_token_here"
       }
     }
   }
 }
 ```
 
-Prompts are slash commands: `/linkhub:weekly_update`, `/linkhub:since_last_post`.
+Prompts are slash commands: `/crafthub:weekly_update`, `/crafthub:since_last_post`.
 
 ### Cursor
 
@@ -174,12 +174,12 @@ Create `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):
 ```json
 {
   "mcpServers": {
-    "linkhub": {
+    "crafthub": {
       "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/linkhub-v.1/apps/mcp/dist/index.js"],
+      "args": ["/ABSOLUTE/PATH/TO/crafthub-v.1/apps/mcp/dist/index.js"],
       "env": {
-        "LINKHUB_API_URL": "http://localhost:3333",
-        "LINKHUB_API_TOKEN": "lh_pat_your_token_here"
+        "CRAFTHUB_API_URL": "http://localhost:3333",
+        "CRAFTHUB_API_TOKEN": "lh_pat_your_token_here"
       }
     }
   }
@@ -194,13 +194,13 @@ explicit `type`:
 ```json
 {
   "servers": {
-    "linkhub": {
+    "crafthub": {
       "type": "stdio",
       "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/linkhub-v.1/apps/mcp/dist/index.js"],
+      "args": ["/ABSOLUTE/PATH/TO/crafthub-v.1/apps/mcp/dist/index.js"],
       "env": {
-        "LINKHUB_API_URL": "http://localhost:3333",
-        "LINKHUB_API_TOKEN": "lh_pat_your_token_here"
+        "CRAFTHUB_API_URL": "http://localhost:3333",
+        "CRAFTHUB_API_TOKEN": "lh_pat_your_token_here"
       }
     }
   }
@@ -209,9 +209,9 @@ explicit `type`:
 
 > VS Code prompts before starting an MCP server the first time. To keep the
 > token out of the file, use an input variable and reference it as
-> `"LINKHUB_API_TOKEN": "${input:linkhub-token}"`.
+> `"CRAFTHUB_API_TOKEN": "${input:crafthub-token}"`.
 
-Prompts appear as `/mcp.linkhub.weekly_update` in the Chat view.
+Prompts appear as `/mcp.crafthub.weekly_update` in the Chat view.
 
 ---
 
@@ -219,14 +219,14 @@ Prompts appear as `/mcp.linkhub.weekly_update` in the Chat view.
 
 | Host | Check |
 | --- | --- |
-| Claude Code | `/mcp` in-session, or `claude mcp list` from a shell — `linkhub` should read *connected*. |
-| Claude Desktop | Fully quit and reopen, then look for `linkhub` and its tools in the composer's tools menu. |
-| Cursor | **Settings → MCP** — `linkhub` should show a green dot and its tool list. |
-| VS Code | Run the **MCP: List Servers** command — `linkhub` should be *Running*. |
+| Claude Code | `/mcp` in-session, or `claude mcp list` from a shell — `crafthub` should read *connected*. |
+| Claude Desktop | Fully quit and reopen, then look for `crafthub` and its tools in the composer's tools menu. |
+| Cursor | **Settings → MCP** — `crafthub` should show a green dot and its tool list. |
+| VS Code | Run the **MCP: List Servers** command — `crafthub` should be *Running*. |
 
-Then prove the token works: ask *"list my LinkHub posts"*. A bad or expired PAT
-surfaces as `Invalid or expired LinkHub token`; an unreachable API surfaces as
-`Could not reach the LinkHub API at ...`.
+Then prove the token works: ask *"list my CraftHub posts"*. A bad or expired PAT
+surfaces as `Invalid or expired CraftHub token`; an unreachable API surfaces as
+`Could not reach the CraftHub API at ...`.
 
 You can also drive it by hand over stdio:
 
@@ -235,7 +235,7 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"cli","version":"1"}}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"prompts/list"}' \
-  | LINKHUB_API_TOKEN=lh_pat_your_token_here node apps/mcp/dist/index.js
+  | CRAFTHUB_API_TOKEN=lh_pat_your_token_here node apps/mcp/dist/index.js
 ```
 
 ---
@@ -332,12 +332,12 @@ anything.
 | Prompt | Arguments | What it does |
 | --- | --- | --- |
 | `weekly_update` | `period?`, `repo?`, `status?` | The headline workflow. Walks the agent through resolving which repositories to cover, bounding the git window, reading the commits *and the diffs* in each, aggregating what shipped / impact / metrics / stack / links into one post, writing it in house style, running the safety and disclosure pass, and publishing via `create_commit_summary_post`. |
-| `since_last_post` | `repo?`, `status?` | Same workflow, but the window comes from LinkHub: it calls `list_my_posts`, finds your newest `source=commit` post, and summarizes only work done since then — so repeated runs never double-post. Falls back to 14 days if you have no commit summary yet. |
+| `since_last_post` | `repo?`, `status?` | Same workflow, but the window comes from CraftHub: it calls `list_my_posts`, finds your newest `source=commit` post, and summarizes only work done since then — so repeated runs never double-post. Falls back to 14 days if you have no commit summary yet. |
 
 | Argument | Accepted values |
 | --- | --- |
 | `period` | `daily`, `weekly` (default), `monthly`, a range like `2026-07-14..2026-07-21`, or any git date expression such as `3 days ago`. |
-| `repo` | Repository name, e.g. `linkhub-v.1`. Pass it only to NARROW the run to that one repository; by default the post covers every repository you configured. |
+| `repo` | Repository name, e.g. `crafthub-v.1`. Pass it only to NARROW the run to that one repository; by default the post covers every repository you configured. |
 | `status` | `published` (default) or `draft`. |
 
 Both prompts inline your **active disclosure policy**, so the agent knows what it
@@ -348,7 +348,7 @@ may say about the employer before it writes a word.
 One post covers your whole week, across every project — the agent resolves the
 set before it reads any history, taking the first of:
 
-1. **`~/.linkhub/repos.json`**, written by the LinkHub setup wizard:
+1. **`~/.crafthub/repos.json`**, written by the CraftHub setup wizard:
 
    ```json
    { "repos": ["/home/you/code/api", "/home/you/code/app"] }
@@ -356,11 +356,11 @@ set before it reads any history, taking the first of:
 
    Paths that are no longer git repositories are skipped and reported.
 
-2. **`~/.linkhub/extractor.json`** — the local extractor's `repos` array, so you
+2. **`~/.crafthub/extractor.json`** — the local extractor's `repos` array, so you
    do not configure the same list twice.
 
 3. **The current working directory alone**, if neither file exists. The agent
-   says so, and points you at `~/.linkhub/repos.json`.
+   says so, and points you at `~/.crafthub/repos.json`.
 
 The agent never scans your home directory for repositories: it is slow, and it
 would find checkouts you never meant to publish anything about. Repository
@@ -371,9 +371,9 @@ become one set of capabilities, not a roll call.
 
 | Host | How |
 | --- | --- |
-| Claude Code | `/linkhub:weekly_update` (arguments after it, e.g. `/linkhub:weekly_update monthly`) |
-| Claude Desktop | The **+** button in the composer → `linkhub` → `weekly_update` |
-| VS Code | `/mcp.linkhub.weekly_update` in the Chat view |
+| Claude Code | `/crafthub:weekly_update` (arguments after it, e.g. `/crafthub:weekly_update monthly`) |
+| Claude Desktop | The **+** button in the composer → `crafthub` → `weekly_update` |
+| VS Code | `/mcp.crafthub.weekly_update` in the Chat view |
 | Cursor | The chat `/` menu on recent versions; otherwise just ask in plain language |
 
 Hosts that don't surface MCP prompts still get the same guidance — the tool
@@ -385,8 +385,8 @@ descriptions and the resources below carry it.
 
 | URI | Contents |
 | --- | --- |
-| `linkhub://guides/post-quality` | The house style guide: outcome over mechanics, what a strong post contains, **what you may say about your job**, what never ships, length and tone targets, a worked weak-vs-strong example, and the field mapping for `create_commit_summary_post`. |
-| `linkhub://policy/disclosure` | Your **active** disclosure contract: the current level, its allow/block lists, your banned terms, how enforcement works, and where employment facts must come from. |
+| `crafthub://guides/post-quality` | The house style guide: outcome over mechanics, what a strong post contains, **what you may say about your job**, what never ships, length and tone targets, a worked weak-vs-strong example, and the field mapping for `create_commit_summary_post`. |
+| `crafthub://policy/disclosure` | Your **active** disclosure contract: the current level, its allow/block lists, your banned terms, how enforcement works, and where employment facts must come from. |
 
 An agent can read either unprompted at any time. Both are also inlined into the
 prompts, so an agent that never lists resources still gets them.
@@ -398,13 +398,13 @@ Sources of truth: `src/resources/post-guidelines.ts` and
 
 ## The disclosure model
 
-Three levels, set in LinkHub under **Settings → What your agent may share**.
+Three levels, set in CraftHub under **Settings → What your agent may share**.
 
 | Level | In one line |
 | --- | --- |
 | **Summary** (default) | Share what you did and how you did it, never who you did it for. |
 | **Detailed** | Everything in Summary, plus the companies and public work behind it. |
-| **Full** | No LinkHub-side restriction — you decide what the agent may say. |
+| **Full** | No CraftHub-side restriction — you decide what the agent may say. |
 
 Plus two refinements:
 
@@ -472,7 +472,7 @@ Try to publish the `detailed` version while on `summary`, and the API answers:
 Post mentions "Acme Corp", which your disclosure level (summary) does not allow.
 Describe the capability without naming the employer or client — what you built,
 the stack, the practices and the outcome are all still allowed — or raise your
-disclosure level in LinkHub settings under "What your agent may share".
+disclosure level in CraftHub settings under "What your agent may share".
 ```
 
 The agent's correct move is to rewrite around the term; retrying the same text
@@ -501,8 +501,8 @@ the tool runs no AI and publishes `summary` verbatim:
 
 Without invoking a prompt, plain language works too:
 
-> "Summarize my commits from this week in the linkhub-v.1 repo and post them to
-> LinkHub as a published update."
+> "Summarize my commits from this week in the crafthub-v.1 repo and post them to
+> CraftHub as a published update."
 
 ---
 
@@ -510,8 +510,8 @@ Without invoking a prompt, plain language works too:
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `LINKHUB_API_TOKEN` | **yes** | — | Your personal access token (`lh_pat_…`). The server exits at startup with a clear message if it is missing. |
-| `LINKHUB_API_URL` | no | `http://localhost:3333` | Base URL of the LinkHub API. A trailing slash is stripped. |
+| `CRAFTHUB_API_TOKEN` | **yes** | — | Your personal access token (`lh_pat_…`). The server exits at startup with a clear message if it is missing. |
+| `CRAFTHUB_API_URL` | no | `http://localhost:3333` | Base URL of the CraftHub API. A trailing slash is stripped. |
 
 Both are read once at startup. Changing a token means restarting the MCP server
 (and, for Claude Desktop, restarting the app).
@@ -520,9 +520,9 @@ Both are read once at startup. Changing a token means restarting the MCP server
 
 ## Troubleshooting
 
-**`Invalid or expired LinkHub token` (401)**
+**`Invalid or expired CraftHub token` (401)**
 The token was revoked, expired, or copied incompletely. Create a fresh one in
-LinkHub settings and update `LINKHUB_API_TOKEN`. A valid token is `lh_pat_`
+CraftHub settings and update `CRAFTHUB_API_TOKEN`. A valid token is `lh_pat_`
 followed by 40 hex characters.
 
 **`Your token is missing the profile:read scope` (403)**
@@ -531,17 +531,17 @@ Tokens are immutable — create a new one with the scope and swap it in. Until
 then the server assumes the **strictest** disclosure level, so the agent refuses
 to name any employer.
 
-**`Your LinkHub token is not allowed to perform this action` (403) on a publish**
+**`Your CraftHub token is not allowed to perform this action` (403) on a publish**
 Missing `posts:write`. Same fix: new token, correct scopes.
 
 **A post is rejected with 400 naming a term**
 That is the disclosure policy working, not a bug. Rewrite the post without the
-term, or raise your level in LinkHub settings. Call `get_disclosure_policy` to
+term, or raise your level in CraftHub settings. Call `get_disclosure_policy` to
 see the exact rules in force.
 
-**`Could not reach the LinkHub API`**
-The API isn't running, or `LINKHUB_API_URL` is wrong. Check with
-`curl $LINKHUB_API_URL/health` — it should return `{"status":"ok"}`.
+**`Could not reach the CraftHub API`**
+The API isn't running, or `CRAFTHUB_API_URL` is wrong. Check with
+`curl $CRAFTHUB_API_URL/health` — it should return `{"status":"ok"}`.
 
 **The server doesn't appear in my client at all**
 
@@ -571,7 +571,7 @@ URL and your resolved disclosure level.
 
 ```bash
 # From apps/mcp — watch mode (tsx)
-LINKHUB_API_TOKEN=lh_pat_... npm run dev
+CRAFTHUB_API_TOKEN=lh_pat_... npm run dev
 
 # Type-check only
 npm run check-types

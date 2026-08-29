@@ -54,12 +54,12 @@ import { ReviewQueuePage } from "./review-queue-page";
 const pendingCommitPost = {
   id: "pending-1",
   userId: "user-1",
-  title: "linkhub-v.1 — weekly update",
+  title: "crafthub-v.1 — weekly update",
   body: "Shipped the **review queue** this week.",
   tags: ["changelog"],
   status: "pending_review",
   source: "commit",
-  metadata: { repo: "linkhub-v.1", commitCount: 12, period: "weekly" },
+  metadata: { repo: "crafthub-v.1", commitCount: 12, period: "weekly" },
   coverImageUrl: null,
   images: null,
   externalUrl: null,
@@ -124,7 +124,7 @@ describe("ReviewQueuePage", () => {
     expect(screen.queryByText("Already public")).not.toBeInTheDocument();
     expect(screen.queryByText("My own draft")).not.toBeInTheDocument();
 
-    expect(items[0]).toHaveTextContent("linkhub-v.1 — weekly update");
+    expect(items[0]).toHaveTextContent("crafthub-v.1 — weekly update");
     expect(items[1]).toHaveTextContent("An older generated post");
   });
 
@@ -134,7 +134,7 @@ describe("ReviewQueuePage", () => {
     const [item] = screen.getAllByRole("listitem");
 
     expect(item).toHaveTextContent(
-      "Generated from your commit activity in linkhub-v.1",
+      "Generated from your commit activity in crafthub-v.1",
     );
     expect(item).toHaveTextContent("Pending review");
 
@@ -170,13 +170,13 @@ describe("ReviewQueuePage", () => {
     await user.click(within(item).getByRole("button", { name: /add link/i }));
 
     const field = within(item).getByLabelText("Link URL");
-    await user.type(field, "https://github.com/ada/linkhub/pull/42");
+    await user.type(field, "https://github.com/ada/crafthub/pull/42");
     await user.click(within(item).getByRole("button", { name: /save/i }));
 
     // The body stays frozen; the link is the ONE field a machine post accepts.
     expect(updateMutateAsync).toHaveBeenCalledWith({
       postId: "pending-1",
-      patch: { externalUrl: "https://github.com/ada/linkhub/pull/42" },
+      patch: { externalUrl: "https://github.com/ada/crafthub/pull/42" },
     });
   });
 

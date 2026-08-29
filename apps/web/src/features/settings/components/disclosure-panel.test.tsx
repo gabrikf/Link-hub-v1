@@ -263,7 +263,7 @@ describe("DisclosurePanel", () => {
     const { container } = render(<DisclosurePanel />);
     const text = container.textContent ?? "";
 
-    expect(text).toContain("LinkHub enforces this on the server");
+    expect(text).toContain("CraftHub enforces this on the server");
     expect(text).toContain("rejected");
   });
 

@@ -34,6 +34,12 @@ export class InMemoryOAuthAccountRepository implements IOAuthAccountRepository {
     return oauthAccount || null;
   }
 
+  async findByUserId(userId: string): Promise<OAuthAccountEntity[]> {
+    return this.oauthAccounts.filter(
+      (candidate) => candidate.userId === userId,
+    );
+  }
+
   clear(): void {
     this.oauthAccounts = [];
   }

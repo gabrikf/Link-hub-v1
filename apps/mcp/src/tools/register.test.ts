@@ -9,12 +9,12 @@ import type {
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type {
-  LinkHubApiClient,
+  CraftHubApiClient,
   ListPostsParams,
   WorkContext,
   WorkContextRole,
 } from "../api-client.js";
-import { LinkHubApiError } from "../api-client.js";
+import { CraftHubApiError } from "../api-client.js";
 import { levelInfo, type DisclosureContext } from "../disclosure.js";
 import { registerAllTools } from "./index.js";
 import { registerCreatePost } from "./create-post.js";
@@ -26,7 +26,7 @@ import { registerGetDisclosurePolicy } from "./get-disclosure-policy.js";
 import { registerGetWorkContext } from "./get-work-context.js";
 
 /**
- * Characterization tests for every LinkHub MCP tool.
+ * Characterization tests for every CraftHub MCP tool.
  *
  * Each `register*` function is driven through an in-memory fake host: it records
  * `{ name, config, handler }`, and the test then invokes the captured handler
@@ -178,7 +178,7 @@ function createStubClient() {
     getAgentPolicy,
   };
 
-  return { stub, client: stub as unknown as LinkHubApiClient };
+  return { stub, client: stub as unknown as CraftHubApiClient };
 }
 
 type StubClient = ReturnType<typeof createStubClient>["stub"];
@@ -205,7 +205,7 @@ function createdPayload(stub: StubClient): CreatePostInput {
 // ── registerAllTools ──────────────────────────────────────────────────────────
 
 describe("registerAllTools", () => {
-  it("registers exactly the seven LinkHub tools, in this order", () => {
+  it("registers exactly the seven CraftHub tools, in this order", () => {
     const host = createFakeHost();
     const { client } = createStubClient();
 
@@ -331,7 +331,7 @@ describe("create_post", () => {
     const { host, stub } = setup();
     const rejection =
       'Post rejected: it mentions "Acme Financial", which your disclosure policy blocks.';
-    stub.createPost.mockRejectedValueOnce(new LinkHubApiError(rejection, 400));
+    stub.createPost.mockRejectedValueOnce(new CraftHubApiError(rejection, 400));
 
     const result = await host.call("create_post", { body: "Hello." });
 
@@ -410,7 +410,7 @@ describe("create_commit_summary_post", () => {
 
   it.each([
     [{}, "Project update"],
-    [{ repo: "linkhub-v.1" }, "linkhub-v.1 update"],
+    [{ repo: "crafthub-v.1" }, "crafthub-v.1 update"],
     [{ period: "weekly" }, "Project — weekly update"],
     [
       { repo: "4 repositories", period: "weekly" },
@@ -429,7 +429,7 @@ describe("create_commit_summary_post", () => {
 
     await host.call("create_commit_summary_post", {
       summary: "s",
-      repo: "linkhub-v.1",
+      repo: "crafthub-v.1",
       period: "weekly",
       title: "Search got 3x faster",
     });
@@ -525,7 +525,7 @@ describe("create_commit_summary_post", () => {
   it("turns an api failure into an isError result", async () => {
     const { host, stub } = setup();
     stub.createPost.mockRejectedValueOnce(
-      new LinkHubApiError("LinkHub API error (HTTP 500).", 500),
+      new CraftHubApiError("CraftHub API error (HTTP 500).", 500),
     );
 
     const result = await host.call("create_commit_summary_post", {
@@ -533,7 +533,7 @@ describe("create_commit_summary_post", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toBe("LinkHub API error (HTTP 500).");
+    expect(textOf(result)).toBe("CraftHub API error (HTTP 500).");
   });
 
   it("embeds the disclosure policy and the metadata contract in the description", () => {
@@ -632,8 +632,8 @@ describe("update_post", () => {
   it("surfaces the api's 403 refusal to edit a machine-authored post", async () => {
     const { host, stub } = setup();
     stub.updatePost.mockRejectedValueOnce(
-      new LinkHubApiError(
-        "Your LinkHub token is not allowed to perform this action.",
+      new CraftHubApiError(
+        "Your CraftHub token is not allowed to perform this action.",
         403,
       ),
     );
@@ -642,7 +642,7 @@ describe("update_post", () => {
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(
-      "Your LinkHub token is not allowed to perform this action.",
+      "Your CraftHub token is not allowed to perform this action.",
     );
   });
 
@@ -704,7 +704,7 @@ describe("delete_post", () => {
   it("surfaces a 404 verbatim", async () => {
     const { host, stub } = setup();
     stub.deletePost.mockRejectedValueOnce(
-      new LinkHubApiError("Post not found.", 404),
+      new CraftHubApiError("Post not found.", 404),
     );
 
     const result = await host.call("delete_post", { id: ID });
@@ -787,13 +787,13 @@ describe("list_my_posts", () => {
   it("surfaces an api failure as an isError result", async () => {
     const { host, stub } = setup();
     stub.listPosts.mockRejectedValueOnce(
-      new LinkHubApiError("Invalid or expired LinkHub token.", 401),
+      new CraftHubApiError("Invalid or expired CraftHub token.", 401),
     );
 
     const result = await host.call("list_my_posts", {});
 
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toBe("Invalid or expired LinkHub token.");
+    expect(textOf(result)).toBe("Invalid or expired CraftHub token.");
   });
 });
 
@@ -878,7 +878,7 @@ describe("get_disclosure_policy", () => {
   it("fails closed to `summary` with a reason when the live read fails", async () => {
     const { host, stub } = setup(makeDisclosure("full"));
     stub.getAgentPolicy.mockRejectedValueOnce(
-      new LinkHubApiError("Your token is missing the profile:read scope", 403),
+      new CraftHubApiError("Your token is missing the profile:read scope", 403),
     );
 
     const result = await host.call("get_disclosure_policy", {});
@@ -895,7 +895,7 @@ describe("get_disclosure_policy", () => {
     const { host, stub } = setup(
       makeDisclosure("full", { blockedTerms: ["Acme Financial"] }),
     );
-    stub.getAgentPolicy.mockRejectedValueOnce(new LinkHubApiError("boom", 500));
+    stub.getAgentPolicy.mockRejectedValueOnce(new CraftHubApiError("boom", 500));
 
     const text = textOf(await host.call("get_disclosure_policy", {}));
 
@@ -934,9 +934,9 @@ describe("get_work_context", () => {
 
     expect(Object.hasOwn(result, "isError")).toBe(false);
     expect(textOf(result)).toBe(
-      "No work history on this LinkHub profile yet. Do not invent one — " +
+      "No work history on this CraftHub profile yet. Do not invent one — " +
         "if the post needs employment context, ask the user to add their " +
-        "roles in LinkHub first.",
+        "roles in CraftHub first.",
     );
   });
 
@@ -1069,7 +1069,7 @@ describe("get_work_context", () => {
   it("surfaces the profile:read scope failure as an isError result", async () => {
     const { host, stub } = setup();
     stub.getWorkContext.mockRejectedValueOnce(
-      new LinkHubApiError(
+      new CraftHubApiError(
         "Your token is missing the profile:read scope — create a new token",
         403,
       ),
@@ -1109,7 +1109,7 @@ describe("get_work_context", () => {
   });
 });
 
-// ── get_work_context: what it claims LinkHub enforces ─────────────────────────
+// ── get_work_context: what it claims CraftHub enforces ─────────────────────────
 
 /**
  * BUG-20260827-mcp-overstates-redaction.
@@ -1124,7 +1124,7 @@ describe("get_work_context", () => {
  * for our customer Acme Bank on the unreleased Falcon engine. Team of 42."
  * reaches a public post.
  */
-describe("get_work_context does not overstate what LinkHub redacts", () => {
+describe("get_work_context does not overstate what CraftHub redacts", () => {
   function setup(disclosure: DisclosureContext = makeDisclosure()) {
     const host = createFakeHost();
     const { stub, client } = createStubClient();
@@ -1149,7 +1149,7 @@ describe("get_work_context does not overstate what LinkHub redacts", () => {
     expect(text).not.toContain("publish only what appears here");
   });
 
-  it("names the one category LinkHub strips and hands the rest to the agent", async () => {
+  it("names the one category CraftHub strips and hands the rest to the agent", async () => {
     const { host, stub } = setup();
     stub.getWorkContext.mockResolvedValueOnce({
       disclosureLevel: "summary",
@@ -1159,7 +1159,7 @@ describe("get_work_context does not overstate what LinkHub redacts", () => {
     const text = textOf(await host.call("get_work_context", {}));
 
     expect(text).toContain(
-      "LinkHub has stripped the employer and client names on the user's " +
+      "CraftHub has stripped the employer and client names on the user's " +
         "denylist from this text — that is the ONLY category it removes.",
     );
     expect(text).toContain(
@@ -1168,7 +1168,7 @@ describe("get_work_context does not overstate what LinkHub redacts", () => {
         "still appear below",
     );
     expect(text).toContain(
-      "leaving them out of the post is your job, not LinkHub's",
+      "leaving them out of the post is your job, not CraftHub's",
     );
   });
 
@@ -1194,7 +1194,7 @@ describe("get_work_context does not overstate what LinkHub redacts", () => {
     expect(description).not.toContain("ALREADY REDACTED");
     expect(description).toContain(
       "with the employer and client names on their denylist ALREADY STRIPPED " +
-        "by LinkHub, and nothing else removed",
+        "by CraftHub, and nothing else removed",
     );
   });
 });

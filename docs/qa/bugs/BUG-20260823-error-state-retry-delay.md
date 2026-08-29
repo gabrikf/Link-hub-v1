@@ -38,7 +38,7 @@ commits `91963b9` or `9ec1639`.
 ## Reproduction
 
 **Environment:** nightly stack, web `:5273`, api `:3344`, signed in as
-`seed.python-data.042@linkhub.local` / `12345678`. (The ports in `AGENTS.md` —
+`seed.python-data.042@crafthub.local` / `12345678`. (The ports in `AGENTS.md` —
 3333/5173 — are the daytime ports.)
 
 Probe: `.nightly/probes/i76-triage-retry-delay.mjs` — a headless Chromium that

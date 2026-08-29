@@ -1,6 +1,6 @@
 ---
 name: i18n
-description: How internationalisation works in LinkHub's web app — react-i18next with pt-BR, en-US and es-ES, already shipped. Use when adding or changing any user-visible string, adding a locale, touching apps/web/src/i18n/, or when a guardrail reports a raw string or an unresolved key. Every user-visible string in apps/web goes through t(); this skill is the contract for keeping it that way.
+description: How internationalisation works in CraftHub's web app — react-i18next with pt-BR, en-US and es-ES, already shipped. Use when adding or changing any user-visible string, adding a locale, touching apps/web/src/i18n/, or when a guardrail reports a raw string or an unresolved key. Every user-visible string in apps/web goes through t(); this skill is the contract for keeping it that way.
 ---
 
 # i18n — how it works, and the rules that keep it usable

@@ -1,6 +1,13 @@
 import type { Page } from "@playwright/test";
 import { API_URL, TOKENS_KEY, uniqueSuffix } from "../support/accounts";
 import { expect, test } from "../support/fixtures";
+import {
+  deleteMailFor,
+  extractLinkPath,
+  mailpitReachable,
+  MAILPIT_HINT,
+  waitForMail,
+} from "../support/mail";
 
 /**
  * JOURNEY 1 — "log in and register myself easily with my resume."
@@ -31,7 +38,7 @@ function newAccount(tag: string): Account {
   return {
     name: "E2E Journey Dev",
     login: `e2e-${tag}-${suffix}`,
-    email: `e2e.${tag}.${suffix}@linkhub.local`,
+    email: `e2e.${tag}.${suffix}@crafthub.local`,
     password: "e2e-password-1",
   };
 }
@@ -105,7 +112,18 @@ async function gotoAuthPage(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: "Register", exact: true })).toBeVisible();
 }
 
-/** Fills and submits the register tab. Leaves the page signed in on /dashboard. */
+/**
+ * Fills and submits the register tab. Leaves the page on "Check your inbox"
+ * with NO session.
+ *
+ * THIS HELPER USED TO END ON `/dashboard`. Registration no longer signs anyone
+ * in: `createUserSchemaOutput` carries no tokens, and the account exists with
+ * its address unproved until a link from the signup email is opened. Every test
+ * below that needs a signed-in account therefore goes through
+ * `registerAndVerify`, and the security property itself — that no credential is
+ * issued here — is asserted in `e2e/journeys/06-email-verification.spec.ts`,
+ * which owns that flow.
+ */
 async function registerThroughForm(page: Page, account: Account): Promise<void> {
   await gotoAuthPage(page);
   await page.getByRole("button", { name: "Register", exact: true }).click();
@@ -118,13 +136,42 @@ async function registerThroughForm(page: Page, account: Account): Promise<void> 
   // the path that must not 400 on an omitted value.
   await page.getByRole("button", { name: "Create account" }).click();
 
-  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page.getByRole("heading", { name: "Check your inbox" })).toBeVisible();
 }
 
 /**
- * Registration signs the user in immediately, so any test about the LOGIN form
- * has to hand the session back first. The nav's logout is the way a real user
- * does that; on the desktop viewport it is the icon button labelled "Logout".
+ * Registers, then opens the real emailed link — which is what mints the
+ * session. Leaves the page signed in on `/dashboard`.
+ *
+ * NEEDS MAILPIT, and the tests that call it say so with `requireMailpit()`
+ * rather than timing out on a message that is never coming. The token has to
+ * come from a delivered email; there is no endpoint that hands it over, and
+ * inventing a test-only one would prove something the product does not do.
+ */
+async function registerAndVerify(page: Page, account: Account): Promise<void> {
+  await registerThroughForm(page, account);
+
+  const message = await waitForMail(
+    account.email,
+    /confirm your crafthub email/i,
+  );
+  await page.goto(extractLinkPath(message, "/verify-email"));
+
+  await expect(page).toHaveURL(/\/dashboard/);
+}
+
+/** Skips the calling test, with the reason, when Mailpit is not up. */
+async function requireMailpit(): Promise<void> {
+  test.skip(
+    !(await mailpitReachable()),
+    `this test needs a verified account, and verifying needs the emailed link. ${MAILPIT_HINT}`,
+  );
+}
+
+/**
+ * Hands the session back so a test can exercise the LOGIN form. The nav's
+ * logout is the way a real user does that; on the desktop viewport it is the
+ * icon button labelled "Logout".
  */
 async function logOut(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Logout" }).click();
@@ -135,20 +182,30 @@ async function logOut(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
 }
 
-test("@responsive a new developer registers through the form and lands signed in", async ({
+test("@responsive a new developer registers, confirms the emailed link, and lands signed in", async ({
   page,
   guard,
 }) => {
-  await registerThroughForm(page, newAccount("signup"));
+  await requireMailpit();
+  const account = newAccount("signup");
 
-  // "Landed signed in" is the dashboard rendering plus a token in the same
-  // localStorage key the app itself reads — not just a URL change.
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  try {
+    // Registration alone is deliberately NOT a session — that half of the
+    // claim is owned by journey 6. Here it is the setup for the half this
+    // journey is about: a new developer reaching a working dashboard.
+    await registerAndVerify(page, account);
 
-  const tokens = await page.evaluate((key) => localStorage.getItem(key), TOKENS_KEY);
-  expect(tokens, "auth tokens after registering").not.toBeNull();
+    // "Landed signed in" is the dashboard rendering plus a token in the same
+    // localStorage key the app itself reads — not just a URL change.
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
-  expectOnlyEmptyResumeNoise(guard);
+    const tokens = await page.evaluate((key) => localStorage.getItem(key), TOKENS_KEY);
+    expect(tokens, "auth tokens after verifying").not.toBeNull();
+
+    expectOnlyEmptyResumeNoise(guard);
+  } finally {
+    await deleteMailFor(account.email);
+  }
 });
 
 test("a too-short password is refused with a visible message, before any request", async ({
@@ -210,7 +267,9 @@ test("registering an email that already exists shows the conflict to the user", 
 }) => {
   const account = newAccount("dup");
   await registerThroughForm(page, account);
-  await logOut(page);
+  // No logout: registering never signed anyone in. "Back to login" is the way
+  // off the "check your inbox" screen a real user takes.
+  await page.getByRole("button", { name: "Back to login" }).click();
 
   // Same email, a different login, so the only thing the api can object to is
   // the duplicate email.
@@ -229,33 +288,48 @@ test("registering an email that already exists shows the conflict to the user", 
   const tokens = await page.evaluate((key) => localStorage.getItem(key), TOKENS_KEY);
   expect(tokens, "auth tokens after a rejected registration").toBeNull();
 
-  // FINDING — left failing on purpose. `RegisterForm`'s submit handler is
-  // `handleSubmit(async (data) => { await onSubmit(data); reset(); })` and
-  // `onSubmit` is `registerMutation.mutateAsync(...)`. react-hook-form re-throws
-  // whatever the valid-handler rejects with, so every rejected registration
-  // escapes as an UNHANDLED PROMISE REJECTION whose message carries the user's
-  // email address — which Sentry's global handler captures in production even
-  // though `sendDefaultPii` is false. The screen renders correctly; it renders
-  // correctly *while throwing*, which this repo's own guard calls a failure.
+  /*
+   * WAS A STANDING FINDING, NOW A REGRESSION TEST — do not relax it.
+   *
+   * `RegisterForm`'s submit handler used to be
+   * `handleSubmit(async (data) => { await onSubmit(data); reset(); })`.
+   * react-hook-form re-throws whatever the valid-handler rejects with, so every
+   * rejected registration escaped as an UNHANDLED PROMISE REJECTION carrying
+   * the user's email address — which Sentry's global handler captures in
+   * production even though `sendDefaultPii` is false. The screen rendered
+   * correctly *while throwing*, which this repo's guard calls a failure.
+   *
+   * The handler now catches and returns. This assertion is what keeps it that
+   * way; a future refactor that drops the `try` puts the address back on the
+   * wire.
+   */
   expect(unexpectedErrors(guard.errors), "console errors beyond the reported 409").toEqual([]);
 });
 
 test("the new account signs in again through the login form", async ({ page, guard }) => {
+  await requireMailpit();
   const account = newAccount("login");
-  await registerThroughForm(page, account);
-  await logOut(page);
 
-  // "login" is the default tab, but clicking it keeps the journey readable and
-  // survives a future change of default.
-  await page.getByRole("button", { name: "Login", exact: true }).click();
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  try {
+    // Verified first: an unverified account is refused with 403 by design, so
+    // signing in through the form is only reachable after the emailed link.
+    await registerAndVerify(page, account);
+    await logOut(page);
 
-  await expect(page).toHaveURL(/\/dashboard/);
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    // "login" is the default tab, but clicking it keeps the journey readable and
+    // survives a future change of default.
+    await page.getByRole("button", { name: "Login", exact: true }).click();
+    await page.getByLabel("Email", { exact: true }).fill(account.email);
+    await page.getByLabel("Password", { exact: true }).fill(account.password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
-  expectOnlyEmptyResumeNoise(guard);
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+    expectOnlyEmptyResumeNoise(guard);
+  } finally {
+    await deleteMailFor(account.email);
+  }
 });
 
 test("a wrong password shows an error and leaves the user signed out", async ({
@@ -264,8 +338,15 @@ test("a wrong password shows an error and leaves the user signed out", async ({
 }) => {
   const account = newAccount("wrongpw");
   await registerThroughForm(page, account);
-  await logOut(page);
+  await page.getByRole("button", { name: "Back to login" }).click();
 
+  /*
+   * No verification needed, and that is load-bearing rather than a shortcut:
+   * `login.use-case.ts` compares the password BEFORE it checks
+   * `emailVerifiedAt`, so a wrong password against an unverified account is
+   * `InvalidCredentialsError` — the 401 this test is about — and not the 403
+   * "confirm your email" branch, which journey 6 covers.
+   */
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill("definitely-not-the-password");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -280,35 +361,56 @@ test("a wrong password shows an error and leaves the user signed out", async ({
   const tokens = await page.evaluate((key) => localStorage.getItem(key), TOKENS_KEY);
   expect(tokens, "auth tokens after a failed sign-in").toBeNull();
 
-  // FINDING — left failing on purpose, same shape as the duplicate-email case.
-  // `LoginForm` hands `loginMutation.mutateAsync` straight to `handleSubmit`, so
-  // a rejected sign-in escapes as an unhandled promise rejection. A wrong
-  // password is the most common failure in the whole app, so this is the
-  // rejection users trip most often.
+  /*
+   * WAS A STANDING FINDING, NOW A REGRESSION TEST — same shape as the
+   * duplicate-email case above. `LoginForm` used to hand
+   * `loginMutation.mutateAsync` straight to `handleSubmit`, so a rejected
+   * sign-in escaped as an unhandled promise rejection. A wrong password is the
+   * most common failure in the whole app, so it was the rejection users tripped
+   * most often. The handler now catches it.
+   */
   expect(unexpectedErrors(guard.errors), "console errors beyond the reported 401").toEqual([]);
 });
 
 test("the session survives a full page reload", async ({ page, guard }) => {
-  await registerThroughForm(page, newAccount("reload"));
+  await requireMailpit();
+  const account = newAccount("reload");
 
-  // A reload throws away every in-memory store. Tokens live in localStorage and
-  // the user in a persisted zustand slice, so the dashboard must come back
-  // signed in rather than bouncing to "/".
-  await page.reload();
+  try {
+    await registerAndVerify(page, account);
 
-  await expect(page).toHaveURL(/\/dashboard/);
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    /*
+     * A reload throws away every in-memory store. Tokens live in localStorage
+     * and the user in a persisted zustand slice, so the dashboard must come
+     * back signed in rather than bouncing to "/".
+     *
+     * This is now also the regression test for the BOOT GATE: `lib/app-boot.ts`
+     * waits for zustand's `persist` to rehydrate before `router.tsx`'s
+     * `requireSession` guard reads it. Without that wait the guard would see a
+     * null `userInfo` on every hard load and redirect a signed-in person to the
+     * sign-in page — which is exactly what this assertion would catch.
+     */
+    await page.reload();
 
-  expectOnlyEmptyResumeNoise(guard);
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+    expectOnlyEmptyResumeNoise(guard);
+  } finally {
+    await deleteMailFor(account.email);
+  }
 });
 
 test("the resume import entry point opens and gates its own input", async ({
   page,
   guard,
 }) => {
+  await requireMailpit();
+  const account = newAccount("import");
+
   // A brand-new account is exactly the state this dialog is designed for: no
   // resume yet, so nothing it offers to import can collide with existing data.
-  await registerThroughForm(page, newAccount("import"));
+  await registerAndVerify(page, account);
 
   await page.getByRole("button", { name: "Import resume file" }).click();
 
@@ -354,6 +456,8 @@ test("the resume import entry point opens and gates its own input", async ({
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
   expectOnlyEmptyResumeNoise(guard);
+
+  await deleteMailFor(account.email);
 });
 
 test("the AI parse turns a pasted resume into a reviewable profile", async ({

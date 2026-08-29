@@ -8,9 +8,9 @@ const argsSchema = {
     .string()
     .optional()
     .describe(
-      "Narrow the run to ONE repository, e.g. 'linkhub-v.1'. Omit it — the " +
+      "Narrow the run to ONE repository, e.g. 'crafthub-v.1'. Omit it — the " +
         "normal case — and the post covers every repository listed in " +
-        "~/.linkhub/repos.json (or the extractor's settings, or the current " +
+        "~/.crafthub/repos.json (or the extractor's settings, or the current " +
         "working directory if neither exists).",
     ),
   status: z
@@ -18,15 +18,15 @@ const argsSchema = {
     .optional()
     .describe(
       "'published' (default) or 'draft'. Use 'draft' to review the post in " +
-        "LinkHub before it goes live.",
+        "CraftHub before it goes live.",
     ),
 };
 
 /**
- * How to derive the window from LinkHub itself rather than from a fixed period:
+ * How to derive the window from CraftHub itself rather than from a fixed period:
  * the last commit-summary post the user published is the high-water mark.
  */
-const ESTABLISH_WINDOW = `The window starts at the user's most recent LinkHub commit summary, so nothing gets posted twice.
+const ESTABLISH_WINDOW = `The window starts at the user's most recent CraftHub commit summary, so nothing gets posted twice.
 
 1. Call **\`list_my_posts\`** (\`limit: 20\`).
 2. Find the newest post with \`source=commit\`. Its \`createdAt\` timestamp is your start boundary — call it \`<START>\`.
@@ -39,7 +39,7 @@ Mention the resolved start date to the user before you publish, so they can corr
 /**
  * `since_last_post` — the incremental variant of `weekly_update`.
  *
- * Instead of a fixed period it reads the user's own LinkHub history to find
+ * Instead of a fixed period it reads the user's own CraftHub history to find
  * where the last commit summary stopped, so repeated invocations never
  * double-post the same work.
  */
@@ -50,9 +50,9 @@ export function registerSinceLastPost(
   server.registerPrompt(
     "since_last_post",
     {
-      title: "Post everything I've shipped since my last LinkHub update",
+      title: "Post everything I've shipped since my last CraftHub update",
       description:
-        "Like weekly_update, but the time window is derived from LinkHub " +
+        "Like weekly_update, but the time window is derived from CraftHub " +
         "instead of a fixed period: it finds your most recent commit-summary " +
         "post and summarizes only the git work done since then, so nothing is " +
         "posted twice. Covers every repository you configured, aggregated into " +
@@ -63,14 +63,14 @@ export function registerSinceLastPost(
     (args) => ({
       description: `Summarize everything shipped${
         args.repo ? ` in ${args.repo}` : " across every configured repository"
-      } since the last LinkHub commit summary`,
+      } since the last CraftHub commit summary`,
       messages: [
         {
           role: "user",
           content: {
             type: "text",
             text: buildWorkflowText({
-              windowLabel: "everything since the last LinkHub commit summary",
+              windowLabel: "everything since the last CraftHub commit summary",
               establishWindow: ESTABLISH_WINDOW,
               periodValue: "since-last-post",
               repo: args.repo?.trim() || undefined,

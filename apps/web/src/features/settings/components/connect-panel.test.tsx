@@ -24,13 +24,13 @@ describe("ConnectPanel", () => {
     }
   });
 
-  it("emits node-based stdio snippets (NOT an @linkhub/mcp npm package)", () => {
+  it("emits node-based stdio snippets (NOT an @crafthub/mcp npm package)", () => {
     const { container } = render(<ConnectPanel token={null} />);
     const codeText = codeTextOf(container);
 
     expect(codeText).toContain("node");
     expect(codeText).toContain("apps/mcp/dist/index.js");
-    expect(codeText).not.toContain("@linkhub/mcp");
+    expect(codeText).not.toContain("@crafthub/mcp");
     expect(codeText).not.toContain("npx");
   });
 
@@ -91,11 +91,11 @@ describe("ConnectPanel", () => {
     expect(cli).toContain(
       'node "$(git rev-parse --show-toplevel)/apps/mcp/dist/index.js"',
     );
-    expect(cli).not.toContain("/absolute/path/to/linkhub");
+    expect(cli).not.toContain("/absolute/path/to/crafthub");
 
     // The whole Claude Code tab is hand-edit free — the project-scoped
     // .mcp.json uses a repo-relative path.
-    expect(codeTextOf(container)).not.toContain("/absolute/path/to/linkhub");
+    expect(codeTextOf(container)).not.toContain("/absolute/path/to/crafthub");
   });
 
   it("shows a host-specific verification step", async () => {
@@ -118,15 +118,15 @@ describe("ConnectPanel", () => {
     const { container } = render(<ConnectPanel token={null} />);
 
     await user.click(screen.getByRole("tab", { name: "Claude Code" }));
-    expect(codeTextOf(container)).toContain("/mcp__linkhub__weekly_update");
+    expect(codeTextOf(container)).toContain("/mcp__crafthub__weekly_update");
 
     await user.click(screen.getByRole("tab", { name: "VS Code" }));
-    expect(codeTextOf(container)).toContain("/mcp.linkhub.weekly_update");
+    expect(codeTextOf(container)).toContain("/mcp.crafthub.weekly_update");
 
     // Claude Desktop has no slash commands at all. Showing "/weekly_update"
     // in a copy box is what sent users to type it and get "Unknown command".
     await user.click(screen.getByRole("tab", { name: "Claude Desktop" }));
-    expect(codeTextOf(container)).toContain("+ menu → linkhub → weekly_update");
+    expect(codeTextOf(container)).toContain("+ menu → crafthub → weekly_update");
     expect(codeTextOf(container)).not.toContain("/weekly_update");
   });
 
@@ -140,7 +140,7 @@ describe("ConnectPanel", () => {
     expect(screen.getByText("Impact")).toBeInTheDocument();
     expect(screen.getByText("Real numbers")).toBeInTheDocument();
     // The house-style resource is discoverable from the UI too.
-    expect(codeTextOf(container)).toContain("linkhub://guides/post-quality");
+    expect(codeTextOf(container)).toContain("crafthub://guides/post-quality");
   });
 
   it("contrasts a weak commit-log post with a strong outcome-led one", () => {
@@ -181,15 +181,15 @@ describe("ConnectPanel", () => {
   it("folds the local-checkout build into an opt-in disclosure", () => {
     render(<ConnectPanel token={null} />);
 
-    const summary = screen.getByText(/Running LinkHub locally\?/);
+    const summary = screen.getByText(/Running CraftHub locally\?/);
     const details = summary.closest("details");
 
     expect(details).not.toBeNull();
     // Collapsed by default — the hosted path is the default path.
     expect(details).not.toHaveAttribute("open");
 
-    // And the numbered flow now starts at "Add LinkHub to your tool".
-    expect(screen.getByText("Add LinkHub to your tool")).toBeInTheDocument();
+    // And the numbered flow now starts at "Add CraftHub to your tool".
+    expect(screen.getByText("Add CraftHub to your tool")).toBeInTheDocument();
   });
 
   /**
@@ -204,8 +204,8 @@ describe("ConnectPanel", () => {
     });
 
     it("prefers an explicitly configured VITE_API_URL", () => {
-      vi.stubEnv("VITE_API_URL", "https://api.linkhub.example");
-      expect(resolveApiUrl()).toBe("https://api.linkhub.example");
+      vi.stubEnv("VITE_API_URL", "https://api.crafthub.example");
+      expect(resolveApiUrl()).toBe("https://api.crafthub.example");
     });
 
     it("falls back to the page origin rather than a hardcoded localhost", () => {

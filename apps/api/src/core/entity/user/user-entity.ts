@@ -38,6 +38,19 @@ export interface UserEntityProps extends BaseEntityProps {
    */
   agentDisclosureLevel?: AgentDisclosureLevel; // Optional; normalized to the default in ctor
   agentBlockedTerms?: string[]; // Optional; normalized to [] in ctor
+  /**
+   * When this address was proved, or null while it is still unproved.
+   *
+   * A nullable TIMESTAMP rather than a boolean because "when" is the question
+   * support actually asks, and because it makes the backfill honest: every row
+   * that existed before verification shipped is stamped with the migration's
+   * `now()` rather than pretending it was verified at signup.
+   *
+   * Optional here and normalized to null in the ctor, so the ~30 existing
+   * construction sites keep compiling. Read it through `isEmailVerified()`,
+   * never directly — that method also honours the OAuth rule below.
+   */
+  emailVerifiedAt?: Date | null; // Optional; normalized to null in ctor
   googleId: string | null; // Explicit null, not optional
 }
 
@@ -59,11 +72,18 @@ export interface CreateUserEntityProps {
   persona?: string | null; // Optional at creation, but will be normalized to null
   agentDisclosureLevel?: AgentDisclosureLevel; // Optional at creation; defaults to the strictest level
   agentBlockedTerms?: string[]; // Optional at creation, but will be normalized to []
+  emailVerifiedAt?: Date | null; // Optional at creation, but will be normalized to null
   googleId?: string | null; // Optional at creation, but will be normalized to null
 }
 
+/**
+ * `emailVerifiedAt` is swapped for the boolean the API publishes. Clients get
+ * "is it verified", not the timestamp — see `userResponseSchema`.
+ */
 export interface UserEntityPublicDto
-  extends Omit<UserEntityProps, "password"> {}
+  extends Omit<UserEntityProps, "password" | "emailVerifiedAt"> {
+  emailVerified: boolean;
+}
 
 export class UserEntity extends BaseEntity<UserEntityProps> {
   public email: string;
@@ -83,6 +103,7 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
   public persona: string | null; // Always null, never undefined
   public agentDisclosureLevel: AgentDisclosureLevel; // Always a level, never undefined
   public agentBlockedTerms: string[]; // Always an array, never undefined
+  public emailVerifiedAt: Date | null; // Always null, never undefined
   public googleId: string | null; // Always null, never undefined
 
   constructor(props: UserEntityProps) {
@@ -110,6 +131,7 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     this.agentDisclosureLevel =
       props.agentDisclosureLevel ?? DEFAULT_AGENT_DISCLOSURE_LEVEL;
     this.agentBlockedTerms = props.agentBlockedTerms ?? [];
+    this.emailVerifiedAt = props.emailVerifiedAt ?? null;
     this.googleId = props.googleId ?? null;
   }
 
@@ -196,6 +218,40 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     this.updateTimestamp();
   }
 
+  /**
+   * Whether this account may sign in with a password.
+   *
+   * `googleId` counts on its own: Google already proved control of the mailbox,
+   * so an account linked to it can never be locked out by a verification flag
+   * that predates the link. The caller checks for a row in `oauth_accounts`
+   * separately — that covers LinkedIn, which has no column here.
+   */
+  isEmailVerified(): boolean {
+    return this.emailVerifiedAt !== null || this.googleId !== null;
+  }
+
+  /**
+   * Idempotent on purpose: an OAuth sign-in calls this on every login, and
+   * re-stamping the date each time would turn "when was this proved" into
+   * "when did they last sign in".
+   */
+  markEmailVerified(verifiedAt: Date = new Date()) {
+    if (this.emailVerifiedAt !== null) {
+      return;
+    }
+    this.emailVerifiedAt = verifiedAt;
+    this.updateTimestamp();
+  }
+
+  /**
+   * Replace the stored password hash. Takes a HASH, never a plaintext — the
+   * caller owns the hashing so this entity never needs to know about argon2.
+   */
+  updatePassword(passwordHash: string) {
+    this.password = passwordHash;
+    this.updateTimestamp();
+  }
+
   updateGoogleId(googleId: string | null) {
     this.googleId = googleId;
     this.updateTimestamp();
@@ -219,6 +275,7 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
       location: this.location,
       persona: this.persona,
       googleId: this.googleId,
+      emailVerified: this.isEmailVerified(),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

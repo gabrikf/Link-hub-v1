@@ -6,7 +6,7 @@ import { z } from "zod/v4";
  *
  * This is a privacy contract, not a UI preference: the same three levels drive
  * the settings screen copy and the redaction the MCP applies before any work
- * history leaves LinkHub. Levels are ordered from most to least restrictive.
+ * history leaves CraftHub. Levels are ordered from most to least restrictive.
  */
 export const agentDisclosureLevelSchema = z.enum([
   "summary",
@@ -75,7 +75,7 @@ export const AGENT_DISCLOSURE_LEVELS = [
     value: "full",
     label: "Full",
     shortDescription:
-      "No LinkHub-side restriction — you decide what the agent may say.",
+      "No CraftHub-side restriction — you decide what the agent may say.",
     allows: [
       "Anything present in the profile, work history and posts",
     ],

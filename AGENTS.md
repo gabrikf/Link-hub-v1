@@ -1,4 +1,4 @@
-# LinkHub — Agent Rules
+# CraftHub — Agent Rules
 
 A developer-profile platform. Developers import a resume, arrange a public
 profile, recruiters search by job description (pgvector + an in-browser TF.js
@@ -135,7 +135,7 @@ invisible to anyone working in light mode.
 `apps/web` is internationalised. **Every user-visible string goes through
 `t()`.** The catalogue lives in `apps/web/src/i18n/locales/` as `pt-BR.json`,
 `en-US.json` and `es-ES.json`; `en-US` is the source language and the fallback.
-`apps/web/src/lib/language.ts` persists the choice next to `linkhub-theme` and
+`apps/web/src/lib/language.ts` persists the choice next to `crafthub-theme` and
 keeps `<html lang>` in step — it is the same shape as `lib/theme.ts`.
 
 Adding a string:

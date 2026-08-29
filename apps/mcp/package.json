@@ -1,11 +1,11 @@
 {
   "name": "mcp",
   "version": "1.0.0",
-  "description": "LinkHub MCP server — create and manage LinkHub posts from any MCP client (Claude Desktop, Claude Code, Cursor, VS Code).",
+  "description": "CraftHub MCP server — create and manage CraftHub posts from any MCP client (Claude Desktop, Claude Code, Cursor, VS Code).",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "linkhub-mcp": "dist/index.js"
+    "crafthub-mcp": "dist/index.js"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -19,7 +19,7 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "linkhub"
+    "crafthub"
   ],
   "author": "",
   "license": "ISC",

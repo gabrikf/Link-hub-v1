@@ -18,7 +18,7 @@
 - [Test structure shapes](#test-structure-shapes)
 - [Test data tradeoffs](#test-data-tradeoffs)
 - [Common framework gotchas](#common-framework-gotchas)
-- [LinkHub binding — these twelve patterns in this repo](#linkhub-binding--these-twelve-patterns-in-this-repo)
+- [CraftHub binding — these twelve patterns in this repo](#crafthub-binding--these-twelve-patterns-in-this-repo)
 - [Sources](#sources)
 
 ## How to use this catalog
@@ -267,9 +267,9 @@ Default to factory or builder for any domain entity; reserve literals for the fi
 4. **Go parallel subtests need loop-variable capture.** `tt := tt` inside the loop body before `t.Parallel()`. Otherwise all subtests see the last iteration. (https://go.dev/wiki/TableDrivenTests)
 5. **Snapshots are not for individual classes / attributes.** Use specific matchers (`toHaveClass`) instead; snapshots are for structural shape. (https://github.com/patternfly/patternfly-react/wiki/React-Testing-Library-Basics,-Best-Practices,-and-Guidelines)
 
-## LinkHub binding — these twelve patterns in this repo
+## CraftHub binding — these twelve patterns in this repo
 
-The catalog above is cross-framework. Here is which tool each pattern resolves to in LinkHub
+The catalog above is cross-framework. Here is which tool each pattern resolves to in CraftHub
 (**vitest** everywhere; `@testing-library/react` + jsdom in `apps/web`; node-env and mostly
 hermetic in `apps/api`; Playwright only inside the visual scenario runner under `scripts/visual/`).
 
@@ -288,7 +288,7 @@ hermetic in `apps/api`; Playwright only inside the visual scenario runner under 
 | 11 — mock at boundaries you don't control | Mock the HTTP boundary and the genuinely external providers — OpenAI, the storage provider, the clock. Do **not** mock `@repo/schemas`, the use case under test, or the in-memory repository: mocking the parser or the repository deletes the exact guarantee the test exists to prove |
 | 12 — POM is a tool | Applies to `scripts/visual/scenarios/*.scenario.mjs` only. Unit tests use RTL queries directly; a page object over an RTL render is indirection with no payoff |
 
-**Test-data tradeoff table, resolved for LinkHub:** for anything crossing the HTTP boundary the
+**Test-data tradeoff table, resolved for CraftHub:** for anything crossing the HTTP boundary the
 answer is **a real captured payload, parsed through `@repo/schemas`**. Capture it from
 `http://localhost:3333` against seeded data (`bash db-manage.sh seed-all`), commit it as a
 fixture, and assert it with `.parse()`. A hand-written payload that agrees with your mental model

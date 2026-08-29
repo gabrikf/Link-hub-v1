@@ -3,8 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 /**
- * The optional on-disk settings file, shared by `linkhub-extract` and
- * `linkhub-hook`.
+ * The optional on-disk settings file, shared by `crafthub-extract` and
+ * `crafthub-hook`.
  *
  * The hook has no command line to speak of — Claude Code invokes it with a
  * fixed argument and a JSON blob on stdin — so anything the hook needs to know
@@ -16,7 +16,7 @@ import { join } from "node:path";
  * extractor can take everything from flags.
  */
 export interface ExtractorSettings {
-  /** The LinkHub git connection (uuid) events are attributed to. */
+  /** The CraftHub git connection (uuid) events are attributed to. */
   readonly connectionId?: string;
   /** Author emails that count as "mine". Multiple is the normal case. */
   readonly authors?: readonly string[];
@@ -38,8 +38,8 @@ export interface ExtractorSettings {
   readonly spoolDir?: string;
 }
 
-export const DEFAULT_CONFIG_PATH = join(homedir(), ".linkhub", "extractor.json");
-export const DEFAULT_SPOOL_DIR = join(homedir(), ".linkhub", "spool");
+export const DEFAULT_CONFIG_PATH = join(homedir(), ".crafthub", "extractor.json");
+export const DEFAULT_SPOOL_DIR = join(homedir(), ".crafthub", "spool");
 
 /**
  * Reads the settings file. Returns `{}` for a missing, empty or malformed file
@@ -47,7 +47,7 @@ export const DEFAULT_SPOOL_DIR = join(homedir(), ".linkhub", "spool");
  */
 export function loadSettings(configPath?: string): ExtractorSettings {
   const path =
-    configPath ?? process.env.LINKHUB_EXTRACTOR_CONFIG ?? DEFAULT_CONFIG_PATH;
+    configPath ?? process.env.CRAFTHUB_EXTRACTOR_CONFIG ?? DEFAULT_CONFIG_PATH;
 
   let raw: string;
   try {
@@ -65,14 +65,14 @@ export function loadSettings(configPath?: string): ExtractorSettings {
   }
 }
 
-/** `LINKHUB_CONNECTION_ID` beats the settings file; an explicit flag beats both. */
+/** `CRAFTHUB_CONNECTION_ID` beats the settings file; an explicit flag beats both. */
 export function resolveConnectionId(
   fromFlag: string | undefined,
   settings: ExtractorSettings,
 ): string | undefined {
   return (
     fromFlag?.trim() ||
-    process.env.LINKHUB_CONNECTION_ID?.trim() ||
+    process.env.CRAFTHUB_CONNECTION_ID?.trim() ||
     settings.connectionId?.trim() ||
     undefined
   );

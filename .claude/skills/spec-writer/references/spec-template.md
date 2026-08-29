@@ -203,7 +203,7 @@ there is no generated tree.
 
 ## 8. Copy
 
-LinkHub has **no i18n**. User-visible strings are hardcoded English in the component. The
+CraftHub has **no i18n**. User-visible strings are hardcoded English in the component. The
 `i18n` skill documents the planned setup — **this spec must not invent `t()` calls** or a
 locale file.
 

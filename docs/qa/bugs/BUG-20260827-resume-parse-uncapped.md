@@ -171,7 +171,7 @@ and the multipart branch before returning, so the handler and the schema measure
 the same string. There is no window where one accepts what the other rejects.
 
 **Confirmed live on the running dev api, not by test alone.** Signed in as
-`seed.javascript-fullstack.001@linkhub.local` and re-walked the reproduction:
+`seed.javascript-fullstack.001@crafthub.local` and re-walked the reproduction:
 
 | request | before | now |
 |---|---|---|

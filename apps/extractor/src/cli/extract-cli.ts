@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ingestActivitySchemaInput } from "@repo/schemas";
 import type { IngestActivityInput } from "@repo/schemas";
-import { LinkHubActivityClient, LinkHubApiError } from "../api-client.js";
+import { CraftHubActivityClient, CraftHubApiError } from "../api-client.js";
 import { ArgError, flag, parseArgs, value, values } from "../args.js";
 import { ConfigError, loadConfig } from "../config.js";
 import { buildEnvelope, extract, resolveAuthors } from "../extract.js";
@@ -10,7 +10,7 @@ import { isUuid, loadSettings, resolveConnectionId } from "../settings.js";
 import { renderExtractSummary, renderUploadPreamble } from "../summary.js";
 
 /**
- * `linkhub-extract` — extract, review, then (separately) upload.
+ * `crafthub-extract` — extract, review, then (separately) upload.
  *
  * The split between `extract` and `upload` is the product, not ergonomics.
  * Extraction is local, needs no token, and works with the network unplugged; it
@@ -19,24 +19,24 @@ import { renderExtractSummary, renderUploadPreamble } from "../summary.js";
  * code path on which extracting causes an upload as a side effect.
  */
 
-const DEFAULT_OUTPUT = "linkhub-activity.json";
+const DEFAULT_OUTPUT = "crafthub-activity.json";
 const DEFAULT_SINCE = "90.days.ago";
 
 const KNOWN_COMMANDS = new Set(["extract", "upload", "help"]);
 
 const HELP = `
-linkhub-extract — turn local git history into hashed, aggregated activity
+crafthub-extract — turn local git history into hashed, aggregated activity
                   metadata you review before anything is uploaded.
 
 USAGE
-  linkhub-extract [extract] [<repo-path>...] [options]
-  linkhub-extract upload <file> [options]
-  linkhub-extract help
+  crafthub-extract [extract] [<repo-path>...] [options]
+  crafthub-extract upload <file> [options]
+  crafthub-extract help
 
 COMMANDS
   extract   Read git history, write a JSON payload, print a summary, and STOP.
             This is the default command. It never uploads.
-  upload    POST a previously extracted file to LinkHub. This is the only
+  upload    POST a previously extracted file to CraftHub. This is the only
             command that touches the network.
 
 OPTIONS
@@ -49,19 +49,19 @@ OPTIONS
       --since <when>     Anything git understands (default: ${DEFAULT_SINCE}).
       --until <when>     Upper bound on the history walked.
       --max-commits <n>  Stop after n commits per repository.
-      --connection <id>  LinkHub git connection uuid to attribute events to.
-                         Also read from LINKHUB_CONNECTION_ID or the config file.
+      --connection <id>  CraftHub git connection uuid to attribute events to.
+                         Also read from CRAFTHUB_CONNECTION_ID or the config file.
   -o, --out <file>       Where to write the payload (default: ${DEFAULT_OUTPUT}).
-  -c, --config <file>    Config file (default: ~/.linkhub/extractor.json).
+  -c, --config <file>    Config file (default: ~/.crafthub/extractor.json).
   -y, --yes              Upload immediately after extracting, skipping review.
                          Off by default, and deliberately awkward to reach.
   -h, --help             This text.
 
 ENVIRONMENT
-  LINKHUB_API_TOKEN   Personal access token (lh_pat_...) with activity:write.
+  CRAFTHUB_API_TOKEN   Personal access token (lh_pat_...) with activity:write.
                       Needed ONLY for upload.
-  LINKHUB_API_URL     API base URL (default http://localhost:3333).
-  LINKHUB_CONNECTION_ID
+  CRAFTHUB_API_URL     API base URL (default http://localhost:3333).
+  CRAFTHUB_CONNECTION_ID
                       Default connection uuid.
 `;
 
@@ -124,9 +124,9 @@ async function runExtract(
     console.error(
       connectionId
         ? `--connection must be a uuid; got "${connectionId}".`
-        : "No connection id. Create a git connection in LinkHub settings, then pass " +
-          "--connection <uuid>, set LINKHUB_CONNECTION_ID, or add \"connectionId\" to " +
-          "~/.linkhub/extractor.json.",
+        : "No connection id. Create a git connection in CraftHub settings, then pass " +
+          "--connection <uuid>, set CRAFTHUB_CONNECTION_ID, or add \"connectionId\" to " +
+          "~/.crafthub/extractor.json.",
     );
     return 1;
   }
@@ -195,7 +195,7 @@ async function runUpload(
   args: ReturnType<typeof parseArgs>,
 ): Promise<number> {
   if (!filePath) {
-    console.error("Usage: linkhub-extract upload <file>");
+    console.error("Usage: crafthub-extract upload <file>");
     return 1;
   }
 
@@ -238,7 +238,7 @@ async function runUpload(
 async function upload(envelope: IngestActivityInput): Promise<number> {
   // Config first: announcing "uploading…" and then failing on a missing token
   // reads as though something was attempted. Nothing was.
-  const client = new LinkHubActivityClient(loadConfig());
+  const client = new CraftHubActivityClient(loadConfig());
 
   console.log(renderUploadPreamble(envelope));
   const outcome = await client.ingest(envelope);
@@ -251,7 +251,7 @@ async function upload(envelope: IngestActivityInput): Promise<number> {
 
 function describe(err: unknown): string {
   if (err instanceof ConfigError) return err.message;
-  if (err instanceof LinkHubApiError) return err.message;
+  if (err instanceof CraftHubApiError) return err.message;
   if (err instanceof ArgError) return err.message;
   return err instanceof Error ? err.message : String(err);
 }

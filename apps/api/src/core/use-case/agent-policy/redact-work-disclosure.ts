@@ -45,7 +45,7 @@ export interface BuildBlockedTermsInput {
  *
  * An employer is blocked when ITS OWN role is at `summary` — that IS the level.
  * At `detailed` and `full` that employer may be named, so it drops off the
- * list; `full` is "no LinkHub-side restriction", which still means the user's
+ * list; `full` is "no CraftHub-side restriction", which still means the user's
  * explicit denylist is honoured, because they asked for it.
  *
  * The level is per employer and never a single scalar for the whole list.

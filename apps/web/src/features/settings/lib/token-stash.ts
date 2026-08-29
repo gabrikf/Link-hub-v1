@@ -9,7 +9,7 @@ import { reportHandled } from "../../../lib/report-error";
  * token: recoverable while the user is still mid-setup, never persisted
  * beyond that.
  */
-const STASHED_TOKEN_KEY = "linkhub:last-created-token";
+const STASHED_TOKEN_KEY = "crafthub:last-created-token";
 
 export function readStashedToken(): CreateApiTokenOutput | null {
   try {

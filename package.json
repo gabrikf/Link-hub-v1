@@ -1,5 +1,5 @@
 {
-  "name": "linkhub-v.1",
+  "name": "crafthub-v.1",
   "private": true,
   "scripts": {
     "build": "turbo run build",

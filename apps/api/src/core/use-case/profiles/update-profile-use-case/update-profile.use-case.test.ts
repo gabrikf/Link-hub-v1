@@ -33,12 +33,12 @@ describe("UpdateProfileUseCase", () => {
       userId: user.id,
       username: "gabriel",
       name: "Gabriel",
-      description: "Building LinkHub",
+      description: "Building CraftHub",
     });
 
     expect(result.username).toBe("gabriel");
     expect(result.name).toBe("Gabriel");
-    expect(result.description).toBe("Building LinkHub");
+    expect(result.description).toBe("Building CraftHub");
   });
 
   it("should persist and round-trip ALL profile fields (guards the dropped .set() bug)", async () => {
@@ -58,7 +58,7 @@ describe("UpdateProfileUseCase", () => {
       userId: user.id,
       username: "gabriel",
       name: "Gabriel",
-      description: "Building LinkHub",
+      description: "Building CraftHub",
       backgroundImageUrl: "https://cdn.example.com/bg.png",
       bannerImageUrl: "https://cdn.example.com/banner.png",
       themeAccent: "#ff0066",

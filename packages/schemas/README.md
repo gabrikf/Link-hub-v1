@@ -1,6 +1,6 @@
 # @repo/schemas
 
-Shared Zod schemas for the LinkHub monorepo. This package provides type-safe validation schemas that can be used across both frontend and backend applications.
+Shared Zod schemas for the CraftHub monorepo. This package provides type-safe validation schemas that can be used across both frontend and backend applications.
 
 ## Installation
 

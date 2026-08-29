@@ -8,12 +8,12 @@ export const SEED_PASSWORD = "12345678";
 
 export const ACCOUNTS = {
   recruiter: {
-    email: "recruiter.seed@linkhub.local",
+    email: "recruiter.seed@crafthub.local",
     password: SEED_PASSWORD,
     login: "recruiter-seed",
   },
   developer: {
-    email: "seed.react-frontend.003@linkhub.local",
+    email: "seed.react-frontend.003@crafthub.local",
     password: SEED_PASSWORD,
     login: "seed-react-frontend-003",
   },
@@ -27,7 +27,7 @@ export const STORAGE_STATE: Record<Role, string> = {
 };
 
 /** Must match AUTH_TOKENS_STORAGE_KEY in apps/web/src/lib/auth-tokens.ts. */
-export const TOKENS_KEY = "linkhub.auth.tokens";
+export const TOKENS_KEY = "crafthub.auth.tokens";
 
 /**
  * Must match USER_INFO_STORAGE_KEY in apps/web/src/lib/user-info-store.ts.
@@ -39,7 +39,7 @@ export const TOKENS_KEY = "linkhub.auth.tokens";
  * passes anyway, because it matches on the first poll before the redirect
  * effect runs. That is a suite that reports green while reaching nothing.
  */
-export const USER_INFO_KEY = "linkhub.auth.user-info";
+export const USER_INFO_KEY = "crafthub.auth.user-info";
 
 export const WEB_URL = process.env.E2E_WEB_URL || "http://localhost:5173";
 export const API_URL = process.env.E2E_API_URL || "http://localhost:3333";
@@ -59,7 +59,7 @@ export function uniqueSuffix(): string {
  * flaky in a way that looks like a product bug.
  */
 export const JOURNEY_ACCOUNTS = {
-  posts: { email: "seed.node-backend.040@linkhub.local", password: SEED_PASSWORD, login: "seed-node-backend-040" },
-  links: { email: "seed.go-sre.026@linkhub.local", password: SEED_PASSWORD, login: "seed-go-sre-026" },
-  appearance: { email: "seed.python-data.042@linkhub.local", password: SEED_PASSWORD, login: "seed-python-data-042" },
+  posts: { email: "seed.node-backend.040@crafthub.local", password: SEED_PASSWORD, login: "seed-node-backend-040" },
+  links: { email: "seed.go-sre.026@crafthub.local", password: SEED_PASSWORD, login: "seed-go-sre-026" },
+  appearance: { email: "seed.python-data.042@crafthub.local", password: SEED_PASSWORD, login: "seed-python-data-042" },
 } as const;

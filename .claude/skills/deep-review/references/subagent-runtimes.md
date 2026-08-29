@@ -2,7 +2,7 @@
 
 > **NOT AVAILABLE IN THIS REPO — do not read further unless `compozy` is installed.**
 >
-> Every non-`native` runtime below dispatches through `compozy exec`. LinkHub has no `compozy` binary:
+> Every non-`native` runtime below dispatches through `compozy exec`. CraftHub has no `compozy` binary:
 >
 > ```bash
 > command -v compozy   # → nothing

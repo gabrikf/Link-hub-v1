@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { httpUrlSchema, postStatusSchema } from "@repo/schemas";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { LinkHubApiClient } from "../api-client.js";
+import type { CraftHubApiClient } from "../api-client.js";
 import {
   renderPolicyForToolDescription,
   type DisclosureContext,
@@ -63,20 +63,20 @@ const inputSchema = {
 };
 
 /**
- * `create_post` — create a LinkHub post authored from an MCP client.
+ * `create_post` — create a CraftHub post authored from an MCP client.
  * The post is stored with source='mcp'.
  */
 export function registerCreatePost(
   server: McpServer,
-  client: LinkHubApiClient,
+  client: CraftHubApiClient,
   disclosure: DisclosureContext,
 ): void {
   server.registerTool(
     "create_post",
     {
-      title: "Create LinkHub post",
+      title: "Create CraftHub post",
       description:
-        "Create a new post on the user's LinkHub profile. Provide the body in " +
+        "Create a new post on the user's CraftHub profile. Provide the body in " +
         "Markdown; title, cover image, images, external URL and status are " +
         "optional. Always include `tags` naming the technologies — recruiter " +
         "search embeds the title and tags at twice the body's weight, so a " +

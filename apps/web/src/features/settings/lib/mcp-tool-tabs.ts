@@ -22,7 +22,7 @@ import type { Snippet } from "../components/snippet-block";
 // snippets carry this placeholder — but PATH_COMMAND below prints the real
 // value in one copy-paste, and the Claude Code CLI snippet resolves it inline
 // so that path never has to be typed by hand at all.
-export const MCP_ENTRY = "/absolute/path/to/linkhub/apps/mcp/dist/index.js";
+export const MCP_ENTRY = "/absolute/path/to/crafthub/apps/mcp/dist/index.js";
 
 /** Resolves the repo root from anywhere inside the checkout. */
 export const ENTRY_SHELL_EXPR =
@@ -67,13 +67,13 @@ export function buildTabs(
     command: "node",
     args: [MCP_ENTRY],
     env: {
-      LINKHUB_API_URL: apiUrl,
-      LINKHUB_API_TOKEN: token,
+      CRAFTHUB_API_URL: apiUrl,
+      CRAFTHUB_API_TOKEN: token,
     },
   };
 
   const claudeDesktopConfig = JSON.stringify(
-    { mcpServers: { linkhub: mcpServerBlock } },
+    { mcpServers: { crafthub: mcpServerBlock } },
     null,
     2,
   );
@@ -83,12 +83,12 @@ export function buildTabs(
   const mcpJson = JSON.stringify(
     {
       mcpServers: {
-        linkhub: {
+        crafthub: {
           command: "node",
           args: ["./apps/mcp/dist/index.js"],
           env: {
-            LINKHUB_API_URL: apiUrl,
-            LINKHUB_API_TOKEN: token,
+            CRAFTHUB_API_URL: apiUrl,
+            CRAFTHUB_API_TOKEN: token,
           },
         },
       },
@@ -98,7 +98,7 @@ export function buildTabs(
   );
 
   const cursorJson = JSON.stringify(
-    { mcpServers: { linkhub: mcpServerBlock } },
+    { mcpServers: { crafthub: mcpServerBlock } },
     null,
     2,
   );
@@ -106,13 +106,13 @@ export function buildTabs(
   const vscodeJson = JSON.stringify(
     {
       servers: {
-        linkhub: {
+        crafthub: {
           type: "stdio",
           command: "node",
           args: [MCP_ENTRY],
           env: {
-            LINKHUB_API_URL: apiUrl,
-            LINKHUB_API_TOKEN: token,
+            CRAFTHUB_API_URL: apiUrl,
+            CRAFTHUB_API_TOKEN: token,
           },
         },
       },
@@ -124,9 +124,9 @@ export function buildTabs(
   // Resolves the entry path inline, so this one is genuinely zero-edit: copy,
   // paste, run from anywhere inside the repo.
   const claudeCodeCli = [
-    `claude mcp add linkhub \\`,
-    `  --env LINKHUB_API_URL=${apiUrl} \\`,
-    `  --env LINKHUB_API_TOKEN=${token} \\`,
+    `claude mcp add crafthub \\`,
+    `  --env CRAFTHUB_API_URL=${apiUrl} \\`,
+    `  --env CRAFTHUB_API_TOKEN=${token} \\`,
     `  -- node ${ENTRY_SHELL_EXPR}`,
   ].join("\n");
 
@@ -152,7 +152,7 @@ export function buildTabs(
       // get "Unknown command" — the single most common support question this
       // panel caused. Left as a literal: not in the canonical string map, and
       // it mixes navigation copy with the technical PROMPT_NAME identifier.
-      invokeCommand: `+ menu → linkhub → ${PROMPT_NAME}`,
+      invokeCommand: `+ menu → crafthub → ${PROMPT_NAME}`,
       invokeNote: t("settings.mcp.claudeDesktopPrompts"),
     },
     {
@@ -176,7 +176,7 @@ export function buildTabs(
         t("settings.mcp.claudeCodeAsk"),
       ],
       invokeLabel: t("settings.mcp.slashCommand"),
-      invokeCommand: `/mcp__linkhub__${PROMPT_NAME}`,
+      invokeCommand: `/mcp__crafthub__${PROMPT_NAME}`,
       invokeNote: t("settings.mcp.claudeCodePrompts"),
     },
     {
@@ -214,7 +214,7 @@ export function buildTabs(
         t("settings.mcp.vscodeAsk"),
       ],
       invokeLabel: t("settings.mcp.vscodeSlash"),
-      invokeCommand: `/mcp.linkhub.${PROMPT_NAME}`,
+      invokeCommand: `/mcp.crafthub.${PROMPT_NAME}`,
       invokeNote: t("settings.mcp.vscodePrompts"),
     },
     {

@@ -1,4 +1,4 @@
-# LinkHub — web
+# CraftHub — web
 
 React 19 + Vite 8 + Tailwind v4. `npm run dev:web` → http://localhost:5173
 

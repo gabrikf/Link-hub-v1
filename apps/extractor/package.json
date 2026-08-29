@@ -1,24 +1,24 @@
 {
   "name": "extractor",
   "version": "1.0.0",
-  "description": "LinkHub local activity extractor — turns local git history and Claude Code sessions into hashed, aggregated activity metadata you review before anything is uploaded.",
+  "description": "CraftHub local activity extractor — turns local git history and Claude Code sessions into hashed, aggregated activity metadata you review before anything is uploaded.",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "linkhub-extract": "dist/bin/linkhub-extract.js",
-    "linkhub-hook": "dist/bin/linkhub-hook.js"
+    "crafthub-extract": "dist/bin/crafthub-extract.js",
+    "crafthub-hook": "dist/bin/crafthub-hook.js"
   },
   "scripts": {
     "dev": "tsc -p tsconfig.build.json --watch",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/bin/linkhub-extract.js",
+    "start": "node dist/bin/crafthub-extract.js",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage"
   },
   "keywords": [
-    "linkhub",
+    "crafthub",
     "git",
     "privacy",
     "claude-code",

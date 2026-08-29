@@ -20,6 +20,12 @@ export class CryptoTokenProvider implements ITokenProvider {
     };
   }
 
+  generateOpaqueToken(): string {
+    // 32 bytes -> 43 base64url chars. Comfortably past guessing, and safe in a
+    // URL without any encoding of its own.
+    return randomBytes(32).toString("base64url");
+  }
+
   hash(token: string): string {
     return createHash("sha256").update(token).digest("hex");
   }

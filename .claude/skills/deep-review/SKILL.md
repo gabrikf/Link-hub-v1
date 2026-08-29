@@ -3,7 +3,7 @@ name: deep-review
 description: >-
   Deep review of branch diffs, GitHub PRs or the working tree at any size, judged
   against this repo's own rubric (root and per-workspace AGENTS.md, DESIGN.md, and
-  the local skills) and against LinkHub's six review priorities — @repo/schemas
+  the local skills) and against CraftHub's six review priorities — @repo/schemas
   contract drift, disclosure-policy leaks, missing dark-mode variants, Drizzle N+1
   queries, unbounded OpenAI spend, and missing four-state UI handling. Use when the
   user asks for a CodeRabbit-grade review, an incremental re-review after new
@@ -48,7 +48,7 @@ Optional repo-root file, the skill-native config standard. Any key absent there 
 
 The manifest builder resolves `path_filters` into manifest.json; the knowledge stage ingests `path_instructions` together with project instructions and skills.
 
-## LinkHub: runtime, rubric sources, priorities, and artifacts
+## CraftHub: runtime, rubric sources, priorities, and artifacts
 
 **Runtime — `native` is the only supported one here.** The upstream `--subagent claude-opus|grok|codex` values dispatch through `compozy exec`, and `compozy` is not installed in this repo (`command -v compozy` → nothing). Those values are removed from the flag list above and from the argument hint; **do not pass `--subagent`**. Step 3 runs on the Workflow/Agent engines in `references/orchestration.md`. If `compozy` is ever installed, verify it first and only then read `references/subagent-runtimes.md`.
 
@@ -58,13 +58,13 @@ The manifest builder resolves `path_filters` into manifest.json; the knowledge s
 |---|---|---|
 | `AGENTS.md` (repo root) | auto-discovered | The project law across all workspaces |
 | `apps/api/AGENTS.md`, `apps/web/AGENTS.md` | auto-discovered (nested) | Per-workspace depth. Scope each to its own directory subtree — do not fold them into the root entry |
-| `.claude/skills/*/SKILL.md` | auto-discovered | Domain law per area — `testing-boss` (test shape and where a test belongs), `no-workarounds` (fix shape, the W-31…W-36 LinkHub catalog), `context7-usage` (which library APIs must not be written from memory) |
-| **`DESIGN.md`** (repo root) | **add manually**, scope to `apps/web/**` | LinkHub's design language: tokens, typography, spacing, elevation, motion, and the light/dark pairing. A hardcoded color or a missing dark-mode variant is a defect against it |
+| `.claude/skills/*/SKILL.md` | auto-discovered | Domain law per area — `testing-boss` (test shape and where a test belongs), `no-workarounds` (fix shape, the W-31…W-36 CraftHub catalog), `context7-usage` (which library APIs must not be written from memory) |
+| **`DESIGN.md`** (repo root) | **add manually**, scope to `apps/web/**` | CraftHub's design language: tokens, typography, spacing, elevation, motion, and the light/dark pairing. A hardcoded color or a missing dark-mode variant is a defect against it |
 | **`README.md`** (repo root) | **add manually**, low yield | Orientation: workspace boundaries and which parts are recorded debt. Read it so a finding does not "discover" something already written down |
 
-**The six LinkHub review priorities** — contract drift against `@repo/schemas`, disclosure-policy leaks, missing dark-mode variants, N+1 queries through Drizzle, unbounded OpenAI spend, and missing four-state UI handling — are defined with their severity calibration at the end of `references/taxonomy.md`. Every defect cohort checks all six against its scope. `references/context-pack.md` carries the architecture model and the recorded-debt list a reviewer needs before extracting rules.
+**The six CraftHub review priorities** — contract drift against `@repo/schemas`, disclosure-policy leaks, missing dark-mode variants, N+1 queries through Drizzle, unbounded OpenAI spend, and missing four-state UI handling — are defined with their severity calibration at the end of `references/taxonomy.md`. Every defect cohort checks all six against its scope. `references/context-pack.md` carries the architecture model and the recorded-debt list a reviewer needs before extracting rules.
 
-**Do not report a missing `t()` call or any i18n gap.** LinkHub has no i18n layer: `<html lang="en">` and all user-visible strings are hardcoded English, by decision. A finding that asks for translation infrastructure is a finding against the reviewer.
+**Do not report a missing `t()` call or any i18n gap.** CraftHub has no i18n layer: `<html lang="en">` and all user-visible strings are hardcoded English, by decision. A finding that asks for translation infrastructure is a finding against the reviewer.
 
 **Linter lanes here** (from the repo root, in this order):
 
@@ -90,7 +90,7 @@ Findings from those lanes are recorded as `linter-overlap`, never re-reported as
 - Cite rubric rules verbatim with their source path; severity comes from the taxonomy, never inflated.
 - Publishing needs `--publish` or the user's explicit go-ahead in this session; otherwise the review stays local. **This repo is on GitHub**, so `--pr` and `--publish` both apply — they need an authenticated `gh`. Resolve `owner/repo` from the checkout (`gh repo view --json nameWithOwner --jq .nameWithOwner`), never from memory. Default branch is `main`.
 - Every review ends with a **SHIP / FIX_BEFORE_SHIP / REWORK** verdict derived by render_review.py and stated only after that script exits 0.
-- Step 3 runs on the `native` runtime; `--subagent` is unavailable in this repo (see "LinkHub: runtime, rubric sources, priorities, and artifacts").
+- Step 3 runs on the `native` runtime; `--subagent` is unavailable in this repo (see "CraftHub: runtime, rubric sources, priorities, and artifacts").
 - Run `npm run build:schemas` before any lane that type-checks. A fresh tree fails against a missing `packages/schemas/dist/` for reasons unrelated to the diff, and that failure is `unavailable`, not a wall of findings.
 
 ## Procedure
