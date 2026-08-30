@@ -27,9 +27,11 @@ type ThemeToggleProps = {
   theme: Theme;
   onToggle: () => void;
   /**
-   * `bar` is the pill that sits in the header row. `menu` is the full-width
-   * labelled row inside the mobile dropdown, where a 36px sliding switch is
-   * both too small for a thumb and carries no words at all.
+   * `bar` is the 64px pill that sits in the header row. `menu` is the
+   * full-width switch inside the mobile sheet: the same sliding knob, stretched
+   * to the width of the drawer so the thumb gets a 44px row, and labelled —
+   * the bar's pill carries no words at all, which is affordable next to five
+   * other controls and is not on a screen a user opened to change a setting.
    */
   variant?: "bar" | "menu";
 };
@@ -53,22 +55,114 @@ export function ThemeToggle({
   });
 
   if (variant === "menu") {
+    /*
+     * A SWITCH WEARING THE ROW IT REPLACED.
+     *
+     * Same `Button variant="outline"`, same `fullWidth`, same 44px height,
+     * same `rounded-md`, same sentence — the outer control is byte-for-byte
+     * the row that shipped before, which is why it is still the `Button`
+     * component rather than a hand-rolled div wearing the outline classes.
+     * What changed is the inside: the static leading icon became a violet knob
+     * that slides from one end of the row to the other, carrying the sun or
+     * the moon with it.
+     *
+     * WHY THE KNOB MOVES WITH `left` AND NOT `translate-x`. A transform
+     * percentage resolves against the ELEMENT's own width, so a 36px knob can
+     * only be told to move in 36px steps — and the distance it has to travel
+     * is "the track, minus itself", a number this component never sees. The
+     * alternatives were a container query (`cqw`) or measuring the button in
+     * an effect. `left` states the geometry in one line
+     * (`calc(100% - 2.5rem)` = full width, less the knob and both 4px insets)
+     * and animates natively; the compositor cost of one 300ms toggle on one
+     * 36px box is not worth a ResizeObserver.
+     *
+     * WHAT THE POSITION SAYS. The old row showed one icon — the destination —
+     * so nothing on it answered "which theme am I in". The knob's SIDE answers
+     * that now (sun end for light, moon end for dark) and the sentence keeps
+     * answering the other question, "what happens if I press this". Those are
+     * two different questions and they were sharing one icon.
+     */
     return (
       <Button
         type="button"
         variant="outline"
         fullWidth
         // h-11: a 44px row, which is what a thumb needs. The default `md` size
-        // is 40px and this list is only ever touched on a phone.
-        className="h-11 justify-start"
+        // is 40px and this list is only ever touched on a phone. `px-1` gives
+        // the knob its 4px inset; `overflow-hidden` keeps its corners inside
+        // the button's `rounded-md`.
+        className="relative h-11 overflow-hidden px-1"
         onClick={onToggle}
       >
-        {isDark ? (
-          <FiSun className="h-4 w-4 shrink-0" aria-hidden="true" />
-        ) : (
-          <FiMoon className="h-4 w-4 shrink-0" aria-hidden="true" />
-        )}
-        {label}
+        {/*
+          The knob, and the only icon on the control. `rounded-md` to match the
+          button it lives in — a pill inside a square-ish row reads as a
+          foreign part.
+
+          BOTH ICONS PARKED AT THE TWO ENDS was the first draft, and it is the
+          version that looks best in a screenshot. It cost the label 80px of
+          gutter, and measured at every phone width in
+          `scripts/visual/scenarios/` the longest string in the catalogue
+          ("Mudar para o tema escuro", 174px at `text-sm`) was then clipped at
+          320px AND at 360px — a Galaxy A-series, not an exotic device. One
+          knob gives that 40px back and the sentence fits from 320px up. The
+          two icons are still both here; they take turns in the knob instead of
+          standing at the ends.
+        */}
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute top-1 flex h-9 w-9 items-center justify-center rounded-md bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-sm transition-[left] duration-300 ease-out motion-reduce:transition-none dark:from-violet-500 dark:to-violet-600 ${
+            isDark ? "left-[calc(100%-2.5rem)]" : "left-1"
+          }`}
+        >
+          {/*
+            Stacked and cross-faded rather than swapped by a ternary: a
+            ternary would pop the new icon in at full size the instant the
+            state flips, half a beat before the knob has finished travelling.
+            Rotating them past each other keeps the two halves of the gesture
+            on the same clock.
+          */}
+          <FiSun
+            className={`absolute h-4 w-4 transition duration-300 motion-reduce:transition-none ${
+              isDark
+                ? "rotate-90 scale-50 opacity-0"
+                : "rotate-0 scale-100 opacity-100"
+            }`}
+          />
+          <FiMoon
+            className={`absolute h-4 w-4 transition duration-300 motion-reduce:transition-none ${
+              isDark
+                ? "rotate-0 scale-100 opacity-100"
+                : "-rotate-90 scale-50 opacity-0"
+            }`}
+          />
+        </span>
+
+        {/*
+          The only in-flow child, so `Button`'s own `justify-center` centres
+          it. The padding is what keeps it off the knob, and it swaps sides on
+          the same 300ms as the travel — the sentence slides out of the knob's
+          way rather than being jumped over. It also stays the accessible name:
+          no `aria-label` here, which would be a second copy of this same
+          string to drift.
+
+          The far side is `p*-0` and not `p*-1`, which looks like a typo and
+          is not: `Button` already contributes `px-1`, so the text still clears
+          the border by 4px, and the 4px reclaimed here is exactly what puts
+          "Mudar para o tema escuro" inside a 320px screen instead of 2px
+          outside one. Measured, not guessed.
+
+          `truncate` is the honest failure mode rather than a wrap: a second
+          line inside a fixed 44px row is not a smaller label, it is a broken
+          one.
+        */}
+        <span
+          className={`relative min-w-0 flex-1 truncate text-center transition-[padding] duration-300 ease-out motion-reduce:transition-none ${
+            isDark ? "pr-10 pl-0" : "pr-0 pl-10"
+          }`}
+        >
+          {label}
+        </span>
       </Button>
     );
   }

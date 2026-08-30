@@ -76,6 +76,13 @@ scripts/visual/scenarios/*.scenario.mjs
 # survives the database, the API response and the schema parse on its way to a
 # logged-out stranger — which is the whole point of the feature.
 !scripts/visual/scenarios/profile-tabs-toggle.scenario.mjs
+# Nor is the mobile header. Its unit tests can assert the CLASSES on the
+# hamburger and the switch, but jsdom has no layout and no stylesheet: only a
+# real browser can say the hamburger computes to zero border and the bar's ink
+# in both themes, and only a real browser can measure whether "Mudar para o
+# tema escuro" still fits beside the knob at 320px. That measurement is what
+# fixes the knob's gutter at 40px, so it needs to fail if anyone widens it.
+!scripts/visual/scenarios/mobile-header.scenario.mjs
 
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.

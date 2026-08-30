@@ -29,7 +29,7 @@ import { useUserInfoStore } from "../lib/user-info-store";
 import { BrandLogo } from "./brand-logo";
 import { Button } from "./button";
 import { LanguageToggle } from "./language-toggle";
-import { FOCUS_RING_PAGE } from "./surface";
+import { FOCUS_RING_FIELD, FOCUS_RING_PAGE } from "./surface";
 import { ThemeToggle } from "./theme-toggle";
 
 type TopBarNavProps = {
@@ -539,16 +539,51 @@ export function TopBarNav({ theme, onToggleTheme }: TopBarNavProps) {
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
 
-          {/* Mobile hamburger — the only control in the header below `md`. */}
-          <Button
+          {/*
+            Mobile hamburger — the only control in the header below `md`.
+
+            A BARE GLYPH, not a bordered chip. It used to be `Button
+            variant="icon"`, which paints a 44px white square with a zinc
+            border around three lines; on a phone that square is the loudest
+            thing in the bar and it is drawn around the one control that needs
+            no explaining. Instagram, X and YouTube all render this as the icon
+            alone, and that is what this is now: no border, no fill, no ring
+            until it is focused.
+
+            A plain `button` rather than `Button variant="ghost"`, because the
+            colour here has to be exact — `text-zinc-900` / `dark:text-white`,
+            the ink of the bar rather than the muted zinc a ghost button uses —
+            and overriding a variant's `text-*` through `className` is decided
+            by stylesheet order, not by which class is written last. Stating
+            the element outright is the honest version. `LanguageToggle` next
+            door is a plain `button` for the same reason.
+
+            The 44px hit area stays; only the paint is gone. `h-6 w-6` for the
+            glyph rather than the `h-5 w-5` of DESIGN.md §9's standalone icon
+            buttons: those sit inside a bordered box that gives them presence,
+            this one has nothing but itself, and 24px is the size Instagram
+            draws. `-mr-1.5` pulls it toward the screen edge to sit optically
+            in the 16px gutter — the icon's own transparent padding otherwise
+            reads as 26px of margin.
+
+            `FOCUS_RING_FIELD`, NOT `FOCUS_RING_PAGE`, and that is the point of
+            the whole change rather than a detail of it. The ring itself stays
+            — DESIGN.md §5 does not bargain, and closing the sheet hands focus
+            straight back here, so a keyboard user must be able to see where
+            they landed. What goes is the OFFSET: `ring-offset-2` paints a
+            solid 2px ring in the offset colour before the violet one, and that
+            filled halo is a circle around the hamburger. It was also the wrong
+            colour — `FOCUS_RING_PAGE` offsets against `zinc-100`/`zinc-950`,
+            the PAGE, while this control sits on the bar's `white/80`. The
+            field ring is the one constant in `surface.ts` with no offset at
+            all, which is exactly right for a control that has no box: the
+            violet ring hugs the glyph, on keyboard focus only, and nothing is
+            drawn at rest.
+          */}
+          <button
             type="button"
             id={menuButtonId}
-            variant="icon"
-            size="icon"
-            fullWidth={false}
-            // 44px, overriding `size="icon"`'s 36px square: this is the one
-            // control a phone user has to hit, every time.
-            className="h-11 w-11 rounded-full md:hidden"
+            className={`-mr-1.5 inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-zinc-900 transition-transform active:scale-90 motion-reduce:transition-none md:hidden dark:text-white ${FOCUS_RING_FIELD}`}
             /*
              * It stays "Open menu" while the sheet is open, and it stays a
              * hamburger. The old dropdown left this control visible and on top,
@@ -563,8 +598,8 @@ export function TopBarNav({ theme, onToggleTheme }: TopBarNavProps) {
             aria-controls={menuId}
             onClick={() => setIsMobileMenuOpen((open) => !open)}
           >
-            <FiMenu className="h-5 w-5" aria-hidden="true" />
-          </Button>
+            <FiMenu className="h-6 w-6" aria-hidden="true" />
+          </button>
         </div>
       </header>
 
