@@ -3,12 +3,33 @@ type BrandLogoProps = {
 };
 
 /**
- * Professional CraftHub mark: a connected "hub" of nodes inside a rounded
- * gradient tile. Sized via the wrapper `className` (defaults to h-9 w-9).
+ * The CraftHub mark: a connected hub of nodes on a violet gradient disc.
+ *
+ * IT IS A CIRCLE, and that is a bug fix rather than a taste call.
+ *
+ * The tile used to be a `rx="8.5"` rounded SQUARE (a 26% radius on a 32-unit
+ * box) drawn inside a bare `inline-block` span, and every call site added
+ * `shadow-sm`. A CSS shadow is cast from the element's border box, so the span
+ * painted a hard rectangular shadow around a mark whose own corners were
+ * rounded — the square read straight through, which is exactly what "I don't
+ * want to see the square" describes. The same border box also produced a
+ * visible corner step wherever a caller put a background or a ring behind it.
+ *
+ * Two things stop that coming back:
+ *
+ * 1. The artwork is a full circle (`r="16"` on a 32-unit box), so there is no
+ *    square silhouette left to reveal.
+ * 2. The wrapper carries `rounded-full` itself, so any shadow, ring or
+ *    background a CALLER adds follows the artwork instead of boxing it in.
+ *
+ * Sized entirely by the wrapper `className`.
  */
-export function BrandLogo({ className = "h-9 w-9" }: BrandLogoProps) {
+export function BrandLogo({ className = "h-8 w-8" }: BrandLogoProps) {
   return (
-    <span className={`inline-block ${className}`} aria-hidden="true">
+    <span
+      className={`inline-block overflow-hidden rounded-full ${className}`}
+      aria-hidden="true"
+    >
       <svg
         viewBox="0 0 32 32"
         fill="none"
@@ -29,7 +50,7 @@ export function BrandLogo({ className = "h-9 w-9" }: BrandLogoProps) {
           </linearGradient>
         </defs>
 
-        <rect width="32" height="32" rx="8.5" fill="url(#crafthub-brand-gradient)" />
+        <circle cx="16" cy="16" r="16" fill="url(#crafthub-brand-gradient)" />
 
         {/* connections */}
         <g
@@ -38,17 +59,17 @@ export function BrandLogo({ className = "h-9 w-9" }: BrandLogoProps) {
           strokeLinecap="round"
           opacity="0.92"
         >
-          <line x1="16" y1="16" x2="16" y2="8" />
-          <line x1="16" y1="16" x2="9" y2="23" />
-          <line x1="16" y1="16" x2="23" y2="23" />
+          <line x1="16" y1="16" x2="16" y2="8.5" />
+          <line x1="16" y1="16" x2="9.5" y2="22.5" />
+          <line x1="16" y1="16" x2="22.5" y2="22.5" />
         </g>
 
         {/* nodes */}
         <g fill="#FFFFFF">
           <circle cx="16" cy="16" r="3.1" />
-          <circle cx="16" cy="8" r="2.3" />
-          <circle cx="9" cy="23" r="2.3" />
-          <circle cx="23" cy="23" r="2.3" />
+          <circle cx="16" cy="8.5" r="2.3" />
+          <circle cx="9.5" cy="22.5" r="2.3" />
+          <circle cx="22.5" cy="22.5" r="2.3" />
         </g>
       </svg>
     </span>

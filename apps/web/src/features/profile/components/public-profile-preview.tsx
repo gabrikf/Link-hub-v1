@@ -34,6 +34,8 @@ type PublicProfilePreviewProps = {
     openToWork?: boolean;
     location?: string | null;
     persona?: Persona | null;
+    /** The owner's own words for their role, when `persona` is "other". */
+    personaOther?: string | null;
   };
   links: LinkResponse[];
   resume: ResumeResponse | PublicResumeResponse | null;
@@ -42,11 +44,15 @@ type PublicProfilePreviewProps = {
   workLoading?: boolean;
   linksLoading?: boolean;
   /**
-   * Explicit device-frame width in pixels. When set, the preview renders inside
-   * a fixed-width (centred) frame instead of the fluid `w-full`/`max-w-sm`
-   * behaviour — used by the layout studio's preview modal to show a realistic
-   * phone width for mobile and a wide frame for desktop. Optional so existing
-   * callers keep working unchanged.
+   * Nominal device-screen width in pixels. When set, the preview renders inside
+   * a centred phone mock at most this wide instead of the fluid
+   * `w-full`/`max-w-sm` behaviour — used by the layout studio's preview modal
+   * to show a realistic phone width for mobile and a wide frame for desktop.
+   * Optional so existing callers keep working unchanged.
+   *
+   * A MAXIMUM, not a fixed width: the mock shrinks to whatever room the parent
+   * gives it. It has to, because the parent is a 96vw modal and this number is
+   * 390 — on a 375px phone the mock is wider than the dialog that holds it.
    */
   frameWidth?: number;
   /**
@@ -86,9 +92,9 @@ export function PublicProfilePreview({
       <ProfileCover
         compact
         bannerImageUrl={profile.bannerImageUrl ?? null}
-        openToWork={profile.openToWork ?? false}
         location={profile.location ?? null}
         persona={profile.persona ?? null}
+        personaOther={profile.personaOther ?? null}
       />
 
       <div className="-mt-10 p-4">
@@ -110,14 +116,28 @@ export function PublicProfilePreview({
   );
 
   if (isPhone) {
-    // Realistic phone: dark bezel, notch, home indicator, centred. The screen
-    // scrolls inside the device. `maxWidth: 100%` keeps it inside the modal on
-    // narrow viewports.
+    /*
+     * Realistic phone: dark bezel, notch, home indicator, centred. The screen
+     * scrolls inside the device.
+     *
+     * `width` is the ASK and `maxWidth: 100%` is the rule that wins, so the
+     * mock never exceeds the box it was handed. That clamp only works while
+     * this component's own root can shrink — hence `w-full` on the wrapper
+     * rather than letting it size to the 410px mock. Inside a shrink-to-fit
+     * parent (a centred flex item, an `inline-block`) `100%` resolves against
+     * the mock's own max-content width, the clamp becomes a no-op, and the
+     * mock bleeds off BOTH sides of a 375px modal — the lateral cropping this
+     * `w-full` exists to prevent.
+     *
+     * `min-w-0` for the same reason: a flex item defaults to `min-width: auto`
+     * and refuses to shrink below its content, which would re-create the bug
+     * for any caller that does put this in a flex row.
+     */
     const screenWidth = frameWidth ?? 390;
     return (
-      <div className="space-y-3">
+      <div className="w-full min-w-0 space-y-3">
         <div
-          className="mx-auto rounded-[2.75rem] border border-zinc-300 bg-linear-to-b from-zinc-800 to-zinc-950 p-2.5 shadow-2xl ring-1 ring-black/10 dark:border-zinc-700"
+          className="mx-auto rounded-[2.75rem] border border-zinc-300 bg-linear-to-b from-zinc-800 to-zinc-950 p-1.5 shadow-2xl ring-1 ring-black/10 sm:p-2.5 dark:border-zinc-700"
           style={{ width: screenWidth + 20, maxWidth: "100%" }}
         >
           <div className="relative overflow-hidden rounded-[2.2rem] bg-black">
@@ -131,7 +151,10 @@ export function PublicProfilePreview({
                 theme.className,
                 // `pt-6` (= the z-20 notch height) keeps the banner top / top
                 // badges from hiding under the notch when scrolled to the top.
-                "max-h-[70vh] overflow-y-auto pt-6 bg-linear-to-b from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-900",
+                // `svh`, not `vh`: `vh` resolves against the LARGE viewport, so
+                // on a phone the bottom of the preview sat under the browser
+                // chrome inside an already body-scroll-locked dialog.
+                "max-h-[70svh] overflow-y-auto pt-6 bg-linear-to-b from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-900",
               ].join(" ")}
               style={theme.style}
             >
@@ -144,7 +167,7 @@ export function PublicProfilePreview({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="w-full min-w-0 space-y-3">
       {framed ? null : (
         <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200">
           <FiEye className="h-3.5 w-3.5" aria-hidden="true" />
@@ -155,10 +178,14 @@ export function PublicProfilePreview({
       <div
         className={[
           theme.className,
-          "mx-auto max-h-[70vh] overflow-hidden overflow-y-auto rounded-3xl border-2 border-zinc-200 bg-linear-to-b from-white to-zinc-50 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900",
-          framed ? "max-h-[72vh] w-full shadow-xl" : "w-full",
+          // `svh` over `vh` — see the phone branch above.
+          "mx-auto max-h-[70svh] overflow-hidden overflow-y-auto rounded-3xl border-2 border-zinc-200 bg-linear-to-b from-white to-zinc-50 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900",
+          framed ? "max-h-[72svh] w-full shadow-xl" : "w-full",
         ].join(" ")}
-        style={theme.style}
+        // `frameWidth` is a maximum here too, so a desktop preview renders at
+        // the canvas width a real visitor gets instead of stretching to fill a
+        // modal wider than any layout the editor can produce.
+        style={{ ...theme.style, maxWidth: frameWidth }}
       >
         {screen}
       </div>

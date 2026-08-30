@@ -46,6 +46,7 @@ export class DrizzleUserRepository implements IUsersRepository {
       tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
+      personaOther: user.personaOther,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
       emailVerifiedAt: user.emailVerifiedAt,
@@ -83,6 +84,7 @@ export class DrizzleUserRepository implements IUsersRepository {
       tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
+      personaOther: user.personaOther,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
       emailVerifiedAt: user.emailVerifiedAt,
@@ -114,6 +116,7 @@ export class DrizzleUserRepository implements IUsersRepository {
       tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
+      personaOther: user.personaOther,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
       emailVerifiedAt: user.emailVerifiedAt,
@@ -145,6 +148,7 @@ export class DrizzleUserRepository implements IUsersRepository {
       tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
+      personaOther: user.personaOther,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
       emailVerifiedAt: user.emailVerifiedAt,
@@ -179,6 +183,7 @@ export class DrizzleUserRepository implements IUsersRepository {
       tabsEnabledMobile: user.tabsEnabledMobile,
       location: user.location,
       persona: user.persona,
+      personaOther: user.personaOther,
       agentDisclosureLevel: user.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: user.agentBlockedTerms,
       emailVerifiedAt: user.emailVerifiedAt,
@@ -206,6 +211,7 @@ export class DrizzleUserRepository implements IUsersRepository {
         tabsEnabledMobile: user.tabsEnabledMobile,
         location: user.location,
         persona: user.persona,
+        personaOther: user.personaOther,
         agentDisclosureLevel: user.agentDisclosureLevel,
         agentBlockedTerms: user.agentBlockedTerms,
         password: user.password,
@@ -237,6 +243,7 @@ export class DrizzleUserRepository implements IUsersRepository {
       tabsEnabledMobile: updatedUser.tabsEnabledMobile,
       location: updatedUser.location,
       persona: updatedUser.persona,
+      personaOther: updatedUser.personaOther,
       agentDisclosureLevel:
         updatedUser.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: updatedUser.agentBlockedTerms,
@@ -260,9 +267,22 @@ export class DrizzleUserRepository implements IUsersRepository {
         description: user.description,
         avatarUrl: user.avatarUrl,
         backgroundImageUrl: user.backgroundImageUrl,
+        /**
+         * Written explicitly, from the entity.
+         *
+         * The column carries a default, but a column default is only reached by
+         * an insert that OMITS the column — and an omission is invisible, so it
+         * silently disagreed with `UserEntity.openToWork` for the lifetime of
+         * the returned object. Sending the entity's value makes the entity the
+         * single source of truth for a new account's discoverability, and makes
+         * "a new signup is findable" hold on its own rather than depending on a
+         * migration having been applied.
+         */
+        openToWork: user.openToWork,
         tabsEnabledPc: user.tabsEnabledPc,
         tabsEnabledMobile: user.tabsEnabledMobile,
         persona: user.persona,
+        personaOther: user.personaOther,
         emailVerifiedAt: user.emailVerifiedAt,
         googleId: user.googleId,
         createdAt: user.createdAt,
@@ -288,6 +308,7 @@ export class DrizzleUserRepository implements IUsersRepository {
       tabsEnabledMobile: createdUser.tabsEnabledMobile,
       location: createdUser.location,
       persona: createdUser.persona,
+      personaOther: createdUser.personaOther,
       agentDisclosureLevel:
         createdUser.agentDisclosureLevel as AgentDisclosureLevel,
       agentBlockedTerms: createdUser.agentBlockedTerms,

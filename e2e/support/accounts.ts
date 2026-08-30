@@ -57,9 +57,19 @@ export function uniqueSuffix(): string {
  * runs journeys back to back against one database that is never reset between
  * iterations, so two journeys editing the same profile would make each other
  * flaky in a way that looks like a product bug.
+ *
+ * These indices are NOT arbitrary, and picking a round number breaks the suite.
+ * `seed-realistic.ts` walks its 300 users assigning families round-robin, so a
+ * given family only ever lands on a stride — go-sre gets 007, 036, 065, … and
+ * never 026. The previous values here (040 / 026 / 042) were from an older
+ * seed and only kept resolving because the dev database had accumulated rows
+ * across several seed generations; against a freshly seeded database every
+ * journey that used them failed to log in with a 401 that looked like an auth
+ * bug. If you change the family mix or the user count in seed-realistic.ts,
+ * re-derive these three from the database rather than guessing an index.
  */
 export const JOURNEY_ACCOUNTS = {
-  posts: { email: "seed.node-backend.040@crafthub.local", password: SEED_PASSWORD, login: "seed-node-backend-040" },
-  links: { email: "seed.go-sre.026@crafthub.local", password: SEED_PASSWORD, login: "seed-go-sre-026" },
-  appearance: { email: "seed.python-data.042@crafthub.local", password: SEED_PASSWORD, login: "seed-python-data-042" },
+  posts: { email: "seed.node-backend.002@crafthub.local", password: SEED_PASSWORD, login: "seed-node-backend-002" },
+  links: { email: "seed.go-sre.007@crafthub.local", password: SEED_PASSWORD, login: "seed-go-sre-007" },
+  appearance: { email: "seed.python-data.004@crafthub.local", password: SEED_PASSWORD, login: "seed-python-data-004" },
 } as const;

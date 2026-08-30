@@ -100,6 +100,25 @@ const hardLoad = async (path: string) => {
   await waitFor(() => expect(rendered.length).toBeGreaterThan(0));
 };
 
+/**
+ * The same hard load, for the paths where NOTHING is supposed to render.
+ *
+ * `hardLoad` waits for a page stub to appear, which is exactly the wrong wait
+ * when the expected outcome is the router's not-found screen: it would time out
+ * and report a hang instead of the failure. This waits for the 404 screen
+ * itself, so "no page rendered" is a claim rather than a timeout.
+ */
+const hardLoadNotFound = async (path: string) => {
+  await router.navigate({ to: path, replace: true });
+  await router.load();
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("Page not found")).toBeInTheDocument();
+};
+
 beforeEach(() => {
   rendered.length = 0;
   queryClient.clear();
@@ -156,9 +175,11 @@ describe("route guards — a signed-out visitor", () => {
   /**
    * The public profile is the product's shareable artefact. A stranger with no
    * session has to reach it, so it must be the one route no guard touches.
+   *
+   * `/ada`, not `/profile/ada`: the short URL is now the ONLY profile URL.
    */
   it("still reaches a public profile", async () => {
-    await hardLoad("/profile/ada");
+    await hardLoad("/ada");
 
     expect(await screen.findByText("public-profile-page")).toBeInTheDocument();
     expect(rendered).not.toContain("auth-page");
@@ -221,5 +242,84 @@ describe("route guards — the email-link routes", () => {
 
     expect(await screen.findByText("verify-email-page")).toBeInTheDocument();
     expect(router.state.location.search).toEqual({ token: "abc123" });
+  });
+});
+
+/**
+ * `/$username` is a root-level CATCH-ALL, which is the whole risk of the short
+ * URL. These are the assertions that fail if it ever starts eating the app.
+ */
+describe("the short profile URL", () => {
+  it("no longer serves the old `/profile/:username` path", async () => {
+    // Two segments, and nothing declares a two-segment route here — so the
+    // one-segment catch-all cannot match it either. Every already-shared
+    // `/profile/*` link lands on the router's not-found screen from now on.
+    await hardLoadNotFound("/profile/ada");
+
+    expect(rendered).not.toContain("public-profile-page");
+    expect(router.state.location.pathname).toBe("/profile/ada");
+  });
+
+  /**
+   * The ranking claim, stated as a test rather than as a comment: TanStack
+   * Router scores a static segment above a dynamic one, so every app route
+   * survives a sibling that matches anything.
+   *
+   * Signed in, because five of the six are behind `requireSession` and a
+   * bounce to the auth page would make the assertion vacuous.
+   */
+  it.each([
+    ["/dashboard", "dashboard-page"],
+    ["/dashboard/search", "advanced-search-page"],
+    ["/dashboard/layout", "profile-layout-page"],
+    ["/dashboard/posts", "posts-page"],
+    ["/dashboard/settings", "settings-page"],
+  ])("still resolves %s as an app route", async (path, page) => {
+    setAuthTokens({ accessToken: "a", refreshToken: "r" });
+    signIn();
+
+    await hardLoad(path);
+
+    expect(await screen.findByText(page)).toBeInTheDocument();
+    expect(rendered).not.toContain("public-profile-page");
+  });
+
+  it.each([
+    ["/verify-email", "verify-email-page"],
+    ["/reset-password", "reset-password-page"],
+    ["/forgot-password", "forgot-password-page"],
+  ])("still resolves %s with no session", async (path, page) => {
+    await hardLoad(path);
+
+    expect(await screen.findByText(page)).toBeInTheDocument();
+    expect(rendered).not.toContain("public-profile-page");
+  });
+
+  /**
+   * A reserved word can never belong to anybody, so asking the API about a user
+   * called "login" would be a request whose answer we already know — answered
+   * with the wrong screen. `beforeLoad` throws `notFound()` first, and the
+   * profile chunk is never even requested.
+   */
+  it.each(["/login", "/admin", "/ADMIN", "/support"])(
+    "renders the app's not-found screen for the reserved path %s",
+    async (path) => {
+      await hardLoadNotFound(path);
+
+      expect(rendered).not.toContain("public-profile-page");
+    },
+  );
+
+  /**
+   * The flip side, and the deliberate trade: a typo'd app route is now a
+   * username lookup. `/dashbord` reaches the profile page, which renders its
+   * own "profile not found" state once the API answers 404. Nothing crashes,
+   * and no guard bounces the visitor.
+   */
+  it("treats an unknown one-segment path as a username", async () => {
+    await hardLoad("/dashbord");
+
+    expect(await screen.findByText("public-profile-page")).toBeInTheDocument();
+    expect(rendered).not.toContain("auth-page");
   });
 });

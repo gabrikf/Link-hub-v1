@@ -59,6 +59,86 @@ export const PROFILE_CANVAS_WIDTH: Record<ProfileViewport, number> = {
 export const GRID_ROW_HEIGHT = 40;
 export const GRID_GAP = 12;
 
+/**
+ * The narrowest a single grid COLUMN may be rendered, in px.
+ *
+ * `PROFILE_CANVAS_WIDTH` is a maximum, and letting the canvas shrink freely
+ * below it is what made the editor unusable on a phone: a 12-column pc canvas
+ * inside a 375px screen is ~15px per column, so a drag cannot be aimed and a
+ * resize handle cannot be hit. 44px is the WCAG 2.5.8 touch-target floor —
+ * below it the grid is not something a finger can operate.
+ */
+export const MIN_GRID_COLUMN_WIDTH = 44;
+
+/**
+ * The narrowest this viewport's canvas may be rendered before it starts
+ * SCROLLING sideways instead of shrinking further.
+ *
+ * Above it the canvas stays fluid exactly as before (a 900px desktop window
+ * still gets a fluid ~800px pc canvas). Below it the canvas keeps its width and
+ * its own container scrolls rather than collapsing to columns too narrow to
+ * aim at. Never larger than the canvas maximum, so this can only ever widen a
+ * canvas that was about to collapse.
+ *
+ * This is a FLOOR, not a phone-editing strategy. It once justified editing the
+ * 12-column pc canvas (660px) from a 375px phone; that is no longer offered —
+ * the studio only edits the pc layout at 1024px and up. mobile: 4 columns *
+ * 44px + 3 * 12px gutter = 212px, narrower than any phone's content box, so the
+ * MOBILE canvas never scrolls on a phone.
+ */
+export function minCanvasWidth(viewport: ProfileViewport): number {
+  const cols = GRID_COLUMNS[viewport];
+  return Math.min(
+    PROFILE_CANVAS_WIDTH[viewport],
+    cols * MIN_GRID_COLUMN_WIDTH + (cols - 1) * GRID_GAP,
+  );
+}
+
+/**
+ * The one breakpoint that decides "this screen renders the MOBILE layout".
+ *
+ * Shared by the public profile (which layout a visitor is served) and the
+ * layout studio (which layout it opens on). Forking the literal is how the
+ * editor ends up defaulting to a viewport the phone will never render.
+ */
+export const MOBILE_VIEWPORT_QUERY = "(max-width: 1023px)";
+
+/**
+ * A touch screen, as CSS sees it. The studio uses it to switch drag from
+ * "grab the whole card" (precise under a mouse) to "grab the grip" (so the
+ * PAGE can still be scrolled with a finger — see `EditorGrid`), and to reveal
+ * the explicit move/resize buttons on each block card.
+ */
+export const COARSE_POINTER_QUERY = "(pointer: coarse)";
+
+const canMatchMedia = () =>
+  typeof window !== "undefined" && typeof window.matchMedia === "function";
+
+/**
+ * `matchMedia` as a `useSyncExternalStore` source: `[subscribe, getSnapshot]`
+ * for one query, both stable across renders so the store is not re-subscribed
+ * on every render. Falls back to `false` wherever `matchMedia` is absent
+ * (SSR, jsdom), which is the desktop branch everywhere it is used.
+ */
+export function mediaQueryStore(query: string): {
+  subscribe: (onChange: () => void) => () => void;
+  getSnapshot: () => boolean;
+  getServerSnapshot: () => boolean;
+} {
+  return {
+    subscribe: (onChange: () => void) => {
+      if (!canMatchMedia()) {
+        return () => {};
+      }
+      const mediaQuery = window.matchMedia(query);
+      mediaQuery.addEventListener("change", onChange);
+      return () => mediaQuery.removeEventListener("change", onChange);
+    },
+    getSnapshot: () => (canMatchMedia() ? window.matchMedia(query).matches : false),
+    getServerSnapshot: () => false,
+  };
+}
+
 /** Pick which viewport's layout to show from the "is this a narrow screen?" flag. */
 export function pickViewport(isMobile: boolean): ProfileViewport {
   return isMobile ? "mobile" : "pc";
@@ -91,8 +171,23 @@ export function buildDefaultLayout(viewport: ProfileViewport): ProfileLayout {
   return {
     tabs: [{ id: tabId, title: DEFAULT_TAB_TITLE, order: 0 }],
     blocks,
-    // The fallback stands in for a profile that has never been arranged, and
-    // every profile starts with its tab strip on.
+    /*
+     * TRUE — deliberately NOT `DEFAULT_TABS_ENABLED`, which is false.
+     *
+     * These are two different questions. `DEFAULT_TABS_ENABLED` is what a
+     * BRAND-NEW account is created with, and the server records it on the user
+     * row. This function is a LEGACY fallback: it fires for a stored profile
+     * whose response carries no layout at all, and it FABRICATES the default
+     * blocks — resume, work history, posts included.
+     *
+     * Reading false here would publish those fabricated blocks into a tab that
+     * is then not rendered, so a long-standing profile that has never been
+     * arranged would lose its resume and work history from the page overnight.
+     * A new account never reaches this branch: the server always answers it
+     * with a real seeded layout carrying its own `tabsEnabled: false`, and
+     * `resolveViewportLayout` only falls back when tabs are supposed to be
+     * there and are not.
+     */
     tabsEnabled: true,
   };
 }

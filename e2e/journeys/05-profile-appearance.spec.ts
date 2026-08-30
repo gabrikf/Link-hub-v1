@@ -14,14 +14,15 @@ import { expect, loginAs, test } from "../support/fixtures";
  *     open-to-work, persona, banner/background and the theme preset/accent.
  *   - `/dashboard/layout` — the block/grid studio (react-grid-layout).
  *
- * The public result is `/profile/<login>`.
+ * The public result is `/<login>` — the short URL, which is now the only
+ * public profile path.
  *
  * Everything mutating runs against JOURNEY_ACCOUNTS.appearance and is restored
  * in `afterAll`, so a nightly loop keeps finding the same starting state.
  */
 
 const ACCOUNT = JOURNEY_ACCOUNTS.appearance;
-const PUBLIC_PATH = `/profile/${ACCOUNT.login}`;
+const PUBLIC_PATH = `/${ACCOUNT.login}`;
 const API_ORIGIN = new URL(API_URL).origin;
 
 /** Must match USER_INFO_STORAGE_KEY in apps/web/src/lib/user-info-store.ts. */
@@ -69,6 +70,15 @@ async function signIn(
       string,
     ],
   );
+  /*
+   * Seeding localStorage is NOT enough once a session exists. `usePreferencesSync`
+   * applies the signed-in account's STORED preference over the local one, and the
+   * seeded accounts carry `theme: "system"` — which a headless browser resolves to
+   * light, silently undoing the line above. The server is authoritative for a
+   * signed-in user, so write the preference there too. This journey already owns
+   * (and mutates) this account, so there is no cross-journey bleed.
+   */
+  await api("/preferences", { method: "PUT", body: { theme } });
 }
 
 /** The public profile needs no session, but it does need a deterministic theme. */
@@ -144,6 +154,21 @@ async function api<T>(
 
 const readProfile = (): Promise<ProfileSnapshot> => api<ProfileSnapshot>("/me");
 const readLayout = (): Promise<FullLayout> => api<FullLayout>("/me/layout");
+
+/**
+ * Tabs are OFF for a new account now — that is the shipped default, changed so
+ * a new profile starts as photo + name + links rather than a tab strip nobody
+ * asked for. The tab chrome ("Add tab", "Add to tabs section") therefore does
+ * not exist until the owner opts in, so a journey that exercises tabs has to
+ * turn them on first instead of assuming a seeded account arrives with them.
+ * Doing it over the API keeps the setup out of the assertions.
+ */
+async function enablePcTabs(): Promise<void> {
+  await api("/me/layout/tabs-enabled", {
+    method: "PATCH",
+    body: { viewport: "pc", tabsEnabled: true },
+  });
+}
 
 function pcTabBlocks(layout: FullLayout, tabId: string): LayoutBlock[] {
   return layout.pc.blocks.filter(
@@ -483,7 +508,9 @@ async function gotoLayoutEditor(page: Page): Promise<void> {
   await expect(
     page.getByRole("heading", { name: "Profile layout" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add block" })).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Add to always-visible" }),
+  ).toBeEnabled();
 }
 
 /* ========================================================================== */
@@ -544,11 +571,13 @@ test("profile fields survive a reload and reach the public profile", async ({
   await expect(page.getByRole("heading", { level: 1 })).toContainText(NEW_NAME);
   await expect(page.getByText(NEW_BIO)).toBeVisible();
   await expect(page.getByText(NEW_LOCATION)).toBeVisible();
-  if (wasOpenToWork) {
-    await expect(page.getByText("Open to work")).toHaveCount(0);
-  } else {
-    await expect(page.getByText("Open to work")).toBeVisible();
-  }
+  /*
+   * The open-to-work badge is deliberately NOT on the public cover any more —
+   * the banner carries the role/location chip and Share, and nothing else. The
+   * flag itself still matters (it gates recruiter search), so this asserts the
+   * cover stays clean in BOTH states rather than dropping the coverage.
+   */
+  await expect(page.getByText("Open to work")).toHaveCount(0);
 
   expect(guard.errors, "console errors while editing the profile").toEqual([]);
 });
@@ -645,6 +674,7 @@ test("the layout editor adds, moves and removes a block without losing work", as
 }) => {
   await signIn(page);
   const log = recordApiRequests(page);
+  await enablePcTabs();
   await gotoLayoutEditor(page);
 
   const before = await readLayout();
@@ -653,7 +683,7 @@ test("the layout editor adds, moves and removes a block without losing work", as
   const blocksBefore = pcTabBlocks(before, tabId as string);
 
   /* ---------------------------------- add --------------------------------- */
-  await page.getByRole("button", { name: "Add block" }).click();
+  await page.getByRole("button", { name: "Add to tabs section" }).click();
   const addMenu = page.getByRole("menu", { name: "Add a custom block" });
   await addMenu.getByRole("button", { name: /^Text/ }).click();
 
@@ -767,6 +797,7 @@ test("the layout editor adds, moves and removes a block without losing work", as
 test("a block can be reordered vertically without a mouse", async ({ page }) => {
   await signIn(page);
   const log = recordApiRequests(page);
+  await enablePcTabs();
   await gotoLayoutEditor(page);
 
   const before = await readLayout();
@@ -844,6 +875,7 @@ test("the layout editor renders all four states", async ({ page }) => {
 
   /* --------------------------------- empty -------------------------------- */
   // A brand-new tab is the only genuinely empty zone this editor can reach.
+  await enablePcTabs();
   await gotoLayoutEditor(page);
   await page.getByRole("button", { name: "Add tab" }).click();
   await expect(page.getByText("This tab has no blocks yet.")).toBeVisible();
@@ -872,11 +904,17 @@ test("the layout editor renders all four states", async ({ page }) => {
     timeout: 30_000,
   });
 
-  // Observed behaviour: the editor falls back to `buildDefaultLayout()` and
-  // renders block cards the user never created, as if they were saved work.
+  /*
+   * This used to assert the OPPOSITE — that the editor fell back to
+   * `buildDefaultLayout()` and rendered block cards the user never created, as
+   * if they were saved work. That was the defect, not the contract: a failed
+   * read must not fabricate an arrangement the owner might then "save" over
+   * their real one. The page now renders the designed error state below
+   * instead, so the correct assertion is that NO block card appears.
+   */
   await expect(
     page.getByRole("group", { name: /^Profile header block\./ }),
-  ).toHaveCount(1);
+  ).toHaveCount(0);
 
   // The fourth state. AGENTS.md makes it mandatory: a screen that reads from
   // the network must have a designed error state.
@@ -974,7 +1012,7 @@ test("dark mode keeps the editor and the public profile readable", async ({
     ["editor h1", page.getByRole("heading", { name: "Profile layout" })],
     [
       "pinned-zone heading",
-      page.getByRole("heading", { name: "Shown on all tabs" }),
+      page.getByRole("heading", { name: "Always visible" }),
     ],
     [
       "block card label",
@@ -1043,7 +1081,8 @@ test("@responsive the configured appearance renders on the public profile", asyn
   await expect(page.getByRole("heading", { level: 1 })).toContainText(NEW_NAME);
   await expect(page.getByText(NEW_BIO)).toBeVisible();
   await expect(page.getByText(NEW_LOCATION)).toBeVisible();
-  await expect(page.getByText("Open to work")).toBeVisible();
+  // See the note above: the cover no longer carries this badge by design.
+  await expect(page.getByText("Open to work")).toHaveCount(0);
 
   // Nothing may overflow the viewport sideways on either form factor.
   const overflow = await page.evaluate(

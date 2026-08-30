@@ -78,7 +78,13 @@ export function ProfileShareButton({
       onClick={handleShare}
       aria-label={t("profile.shareThisProfile")}
       className={[
-        "inline-flex items-center gap-1.5 rounded-full border border-white/40 bg-black/35 px-3 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur transition hover:bg-black/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+        // `bg-black/60`, not the `black/35` this used to carry: the control
+        // sits on a cover image the user chose, and over a bright photograph
+        // 35% black put white text at ~2.6:1 — legible on the designer's dark
+        // sample banner and invisible on a beach. 60% clears 4.5:1 against a
+        // pure-white cover, which is the worst case there is. It matches the
+        // meta chip beside it, so the two read as one set of controls.
+        "inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/60 px-3 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
         className ?? "",
       ]
         .join(" ")

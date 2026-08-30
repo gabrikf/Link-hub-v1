@@ -1,10 +1,7 @@
 import type { ProfileViewport } from "@repo/schemas";
 import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
-import {
-  GRID_GAP,
-  GRID_ROW_HEIGHT,
-  PROFILE_CANVAS_WIDTH,
-} from "../grid-utils";
+import { GRID_GAP, GRID_ROW_HEIGHT } from "../grid-utils";
+import { CanvasFrame } from "./canvas-frame";
 
 /** A block placeholder, in grid units — same shape as `blocksToRglLayout`. */
 export type SkeletonSpan = { w: number; h: number };
@@ -39,10 +36,9 @@ export function EditorGridSkeleton({
   label,
 }: EditorGridSkeletonProps) {
   return (
-    <div
-      className="mx-auto w-full"
-      style={{ maxWidth: PROFILE_CANVAS_WIDTH[viewport] }}
-    >
+    // Same frame as the real grid, so the zone neither jumps width nor loses
+    // its sideways scroll when the layout arrives.
+    <CanvasFrame viewport={viewport}>
       <LoadingLabel>{label}</LoadingLabel>
       <div
         style={{
@@ -63,6 +59,6 @@ export function EditorGridSkeleton({
           />
         ))}
       </div>
-    </div>
+    </CanvasFrame>
   );
 }

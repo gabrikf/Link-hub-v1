@@ -528,7 +528,7 @@ export async function fetchMyProfile(): Promise<ProfileResponse> {
  * api answers 404 for a profile it serves fine at the encoded path.
  *
  * Only the places that *build* a URL from a raw handle need this. The router
- * (`to="/profile/$username"` with params) and the Share link (read off
+ * (`to="/$username"` with params) and the Share link (read off
  * `window.location.href`) already hand out encoded values; encoding those again
  * would double-encode them.
  */

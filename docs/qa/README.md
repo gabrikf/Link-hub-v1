@@ -41,7 +41,7 @@ Scenario ids are `<AREA>-<slug>`. Area codes map to `apps/web/src/features/` and
 | `RSME` | `features/resume`, `features/resume-import` — PDF import and the parsed career | (import flow under `/dashboard`) |
 | `WORK` | `features/work-history` — roles, ranges, employers | (within profile surfaces) |
 | `LAYT` | `features/profile-layout` — the drag-and-drop editor, desktop + mobile arrangements | `/dashboard/layout` |
-| `PROF` | `features/profile` — the public profile as a stranger reads it | `/profile/$username` |
+| `PROF` | `features/profile` — the public profile as a stranger reads it | `/$username` |
 | `SRCH` | `features/search` — job-description search, pgvector, AI Match % | `/dashboard/search` |
 | `POST` | `features/posts` — the posts list and the agent-post review queue | `/dashboard/posts`, `/dashboard/posts/review` |
 | `SET` | `features/settings` — disclosure policy, API tokens, git connections | `/dashboard/settings` |

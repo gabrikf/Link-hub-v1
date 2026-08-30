@@ -167,11 +167,55 @@ describe("GetLayoutUseCase", () => {
       expect(mobile.tabsEnabled).toBe(true);
     });
 
-    it("defaults both viewports to true for an account that never set them", async () => {
+    /*
+     * The new-account default. A fresh profile starts minimal — the
+     * always-visible zone only — so both viewports report their tab strip off.
+     * This assertion used to read `true`; it encoded the old default.
+     */
+    it("defaults both viewports to OFF for a brand-new account", async () => {
       const layout = (await sut.execute("user-1")) as FullProfileLayout;
 
-      expect(layout.pc.tabsEnabled).toBe(true);
-      expect(layout.mobile.tabsEnabled).toBe(true);
+      expect(layout.pc.tabsEnabled).toBe(false);
+      expect(layout.mobile.tabsEnabled).toBe(false);
+    });
+
+    /*
+     * Turning tabs on must REVEAL the pre-placed blocks, not require the user
+     * to build a tab first: seeding writes the default tab and its
+     * resume/work/posts blocks regardless of the switch.
+     */
+    it("still seeds the default tab and its blocks while tabs are off", async () => {
+      const layout = (await sut.execute("user-1")) as FullProfileLayout;
+
+      for (const viewport of ["pc", "mobile"] as const) {
+        expect(layout[viewport].tabs).toHaveLength(1);
+        const tabId = layout[viewport].tabs[0]!.id;
+        const inTab = layout[viewport].blocks.filter(
+          (block) => !block.pinnedAllTabs && block.tabId === tabId,
+        );
+        expect(inTab.map((block) => block.kind)).toEqual([
+          "resume",
+          "work_experiences",
+          "posts",
+        ]);
+      }
+    });
+
+    /*
+     * The other half of "minimal": what IS published on day one. Header and
+     * links are both pinned, so the always-visible zone is the whole profile
+     * until the switch is flipped.
+     */
+    it("pins the header and the links into the always-visible zone", async () => {
+      const layout = (await sut.execute("user-1")) as FullProfileLayout;
+
+      for (const viewport of ["pc", "mobile"] as const) {
+        const pinned = layout[viewport].blocks.filter(
+          (block) => block.pinnedAllTabs,
+        );
+        expect(pinned.map((block) => block.kind)).toEqual(["header", "links"]);
+        expect(pinned.every((block) => block.tabId === null)).toBe(true);
+      }
     });
   });
 });

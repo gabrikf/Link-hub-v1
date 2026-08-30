@@ -7,6 +7,7 @@ import { and, eq, inArray, SQL, sql } from "drizzle-orm";
 import {
   CandidateContactRecord,
   IResumeSearchRepository,
+  RecruiterSearchFilters,
   SearchResumesByEmbeddingInput,
 } from "../../../../core/repositories/resume-search/resume-search-repository.js";
 import {
@@ -22,6 +23,12 @@ import {
   resolveEmbeddingVersion,
   resolveEmbeddingVersionText,
 } from "../../../../core/use-case/resumes/shared/embedding-config.js";
+import {
+  buildSearchZeroResultDiagnostics,
+  type SearchZeroResultContext,
+  type SearchZeroResultCounts,
+} from "../../../../core/use-case/resumes/shared/search-zero-result-diagnostics.js";
+import { structuredLoggingEnabled } from "../../../config/app-config.js";
 import { db } from "../index.js";
 import {
   posts,
@@ -79,6 +86,12 @@ const DEFAULT_OVERFETCH_FACTOR = 4;
 
 /** Never issue an unbounded LIMIT, however large topK and the factor are. */
 const MAX_FETCH_ROWS = 1_000;
+
+/**
+ * Prefix on the zero-result explanation line. A constant so a log-based alert
+ * and the e2e test that proves the line is emitted cannot drift from it.
+ */
+export const ZERO_RESULT_LOG_PREFIX = "[search] zero candidates";
 
 /**
  * Serialised query vector, sent as a bind parameter rather than pasted into the
@@ -194,7 +207,11 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
     const queryVector = toPgVectorParam(input.queryEmbedding);
     const scopedSources = normalizeSources(input.sources);
 
-    const filters = this.buildFilters(input);
+    // Kept separately from `filters`: the three predicates pushed on below are
+    // invisible to the recruiter, and the zero-result diagnostics need to count
+    // the population BEFORE them to say which one emptied it.
+    const recruiterFilters = this.buildFilters(input);
+    const filters = [...recruiterFilters];
 
     /**
      * THE authorization boundary for candidate discovery.
@@ -286,7 +303,31 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
         .limit(fetchLimit);
     });
 
-    return rows.slice(0, input.topK).map((item) => {
+    const kept = rows.slice(0, input.topK);
+
+    if (kept.length === 0) {
+      // Awaited, not fire-and-forget: an unawaited promise here would log after
+      // the response and, on a test or a worker that exits promptly, sometimes
+      // not at all. It is one extra query on a path that already returned
+      // nothing, and it never throws — see the method.
+      await this.logZeroResultDiagnostics({
+        queryVector,
+        embeddingModel,
+        minSimilarity,
+        scopedSources,
+        recruiterFilters,
+        context: {
+          topK: input.topK,
+          minSimilarity,
+          embeddingModel,
+          embeddingVersion: resolveEmbeddingVersionText(),
+          ...(scopedSources ? { sources: scopedSources } : {}),
+          filterKeys: activeFilterKeys(input.filters),
+        },
+      });
+    }
+
+    return kept.map((item) => {
       const { posts: postRows, sourceSimilarity, ...candidate } = item;
 
       const candidatePosts: CandidatePostRow[] = postRows ?? [];
@@ -324,6 +365,150 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
       .where(and(eq(resumes.id, resumeId), eq(users.openToWork, true)));
 
     return row ?? null;
+  }
+
+  /**
+   * Explains an empty result set, once, in one log line.
+   *
+   * Three predicates on this search can remove a candidate without anybody
+   * being able to tell: the `open_to_work` gate, the equality on
+   * `embedding_model`/`embedding_version`, and `SEARCH_MIN_SIMILARITY`. All
+   * three are correct. All three are invisible — `/resumes/search` answers 200
+   * with an empty array whichever one fired, and that is exactly how a
+   * developer with a complete resume stayed undiscoverable while the API
+   * reported success.
+   *
+   * This does NOT change any of them. It counts how many resumes each one
+   * removed, so the next empty page comes with a reason attached.
+   *
+   * Cost: one extra query, only on the path that already returned nothing, and
+   * only for as long as the recruiter waited for zero results anyway. It is a
+   * sequential scan with a distance computation per resume — acceptable at this
+   * table's size, and worth revisiting behind a sampling flag if the corpus
+   * grows by an order of magnitude.
+   *
+   * PII: counts only. No candidate id, name, login or email, and the
+   * recruiter's filter VALUES are excluded too — `nameContains` and
+   * `profileTextContains` are free text typed about a person.
+   */
+  private async logZeroResultDiagnostics(params: {
+    queryVector: string;
+    embeddingModel: string;
+    minSimilarity: number;
+    scopedSources: SearchSource[] | undefined;
+    /**
+     * The recruiter's OWN filter predicates — the same array `searchByEmbedding`
+     * built, before the open-to-work gate, the embedding-generation equality and
+     * the similarity floor were pushed onto it. Scoping the counts to these is
+     * what makes the answer about THIS search rather than about the corpus.
+     */
+    recruiterFilters: SQL[];
+    context: SearchZeroResultContext;
+  }): Promise<void> {
+    const {
+      queryVector,
+      embeddingModel,
+      minSimilarity,
+      scopedSources,
+      recruiterFilters,
+    } = params;
+
+    try {
+      // `max()` over an empty set is NULL, so a NULL similarity means "this
+      // candidate has no vector in the current generation" — precisely the
+      // distinction the INNER JOIN in the real query silently collapses.
+      const candidateSimilarity = scopedSources
+        ? sql`(
+            SELECT max(1 - (rse.embedding <=> ${queryVector}::vector))
+            FROM ${resumeSectionEmbeddings} rse
+            WHERE rse.user_id = ${resumes.userId}
+              AND rse.source = ANY(${sql.param(scopedSources)}::text[])
+              AND rse.embedding_model = ${embeddingModel}
+              AND rse.embedding_version = ${resolveEmbeddingVersionText()}
+          )`
+        : sql`(
+            SELECT max(1 - (re.embedding <=> ${queryVector}::vector))
+            FROM ${resumeEmbeddings} re
+            WHERE re.resume_id = ${resumes.id}
+              AND re.embedding_model = ${embeddingModel}
+              AND re.embedding_version = ${resolveEmbeddingVersion()}
+          )`;
+
+      const matchesRecruiterFilters =
+        recruiterFilters.length > 0 ? and(...recruiterFilters) : sql`TRUE`;
+
+      // The population is derived in a subquery because a select-list alias
+      // (`similarity`, `matches_filters`) cannot be referenced from the same
+      // select list. This is an exact scan, deliberately: comparing it against
+      // what the ANN query returned is what makes recall collapse visible.
+      const rows = (await db.execute(sql`
+        SELECT
+          count(*)::int AS total_resumes,
+          count(*) FILTER (WHERE matches_filters)::int
+            AS matching_recruiter_filters,
+          count(*) FILTER (WHERE matches_filters AND NOT open_to_work)::int
+            AS excluded_by_open_to_work,
+          count(*) FILTER (
+            WHERE matches_filters AND open_to_work AND similarity IS NULL
+          )::int AS missing_current_embedding,
+          count(*) FILTER (
+            WHERE matches_filters
+              AND open_to_work
+              AND similarity IS NOT NULL
+              AND similarity < ${minSimilarity}
+          )::int AS below_similarity_floor
+        FROM (
+          SELECT
+            ${users.openToWork} AS open_to_work,
+            (${matchesRecruiterFilters}) AS matches_filters,
+            ${candidateSimilarity} AS similarity
+          FROM ${resumes}
+          INNER JOIN ${users} ON ${users.id} = ${resumes.userId}
+        ) AS population
+      `)) as unknown as Array<Record<string, unknown>>;
+
+      const row = rows[0];
+
+      const counts: SearchZeroResultCounts = {
+        totalResumes: toCount(row?.total_resumes),
+        matchingRecruiterFilters: toCount(row?.matching_recruiter_filters),
+        excludedByOpenToWork: toCount(row?.excluded_by_open_to_work),
+        missingCurrentEmbedding: toCount(row?.missing_current_embedding),
+        belowSimilarityFloor: toCount(row?.below_similarity_floor),
+      };
+
+      const diagnostics = buildSearchZeroResultDiagnostics(
+        counts,
+        params.context,
+      );
+
+      // Same convention as every other non-request log in `src/infra/`: one
+      // JSON line where the pipeline is structured, a readable line where a
+      // human is watching a terminal. There is no request in scope here.
+      if (structuredLoggingEnabled()) {
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            msg: ZERO_RESULT_LOG_PREFIX,
+            ...diagnostics,
+          }),
+        );
+        return;
+      }
+
+      console.warn(
+        `${ZERO_RESULT_LOG_PREFIX} — ${diagnostics.reason}`,
+        diagnostics,
+      );
+    } catch (error) {
+      // A diagnostic must never be the reason a search fails. An empty result
+      // set is still a valid answer; losing the explanation is strictly better
+      // than turning it into a 500.
+      console.warn(
+        `${ZERO_RESULT_LOG_PREFIX} — diagnostics unavailable`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   /**
@@ -673,6 +858,42 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
       ), '[]'::json)`,
     };
   }
+}
+
+/**
+ * `count(*)::int` comes back as a number on postgres.js, but a driver or a
+ * cast change turning it into a string must not make the diagnostics read
+ * `NaN` — a wrong number in an explanation is worse than no explanation.
+ */
+function toCount(value: unknown): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+/**
+ * The filter KEYS the recruiter actually supplied. Values are deliberately
+ * dropped — see `logZeroResultDiagnostics`.
+ *
+ * An empty array counts as "not supplied": the search UI sends `[]` for a
+ * facet nobody touched, and reporting that as an active filter would point the
+ * reader at a filter that excluded nothing.
+ */
+function activeFilterKeys(filters: RecruiterSearchFilters): string[] {
+  return Object.entries(filters)
+    .filter(([, value]) => {
+      if (value === undefined || value === null) {
+        return false;
+      }
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      if (typeof value === "string") {
+        return value.trim().length > 0;
+      }
+      return true;
+    })
+    .map(([key]) => key)
+    .sort();
 }
 
 /**

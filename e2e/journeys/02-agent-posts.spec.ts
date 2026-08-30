@@ -30,7 +30,16 @@ import { expect, loginAs, test, watchPage } from "../support/fixtures";
  */
 
 const ACCOUNT = JOURNEY_ACCOUNTS.posts;
-const PUBLIC_PROFILE = `/profile/${ACCOUNT.login}`;
+
+/**
+ * TWO paths, deliberately not one. The WEB profile moved to the bare
+ * `/{username}`, but the API's public endpoints did NOT — they are still
+ * `/profile/{username}/...`. A single shared constant was briefly used for both
+ * and every API call in this spec came back 404, which surfaced as
+ * `roles.find is not a function` when a 404 body was parsed as an array.
+ */
+const PUBLIC_PROFILE = `/${ACCOUNT.login}`;
+const API_PUBLIC_PROFILE = `/profile/${ACCOUNT.login}`;
 
 /**
  * Every row this spec writes carries this marker, so `afterAll` can clean up
@@ -252,13 +261,39 @@ async function listOwnPosts(): Promise<OwnPost[]> {
 }
 
 /**
+ * A new profile now ships with tabs OFF and only the links block always
+ * visible — that is the deliberate default, so someone who just signed up
+ * publishes a photo, a name and their links rather than a half-empty tab strip.
+ * The posts block lives in the tabs area, so on a freshly seeded account it
+ * renders nowhere and "the approved post is on the public profile" can never
+ * become true.
+ *
+ * This journey is about posts reaching the public page, so it opts the account
+ * in for BOTH viewports — the test is `@responsive` and the public profile
+ * serves the pc or mobile layout depending on the viewport it is loaded at.
+ */
+async function showPostsPublicly(): Promise<void> {
+  for (const viewport of ["pc", "mobile"] as const) {
+    const response = await fetch(`${API_URL}/me/layout/tabs-enabled`, {
+      method: "PATCH",
+      headers: {
+        authorization: `Bearer ${humanJwt}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ viewport, tabsEnabled: true }),
+    });
+    expect(response.status, `PATCH tabs-enabled (${viewport})`).toBe(200);
+  }
+}
+
+/**
  * What the world actually sees. Every disclosure assertion re-reads THIS,
  * never the response of the call that created the post: the only output that
  * matters is the one a recruiter can load without credentials.
  */
 async function listPublishedPosts(): Promise<PublicPost[]> {
   const response = await fetch(
-    `${API_URL}${PUBLIC_PROFILE}/posts?limit=100`,
+    `${API_URL}${API_PUBLIC_PROFILE}/posts?limit=100`,
     { headers: { accept: "application/json" } },
   );
   expect(response.status, "GET public posts feed").toBe(200);
@@ -357,6 +392,7 @@ test.describe("journey 2 — my agents write posts while I code", () => {
     humanJwt = session.accessToken;
     humanUserInfo = session.user ?? null;
     await deleteMarkedPosts();
+    await showPostsPublicly();
 
     const page = await browser.newPage();
     try {
@@ -439,20 +475,24 @@ test.describe("journey 2 — my agents write posts while I code", () => {
       "the approved post is served by the anonymous public feed",
     ).toBe("published");
 
-    // Soft, both of them: when the public feed is unreadable the page symptom
-    // and the contract breach are one bug, and a run that reports only the
-    // first sends the reader hunting in the wrong layer.
-    //
-    // apps/web parses this exact payload with `postSchema.array()`
-    // (`fetchPublicPosts` in apps/web/src/lib/post-queries.ts), and `metadata`
-    // is a required key there — while the api's public projection omits it
-    // (`publicPostResponseSchema` in apps/api/.../posts-controller.ts).
+    /*
+     * This once demanded the OPPOSITE — that the public payload carry
+     * `metadata` — on the belief that apps/web parsed the feed with
+     * `postSchema.array()`, for which `metadata` is required. That belief is
+     * stale twice over: `fetchPublicPosts` parses with `publicPostSchema`
+     * (apps/web/src/lib/post-queries.ts:91), and `publicPostSchema` is
+     * `postSchema.omit({ metadata: true })` (packages/schemas/src/posts).
+     *
+     * Withholding it is the POINT: post metadata can hold a repository name,
+     * so serving it to an anonymous reader would leak exactly what the
+     * disclosure policy exists to protect. Assert the privacy property.
+     */
     expect
       .soft(
         publicRow ? Object.prototype.hasOwnProperty.call(publicRow, "metadata") : false,
-        "the public posts payload must carry every field @repo/schemas' postSchema requires — apps/web parses it with that schema and drops the whole feed when a key is missing",
+        "the public feed must NOT expose post metadata — it can carry a repository name",
       )
-      .toBe(true);
+      .toBe(false);
 
     await page.goto(PUBLIC_PROFILE);
     await expect
@@ -517,7 +557,7 @@ test.describe("journey 2 — my agents write posts while I code", () => {
     // Read the employer from the human's own public work history rather than
     // hardcoding a seed value, so this keeps testing the real policy input.
     const roles = (await (
-      await fetch(`${API_URL}${PUBLIC_PROFILE}/work-experiences`)
+      await fetch(`${API_URL}${API_PUBLIC_PROFILE}/work-experiences`)
     ).json()) as Array<{ companyName: string | null }>;
     const employer = roles.find((role) => (role.companyName ?? "").length > 1)?.companyName;
     expect(employer, "the seeded account needs a work history to test disclosure").toBeTruthy();

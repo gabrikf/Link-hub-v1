@@ -21,7 +21,7 @@ persona:
 
 Signs up, imports the PDF, sees what the parser made of her career, fixes what it got wrong, and shares the link. What she reveals: onboarding copy that assumes context, an import that half-lands and leaves an unfixable profile, an LLM parse that silently drops a job, empty states with no next step, a public profile that looks wrong on a phone or in dark mode.
 
-Where she lives: `/`, resume import, `/dashboard`, `/profile/<username>`.
+Where she lives: `/`, resume import, `/dashboard`, `/<username>`.
 
 ## Diego, the curating developer — the daily owner
 
@@ -59,7 +59,7 @@ persona:
 
 Reads the AI Match % as if it were a fact, because nothing on screen tells her it isn't. What she reveals: paste handling that mangles a JD before it is embedded, a re-rank that renders placeholder numbers as scores, results that disagree between two searches of the same JD, a match percentage with no explanation, profiles that render differently for her than for their owner, and — critically — anything a candidate's agent revealed that the candidate did not intend her to see.
 
-Where she lives: `/dashboard/search`, `/profile/<username>`.
+Where she lives: `/dashboard/search`, `/<username>`.
 
 ## Atlas, the coding agent — the non-human user
 
@@ -99,7 +99,7 @@ persona:
 
 What they reveal: a public profile that requires a session it shouldn't, layout breakage at 375px, a dark-mode surface nobody checked because the owner tested in light, unlabelled controls, a match score or badge that reads as a bare number to a screen reader, and whatever an agent published that a stranger should not have been able to read.
 
-Where they live: `/profile/<username>`, logged out.
+Where they live: `/<username>`, logged out.
 
 ## Notes
 

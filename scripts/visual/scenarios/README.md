@@ -25,7 +25,7 @@ four-state check of one screen is 15-30 actions. See the `visual-check` skill.
   environment and defaults to the seeded local accounts.
 - **A public page must be captured signed out.** The runner drops the
   storageState for any scenario that does not set `requiresAuth`. Reusing your
-  own session on `/profile/:username` is how "it looks fine" gets reported for a
+  own session on `/:username` is how "it looks fine" gets reported for a
   page that is broken for every stranger.
 
 ## Prerequisites

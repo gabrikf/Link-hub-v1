@@ -1,10 +1,16 @@
 import type { ResumeResponse } from "@repo/schemas";
-import { SURFACE } from "../../../shared-components/surface";
-import type { ReactNode } from "react";
+import {
+  BADGE,
+  FOCUS_RING,
+  SURFACE,
+} from "../../../shared-components/surface";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAward,
   FiBriefcase,
+  FiChevronDown,
+  FiChevronUp,
   FiCompass,
   FiDollarSign,
   FiMapPin,
@@ -203,19 +209,7 @@ export function ResumeReadOnlyCard({
 
           <SectionLabel label={t("common.skills")} />
           {resume.skills.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {resume.skills.map((item) => (
-                <span
-                  key={item.id}
-                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200"
-                >
-                  {item.skillName}
-                  {item.yearsExperience !== null
-                    ? t("resume.yearsShort", { count: item.yearsExperience })
-                    : ""}
-                </span>
-              ))}
-            </div>
+            <SkillChips skills={resume.skills} />
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {t("resume.noSkillsAdded")}
@@ -242,6 +236,80 @@ export function ResumeReadOnlyCard({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * A real resume carries ~40 skills, and rendering all of them pushed every
+ * block below Skills off the first screen — on mobile it buried the rest of the
+ * profile entirely. Five is enough to read the shape of someone's stack; the
+ * tail is one tap away.
+ *
+ * Only Skills is capped. Titles is a 1–3 item list of who the person *is*, so a
+ * cap would never fire on real data and would hide identity behind a chip on
+ * the rare profile where it did.
+ */
+const VISIBLE_SKILL_COUNT = 5;
+
+type SkillChipsProps = {
+  skills: ResumeView["skills"];
+};
+
+function SkillChips({ skills }: SkillChipsProps) {
+  const { t } = useTranslation();
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const hiddenCount = skills.length - VISIBLE_SKILL_COUNT;
+  const visibleSkills =
+    isExpanded || hiddenCount <= 0
+      ? skills
+      : skills.slice(0, VISIBLE_SKILL_COUNT);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {visibleSkills.map((item) => (
+        <span
+          key={item.id}
+          className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200"
+        >
+          {item.skillName}
+          {item.yearsExperience !== null
+            ? t("resume.yearsShort", { count: item.yearsExperience })
+            : ""}
+        </span>
+      ))}
+
+      {/* A chip that acts: it keeps the badge shape of its siblings but reads
+          as a control — pointer cursor, hover, chevron and the house focus
+          ring. Neutral zinc on purpose: this block also renders inside
+          `.profile-root`, where an accent-coloured chip would fight the
+          owner's theme. */}
+      {hiddenCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setIsExpanded((current) => !current)}
+          aria-expanded={isExpanded}
+          aria-label={
+            isExpanded
+              ? undefined
+              : t("resume.showAllSkills", { count: hiddenCount })
+          }
+          className={`inline-flex cursor-pointer items-center gap-1 rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-medium hover:bg-zinc-200 dark:border-zinc-600 dark:hover:bg-zinc-700 ${BADGE.neutral} ${FOCUS_RING}`}
+        >
+          {isExpanded ? (
+            <>
+              <FiChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("common.showLess")}
+            </>
+          ) : (
+            <>
+              <FiChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("resume.moreSkills", { count: hiddenCount })}
+            </>
+          )}
+        </button>
+      ) : null}
+    </div>
   );
 }
 

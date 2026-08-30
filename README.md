@@ -6,7 +6,8 @@ shipped — without leaking your employer's code, repository names, or identity.
 
 Three things happen here:
 
-- **Developers** build a public profile at `/profile/<username>` out of
+- **Developers** build a public profile at `/<username>` — the short URL is the
+  only one; `/profile/<username>` was removed and 404s — out of
   drag-and-drop tabs and blocks, backed by a structured resume (skills, titles,
   work history) that can be imported from a PDF by an LLM.
 - **Recruiters** paste a job description — text or a PDF — at `POST
@@ -302,7 +303,7 @@ else the API reads server-side, `APP_PUBLIC_URL` included. Sign-in with LinkedIn
 looks like an exception and is not one: the button links to
 `${VITE_API_URL}/auth/linkedin` and every LinkedIn credential lives on the API.
 `apps/web/public/_redirects` provides the SPA fallback so a hard refresh on
-`/dashboard` or `/profile/<username>` reaches the router instead of a 404.
+`/dashboard` or `/<username>` reaches the router instead of a 404.
 
 `.github/workflows/retrain-model.yml` retrains the match model weekly, uploads
 the artefacts to S3/CloudFront and commits the new `latest.json`.

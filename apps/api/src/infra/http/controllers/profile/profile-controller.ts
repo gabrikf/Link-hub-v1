@@ -107,6 +107,7 @@ export class ProfileController {
             openToWork?: boolean;
             location?: string | null;
             persona?: string | null;
+            personaOther?: string | null;
           };
         }>,
         reply,
@@ -128,6 +129,7 @@ export class ProfileController {
           openToWork: request.body.openToWork,
           location: request.body.location,
           persona: request.body.persona,
+          personaOther: request.body.personaOther,
         });
 
         /**

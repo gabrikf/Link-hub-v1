@@ -21,7 +21,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { FiExternalLink, FiLink2, FiUser } from "react-icons/fi";
+import { FiExternalLink, FiLink2, FiMapPin, FiUser } from "react-icons/fi";
 import type { PublicResumeResponse } from "../../../lib/auth-api";
 import { getLinkIconOption } from "../../../lib/link-icons";
 import { usePublicPosts } from "../../../lib/post-queries";
@@ -57,6 +57,13 @@ type ProfileHeaderView = {
   username: string;
   description: string | null;
   userPhoto: string | null;
+  /**
+   * Optional so the two preview call sites — which describe a profile with
+   * their own narrower object literals — keep compiling untouched. Absent means
+   * "this caller does not know the location", which renders the same as "no
+   * location": nothing at all, and no reserved space.
+   */
+  location?: string | null;
 };
 
 type ProfileBlocksProps = {
@@ -250,6 +257,35 @@ export function ProfileBlocks({
                   {t("profile.noDescription")}
                 </p>
               )}
+              {/*
+                Location lives HERE — after the description, before the links —
+                rather than in the cover chip it used to share with the role.
+                On the cover it had to compete with the photograph and with the
+                avatar for the same lower edge, which is what made that chip 65%
+                of the card wide at 375px.
+
+                `text-zinc-500 dark:text-zinc-400` is a deliberate mid-grey: it
+                reads as metadata next to the near-black description without
+                fading out. Measured against the card it actually sits on it is
+                4.83:1 on white, 4.63:1 on the `zinc-50` end of the card
+                gradient, and 6.9:1 on `zinc-900` — AA at every point, including
+                for `text-xs`, which is below the large-text exemption.
+
+                Renders nothing at all when there is no location: no reserved
+                row, no empty pill.
+              */}
+              {profile.location?.trim() ? (
+                <p
+                  data-testid="profile-location"
+                  className="mt-2 flex items-center justify-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400"
+                >
+                  <FiMapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  {/* The icon is decorative, so the field needs a name of its
+                      own for a screen reader reading the line out of context. */}
+                  <span className="sr-only">{t("common.location")}</span>
+                  <span>{profile.location}</span>
+                </p>
+              ) : null}
             </div>
           </header>
         );
@@ -274,9 +310,21 @@ export function ProfileBlocks({
                     style={{ animationDelay: `${0.15 + index * 0.07}s` }}
                     className={`anim-fade-up accent-card group block p-4 text-left transition duration-300 hover:-translate-y-0.5 ${SURFACE_PROFILE}`}
                   >
-                    <p className="inline-flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
+                    {/*
+                      `flex`, not `inline-flex`. An inline-flex box is sized
+                      shrink-to-fit, so with an unbreakable title its width was
+                      max-content and it simply ran past the card — the `truncate`
+                      on the title span never engaged, because the span's flex
+                      container was already as wide as the text. The card shell's
+                      `overflow-hidden` then swallowed the tail with no ellipsis
+                      and no scrollbar, which is the exact silent-clipping bug the
+                      profile `<h1>` was fixed for. Block-level `flex` gets the
+                      anchor's width, `min-w-0` lets the title shrink inside it,
+                      and `shrink-0` keeps the two icons at full size.
+                    */}
+                    <p className="flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
                       <span
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full shadow-sm"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full shadow-sm"
                         style={{
                           color: selectedIcon?.color,
                           background:
@@ -296,8 +344,8 @@ export function ProfileBlocks({
                           />
                         )}
                       </span>
-                      <span className="truncate">{link.title}</span>
-                      <FiExternalLink className="h-4 w-4 text-zinc-400 transition group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
+                      <span className="min-w-0 truncate">{link.title}</span>
+                      <FiExternalLink className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
                     </p>
                     <p className="mt-1 truncate text-sm text-zinc-600 dark:text-zinc-400">
                       {link.url}

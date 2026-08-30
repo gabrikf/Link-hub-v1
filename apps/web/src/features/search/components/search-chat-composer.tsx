@@ -1,4 +1,11 @@
-import { FiPaperclip, FiSearch, FiX } from "react-icons/fi";
+import { useState } from "react";
+import {
+  FiChevronDown,
+  FiChevronUp,
+  FiPaperclip,
+  FiSearch,
+  FiX,
+} from "react-icons/fi";
 import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared-components/button";
@@ -7,6 +14,9 @@ import { SelectField } from "../../../shared-components/select";
 import { TextArea } from "../../../shared-components/text-area";
 import type { AdvancedSearchFormValues } from "../types/advanced-search";
 import { SKILL_OPTIONS, TITLE_OPTIONS } from "../types/advanced-search";
+
+/** Names the collapsible semantic block for the small-screen disclosure. */
+const SEMANTIC_FIELDS_ID = "advanced-search-semantic-fields";
 
 type SearchChatComposerProps = {
   control: Control<AdvancedSearchFormValues>;
@@ -28,6 +38,15 @@ export function SearchChatComposer({
   onRemoveFile,
 }: SearchChatComposerProps) {
   const { t } = useTranslation();
+  /*
+   * Small screens only. The two semantic selects are ~230px of optional
+   * refinement sitting between the search button and the results, which on a
+   * phone start ~1000px below the fold; collapsing them by default puts the
+   * results within one scroll of the button that produced them. At `sm` and up
+   * the block is always visible and this state is inert, so the desktop layout
+   * is untouched.
+   */
+  const [isSemanticOpen, setIsSemanticOpen] = useState(false);
 
   return (
     <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
@@ -36,7 +55,12 @@ export function SearchChatComposer({
         label={t("search.prompt")}
         placeholder={t("search.promptHelp")}
         rows={7}
-        className="resize-y rounded-xl border-zinc-300 bg-white/90 px-4 py-3 leading-relaxed shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+        /* `h-36 sm:h-auto`: seven rows is 208px, and on a 812px-tall phone that
+           is a quarter of the viewport spent on an empty box before the search
+           button is even reachable. `sm:h-auto` hands the height back to `rows`
+           on every larger screen, so the desktop composer is unchanged — and
+           `resize-y` still lets anyone drag it taller. */
+        className="h-36 resize-y rounded-xl border-zinc-300 bg-white/90 px-4 py-3 leading-relaxed shadow-sm sm:h-auto dark:border-zinc-700 dark:bg-zinc-900"
         {...register("chatPrompt")}
       />
 
@@ -87,7 +111,27 @@ export function SearchChatComposer({
         </Button>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <button
+        type="button"
+        onClick={() => setIsSemanticOpen((current) => !current)}
+        aria-expanded={isSemanticOpen}
+        aria-controls={SEMANTIC_FIELDS_ID}
+        className={`mt-4 inline-flex cursor-pointer items-center gap-2 rounded-sm text-sm font-medium text-zinc-700 sm:hidden dark:text-zinc-200 ${FOCUS_RING}`}
+      >
+        {isSemanticOpen ? (
+          <FiChevronUp className="h-4 w-4 shrink-0" aria-hidden="true" />
+        ) : (
+          <FiChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
+        )}
+        <span className="min-w-0 text-left">{t("search.semanticHints")}</span>
+      </button>
+
+      <div
+        id={SEMANTIC_FIELDS_ID}
+        className={`mt-4 gap-3 sm:grid sm:grid-cols-2 ${
+          isSemanticOpen ? "grid" : "hidden"
+        }`}
+      >
         <SelectField
           id="semantic-skills"
           label={t("search.semanticSkills")}

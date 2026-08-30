@@ -12,9 +12,9 @@ import {
   blocksToRglLayout,
   GRID_GAP,
   GRID_ROW_HEIGHT,
-  PROFILE_CANVAS_WIDTH,
   type GridLayoutItem,
 } from "../grid-utils";
+import { CanvasFrame } from "./canvas-frame";
 
 /**
  * ROOT-CAUSE FIX for "blocks can't be dragged or resized".
@@ -82,8 +82,31 @@ const RESIZE_CONFIG = {
   handles: ["n", "ne", "e", "se", "s", "sw", "w", "nw"],
 } as const;
 
-/** Module scope for the same effect-dependency reason as `VERTICAL_COMPACTOR`. */
+/**
+ * Module scope for the same effect-dependency reason as `VERTICAL_COMPACTOR`.
+ *
+ * TWO configs, because a mouse and a finger want opposite things.
+ *
+ * MOUSE (`DRAG_CONFIG`): the WHOLE card is the drag surface. Grabbing a tiny
+ * grip was the reported blocker — people tried to move the card body and
+ * nothing happened.
+ *
+ * TOUCH (`TOUCH_DRAG_CONFIG`): the whole card CANNOT be the drag surface.
+ * react-draggable binds `touchstart` with `{passive: false}` and calls
+ * `preventDefault()` on it, which is what stops the browser scrolling mid-drag
+ * — correct during a drag, fatal when every card in a full-screen grid is a
+ * drag surface, because then the page has no scrollable area left and the
+ * studio is a trap. Restricting the gesture to `.block-drag-handle` (the grip
+ * in `grid-block-card.tsx`, grown to a 44px target on a coarse pointer) gives
+ * back the whole card as scroll surface and keeps drag on a target big enough
+ * to hit. The explicit move/resize buttons on each card cover the same job
+ * without a gesture at all.
+ */
 const DRAG_CONFIG = { cancel: ".block-no-drag" } as const;
+const TOUCH_DRAG_CONFIG = {
+  cancel: ".block-no-drag",
+  handle: ".block-drag-handle",
+} as const;
 
 /**
  * Scoped styling that makes all eight react-resizable handles discoverable AND
@@ -239,6 +262,15 @@ const EDITOR_GRID_HANDLE_CSS = `
    so mouse precision is untouched; the grips themselves stay the same size, only
    the hit boxes grow. */
 @media (pointer: coarse) {
+  /* The grip is the ONLY drag surface on touch (see TOUCH_DRAG_CONFIG), so it
+     must claim the gesture from the browser's own scrolling. Without
+     \`touch-action: none\` the first few pixels of every drag are eaten by a
+     scroll attempt and the block jitters instead of moving. */
+  .editor-grid-zone .block-drag-handle {
+    touch-action: none;
+    width: 44px;
+    height: 44px;
+  }
   .editor-grid-zone .react-grid-item > .react-resizable-handle.react-resizable-handle-nw,
   .editor-grid-zone .react-grid-item > .react-resizable-handle.react-resizable-handle-ne,
   .editor-grid-zone .react-grid-item > .react-resizable-handle.react-resizable-handle-se,
@@ -266,6 +298,11 @@ type EditorGridProps = {
   cols: number;
   /** Which canvas width to clamp to — see `PROFILE_CANVAS_WIDTH`. */
   viewport: ProfileViewport;
+  /**
+   * Touch screen. Switches drag from the whole card to the card's grip so the
+   * page stays scrollable — see `TOUCH_DRAG_CONFIG`.
+   */
+  isTouch?: boolean;
   rowHeight?: number;
   onChange: (layout: GridLayoutItem[]) => void;
   renderCard: (block: ProfileBlock) => ReactNode;
@@ -289,6 +326,7 @@ export function EditorGrid({
   blocks,
   cols,
   viewport,
+  isTouch = false,
   rowHeight = GRID_ROW_HEIGHT,
   onChange,
   renderCard,
@@ -369,15 +407,17 @@ export function EditorGrid({
   );
 
   return (
-    // `maxWidth` is the whole point of the shared `PROFILE_CANVAS_WIDTH`: the
-    // measured container width IS the grid width, so clamping it here is what
-    // makes an editor column the same number of pixels as a published column.
-    // Before this the pc canvas measured ~1169px against the page's 670px and
-    // the mobile canvas measured the same ~1169px against the page's 293px.
-    <div
-      ref={containerRef}
-      className="editor-grid-zone mx-auto w-full"
-      style={{ maxWidth: PROFILE_CANVAS_WIDTH[viewport] }}
+    // `CanvasFrame` owns the width: the measured container width IS the grid
+    // width, so sizing it to the shared `PROFILE_CANVAS_WIDTH` is what makes an
+    // editor column the same number of pixels as a published column. Before
+    // this the pc canvas measured ~1169px against the page's 670px and the
+    // mobile canvas measured the same ~1169px against the page's 293px. The
+    // frame also refuses to shrink the canvas past `minCanvasWidth`, scrolling
+    // itself instead — see `canvas-frame.tsx`.
+    <CanvasFrame
+      viewport={viewport}
+      innerRef={containerRef}
+      className="editor-grid-zone"
     >
       <style>{EDITOR_GRID_HANDLE_CSS}</style>
       {blocks.length === 0 ? (
@@ -391,7 +431,7 @@ export function EditorGrid({
           width={width}
           layout={items}
           gridConfig={gridConfig}
-          dragConfig={DRAG_CONFIG}
+          dragConfig={isTouch ? TOUCH_DRAG_CONFIG : DRAG_CONFIG}
           resizeConfig={RESIZE_CONFIG}
           compactor={VERTICAL_COMPACTOR}
           onDragStop={persist}
@@ -403,6 +443,6 @@ export function EditorGrid({
           ))}
         </GridLayout>
       ) : null}
-    </div>
+    </CanvasFrame>
   );
 }

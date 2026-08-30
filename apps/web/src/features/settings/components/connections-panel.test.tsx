@@ -190,6 +190,32 @@ describe("ConnectionsPanel list", () => {
     expect(list?.querySelectorAll(":scope > li")).toHaveLength(2);
   });
 
+  it("keeps the loading skeleton's action row mobile-safe (regression)", () => {
+    // The skeleton mirrors `ConnectionRow`'s action column, which was fixed
+    // to `w-full flex-wrap gap-2 sm:w-auto sm:shrink-0` after `shrink-0` alone
+    // pinned it at its two-placeholder intrinsic width and overflowed a
+    // 375px card. The skeleton had not been updated to match and would
+    // reproduce the same overflow while the connections query is loading.
+    useMyConnections.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+
+    const { container } = render(<ConnectionsPanel />);
+
+    const firstRow = container.querySelector("ul.space-y-3 > li");
+    expect(firstRow).not.toBeNull();
+    const rowFlex = firstRow!.querySelector(":scope > div");
+    const actionRow = rowFlex?.querySelector(":scope > div:last-child");
+    expect(actionRow).not.toBeNull();
+
+    const classes = actionRow!.className.split(/\s+/).filter(Boolean);
+    expect(classes).not.toContain("shrink-0");
+    expect(classes).toContain("w-full");
+    expect(classes).toContain("sm:shrink-0");
+  });
+
   it("surfaces a load failure instead of an empty state that looks like no sources", () => {
     useMyConnections.mockReturnValue({
       data: undefined,

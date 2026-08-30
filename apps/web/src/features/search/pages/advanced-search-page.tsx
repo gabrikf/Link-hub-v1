@@ -13,10 +13,12 @@ import {
 } from "../../../lib/auth-api";
 import { reportError, reportHandled } from "../../../lib/report-error";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
+import { AiMatchToggle } from "../components/ai-match-toggle";
 import { SearchChatComposer } from "../components/search-chat-composer";
 import { SearchMandatoryFilters } from "../components/search-mandatory-filters";
 import { SearchResults } from "../components/search-results";
-import { useAiRerank } from "../hooks/use-ai-rerank";
+import { useAiMatchPreference } from "../hooks/use-ai-match-preference";
+import { unrankedOutcome, useAiRerank } from "../hooks/use-ai-rerank";
 import {
   advancedSearchFormSchema,
   type AdvancedSearchFormValues,
@@ -97,18 +99,49 @@ export function AdvancedSearchPage() {
   });
 
   const { rerank, warmUp, isModelLoading } = useAiRerank();
+  const {
+    isAiMatchOn,
+    isDeviceDecision,
+    isTouchFirst,
+    setIsAiMatchOn,
+  } = useAiMatchPreference();
 
-  // Start fetching the reranker bundle as soon as the page mounts, so it is
-  // already in memory by the time the first query is submitted.
+  /*
+   * Start fetching the reranker bundle as soon as the page mounts, so it is
+   * already in memory by the time the first query is submitted — but ONLY when
+   * AI Match is on.
+   *
+   * `warmUp()` is what instantiates the worker, and the worker is what pulls
+   * ~1.39 MB of TensorFlow plus the model weights. On a phone that download and
+   * the inference pass behind it heat the handset and can lock the page up, so
+   * "load it and then skip the scoring" would still cost the user everything
+   * the switch is meant to save. The guard has to sit here, before the worker
+   * exists.
+   */
   useEffect(() => {
+    if (!isAiMatchOn) {
+      return;
+    }
+
     warmUp();
-  }, [warmUp]);
+  }, [warmUp, isAiMatchOn]);
 
   const searchMutation = useMutation({
     mutationFn: async (
       input: ReturnType<typeof buildRecruiterSearchPayload>["payload"],
     ) => {
       const semanticResults = await searchRecruiterResumes(input);
+
+      // Same guard as the warm-up: with AI Match off the worker is never
+      // reached, so the model is never fetched. Results keep the API's own
+      // similarity order.
+      if (!isAiMatchOn) {
+        return {
+          outcome: unrankedOutcome(semanticResults.candidates),
+          searchInput: semanticResults.input,
+        };
+      }
+
       // `rerank` no longer throws: a model or CDN failure comes back as
       // `degraded` with the API's own ordering intact, so one flaky asset load
       // can no longer wipe out 50 good candidates.
@@ -343,7 +376,7 @@ export function AdvancedSearchPage() {
         />
       </div>
 
-      <section className={`anim-fade-up p-6 ${SURFACE}`}>
+      <section className={`anim-fade-up p-4 sm:p-6 ${SURFACE}`}>
         <div className="flex items-center gap-3">
           <span className="anim-glow-pulse inline-flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-violet-600 to-cyan-500 text-white">
             <FiActivity className="anim-float h-5 w-5" aria-hidden="true" />
@@ -369,6 +402,16 @@ export function AdvancedSearchPage() {
             attachmentFile={attachmentFile}
             onPickFile={() => fileInputRef.current?.click()}
             onRemoveFile={() => setAttachmentFile(null)}
+          />
+
+          {/* Sits with the search controls rather than in account settings: it
+              is a decision about THIS device, taken at the moment the cost is
+              about to be paid. */}
+          <AiMatchToggle
+            isOn={isAiMatchOn}
+            isDeviceDecision={isDeviceDecision}
+            isTouchFirst={isTouchFirst}
+            onChange={setIsAiMatchOn}
           />
 
           <input
@@ -404,6 +447,7 @@ export function AdvancedSearchPage() {
         isBusy={isBusy}
         hasSearched={hasSearched}
         degradedNotice={rerankNotice}
+        isAiMatchOn={isAiMatchOn}
         onCopyEmail={handleCopyEmail}
         onViewProfile={handleViewProfile}
         onNotRelevant={handleNotRelevant}

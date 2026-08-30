@@ -1,17 +1,1 @@
-{
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/guardrails/pre-push.mjs\" --stop-hook",
-            "timeout": 180
-          }
-        ]
-      }
-    ]
-  }
-}
+../.agents/settings.json

@@ -7,7 +7,7 @@ import { developerTest, expect, test } from "../support/fixtures";
  * journey assumes these three facts.
  */
 test("the public profile of a seeded developer renders", async ({ page, guard }) => {
-  await page.goto(`/profile/${ACCOUNTS.developer.login}`);
+  await page.goto(`/${ACCOUNTS.developer.login}`);
   await expect(page.getByRole("heading").first()).toBeVisible();
   expect(guard.errors, "console errors on the public profile").toEqual([]);
 });

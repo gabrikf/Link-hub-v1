@@ -1,4 +1,8 @@
-import { GRID_COLUMNS, type ProfileBlock } from "@repo/schemas";
+import {
+  DEFAULT_TABS_ENABLED,
+  GRID_COLUMNS,
+  type ProfileBlock,
+} from "@repo/schemas";
 import { describe, expect, it } from "vitest";
 import {
   blocksToRglLayout,
@@ -45,13 +49,31 @@ describe("buildDefaultLayout", () => {
       layout.blocks.every((block) => block.gridW === GRID_COLUMNS.pc),
     ).toBe(true);
 
-    const header = layout.blocks.find((block) => block.kind === "header");
-    expect(header?.pinnedAllTabs).toBe(true);
-    expect(header?.tabId).toBeNull();
+    // Header AND links are pinned: a profile's always-visible zone is the photo,
+    // the name and the links. `links` used to live in the tab and this assertion
+    // said so — it encoded the old default.
+    for (const kind of ["header", "links"] as const) {
+      const block = layout.blocks.find((candidate) => candidate.kind === kind);
+      expect(block?.pinnedAllTabs).toBe(true);
+      expect(block?.tabId).toBeNull();
+    }
 
-    const links = layout.blocks.find((block) => block.kind === "links");
-    expect(links?.pinnedAllTabs).toBe(false);
-    expect(links?.tabId).toBe(layout.tabs[0].id);
+    const resume = layout.blocks.find((block) => block.kind === "resume");
+    expect(resume?.pinnedAllTabs).toBe(false);
+    expect(resume?.tabId).toBe(layout.tabs[0].id);
+  });
+
+  /*
+   * The legacy fallback keeps `tabsEnabled: true` even though a BRAND-NEW
+   * account is created with it false. It fires only for a stored profile whose
+   * response carries no layout at all, and it fabricates the resume/work/posts
+   * blocks — reading false here would take those off a long-standing profile
+   * that has simply never been arranged.
+   */
+  it("keeps the tab strip on, unlike a freshly created account", () => {
+    expect(buildDefaultLayout("pc").tabsEnabled).toBe(true);
+    expect(buildDefaultLayout("mobile").tabsEnabled).toBe(true);
+    expect(DEFAULT_TABS_ENABLED).toBe(false);
   });
 
   it("uses the mobile column count for the mobile viewport", () => {

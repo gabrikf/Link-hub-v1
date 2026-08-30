@@ -8,7 +8,21 @@ describe("SetTabsEnabledUseCase", () => {
   let usersRepository: InMemoryUsersRepository;
   let sut: SetTabsEnabledUseCase;
 
-  async function seedUser() {
+  /**
+   * Seeds a user with BOTH viewports' tab strips already on, stated explicitly.
+   *
+   * The independence tests below are about one write not leaking into the other
+   * viewport, so they need a starting state where both are on and a flip is
+   * visible. That used to come from the entity's normalization default; it is
+   * spelled out here now that a brand-new account starts with both OFF
+   * (`DEFAULT_TABS_ENABLED`), which the first test covers on its own.
+   */
+  async function seedUser(
+    props: { tabsEnabledPc?: boolean; tabsEnabledMobile?: boolean } = {
+      tabsEnabledPc: true,
+      tabsEnabledMobile: true,
+    },
+  ) {
     const now = new Date();
     const user = new UserEntity({
       id: "user-1",
@@ -19,6 +33,8 @@ describe("SetTabsEnabledUseCase", () => {
       description: null,
       avatarUrl: null,
       googleId: null,
+      tabsEnabledPc: props.tabsEnabledPc,
+      tabsEnabledMobile: props.tabsEnabledMobile,
       createdAt: now,
       updatedAt: now,
     });
@@ -31,11 +47,17 @@ describe("SetTabsEnabledUseCase", () => {
     sut = new SetTabsEnabledUseCase(usersRepository);
   });
 
-  it("starts both viewports enabled", async () => {
-    const user = await seedUser();
+  /*
+   * The new-account default, at the smallest scope that can show it. A fresh
+   * profile publishes the always-visible zone only — photo, name and links —
+   * so both viewports start with their tab strip OFF. This test used to assert
+   * the opposite; it encoded the old default.
+   */
+  it("starts a brand-new account with both viewports' tabs off", async () => {
+    const user = await seedUser({});
 
-    expect(user.tabsEnabledPc).toBe(true);
-    expect(user.tabsEnabledMobile).toBe(true);
+    expect(user.tabsEnabledPc).toBe(false);
+    expect(user.tabsEnabledMobile).toBe(false);
   });
 
   /*

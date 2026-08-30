@@ -79,6 +79,7 @@
     "professionalExperience": "Experiencia profesional",
     "skills": "Habilidades",
     "titles": "Puestos",
+    "language": "Idioma",
     "languages": "Idiomas",
     "seniority": "Seniority",
     "contractType": "Tipo de contrato",
@@ -110,7 +111,9 @@
     "creating": "Creando...",
     "connecting": "Conectando...",
     "terminal": "Terminal",
-    "sending": "Enviando..."
+    "sending": "Enviando...",
+    "on": "Activado",
+    "showLess": "Mostrar menos"
   },
   "settings": {
     "provider": {
@@ -615,6 +618,33 @@
       "detailed": "Detallado",
       "full": "Completo"
     },
+    "disclosureLevelDescription": {
+      "summary": "Comparte lo que hiciste y cómo lo hiciste, nunca para quién.",
+      "detailed": "Todo lo del nivel Resumen, más las empresas y el trabajo público que hay detrás.",
+      "full": "Sin restricción por parte de CraftHub: tú decides qué puede decir el agente."
+    },
+    "disclosureBullet": {
+      "role-titles": "Puestos y nivel de seniority",
+      "dates-and-duration": "Fechas de inicio y fin, y cuánto duró cada puesto",
+      "employment-and-work-model": "Tipo de contratación (jornada completa, contrato, freelance) y modalidad de trabajo (remoto, híbrido, presencial)",
+      "tech-stack": "Stack y herramientas utilizadas",
+      "engineering-practices": "Prácticas y estrategias de ingeniería (TDD, trunk-based development, arquitectura orientada a eventos, CI/CD, pair programming)",
+      "generic-problem-domains": "Dominios de problema descritos de forma genérica (pagos, logística, agendamiento sanitario)",
+      "non-identifying-metrics": "Métricas de resultado que no identifican a nadie (\"reduje la latencia p95 un 40%\", \"reduje a la mitad el tiempo de build\")",
+      "everything-at-summary": "Todo lo que permite el nivel Resumen",
+      "employer-name": "Nombre del empleador",
+      "public-product-names": "Nombres de productos públicos",
+      "public-repositories": "Nombres y enlaces de repositorios públicos",
+      "anything-in-profile": "Cualquier cosa presente en el perfil, el historial laboral y las publicaciones",
+      "employer-and-client-names": "Nombres de empleadores y clientes",
+      "internal-codenames": "Nombres internos de repositorios, servicios, proyectos y nombres en clave",
+      "ticket-ids": "Ids de tickets e issues",
+      "customer-names": "Nombres de clientes finales",
+      "unreleased-products": "Nombres de productos aún no lanzados",
+      "internal-architecture": "Detalles internos de arquitectura (topología, contratos con proveedores, distribución de la infraestructura)",
+      "headcount-and-revenue": "Número de empleados y cifras de facturación",
+      "employer-identifying-metrics": "Cualquier métrica que identifique al empleador (\"el único banco brasileño que procesa 4M de PIX al día\")"
+    },
     "workModel": {
       "remote": "Remoto",
       "hybrid": "Híbrido",
@@ -688,6 +718,7 @@
       "zinc": "Zinc"
     },
     "themePreset": {
+      "violet": "Violeta",
       "ocean": "Océano",
       "sunset": "Atardecer",
       "forest": "Bosque",
@@ -809,7 +840,17 @@
     "candidatesFound_one": "{{count}} candidato encontrado.",
     "candidatesFound_other": "{{count}} candidatos encontrados.",
     "yearsOfExperience_one": "{{count}} año de experiencia",
-    "yearsOfExperience_other": "{{count}} años de experiencia"
+    "yearsOfExperience_other": "{{count}} años de experiencia",
+    "aiMatchLabel": "Coincidencia IA %",
+    "aiMatchExplainer": "Calcula cuánto cubre cada candidato de tu búsqueda, con un modelo pequeño que se ejecuta en tu navegador.",
+    "aiMatchPhoneWarning": "En un móvil descarga unos 1,4 MB y hace los cálculos en tu dispositivo, lo que puede calentarlo y bloquear la página. Se recomienda un ordenador.",
+    "aiMatchDefaultOffHere": "Aquí viene desactivado, porque esto parece un móvil o una tableta. Tu elección se guarda en este dispositivo.",
+    "aiMatchDefaultOnHere": "Aquí viene activado, porque esto parece un ordenador. Tu elección se guarda en este dispositivo.",
+    "aiMatchOffNotice": "La Coincidencia IA está desactivada, así que los candidatos mantienen el orden del propio motor de búsqueda y no se muestra ningún porcentaje. Vuelve a activarla arriba cuando quieras.",
+    "rankedBySearchEngine": "Ordenado por el motor de búsqueda",
+    "searchOrderCount_one": "{{count}} candidato en el orden de la búsqueda",
+    "searchOrderCount_other": "{{count}} candidatos en el orden de la búsqueda",
+    "semanticHints": "Pistas semánticas (opcional)"
   },
   "nav": {
     "dashboard": "Panel",
@@ -817,6 +858,7 @@
     "publicProfile": "Perfil público",
     "settings": "Ajustes",
     "logout": "Cerrar sesión",
+    "menu": "Menú",
     "openMenu": "Abrir menú",
     "closeMenu": "Cerrar menú",
     "switchTheme": "Cambiar al tema {{mode}}",
@@ -939,6 +981,7 @@
     "noDescriptionYet": "Todavía no hay descripción.",
     "namePlaceholder": "Tu nombre",
     "usernamePlaceholder": "usuario",
+    "usernameReserved": "Ese nombre de usuario está reservado. Elige otro.",
     "locationPlaceholder": "Ciudad, País",
     "noRole": "Sin puesto",
     "banner": "Banner",
@@ -951,6 +994,9 @@
     "backgroundHelp": "Fondo opcional de página completa detrás de tu perfil.",
     "customAccentColor": "Color de acento personalizado",
     "openToWorkHelp": "Muestra una insignia para reclutadores en tu perfil.",
+    "notDiscoverableTitle": "Estás oculto en la búsqueda de reclutadores",
+    "notDiscoverableBody": "La opción Abierto a ofertas está desactivada, así que los reclutadores que buscan tus habilidades no ven tu perfil. El enlace de tu perfil público sigue funcionando igual: actívala cuando quieras que te encuentren.",
+    "notDiscoverableAction": "Activar Abierto a ofertas",
     "savingProfile": "Guardando perfil...",
     "saveProfile": "Guardar perfil",
     "unableToUpdateProfile": "No se pudo actualizar el perfil",
@@ -963,7 +1009,12 @@
     "resumeSnapshot": "Currículum visible al público",
     "importFromResume": "Importar desde tu currículum",
     "importFromResumeHelp": "Sube un PDF o archivo de Word y deja que la IA rellene tu currículum e historial laboral.",
-    "importResumeFile": "Importar archivo de currículum"
+    "importResumeFile": "Importar archivo de currículum",
+    "customRoleLabel": "¿Cuál?",
+    "customRolePlaceholder": "Fisioterapeuta",
+    "customRoleHelp": "Esto es lo que tu perfil muestra en lugar de «Otro».",
+    "customRoleRequired": "Indica tu puesto.",
+    "customRoleTooLong": "Usa como máximo {{max}} caracteres."
   },
   "links": {
     "titlePlaceholder": "Mi sitio web",
@@ -1193,7 +1244,11 @@
     "yearsExperience_one": "{{count}} año de experiencia",
     "yearsExperience_other": "{{count}} años de experiencia",
     "yearsShort_one": "({{count}}a)",
-    "yearsShort_other": "({{count}}a)"
+    "yearsShort_other": "({{count}}a)",
+    "moreSkills_one": "+{{count}}",
+    "moreSkills_other": "+{{count}}",
+    "showAllSkills_one": "+{{count}} — mostrar todas las habilidades",
+    "showAllSkills_other": "+{{count}} — mostrar todas las habilidades"
   },
   "layout": {
     "block": {
@@ -1300,10 +1355,15 @@
     "pcLayout": "Diseño de PC",
     "mobileLayout": "Diseño móvil",
     "pageSubtitle": "Diseña maquetas independientes para escritorio y móvil. Organiza los bloques en una cuadrícula libre, agrúpalos en pestañas de contenido — cada formato de pantalla tiene las suyas — y fija bloques para que aparezcan en todas.",
-    "needsWiderScreen": "Abre el estudio de diseño en una pantalla más grande",
-    "needsWiderScreenBody": "Organizar bloques necesita un lienzo de al menos 1024px de ancho — en esta pantalla una columna de la cuadrícula mediría unos 15px. Tu perfil publicado no se ve afectado, y aún puedes diseñar el diseño móvil desde un navegador de escritorio.",
     "addToAlwaysVisible": "Añadir a siempre visible",
     "addToTabs": "Añadir a la sección de pestañas",
-    "alwaysVisibleSection": "Siempre visible"
+    "alwaysVisibleSection": "Siempre visible",
+    "moveBlockUp": "Mover {{label}} hacia arriba",
+    "moveBlockDown": "Mover {{label}} hacia abajo",
+    "growBlock": "Hacer {{label}} más alto",
+    "shrinkBlock": "Hacer {{label}} más bajo",
+    "touchArrangeTip": "Consejo: arrastra un bloque por su asa para moverlo, o usa las flechas y los botones de más y menos de cada bloque. Los bloques siempre se apilan arriba, así que mover uno empuja a los demás hacia arriba para llenar el hueco.",
+    "pcLayoutNeedsWiderScreen": "El diseño de escritorio se compone en un lienzo de 1024px, que no cabe en esta pantalla — abre el estudio en un ordenador para editarlo. Mientras tanto sigue intacto y publicado.",
+    "previewMobileOnly": "Mostrando la vista previa móvil. La vista previa de escritorio necesita una pantalla más ancha."
   }
 }

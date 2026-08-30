@@ -19,11 +19,11 @@ import { expect, loginAs, test, watchPage } from "../support/fixtures";
  *
  * Links live in their own `links` table (NOT the layout editor's "button
  * block"): they are managed on `/dashboard` and published by the `links` block
- * of `/profile/$username`.
+ * of `/$username`.
  */
 
 const OWNER = JOURNEY_ACCOUNTS.links;
-const PUBLIC_PATH = `/profile/${OWNER.login}`;
+const PUBLIC_PATH = `/${OWNER.login}`;
 
 /** Must match THEME_STORAGE_KEY in apps/web/src/lib/theme.ts. */
 const THEME_KEY = "crafthub-theme";
@@ -224,7 +224,7 @@ async function openStranger(
 /**
  * Navigate and let the page settle before anything is asserted.
  *
- * The FIRST visit to `/profile/*` from a cold browser context makes Vite's dev
+ * The FIRST visit to a public profile from a cold browser context makes Vite's dev
  * server optimise a new dependency and answer with a FULL PAGE RELOAD. That
  * reload throws away the DOM an assertion is holding, and the assertion then
  * burns its whole timeout "waiting for navigation to finish". Production builds
@@ -903,7 +903,7 @@ test("@responsive a username nobody owns shows a not-found state", async ({
   const stranger = await openStranger(browser);
 
   try {
-    await gotoSettled(stranger.page, `/profile/nobody-owns-this-${uniqueSuffix()}`);
+    await gotoSettled(stranger.page, `/nobody-owns-this-${uniqueSuffix()}`);
 
     const notFound = stranger.page
       .getByRole("main")
@@ -931,6 +931,54 @@ test("@responsive a username nobody owns shows a not-found state", async ({
         allow: /\/profile\/nobody-owns-this-\S* — HTTP 404$/,
       }),
       "failed requests on the not-found profile",
+    ).toEqual([]);
+  } finally {
+    await stranger.close();
+  }
+});
+
+/**
+ * The short URL, asserted end to end — including that the OLD one is gone.
+ *
+ * `/:username` is now the only public profile path. Every already-shared and
+ * search-indexed `/profile/*` link 404s from this deploy onward; that was a
+ * deliberate product decision, and this is the test that says so out loud so a
+ * future "let's add a redirect back" is a conversation and not a surprise.
+ *
+ * `page.url()` is also exactly what the Share control copies — it reads
+ * `window.location.href` (public-profile-page.tsx) — so pinning the address bar
+ * pins what lands in somebody's clipboard.
+ */
+test("the profile lives at the short URL, and the old one is gone", async ({
+  browser,
+}) => {
+  const stranger = await openStranger(browser);
+
+  try {
+    await gotoSettled(stranger.page, PUBLIC_PATH);
+
+    await expect(stranger.page.getByRole("heading").first()).toBeVisible();
+    expect(stranger.page.url()).toMatch(new RegExp(`/${OWNER.login}$`));
+    expect(stranger.page.url()).not.toContain("/profile/");
+
+    // The removed path. It renders the app's 404 screen, not the profile.
+    await gotoSettled(stranger.page, `/profile/${OWNER.login}`);
+
+    await expect(
+      stranger.page.getByRole("heading", { name: "Page not found" }),
+    ).toBeVisible();
+
+    // A reserved word can never belong to anybody, so it gets the same 404
+    // rather than a pointless "profile not found" round trip.
+    await gotoSettled(stranger.page, "/login");
+
+    await expect(
+      stranger.page.getByRole("heading", { name: "Page not found" }),
+    ).toBeVisible();
+
+    expect(
+      appErrors(stranger.guard),
+      "console errors across the short-URL checks",
     ).toEqual([]);
   } finally {
     await stranger.close();

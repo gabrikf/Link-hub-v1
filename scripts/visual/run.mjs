@@ -28,7 +28,7 @@
  *   }
  *
  * `requiresAuth` exists because CraftHub genuinely has public pages —
- * `/profile/$username` is the shareable artifact the whole product is for. A
+ * `/$username` is the shareable artifact the whole product is for. A
  * runner that demanded a session for every capture could not check the one page
  * that matters most.
  *

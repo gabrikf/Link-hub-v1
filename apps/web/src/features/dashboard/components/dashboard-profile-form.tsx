@@ -1,7 +1,16 @@
-import { useEffect } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  isReservedUsername,
+  personaOtherSchema,
+  personaSchema,
+  themePresetSchema,
+} from "@repo/schemas";
+import type { TFunction } from "i18next";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { FiRotateCcw, FiSave } from "react-icons/fi";
+import { z } from "zod/v4";
 import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
@@ -33,7 +42,101 @@ export type ProfileFormValues = {
   openToWork: boolean;
   location: string;
   persona: Persona | "";
+  /**
+   * The user's own words for their role, used when `persona` is "other".
+   * Empty string means "not set" — the form works in strings, and the page
+   * turns it into the `null` the API takes.
+   *
+   * OPTIONAL rather than required: `ProfileFormValues` is a public shape that
+   * callers and fixtures build by hand, and making a new field mandatory turns
+   * every one of them into a compile error and an `undefined.trim()` at
+   * runtime. Absent reads exactly like empty everywhere below.
+   */
+  personaOther?: string;
 };
+
+/** The bound the API enforces, read off the shared schema rather than retyped. */
+const PERSONA_OTHER_MAX_LENGTH = personaOtherSchema.maxLength ?? 60;
+
+/**
+ * The form's rules, in the user's language.
+ *
+ * TWO rules are expressed here, and both are rules a single field cannot state
+ * on its own in a language the user reads.
+ *
+ * The first: "Other" is not an answer, so picking it means saying which.
+ *
+ * The second: a username that is a reserved word is refused. That one arrived
+ * with the short profile URL — `/:username` is now the only public profile
+ * path, so a username that collides with an application route is an account
+ * whose profile can never be opened. It is NOT the form deciding to
+ * client-validate usernames in general: the rule and the list both come from
+ * `@repo/schemas`, the API enforces exactly the same thing, and everything
+ * else on this form is still declared permissively on purpose. The fields are
+ * listed rather than left out because `zodResolver` hands `handleSubmit` the
+ * PARSED object, and anything missing from the schema would be stripped out of
+ * the payload on save.
+ *
+ * The role rule itself is NOT retyped: `personaOtherSchema` from
+ * `@repo/schemas` is the same trimmed, 1..60 rule the API validates against, so
+ * the browser can never accept a label the server would reject (or the
+ * reverse). Only the WORDING is local, because only the browser knows which
+ * language to say it in.
+ */
+const buildProfileFormSchema = (t: TFunction) =>
+  z
+    .object({
+      username: z.string(),
+      name: z.string(),
+      description: z.string(),
+      userPhoto: z.string(),
+      bannerImageUrl: z.string(),
+      backgroundImageUrl: z.string(),
+      themePreset: themePresetSchema,
+      themeAccent: z.string(),
+      openToWork: z.boolean(),
+      location: z.string(),
+      persona: z.union([personaSchema, z.literal("")]),
+      personaOther: z.string().optional(),
+    })
+    .superRefine((values, ctx) => {
+      /**
+       * The reserved-username rule, stated in the user's language.
+       *
+       * The API rejects these too — the refinement lives on
+       * `updateProfileSchemaInput` in `@repo/schemas`, so it is the same list
+       * on both sides. Repeating it here is not a second source of truth: the
+       * LIST comes from `isReservedUsername`, only the wording is local. What
+       * it buys is the difference between a field-level sentence and a raw
+       * `ZodError` blob — `lib/auth-api.ts` parses the payload through the
+       * shared schema before it posts, so without this the rejection arrives
+       * as serialised zod issues in the modal's error slot.
+       */
+      if (isReservedUsername(values.username)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["username"],
+          message: t("dashboard.usernameReserved"),
+        });
+      }
+
+      if (values.persona !== "other") {
+        return;
+      }
+
+      const result = personaOtherSchema.safeParse(values.personaOther ?? "");
+      if (result.success) {
+        return;
+      }
+
+      ctx.addIssue({
+        code: "custom",
+        path: ["personaOther"],
+        message: result.error.issues.some((issue) => issue.code === "too_big")
+          ? t("dashboard.customRoleTooLong", { max: PERSONA_OTHER_MAX_LENGTH })
+          : t("dashboard.customRoleRequired"),
+      });
+    });
 
 type DashboardProfileFormProps = {
   initialValues: ProfileFormValues;
@@ -59,14 +162,16 @@ export function DashboardProfileForm({
   onDirtyChange,
 }: DashboardProfileFormProps) {
   const { t } = useTranslation();
+  const formSchema = useMemo(() => buildProfileFormSchema(t), [t]);
   const {
     register,
     handleSubmit,
     reset,
     watch,
     setValue,
-    formState: { isDirty },
+    formState: { errors, isDirty },
   } = useForm<ProfileFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: initialValues,
   });
 
@@ -109,6 +214,7 @@ export function DashboardProfileForm({
       <Input
         id="profile-username"
         label={t("common.username")}
+        error={errors.username?.message}
         {...register("username")}
       />
       <Input id="profile-name" label={t("common.name")} {...register("name")} />
@@ -143,9 +249,9 @@ export function DashboardProfileForm({
             <ProfileCover
               compact
               bannerImageUrl={watched.bannerImageUrl.trim() || null}
-              openToWork={watched.openToWork}
               location={watched.location.trim() || null}
               persona={watched.persona || null}
+              personaOther={watched.personaOther?.trim() || null}
             />
           </div>
           <div className="relative z-10 -mt-10 flex flex-col items-center gap-1 px-4 pb-4 text-center">
@@ -344,6 +450,32 @@ export function DashboardProfileForm({
             ))}
           </select>
         </div>
+
+        {/*
+          "Other" used to be a dead end: the eight categories cover most people
+          and nobody else, and a physiotherapist could only file themselves
+          under a word that says nothing. Picking it now asks which, and that
+          answer is what the profile and its banner show.
+        */}
+        {watched.persona === "other" ? (
+          <div className="anim-fade-in">
+            <Input
+              id="profile-persona-other"
+              label={t("dashboard.customRoleLabel")}
+              placeholder={t("dashboard.customRolePlaceholder")}
+              maxLength={PERSONA_OTHER_MAX_LENGTH}
+              error={errors.personaOther?.message}
+              aria-describedby="profile-persona-other-hint"
+              {...register("personaOther")}
+            />
+            <p
+              id="profile-persona-other-hint"
+              className="mt-1 text-xs text-zinc-500 dark:text-zinc-400"
+            >
+              {t("dashboard.customRoleHelp")}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {errorMessage ? (

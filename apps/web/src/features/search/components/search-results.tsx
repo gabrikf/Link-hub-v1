@@ -12,6 +12,7 @@ import {
   FiExternalLink,
   FiGitCommit,
   FiGlobe,
+  FiInfo,
   FiMail,
   FiMapPin,
   FiThumbsDown,
@@ -46,8 +47,13 @@ const cx = (...parts: Array<string | false | null | undefined>) =>
 /** Roles shown before the card collapses the rest behind a toggle. */
 const VISIBLE_ROLE_COUNT = 3;
 
+/**
+ * `max-w-full` + `break-words`: at 375px a real location ("São José dos Campos,
+ * São Paulo, Brasil") is wider than the card, and an `inline-flex` chip lays its
+ * text out as a flex item that will not wrap on its own.
+ */
 const CHIP_CLASS =
-  "inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-zinc-800";
+  "inline-flex max-w-full items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 break-words dark:bg-zinc-800";
 
 const PANEL_CLASS = "rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/60";
 
@@ -226,7 +232,7 @@ function ShippedWork({ evidence }: ShippedWorkProps) {
                   {sourceMeta.label}
                 </span>
                 {post.title ? (
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                  <span className="min-w-0 break-words text-sm font-medium text-zinc-800 dark:text-zinc-100">
                     {post.title}
                   </span>
                 ) : null}
@@ -270,6 +276,8 @@ type CandidateAction = (candidate: RankedCandidate, index: number) => void;
 type CandidateCardProps = {
   candidate: RankedCandidate;
   index: number;
+  /** False when the recruiter switched the on-device re-ranker off. */
+  isAiMatchOn: boolean;
   onCopyEmail: CandidateAction;
   onViewProfile: CandidateAction;
   onNotRelevant: CandidateAction;
@@ -278,6 +286,7 @@ type CandidateCardProps = {
 const CandidateCard = memo(function CandidateCard({
   candidate,
   index,
+  isAiMatchOn,
   onCopyEmail,
   onViewProfile,
   onNotRelevant,
@@ -312,7 +321,7 @@ const CandidateCard = memo(function CandidateCard({
                   sized to max-content and long names overflowed the card and
                   were silently clipped. */}
               <Link
-                to="/profile/$username"
+                to="/$username"
                 params={{ username: candidate.username }}
                 title={candidate.name}
                 // Opening a candidate's profile is a real, if weak, preference
@@ -325,7 +334,12 @@ const CandidateCard = memo(function CandidateCard({
                 <FiUser className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="truncate">{candidate.name}</span>
               </Link>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {/* Usernames are one unbreakable token, so a long one pushed the
+                  card past the viewport instead of wrapping. */}
+              <p
+                title={candidate.username}
+                className="truncate text-xs text-zinc-500 dark:text-zinc-400"
+              >
                 @{candidate.username}
               </p>
             </div>
@@ -347,21 +361,26 @@ const CandidateCard = memo(function CandidateCard({
           </p>
         </div>
 
-        <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+        <div className="flex flex-col items-start gap-2 sm:shrink-0 sm:items-end">
           {/* No `anim-sheen`: that animation is what `Skeleton` uses, so it
               means "still loading" everywhere else in the app. On a card whose
               data has arrived it is a semantic collision. */}
-          <span
-            className={cx(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold",
-              match.className,
-            )}
-          >
-            {match.percent}
-            <span className="text-xs font-medium opacity-80">
-              {match.label}
+          {/* With AI Match off there is no score to show, and "Match
+              unavailable" would read as a fault rather than as a setting. The
+              section-level note above the list explains the state once. */}
+          {isAiMatchOn ? (
+            <span
+              className={cx(
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold",
+                match.className,
+              )}
+            >
+              {match.percent}
+              <span className="text-xs font-medium opacity-80">
+                {match.label}
+              </span>
             </span>
-          </span>
+          ) : null}
 
           {/* Search listings no longer carry email addresses at all — the field
               is `null` for everyone. This asks the server to reveal ONE
@@ -538,6 +557,12 @@ type SearchResultsProps = {
    * results below are real, they are just in the API's order.
    */
   degradedNotice?: string | null;
+  /**
+   * False when the recruiter switched the on-device re-ranker off. NOT the same
+   * state as `degradedNotice`: nothing failed, so nothing here may read as a
+   * fault.
+   */
+  isAiMatchOn?: boolean;
   onCopyEmail: CandidateAction;
   onViewProfile?: CandidateAction;
   onNotRelevant?: CandidateAction;
@@ -584,6 +609,7 @@ export function SearchResults({
   isBusy,
   hasSearched,
   degradedNotice = null,
+  isAiMatchOn = true,
   onCopyEmail,
   onViewProfile = noopAction,
   onNotRelevant = noopAction,
@@ -604,18 +630,24 @@ export function SearchResults({
       // `scroll-mt-20` clears the sticky top bar: without it the scroll lands
       // the "Results" header underneath the nav and the recruiter arrives at a
       // region whose own heading is hidden.
-      className={`scroll-mt-20 p-6 ${SURFACE} ${FOCUS_RING}`}
+      className={`scroll-mt-20 p-4 sm:p-6 ${SURFACE} ${FOCUS_RING}`}
     >
       <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 id={RESULTS_HEADING_ID} className="text-base font-semibold">
           {t("common.results")}
         </h2>
+        {/* With AI Match off, "re-ranked locally" would describe work that
+            never happened. */}
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           {isBusy
             ? t("search.rankingCandidates")
             : hasSearched
-              ? t("search.rerankedCount", { count: results.length })
-              : t("search.rerankedOnDevice")}
+              ? isAiMatchOn
+                ? t("search.rerankedCount", { count: results.length })
+                : t("search.searchOrderCount", { count: results.length })
+              : isAiMatchOn
+                ? t("search.rerankedOnDevice")
+                : t("search.rankedBySearchEngine")}
         </p>
       </header>
 
@@ -632,12 +664,25 @@ export function SearchResults({
       {/* What the % on each card means. This lived only in a native `title=`
           tooltip: no hover affordance, unreachable by keyboard, invisible on
           touch — so "62%" read as a probability of something. */}
-      <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">
-          {t("common.match")}
-        </span>{" "}
-        {t("search.matchExplainer")}
-      </p>
+      {isAiMatchOn ? (
+        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">
+            {t("common.match")}
+          </span>{" "}
+          {t("search.matchExplainer")}
+        </p>
+      ) : (
+        /* Informational, not a warning, and deliberately not `role="status"`:
+           this is a setting the recruiter chose, so it must not compete with
+           the degraded notice — which is a fault they cannot fix — for the
+           same tone or the same live region. */
+        <p
+          className={`mb-4 inline-flex items-start gap-1.5 rounded-lg px-3 py-2 text-xs ${BADGE.neutral}`}
+        >
+          <FiInfo className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0">{t("search.aiMatchOffNotice")}</span>
+        </p>
+      )}
 
       {/* Non-blocking on purpose: the candidates below are real and the search
           succeeded. Only the on-device ranking is missing. */}
@@ -650,7 +695,13 @@ export function SearchResults({
         </p>
       ) : null}
 
-      <div className="grid gap-3">
+      {/* `flex flex-col`, not `grid`: an implicit `auto` grid track is sized to
+          its item's MIN-CONTENT width, and a candidate card's min-content is the
+          full un-wrappable name in its `truncate` span. At 375px that made every
+          card ~520px wide and the overflow was silently clipped by the page's
+          `overflow-hidden`. A column flex container stretches its items to the
+          container instead. */}
+      <div className="flex flex-col gap-3">
         {isLoadingFirstResults ? (
           <>
             <LoadingLabel>{t("search.searching")}</LoadingLabel>
@@ -665,6 +716,7 @@ export function SearchResults({
             key={candidate.resumeId}
             candidate={candidate}
             index={index}
+            isAiMatchOn={isAiMatchOn}
             onCopyEmail={onCopyEmail}
             onViewProfile={onViewProfile}
             onNotRelevant={onNotRelevant}

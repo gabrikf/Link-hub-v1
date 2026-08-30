@@ -52,10 +52,7 @@ import { DashboardProfileDisplayError } from "../components/dashboard-profile-di
 import { DashboardProfileDisplaySkeleton } from "../components/dashboard-profile-display-skeleton";
 import { LinkListSkeleton } from "../components/link-list-skeleton";
 import { DashboardLinkForm } from "../components/dashboard-link-form";
-import {
-  linkFormSchema,
-  type LinkFormValues,
-} from "../lib/link-form-schema";
+import { linkFormSchema, type LinkFormValues } from "../lib/link-form-schema";
 import {
   DashboardProfileForm,
   type ProfileFormValues,
@@ -337,6 +334,7 @@ export function DashboardPage() {
       openToWork: meQuery.data?.openToWork ?? false,
       location: meQuery.data?.location ?? "",
       persona: meQuery.data?.persona ?? "",
+      personaOther: meQuery.data?.personaOther ?? "",
     }),
     [
       meQuery.data?.username,
@@ -350,6 +348,7 @@ export function DashboardPage() {
       meQuery.data?.openToWork,
       meQuery.data?.location,
       meQuery.data?.persona,
+      meQuery.data?.personaOther,
     ],
   );
 
@@ -527,6 +526,10 @@ export function DashboardPage() {
         openToWork: data.openToWork,
         location: data.location.trim() || null,
         persona: data.persona || null,
+        // Only meaningful while persona is "other"; the API clears it anyway
+        // whenever persona is something else, so the two can never disagree.
+        personaOther:
+          data.persona === "other" ? data.personaOther?.trim() || null : null,
       });
 
       // Only on success. A rejected save (e.g. duplicate username) keeps the
@@ -619,10 +622,7 @@ export function DashboardPage() {
         )}
 
         {reorderLinksMutation.isError ? (
-          <FeedbackMessage
-            tone="error"
-            message={t("links.reorderFailed")}
-          />
+          <FeedbackMessage tone="error" message={t("links.reorderFailed")} />
         ) : null}
 
         <div
@@ -769,6 +769,7 @@ export function DashboardPage() {
             openToWork={meQuery.data?.openToWork ?? false}
             location={meQuery.data?.location ?? null}
             persona={meQuery.data?.persona ?? null}
+            personaOther={meQuery.data?.personaOther ?? null}
             onEdit={() => setIsProfileDialogOpen(true)}
           />
         )}

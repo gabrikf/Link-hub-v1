@@ -72,6 +72,7 @@ const profile = {
   openToWork: false,
   location: null,
   persona: null,
+  personaOther: null,
   links: [],
 };
 
