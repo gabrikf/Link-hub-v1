@@ -83,6 +83,18 @@ scripts/visual/scenarios/*.scenario.mjs
 # tema escuro" still fits beside the knob at 320px. That measurement is what
 # fixes the knob's gutter at 40px, so it needs to fail if anyone widens it.
 !scripts/visual/scenarios/mobile-header.scenario.mjs
+# Nor is the availability check: the component tests assert the STRING each of
+# the five states renders, which is the one thing a missing `dark:` variant does
+# not change. This is the only proof that all six states are legible in both
+# themes, and that the status line holds its height so an arriving verdict
+# cannot shove the field out from under the cursor.
+!scripts/visual/scenarios/dashboard-username-availability.scenario.mjs
+# Nor is the legacy redirect: `router.test.tsx` stubs every page component, so
+# it proves the URL resolves and nothing about what the visitor then sees. This
+# is the only check that the profile actually RENDERS behind the redirect —
+# which is exactly the failure that started this (a link that resolved, to a
+# "profile not found").
+!scripts/visual/scenarios/legacy-profile-redirect.scenario.mjs
 
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.
