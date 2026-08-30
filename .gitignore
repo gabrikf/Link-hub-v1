@@ -103,6 +103,15 @@ scripts/visual/scenarios/*.scenario.mjs
 # cannot see that class of bug, and neither can a class assertion see a preview
 # that another element is painting over.
 !scripts/visual/scenarios/banner-background-position.scenario.mjs
+# Nor is the dialog chrome. The Dialog's unit tests can assert the DOM
+# relationship — X in the header row, header before the scroller — but jsdom has
+# no layout, so it cannot say the button ends ABOVE the scroll area, and it
+# cannot know where a 15px classic scrollbar would be drawn. That measurement is
+# the whole reported bug (the X sitting on the scrollbar's top arrow), and it
+# needs to fail if anyone floats the button back over the body. It also carries
+# the only proof that the appearance preview's avatar is not painted over by the
+# cover strip — a paint-order defect no DOM assertion can see.
+!scripts/visual/scenarios/dialog-chrome.scenario.mjs
 
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.
