@@ -76,6 +76,10 @@ Reported symptom: the dashboard said `@mariana` while the drawer still said
   REPLACED, with the reversal explained in the test — not deleted silently.
   → `apps/web/src/router.test.tsx`.
 - [ ] **3.4** The redirect test fails without `legacyProfileRoute`.
+- [ ] **3.5** The redirect was watched in a browser, not only asserted on
+  `router.state`: the destination renders, in both themes, and a reserved
+  handle shows the branded 404 rather than the real dashboard.
+  `npm run visual:run -- scripts/visual/scenarios/legacy-profile-redirect.scenario.mjs`
 
 ## 4. Tell the user whether a username is free, while they type
 
@@ -104,7 +108,11 @@ Reported symptom: the dashboard said `@mariana` while the drawer still said
 - [ ] **4.7** A FAILED check reads as "unknown", never as "available".
 - [ ] **4.8** Every new user-visible string goes through `t()` and exists in all
   three locales.
-- [ ] **4.9** Tests, api and web:
+- [ ] **4.9** The status line was LOOKED AT, in both themes — a colour with no
+  `dark:` variant is invisible to anyone working in light mode. All six states
+  captured and inspected:
+  `npm run visual:run -- scripts/visual/scenarios/dashboard-username-availability.scenario.mjs`
+- [ ] **4.10** Tests, api and web:
   - `check-username-availability.use-case.test.ts` (10)
   - `username-availability.e2e.test.ts` (6, hermetic, parses the response
     through the shared schema)
@@ -145,3 +153,31 @@ justification in a docblock, and an unrated-limited new endpoint — is fixed
 above and folded into the items as 3.2b, 4.2b, 4.5b and 6.2b. Two of its
 findings were about the CHECKLIST overclaiming rather than the code (items 1.4
 and 2.3), and are corrected in place rather than argued with.
+
+---
+
+## Visual runs
+
+Both scenarios pass on a seeded local stack:
+
+| Scenario | Result |
+|---|---|
+| `legacy-profile-redirect` | 9 assertions, 0 console errors, 0 bad requests, 4 shots |
+| `dashboard-username-availability` | 9 assertions, 0 console errors, 10 shots |
+
+Every state was inspected, not just captured: the redirect destination (light
+and dark), `/profile/dashboard` on the branded 404, and all six states of the
+status line — idle (empty, height reserved so the field cannot jump), checking,
+available, taken, reserved, and the failed check — in both themes.
+
+Two conditions found while doing it, both PRE-EXISTING and neither caused by
+this change:
+
+- `GET /me/resume` answers 404 for an account with no resume, so every
+  signed-in dashboard capture reports four "bad requests". The untouched
+  `header-signed-in.scenario.mjs` produces the identical four on a clean tree.
+  The availability scenario mocks the same 404 so a fixture's shape does not
+  fail a run about the username field, and says so in the file.
+- `header-signed-in.scenario.mjs` fails its own assertion — "mobile: the
+  hamburger reports the menu as expanded" — on `develop`, untouched by this
+  work. Not investigated here; recorded so it is not mistaken for fallout.
