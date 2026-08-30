@@ -250,14 +250,54 @@ describe("route guards — the email-link routes", () => {
  * URL. These are the assertions that fail if it ever starts eating the app.
  */
 describe("the short profile URL", () => {
-  it("no longer serves the old `/profile/:username` path", async () => {
-    // Two segments, and nothing declares a two-segment route here — so the
-    // one-segment catch-all cannot match it either. Every already-shared
-    // `/profile/*` link lands on the router's not-found screen from now on.
-    await hardLoadNotFound("/profile/ada");
+  /**
+   * REPLACES an assertion that pinned `/profile/ada` to the 404 screen.
+   *
+   * That was the deliberate cost of the short URL, and it was the wrong call:
+   * `/profile/:username` is the address in every link shared before the change,
+   * belonging to people who did nothing and cannot guess the new one. The
+   * behaviour is reversed on purpose — old links resolve again — so the old
+   * assertion is replaced rather than deleted.
+   */
+  it("still serves an already-shared `/profile/:username` link, by redirecting", async () => {
+    await hardLoad("/profile/ada");
+
+    expect(await screen.findByText("public-profile-page")).toBeInTheDocument();
+    // The SHORT url is what the visitor is left on — one canonical address per
+    // profile, so the Share button on the page cannot hand out the old one.
+    expect(router.state.location.pathname).toBe("/ada");
+    expect(rendered).not.toContain("auth-page");
+  });
+
+  /**
+   * A link shared two months ago is exactly the kind that carries a campaign
+   * parameter or an anchor. `redirect()` builds a fresh location out of `to`
+   * and `params` alone, so both are dropped unless they are passed explicitly —
+   * which turns "your old links still work" into "your old links still open the
+   * right page, minus whatever they were pointing at".
+   */
+  it("carries the query string and the fragment through the redirect", async () => {
+    await hardLoad("/profile/ada?tab=posts&utm_source=cv#links");
+
+    expect(await screen.findByText("public-profile-page")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/ada");
+    expect(router.state.location.search).toEqual({
+      tab: "posts",
+      utm_source: "cv",
+    });
+    expect(router.state.location.hash).toBe("links");
+  });
+
+  /**
+   * The redirect builds a TOP-LEVEL path, which the router resolves against the
+   * static routes first. Without this guard `/profile/dashboard` would deposit
+   * the visitor on the real dashboard — a link that never pointed there.
+   */
+  it("404s an old link whose handle is a reserved application path", async () => {
+    await hardLoadNotFound("/profile/dashboard");
 
     expect(rendered).not.toContain("public-profile-page");
-    expect(router.state.location.pathname).toBe("/profile/ada");
+    expect(rendered).not.toContain("dashboard-page");
   });
 
   /**

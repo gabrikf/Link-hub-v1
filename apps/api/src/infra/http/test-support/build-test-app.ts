@@ -58,6 +58,7 @@ import { InMemoryUnitOfWork } from "../../../core/providers/unit-of-work/in-memo
 import { GetMeProfileUseCase } from "../../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
 import { GetPublicProfileUseCase } from "../../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
 import { UpdateProfileUseCase } from "../../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
+import { CheckUsernameAvailabilityUseCase } from "../../../core/use-case/profiles/check-username-availability-use-case/check-username-availability.use-case.js";
 import { GetUserPreferencesUseCase } from "../../../core/use-case/preferences/get-user-preferences-use-case/get-user-preferences.use-case.js";
 import { UpdateUserPreferencesUseCase } from "../../../core/use-case/preferences/update-user-preferences-use-case/update-user-preferences.use-case.js";
 import { PostsController } from "../controllers/posts/posts-controller.js";
@@ -401,6 +402,10 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   container.registerInstance(
     TOKENS.UpdateProfileUseCase,
     new UpdateProfileUseCase(usersRepository),
+  );
+  container.registerInstance(
+    TOKENS.CheckUsernameAvailabilityUseCase,
+    new CheckUsernameAvailabilityUseCase(usersRepository),
   );
   container.registerInstance(
     TOKENS.GetLayoutUseCase,

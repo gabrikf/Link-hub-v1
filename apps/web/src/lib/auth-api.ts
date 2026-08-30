@@ -104,6 +104,8 @@ import {
   type UpdateLinkInput,
   type UpdateProfileInput,
   type UpdateProfileOutput,
+  type UsernameAvailability,
+  usernameAvailabilitySchema,
   type RecruiterSearchInput,
   type CreateInteractionInput,
   type InteractionResponse,
@@ -748,6 +750,30 @@ export async function updateProfile(
   });
 
   return updateProfileSchemaOutput.parse(response.data);
+}
+
+/**
+ * "Is this handle free?", asked while the person is still typing it.
+ *
+ * `fetchWithTokens` rather than the bare client, and it matters: with a session
+ * the api can tell the caller that their OWN current handle is available to
+ * them, which is the difference between a form that works and one that reports
+ * the name already in the field as taken. Without a session (the register form)
+ * the same call answers anonymously.
+ *
+ * Errors are NOT swallowed here. The caller decides what an unanswered check
+ * means, and the form treats it as "unknown" rather than as "free" — promising
+ * a name we could not verify is the one wrong answer.
+ */
+export async function fetchUsernameAvailability(
+  username: string,
+): Promise<UsernameAvailability> {
+  const response = await fetchWithTokens("/username-available", {
+    method: "GET",
+    params: { username },
+  });
+
+  return usernameAvailabilitySchema.parse(response.data);
 }
 
 export async function fetchMyResume(): Promise<ResumeResponse> {

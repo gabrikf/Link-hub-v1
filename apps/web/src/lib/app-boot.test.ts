@@ -189,6 +189,61 @@ describe("bootApp — a signed-in load", () => {
   });
 
   /**
+   * THE REGRESSION TEST FOR THE "PROFILE NOT FOUND" REPORT.
+   *
+   * `userInfo` is persisted in `localStorage` and was written at sign-in and
+   * nowhere else, so the handle in it is a snapshot of whoever the account was
+   * on the day this device signed in. `TopBarNav` builds the "Public profile"
+   * link out of that snapshot (`to="/$username"`, `params: {username:
+   * userInfo.login}`), so once the account is renamed the link points at a
+   * handle nobody owns — the api answers 404 and the visitor gets the public
+   * profile's "Profile not found" state ON THEIR OWN PROFILE.
+   *
+   * Nothing healed it either: signing out was the only way to rewrite the
+   * snapshot, and the failure gives the user no reason to try that.
+   *
+   * Boot already has the truthful answer in its hand — `/me` returns the
+   * account's CURRENT username — so it reconciles.
+   */
+  it("adopts the handle the server currently reports, not the one stored at sign-in", async () => {
+    tokens();
+    signIn();
+    mockedFetchProfile.mockResolvedValue({
+      ...profile,
+      username: "dev-renamed",
+      name: "Dev Renamed",
+    });
+    mockedFetchPreferences.mockResolvedValue(preferences());
+
+    await bootApp(newQueryClient());
+
+    const userInfo = useUserInfoStore.getState().userInfo;
+    expect(userInfo?.login).toBe("dev-renamed");
+    expect(userInfo?.name).toBe("Dev Renamed");
+    // Still the same account: `/me` carries no id or email to overwrite these
+    // with, and losing them would break every other reader of the store.
+    expect(userInfo?.id).toBe("user-1");
+    expect(userInfo?.email).toBe("dev@example.com");
+  });
+
+  /**
+   * The other half of the same rule: an UNANSWERED `/me` is not evidence about
+   * who this person is. Boot deliberately keeps the session on a failed profile
+   * read, so it must keep the stored identity too rather than blanking it.
+   */
+  it("keeps the stored identity when /me cannot be fetched", async () => {
+    tokens();
+    signIn();
+    mockedFetchProfile.mockRejectedValue(new Error("500"));
+    mockedFetchPreferences.mockResolvedValue(preferences());
+
+    const result = await bootApp(newQueryClient());
+
+    expect(result.outcome).toBe("authenticated");
+    expect(useUserInfoStore.getState().userInfo?.login).toBe("dev");
+  });
+
+  /**
    * A preferences endpoint that is down must not hold the app hostage, and must
    * not be mistaken for "this account has no preferences" either — the previous
    * shape read this query's error nowhere at all.

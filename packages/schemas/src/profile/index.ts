@@ -73,6 +73,40 @@ export const profileSchema = z.object({
   layout: fullLayoutSchema.optional(),
 });
 
+/**
+ * "Is this handle free?" — asked while the user is still typing it.
+ *
+ * WHY IT EXISTS. `PUT /profile` answers 409 on a collision, which is a fine
+ * answer and a terrible moment to receive it: the person has already filled in
+ * the whole form, pressed Save and waited. The handle is also the one field on
+ * that form whose value another account can silently own, and the one that is
+ * a URL.
+ *
+ * `reason` rather than a bare boolean, because "somebody has it" and "nobody
+ * may have it" are different problems with different fixes and the user is
+ * entitled to know which one they hit. `null` when the name is free.
+ *
+ * NOT A RESERVATION. The answer is true at the moment it was computed and
+ * nothing holds the name — two people typing the same handle both hear "free"
+ * and the second `PUT /profile` still loses with a 409. That is deliberate:
+ * holding names for anyone who types one is a denial-of-service with a nice UI.
+ * The save remains the only decision, which is why the check reuses exactly the
+ * predicate the save uses rather than a cleverer one of its own.
+ */
+export const usernameAvailabilityQuerySchema = z.object({
+  // `.trim()` for the same reason `updateProfileSchemaInput.username` has it,
+  // and it has to be the SAME rule: the check is only useful if it answers
+  // about the handle the save would actually create.
+  username: z.string().trim().min(1, "Username is required"),
+});
+
+export const usernameAvailabilitySchema = z.object({
+  /** Echoed back, so a late answer to an abandoned keystroke is discardable. */
+  username: z.string(),
+  isAvailable: z.boolean(),
+  reason: z.enum(["taken", "reserved"]).nullable(),
+});
+
 export const updateProfileSchemaInput = z.object({
   /**
    * The SAME rule `createUserSchemaInput.login` enforces, and it has to be:
@@ -81,6 +115,16 @@ export const updateProfileSchemaInput = z.object({
    */
   username: z
     .string()
+    /*
+     * TRIMMED BEFORE ANYTHING ELSE LOOKS AT IT, and it belongs here rather than
+     * in the form: this is a URL, and " ada " is a login whose profile lives at
+     * `/%20ada%20`. It is also what keeps the availability check honest — the
+     * browser asks about the trimmed value, so a save that stored the untrimmed
+     * one would answer "ada is available" and then create a different handle.
+     * `.min(1)` runs after, so a whitespace-only username is rejected rather
+     * than stored blank.
+     */
+    .trim()
     .min(1, "Username is required")
     .refine((value) => !isReservedUsername(value), RESERVED_USERNAME_MESSAGE),
   name: z.string().min(1).optional(),
@@ -124,3 +168,7 @@ export const updateProfileSchemaOutput = z.object({
 export type ProfileResponse = z.infer<typeof profileSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchemaInput>;
 export type UpdateProfileOutput = z.infer<typeof updateProfileSchemaOutput>;
+export type UsernameAvailabilityQuery = z.infer<
+  typeof usernameAvailabilityQuerySchema
+>;
+export type UsernameAvailability = z.infer<typeof usernameAvailabilitySchema>;

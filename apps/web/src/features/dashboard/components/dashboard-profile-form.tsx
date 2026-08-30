@@ -9,7 +9,7 @@ import type { TFunction } from "i18next";
 import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { FiRotateCcw, FiSave } from "react-icons/fi";
+import { FiAlertCircle, FiCheck, FiLoader, FiRotateCcw, FiSave } from "react-icons/fi";
 import { z } from "zod/v4";
 import { Avatar } from "../../../shared-components/avatar";
 import { Button } from "../../../shared-components/button";
@@ -19,6 +19,10 @@ import { Input } from "../../../shared-components/input";
 import { SURFACE_INSET } from "../../../shared-components/surface";
 import { TextArea } from "../../../shared-components/text-area";
 import { ProfileCover } from "../../profile/components/profile-cover";
+import {
+  useUsernameAvailability,
+  type UsernameStatus,
+} from "../hooks/use-username-availability";
 import {
   accentForPreset,
   getProfileThemeProps,
@@ -138,6 +142,77 @@ const buildProfileFormSchema = (t: TFunction) =>
       });
     });
 
+/**
+ * Stable id rather than `useId()`: it is referenced from `aria-describedby` on
+ * an input that `register()` spreads props onto, and there is exactly one
+ * profile form on screen at a time.
+ */
+const USERNAME_STATUS_ID = "profile-username-status";
+
+/**
+ * The verdict, in the colours the rest of the app already uses for the same
+ * three meanings. Renders NOTHING while idle, so an untouched form carries no
+ * commentary — the reserved space above keeps the layout from jumping when a
+ * message does arrive.
+ */
+function UsernameStatusMessage({
+  status,
+  username,
+  t,
+}: {
+  status: UsernameStatus;
+  username: string;
+  t: TFunction;
+}) {
+  if (status.kind === "idle") {
+    return null;
+  }
+
+  if (status.kind === "checking") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
+        <FiLoader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        {t("dashboard.usernameChecking")}
+      </span>
+    );
+  }
+
+  if (status.kind === "available") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+        <FiCheck className="h-3.5 w-3.5" aria-hidden="true" />
+        {t("dashboard.usernameAvailable", { username })}
+      </span>
+    );
+  }
+
+  /*
+   * `unknown` is amber, not red: the check failed, which is not the same claim
+   * as "you cannot have this name". The user is told the truth — we do not
+   * know — and Save is left alone to be the authority it already is.
+   */
+  const isBlocked = status.kind === "taken" || status.kind === "reserved";
+  const messageKey =
+    status.kind === "taken"
+      ? "dashboard.usernameTaken"
+      : status.kind === "reserved"
+        ? "dashboard.usernameUnavailableReserved"
+        : "dashboard.usernameCheckFailed";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 ${
+        isBlocked
+          ? "text-red-600 dark:text-red-400"
+          : "text-amber-700 dark:text-amber-400"
+      }`}
+    >
+      <FiAlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+      {t(messageKey, { username })}
+    </span>
+  );
+}
+
 type DashboardProfileFormProps = {
   initialValues: ProfileFormValues;
   onSubmit: (data: ProfileFormValues) => Promise<void>;
@@ -151,6 +226,12 @@ type DashboardProfileFormProps = {
   isSaving?: boolean;
   /** Reports dirtiness up so the dialog can guard against discarding edits. */
   onDirtyChange?: (isDirty: boolean) => void;
+  /**
+   * The handle the account holds RIGHT NOW, straight from `/me` — not from the
+   * form. It is what tells the availability check to stay quiet while the field
+   * still says what it said when the dialog opened.
+   */
+  currentUsername?: string;
 };
 
 export function DashboardProfileForm({
@@ -160,6 +241,7 @@ export function DashboardProfileForm({
   errorMessage,
   isSaving = false,
   onDirtyChange,
+  currentUsername,
 }: DashboardProfileFormProps) {
   const { t } = useTranslation();
   const formSchema = useMemo(() => buildProfileFormSchema(t), [t]);
@@ -184,6 +266,16 @@ export function DashboardProfileForm({
   }, [initialValues, reset]);
 
   const watched = watch();
+  /*
+   * The baseline is "the handle this form opened with", and it falls back to
+   * `initialValues.username` when the caller does not pass the live one. Both
+   * readings mean the same thing here — do not spend a request, or a verdict,
+   * on a field nobody has touched.
+   */
+  const usernameStatus = useUsernameAvailability(
+    watched.username,
+    currentUsername ?? initialValues.username,
+  );
   const effectiveAccent =
     watched.themeAccent.trim() || accentForPreset(watched.themePreset);
   const theme = getProfileThemeProps({
@@ -211,12 +303,33 @@ export function DashboardProfileForm({
         }
         helperText={t("dashboard.avatarHelp")}
       />
-      <Input
-        id="profile-username"
-        label={t("common.username")}
-        error={errors.username?.message}
-        {...register("username")}
-      />
+      <div>
+        <Input
+          id="profile-username"
+          label={t("common.username")}
+          error={errors.username?.message}
+          aria-describedby={USERNAME_STATUS_ID}
+          {...register("username")}
+        />
+        {/*
+          One live region, always in the DOM, so a screen reader announces the
+          verdict as it changes instead of hearing a region appear and vanish.
+          It sits OUTSIDE `Input`'s own error slot on purpose: a zod message
+          ("that name is reserved") and this ("somebody has it") answer
+          different questions and can both be true at once.
+        */}
+        <p
+          id={USERNAME_STATUS_ID}
+          aria-live="polite"
+          className="mt-1 min-h-5 text-sm"
+        >
+          <UsernameStatusMessage
+            status={usernameStatus}
+            username={watched.username.trim()}
+            t={t}
+          />
+        </p>
+      </div>
       <Input id="profile-name" label={t("common.name")} {...register("name")} />
       <TextArea
         id="profile-description"

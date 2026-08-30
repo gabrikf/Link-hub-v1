@@ -1,8 +1,9 @@
 /**
  * Usernames nobody may own, because the username IS the URL.
  *
- * `/:username` is now the ONLY public profile URL — `/profile/:username` was
- * removed. That collapses two namespaces into one: every top-level path in the
+ * `/:username` is now the CANONICAL public profile URL. (`/profile/:username`
+ * still resolves, but only as a redirect to it — see `legacyProfileRoute` in
+ * `apps/web/src/router.tsx`.) That collapses two namespaces into one: every top-level path in the
  * web app is either an application route or somebody's profile, and the router
  * resolves the collision in favour of the static route. So a person who
  * registers `dashboard` does not get a broken profile — they get NO profile,
