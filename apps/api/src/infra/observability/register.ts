@@ -28,13 +28,18 @@
  * `perf_hooks` instead of patching modules — so the dashboards and the runtime
  * metrics are unaffected by this switch.
  *
- * `openai` v5 deleted `_shims`, and this repo is now on v7 — a local probe
- * confirms the module imports cleanly with the hook registered, so the original
- * crash is gone. The default stays false anyway until telemetry has been seen
- * working in production: the app imports far more than `openai`, import-in-the-
- * middle wraps all of it, and turning this on at the same moment telemetry was
- * first enabled is precisely what made the last failure ambiguous. Flip it on
- * its own, as one env change that can be reverted in isolation.
+ * `openai` v5 deleted `_shims`, and this repo is now on v7, so the original
+ * crash is gone. This was verified properly rather than assumed: the built app
+ * was booted through this exact entrypoint with the hook on, against the real
+ * Grafana Cloud endpoint under the service name `crafthub-api-preflight`, and
+ * both signals landed — spans in Tempo, pino records in Loki.
+ *
+ * The default is STILL false. Not from doubt about the above, but because an
+ * env var is revertible in thirty seconds while a bad default needs a deploy —
+ * and because the incident it guards against was hard to diagnose precisely
+ * because the hook and telemetry were switched on in the same breath. Turn it
+ * on by itself. `app-config.test.ts` pins the default so nobody flips it here
+ * by accident.
  *
  * ---------------------------------------------------------------------------
  * WHY THE TRY/CATCH BELOW IS NOT THE SAFETY NET IT LOOKS LIKE

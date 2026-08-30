@@ -136,13 +136,27 @@ queried by the three dashboards in this directory is recorded by hand in
 `metrics.ts`. `RuntimeNodeInstrumentation` reads `perf_hooks` rather than
 patching modules, so the Node process metrics survive too.
 
-**`openai` v5 deleted `_shims`, and this repo is now on v7.** A local probe —
-registering the hook, then importing the SDK — no longer throws, so the original
-cause is fixed. The default is still `false`, deliberately: the app imports far
-more than `openai`, import-in-the-middle wraps every one of those too, and the
-last failure was hard to attribute precisely because the hook and telemetry were
-switched on in the same breath. Turn it on by itself, after telemetry is
-confirmed working, and watch the API come up before trusting it.
+**`openai` v5 deleted `_shims`, and this repo is now on v7**, so that crash is
+gone. Verified rather than assumed: the built app was booted through the
+production entrypoint with the hook on, exporting to the real Grafana Cloud
+endpoint as `crafthub-api-preflight`, and both signals landed — spans in Tempo,
+pino records in Loki.
+
+The default is still `false`. Not from doubt, but because an env var is
+revertible in thirty seconds while a bad default needs a deploy — and because
+the incident was hard to diagnose precisely because the hook and telemetry were
+switched on in the same breath. Turn it on by itself.
+
+### This flag is also the only reason logs exist
+
+`instrumentation-pino` is what bridges the app's pino output onto the OTLP log
+exporter, and it has to patch `pino` to do it — so it needs the hook exactly
+like the span instrumentations do. **With `OTEL_ESM_LOADER_HOOK=false` you get
+metrics only: Tempo and Loki both stay empty.**
+
+Note that log-to-trace correlation does *not* depend on this. `server.ts`
+already stamps `trace_id` and `span_id` onto every pino line through its own
+`mixin()`. The instrumentation adds the *delivery*, plus `trace_flags`.
 
 ### Checking it works
 
