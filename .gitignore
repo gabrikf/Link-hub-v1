@@ -95,6 +95,14 @@ scripts/visual/scenarios/*.scenario.mjs
 # which is exactly the failure that started this (a link that resolved, to a
 # "profile not found").
 !scripts/visual/scenarios/legacy-profile-redirect.scenario.mjs
+# Nor is the banner/background one. It carries the only paint-proofs in the
+# repo: the same patch of card photographed with two DIFFERENT background
+# images, and a hit test over the live preview while the veil slider is used.
+# Every DOM assertion said the background was fine while it was painted
+# underneath an opaque wrapper and invisible to every human — `isVisible()`
+# cannot see that class of bug, and neither can a class assertion see a preview
+# that another element is painting over.
+!scripts/visual/scenarios/banner-background-position.scenario.mjs
 
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.

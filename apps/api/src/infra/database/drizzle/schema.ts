@@ -49,6 +49,18 @@ export const users = pgTable("users", {
   themeAccent: text("theme_accent"),
   themePreset: text("theme_preset"),
   /*
+   * How the two decorative images are PLACED: the banner's focal point, the
+   * background's focal point, and the background's veil / blur.
+   *
+   * One jsonb column rather than four scalar ones because these values are
+   * written together by one form, read together by one renderer, and mean
+   * nothing apart. `@repo/schemas`' `profileAppearanceSchema` is the shape, and
+   * the repository parses through it on the way out — a nullable column plus a
+   * total parse means a row from before this feature (or one somebody edited by
+   * hand) resolves to the documented default instead of taking a profile down.
+   */
+  profileAppearance: jsonb("profile_appearance"),
+  /*
    * Whether this account appears in recruiter search at all.
    *
    * DEFAULTS TO TRUE, and that default is load-bearing. The search repository

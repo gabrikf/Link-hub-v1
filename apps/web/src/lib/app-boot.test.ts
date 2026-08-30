@@ -1,3 +1,4 @@
+import { DEFAULT_PROFILE_APPEARANCE } from "@repo/schemas";
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UserPreferences } from "@repo/schemas";
@@ -73,6 +74,7 @@ const profile = {
   location: null,
   persona: null,
   personaOther: null,
+  appearance: DEFAULT_PROFILE_APPEARANCE,
   links: [],
 };
 

@@ -1,3 +1,4 @@
+import { DEFAULT_PROFILE_APPEARANCE } from "@repo/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 import { UserEntity } from "../../../entity/user/user-entity.js";
 import {
@@ -163,5 +164,97 @@ describe("UpdateProfileUseCase", () => {
         description: null,
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
+  });
+
+  /**
+   * Banner / background placement, i.e. "which part of my photo shows".
+   *
+   * `undefined` and `null` are DIFFERENT here in a way they are not for the
+   * other nullable fields: absent means "leave the stored appearance alone",
+   * and there is no way to express "clear it" because a cleared appearance is
+   * just the default one.
+   */
+  describe("appearance", () => {
+    const makeUser = async () => {
+      const user = UserEntity.create({
+        email: "mariana@example.com",
+        login: "mariana",
+        name: "Mariana",
+        password: "hashed-password",
+        description: null,
+        avatarUrl: null,
+        googleId: null,
+      });
+      await usersRepository.create(user);
+      return user;
+    };
+
+    it("gives an account that never touched it the documented default", async () => {
+      const user = await makeUser();
+
+      const result = await sut.execute({ userId: user.id, username: "mariana" });
+
+      expect(result.appearance).toEqual(DEFAULT_PROFILE_APPEARANCE);
+    });
+
+    it("round-trips a placement and a background treatment", async () => {
+      const user = await makeUser();
+      const appearance = {
+        bannerPlacement: { x: 50, y: 18, scale: 1.2 },
+        backgroundPlacement: { x: 25, y: 70, scale: 1 },
+        backgroundOverlay: 30,
+        backgroundBlur: 12,
+      };
+
+      const result = await sut.execute({
+        userId: user.id,
+        username: "mariana",
+        appearance,
+      });
+
+      expect(result.appearance).toEqual(appearance);
+
+      const stored = await usersRepository.findById(user.id);
+      expect(stored?.appearance).toEqual(appearance);
+    });
+
+    it("leaves a stored appearance alone when the field is absent", async () => {
+      const user = await makeUser();
+      const appearance = {
+        ...DEFAULT_PROFILE_APPEARANCE,
+        bannerPlacement: { x: 10, y: 90, scale: 2 },
+      };
+      await sut.execute({ userId: user.id, username: "mariana", appearance });
+
+      // A save from a screen that knows nothing about appearance — the layout
+      // studio, a future settings panel — must not silently re-centre a banner.
+      const result = await sut.execute({
+        userId: user.id,
+        username: "mariana",
+        name: "Mariana M. Freitas",
+      });
+
+      expect(result.appearance).toEqual(appearance);
+    });
+
+    it("refuses an out-of-range placement instead of storing it", async () => {
+      const user = await makeUser();
+
+      // The HTTP boundary rejects this first; the entity re-parses so a caller
+      // that bypasses the route (a script, a future internal call) cannot write
+      // a value the renderer would have to defend against.
+      const result = await sut.execute({
+        userId: user.id,
+        username: "mariana",
+        appearance: {
+          bannerPlacement: { x: 5000, y: -3, scale: 40 },
+          backgroundPlacement: null,
+          backgroundOverlay: 400,
+          backgroundBlur: 900,
+        },
+      });
+
+      expect(result.appearance).toEqual(DEFAULT_PROFILE_APPEARANCE);
+    });
   });
 });

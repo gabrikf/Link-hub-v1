@@ -14,7 +14,11 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import type { LinkIcon, LinkResponse } from "@repo/schemas";
+import {
+  DEFAULT_PROFILE_APPEARANCE,
+  type LinkIcon,
+  type LinkResponse,
+} from "@repo/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -340,6 +344,7 @@ export function DashboardPage() {
       userPhoto: meQuery.data?.userPhoto ?? "",
       bannerImageUrl: meQuery.data?.bannerImageUrl ?? "",
       backgroundImageUrl: meQuery.data?.backgroundImageUrl ?? "",
+      appearance: meQuery.data?.appearance ?? DEFAULT_PROFILE_APPEARANCE,
       themePreset: meQuery.data?.themePreset ?? DEFAULT_THEME_PRESET,
       themeAccent: meQuery.data?.themeAccent ?? "",
       openToWork: meQuery.data?.openToWork ?? false,
@@ -354,6 +359,7 @@ export function DashboardPage() {
       meQuery.data?.userPhoto,
       meQuery.data?.bannerImageUrl,
       meQuery.data?.backgroundImageUrl,
+      meQuery.data?.appearance,
       meQuery.data?.themePreset,
       meQuery.data?.themeAccent,
       meQuery.data?.openToWork,
@@ -532,6 +538,7 @@ export function DashboardPage() {
         userPhoto: data.userPhoto.trim() || null,
         bannerImageUrl: data.bannerImageUrl.trim() || null,
         backgroundImageUrl: data.backgroundImageUrl.trim() || null,
+        appearance: data.appearance,
         themePreset: data.themePreset,
         themeAccent: data.themeAccent.trim() || null,
         openToWork: data.openToWork,
@@ -775,6 +782,7 @@ export function DashboardPage() {
             avatarUrl={meQuery.data?.userPhoto ?? null}
             bannerImageUrl={meQuery.data?.bannerImageUrl ?? null}
             backgroundImageUrl={meQuery.data?.backgroundImageUrl ?? null}
+            appearance={meQuery.data?.appearance ?? null}
             themePreset={meQuery.data?.themePreset ?? null}
             themeAccent={meQuery.data?.themeAccent ?? null}
             openToWork={meQuery.data?.openToWork ?? false}

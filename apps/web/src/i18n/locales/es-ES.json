@@ -113,7 +113,9 @@
     "terminal": "Terminal",
     "sending": "Enviando...",
     "on": "Activado",
-    "showLess": "Mostrar menos"
+    "showLess": "Mostrar menos",
+    "percentValue": "{{value}}%",
+    "pixelValue": "{{value}} px"
   },
   "settings": {
     "provider": {
@@ -966,7 +968,18 @@
     "addImageUrl": "Añadir URL de la imagen",
     "clearImage": "Borrar imagen",
     "invalidUrl": "Introduce una URL http(s) de imagen válida.",
-    "pasteDirectLink": "Pega un enlace directo a una imagen (https://…)."
+    "pasteDirectLink": "Pega un enlace directo a una imagen (https://…).",
+    "reposition": "Reposicionar",
+    "repositionTitle": "Reposicionar imagen",
+    "repositionHelp": "Arrastra la imagen para elegir qué parte se ve.",
+    "applyPosition": "Aplicar posición",
+    "positionFrame": "Posición de la imagen — arrastra para reposicionar",
+    "positionKeyboardHint": "Arrástrala o usa las flechas del teclado — mantén Shift para mover más.",
+    "zoomToReposition": "Acerca para elegir otra parte.",
+    "recenter": "Centrar",
+    "positionReadout": "Horizontal {{horizontal}}% · vertical {{vertical}}% · zoom {{zoom}}x",
+    "safeAreaDesktop": "Siempre visible",
+    "safeAreaPhone": "Siempre visible"
   },
   "dialog": {
     "closeTitled": "Cerrar {{title}}",
@@ -1019,7 +1032,14 @@
     "customRolePlaceholder": "Fisioterapeuta",
     "customRoleHelp": "Esto es lo que tu perfil muestra en lugar de «Otro».",
     "customRoleRequired": "Indica tu puesto.",
-    "customRoleTooLong": "Usa como máximo {{max}} caracteres."
+    "customRoleTooLong": "Usa como máximo {{max}} caracteres.",
+    "bannerPositionTitle": "Coloca tu banner",
+    "bannerPositionHelp": "Arrastra hasta que la parte que quieres quede en la banda iluminada: eso es lo que se ve en todas las pantallas. Los bordes atenuados se recortan en pantallas anchas.",
+    "backgroundPositionTitle": "Coloca tu fondo",
+    "backgroundPositionHelp": "Arrastra para elegir qué parte de la foto queda detrás de tu perfil.",
+    "backgroundOverlayLabel": "Velo",
+    "backgroundBlurLabel": "Desenfoque",
+    "backgroundTuningHelp": "El velo mantiene tu perfil legible sobre la foto. Menos velo, más foto."
   },
   "links": {
     "titlePlaceholder": "Mi sitio web",

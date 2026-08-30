@@ -18,6 +18,7 @@ function renderDisplay(
       avatarUrl={null}
       bannerImageUrl={null}
       backgroundImageUrl={null}
+      appearance={null}
       themePreset={DEFAULT_THEME_PRESET}
       themeAccent={null}
       openToWork={false}

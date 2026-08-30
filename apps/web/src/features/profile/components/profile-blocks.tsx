@@ -50,6 +50,7 @@ import { Markdown, markdownExcerpt } from "../../posts/lib/markdown";
 import { formatPostDate, SOURCE_META } from "../../posts/lib/post-format";
 import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
 import { WorkHistoryReadOnly } from "../../work-history/components/work-history-read-only";
+import { safeImageUrl } from "./profile-theme";
 import { ProfileLinksSkeleton } from "./public-profile-skeleton";
 
 type ProfileHeaderView = {
@@ -64,7 +65,34 @@ type ProfileHeaderView = {
    * location": nothing at all, and no reserved space.
    */
   location?: string | null;
+  /**
+   * Whether the card these blocks sit on is FROSTED over the owner's own
+   * background photograph — see `SURFACE_PROFILE_GLASS`.
+   *
+   * Read here, and only here, to decide the weight of the two secondary text
+   * lines. `@handle` and the location line are the weakest things on this
+   * card at `zinc-600`/`zinc-500`, measured at 4.83:1 against the solid card
+   * (see the note on the location block). Any translucency drops them under
+   * AA — worst case 2.6:1 — so on a photo they step up rather than quietly
+   * becoming unreadable over whatever the owner uploaded.
+   *
+   * Optional: the preview call sites and every test fixture describe a profile
+   * with their own literals, and absent means "no photo", which is the
+   * behaviour they all had.
+   */
+  backgroundImageUrl?: string | null;
 };
+
+/**
+ * The weight secondary text takes on a card that is translucent over the
+ * owner's own photograph.
+ *
+ * One step in from `zinc-500`/`zinc-400`, which is what it costs to hold 4.5:1
+ * at the worst composite the veil slider allows — a solid black or solid white
+ * photograph at veil 0. It reads as a slightly firmer metadata grey rather than
+ * as body text, and it is only ever used when there IS a photo underneath.
+ */
+const STRONG_META = "text-zinc-700 dark:text-zinc-200";
 
 type ProfileBlocksProps = {
   layout: ProfileLayout;
@@ -210,6 +238,14 @@ export function ProfileBlocks({
     [layout.blocks, activeTabKey, cols],
   );
 
+  /**
+   * Is the card these blocks sit on frosted over a photograph? Read from the
+   * profile itself rather than threaded down as a prop — the header already
+   * has the whole object, and a second prop would have to be passed by all
+   * three call sites just to restate what one of its fields already says.
+   */
+  const onPhoto = Boolean(safeImageUrl(profile.backgroundImageUrl));
+
   const renderBlock = (block: ProfileBlock): ReactNode => {
     switch (block.kind) {
       case "header":
@@ -245,15 +281,24 @@ export function ProfileBlocks({
                 />
                 <span className="truncate">{profile.name}</span>
               </h1>
-              <p className="text-zinc-600 dark:text-zinc-400">
+              <p className={onPhoto ? STRONG_META : "text-zinc-600 dark:text-zinc-400"}>
                 @{profile.username}
               </p>
               {profile.description ? (
-                <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                <p
+                  className={`mx-auto mt-2 max-w-xl text-sm leading-relaxed ${
+                    // `zinc-300` measures 4.42:1 against the worst composite a
+                    // frosted card allows, i.e. just under AA — one step is all
+                    // it needs, and only when there is a photo underneath.
+                    onPhoto ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-700 dark:text-zinc-300"
+                  }`}
+                >
                   {profile.description}
                 </p>
               ) : (
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                <p
+                  className={`mt-2 text-sm ${onPhoto ? STRONG_META : "text-zinc-500 dark:text-zinc-400"}`}
+                >
                   {t("profile.noDescription")}
                 </p>
               )}
@@ -271,13 +316,20 @@ export function ProfileBlocks({
                 gradient, and 6.9:1 on `zinc-900` — AA at every point, including
                 for `text-xs`, which is below the large-text exemption.
 
+                Those measurements are against a SOLID card, which is why this
+                switches to `STRONG_META` when the card is frosted over a
+                photograph: at 4.83:1 there is no headroom to spend on
+                translucency, and the worst case falls to 2.6:1.
+
                 Renders nothing at all when there is no location: no reserved
                 row, no empty pill.
               */}
               {profile.location?.trim() ? (
                 <p
                   data-testid="profile-location"
-                  className="mt-2 flex items-center justify-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400"
+                  className={`mt-2 flex items-center justify-center gap-1.5 text-xs ${
+                    onPhoto ? STRONG_META : "text-zinc-500 dark:text-zinc-400"
+                  }`}
                 >
                   <FiMapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
                   {/* The icon is decorative, so the field needs a name of its

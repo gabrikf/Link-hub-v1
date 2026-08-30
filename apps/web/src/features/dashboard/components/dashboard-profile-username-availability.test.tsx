@@ -1,3 +1,4 @@
+import { DEFAULT_PROFILE_APPEARANCE } from "@repo/schemas";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -35,6 +36,7 @@ const initialValues: ProfileFormValues = {
   userPhoto: "",
   bannerImageUrl: "",
   backgroundImageUrl: "",
+  appearance: DEFAULT_PROFILE_APPEARANCE,
   themePreset: DEFAULT_THEME_PRESET,
   themeAccent: "",
   openToWork: false,
