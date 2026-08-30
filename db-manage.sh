@@ -32,10 +32,16 @@ check_docker() {
 }
 
 # Start the database
+#
+# MinIO is started here, not behind the `tools` profile that pgAdmin and Mailpit
+# sit behind. Uploading a profile photo is a core product flow, not an optional
+# debugging aid: without a bucket, POST /me/uploads returns 500 on a fresh
+# clone. `minio-setup` runs to completion and exits — a container in state
+# `Exited (0)` beside the others is the SUCCESS case for it, not a crash.
 start_db() {
     check_docker
-    print_status "Starting PostgreSQL and Redis..."
-    docker compose -f docker-compose.dev.yml up -d postgres redis
+    print_status "Starting PostgreSQL, Redis and MinIO..."
+    docker compose -f docker-compose.dev.yml up -d postgres redis minio minio-setup
     
     print_status "Waiting for database to be ready..."
     sleep 5
@@ -55,7 +61,37 @@ start_db() {
         print_warning "Database took longer than expected to start, but it might be ready"
     fi
     
+    wait_for_minio
+
     print_status "Database URL: postgresql://crafthub_user:crafthub_password@localhost:5432/crafthub_dev"
+    print_minio_urls
+}
+
+# Wait for the bucket, not just for the server.
+#
+# `minio-setup` is what creates `crafthub-media` and makes it publicly readable,
+# and it only starts once MinIO reports healthy. Returning from `start` before
+# it has finished means the first upload of the session races it and fails with
+# NoSuchBucket — a confusing error for something the script just claimed to have
+# started.
+wait_for_minio() {
+    local timeout=40
+    while [ $timeout -gt 0 ]; do
+        if curl -sf http://localhost:9000/crafthub-media/ > /dev/null 2>&1; then
+            print_status "MinIO bucket 'crafthub-media' is ready"
+            return 0
+        fi
+        sleep 1
+        timeout=$((timeout - 1))
+    done
+    print_warning "MinIO did not report a ready bucket in time. Check: docker compose -f docker-compose.dev.yml logs minio-setup"
+    return 0
+}
+
+print_minio_urls() {
+    print_status "MinIO S3 API:  http://localhost:9000  (bucket: crafthub-media)"
+    print_status "MinIO console: http://localhost:9001  (crafthub / crafthub_secret)"
+    print_status "Uploads work with no S3_* variables set — the API defaults to this MinIO in development."
 }
 
 # Stop the database
@@ -73,9 +109,12 @@ start_with_admin() {
     print_status "Waiting for services to be ready..."
     sleep 10
     
+    wait_for_minio
+
     print_status "Services started!"
     print_status "Database URL: postgresql://crafthub_user:crafthub_password@localhost:5432/crafthub_dev"
     print_status "pgAdmin: http://localhost:5050 (admin@crafthub.com / admin123)"
+    print_minio_urls
 }
 
 # Show logs
@@ -101,10 +140,14 @@ reset() {
     read -p "Are you sure? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_status "Stopping and removing database..."
+        print_status "Stopping and removing database and object storage..."
         docker compose -f docker-compose.dev.yml down -v
         docker volume rm crafthub-v1_postgres_data 2>/dev/null || true
-        print_status "Database reset complete"
+        # Uploaded images live in this one. `down -v` already removes it for a
+        # project started from this directory; the explicit rm covers a volume
+        # left behind by an older project name, same as the line above.
+        docker volume rm crafthub-v1_minio_data 2>/dev/null || true
+        print_status "Database and uploaded images reset complete"
     else
         print_status "Reset cancelled"
     fi
@@ -158,13 +201,13 @@ show_help() {
     echo "Usage: $0 [command]"
     echo ""
     echo "Commands:"
-    echo "  start       Start PostgreSQL database"
+    echo "  start       Start PostgreSQL, Redis and MinIO (object storage)"
     echo "  stop        Stop all services"
-    echo "  admin       Start database with pgAdmin"
+    echo "  admin       Start everything above plus pgAdmin and Mailpit"
     echo "  logs        Show database logs"
     echo "  connect     Connect to database shell"
     echo "  status      Show services status"
-    echo "  reset       Reset database (removes all data)"
+    echo "  reset       Reset database AND uploaded images (removes all data)"
     echo "  seed        Seed default catalog data"
     echo "  seed-real   Seed realistic users/resumes + embeddings"
     echo "  seed-all    Run default seed, then realistic seed"
@@ -172,8 +215,8 @@ show_help() {
     echo "  help        Show this help"
     echo ""
     echo "Examples:"
-    echo "  $0 start     # Start just the database"
-    echo "  $0 admin     # Start database + pgAdmin"
+    echo "  $0 start     # Start the database, Redis and MinIO"
+    echo "  $0 admin     # ... plus pgAdmin and Mailpit"
     echo "  $0 connect   # Connect to database shell"
 }
 

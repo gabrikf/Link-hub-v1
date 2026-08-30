@@ -81,7 +81,7 @@ import { OpenAiResumeParsingProvider } from "../providers/openai-resume-parsing-
 import { DeterministicResumeParsingProvider } from "../providers/deterministic-resume-parsing-provider.js";
 import {
   S3FileStorageProvider,
-  readS3StorageConfigFromEnv,
+  resolveFileStorageConfig,
 } from "../providers/s3-file-storage-provider.js";
 import { createImageOptimizerProvider } from "../providers/sharp-image-optimizer-provider.js";
 import { RedisAiQuotaProvider } from "../providers/redis-ai-quota-provider.js";
@@ -567,12 +567,20 @@ export function setupContainer() {
   // unchanged.
   container.register<IFileStorageProvider>(TOKENS.FileStorageProvider, {
     useFactory: instanceCachingFactory(() => {
-      const config = readS3StorageConfigFromEnv();
+      // Complete S3_* environment wins; nothing set in development falls back
+      // to the MinIO service in docker-compose.dev.yml. Production is never
+      // given that fallback — see `resolveFileStorageConfig`.
+      const config = resolveFileStorageConfig();
 
       // Fail lazily (at request time) with a clear message instead of crashing
-      // the whole server at boot when object storage isn't configured.
+      // the whole server at boot when object storage isn't configured. The
+      // message names the local fix because the overwhelmingly common way to
+      // see this is a developer whose MinIO is not running.
       if (!config) {
-        throw new InternalServerError("Image storage is not configured");
+        throw new InternalServerError(
+          "Image storage is not configured. Set the S3_* variables, or run " +
+            "`bash db-manage.sh start` to use the local MinIO.",
+        );
       }
 
       return new S3FileStorageProvider(config);

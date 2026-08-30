@@ -60,6 +60,91 @@ services:
     networks:
       - crafthub-network
 
+  # -------------------------------------------------------------------------
+  # minio — the local object store. Every image the app uploads lands here.
+  # -------------------------------------------------------------------------
+  # DEVELOPMENT ONLY, and in this file only. `docker-compose.prod.yml` has no
+  # MinIO and never will: production writes to Cloudflare R2 through the exact
+  # same `S3FileStorageProvider`, because MinIO speaks the S3 API and R2 speaks
+  # the S3 API, so the adapter, the signing, the path-style addressing and the
+  # public-URL shape are identical in both. That is the whole reason MinIO was
+  # chosen over a write-to-disk provider: a local stub with its own code path
+  # proves nothing about the code path that runs for real users.
+  #
+  # NOT behind the `tools` profile, unlike pgAdmin and Mailpit. Uploading a
+  # profile photo is not an optional debugging aid — it is a core flow of the
+  # product, and without a bucket `POST /me/uploads` returns 500 on a fresh
+  # clone. `bash db-manage.sh start` brings this up with Postgres and Redis.
+  #
+  #   S3 API   http://localhost:9000
+  #   Console  http://localhost:9001  (crafthub / crafthub_secret)
+  #
+  # The API defaults to exactly these values when no S3_* variable is set —
+  # see LOCAL_MINIO_STORAGE_CONFIG in
+  # apps/api/src/infra/providers/s3-file-storage-provider.ts. Nothing to paste
+  # into apps/api/.env for uploads to work.
+  minio:
+    image: minio/minio:latest
+    container_name: crafthub-minio-dev
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: crafthub
+      MINIO_ROOT_PASSWORD: crafthub_secret
+      # Pinned so the region the SDK signs with is the region MinIO verifies.
+      # Left unset, MinIO accepts anything and a region mismatch that WOULD be
+      # a 403 against R2 passes locally — the failure this file exists to catch.
+      MINIO_REGION: us-east-1
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      # `mc ready` over the service's own liveness endpoint. `curl` is not in
+      # this image, so an HTTP probe written the usual way silently never passes
+      # and `minio-setup` waits for a condition that can never be met.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      - crafthub-network
+
+  # -------------------------------------------------------------------------
+  # minio-setup — creates the bucket and makes it publicly readable, once.
+  # -------------------------------------------------------------------------
+  # Runs to completion and exits (`restart: "no"`). Everything it does is
+  # idempotent, so it is safe on every `up`, including against a volume that
+  # already holds objects.
+  #
+  # PUBLIC READ IS THE POINT, not a shortcut. `S3_PUBLIC_BASE_URL` is pasted
+  # straight into an `<img src>` by the browser, with no credentials and no
+  # signature — that is how R2's public bucket serves the same objects in
+  # production. An anonymous-download policy locally is what makes the two
+  # behave the same; without it every avatar in the dashboard renders as a
+  # broken image and the only symptom is a silent 403 in the network tab.
+  #
+  # `--ignore-existing` on `mb`: a second `up` must not fail because the bucket
+  # survived the first one.
+  minio-setup:
+    image: minio/mc:latest
+    container_name: crafthub-minio-setup-dev
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set crafthub http://minio:9000 crafthub crafthub_secret &&
+      mc mb --ignore-existing crafthub/crafthub-media &&
+      mc anonymous set download crafthub/crafthub-media &&
+      echo 'minio-setup: bucket crafthub-media is ready and publicly readable'
+      "
+    networks:
+      - crafthub-network
+
   # Optional: pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -140,6 +225,10 @@ volumes:
   postgres_data:
     driver: local
   pgadmin_data:
+    driver: local
+  # Named, so the images you uploaded while building a screen are still there
+  # tomorrow. `bash db-manage.sh reset` is what throws them away.
+  minio_data:
     driver: local
 
 networks:
