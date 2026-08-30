@@ -367,3 +367,96 @@ describe("FileUpload avatar variant", () => {
     expect(uploadImageMock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The repositionable tile — the flow the bug report describes end to end:
+ * upload a banner, and be shown WHERE it will be cropped before living with it.
+ */
+describe("FileUpload — repositionable tile", () => {
+  beforeEach(() => {
+    uploadImageMock.mockReset();
+  });
+
+  const renderTile = (
+    props: Partial<React.ComponentProps<typeof FileUpload>> = {},
+  ) => {
+    const onChange = vi.fn();
+    const onPlacementChange = vi.fn();
+    render(
+      <FileUpload
+        label="Banner"
+        aspect="banner"
+        value={null}
+        onChange={onChange}
+        placement={null}
+        onPlacementChange={onPlacementChange}
+        placementAspect={3}
+        {...props}
+      />,
+    );
+    return { onChange, onPlacementChange };
+  };
+
+  it("opens the position editor as soon as the upload lands", async () => {
+    uploadImageMock.mockResolvedValue("https://cdn.example.com/banner.png");
+    const { onPlacementChange } = renderTile();
+
+    fireEvent.change(fileInput(), {
+      target: { files: [makeFile("banner.png", "image/png", 2048)] },
+    });
+
+    // Not a nicety: without this the owner has to DISCOVER that repositioning
+    // exists, which is exactly what did not happen.
+    await waitFor(() =>
+      expect(screen.getByTestId("image-position-frame")).toBeInTheDocument(),
+    );
+    // A new photograph starts centred — keeping the previous photo's focal
+    // point would frame the new one by an irrelevant rule.
+    expect(onPlacementChange).toHaveBeenCalledWith({ x: 50, y: 50, scale: 1 });
+  });
+
+  it("never opens the editor when the caller did not ask for placement", async () => {
+    uploadImageMock.mockResolvedValue("https://cdn.example.com/banner.png");
+    render(
+      <FileUpload label="Banner" aspect="banner" value={null} onChange={vi.fn()} />,
+    );
+
+    fireEvent.change(fileInput(), {
+      target: { files: [makeFile("banner.png", "image/png", 2048)] },
+    });
+
+    await waitFor(() => expect(uploadImageMock).toHaveBeenCalled());
+    expect(screen.queryByTestId("image-position-frame")).not.toBeInTheDocument();
+  });
+
+  it("keeps a Reposition control on the tile long after the upload", () => {
+    renderTile({ value: "https://cdn.example.com/banner.png" });
+
+    fireEvent.click(screen.getByRole("button", { name: /reposition/i }));
+
+    expect(screen.getByTestId("image-position-frame")).toBeInTheDocument();
+  });
+
+  it("previews the tile at the stored focal point", () => {
+    renderTile({
+      value: "https://cdn.example.com/banner.png",
+      placement: { x: 10, y: 90, scale: 2 },
+    });
+
+    const preview = screen.getAllByAltText(/banner preview/i)[0];
+    expect(preview?.style.objectPosition).toBe("10% 90%");
+    expect(preview?.style.transform).toBe("scale(2)");
+  });
+
+  it("clears the placement with the image — a focal point belongs to one photo", () => {
+    const { onChange, onPlacementChange } = renderTile({
+      value: "https://cdn.example.com/banner.png",
+      placement: { x: 10, y: 90, scale: 2 },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /remove image/i }));
+
+    expect(onChange).toHaveBeenCalledWith(null);
+    expect(onPlacementChange).toHaveBeenCalledWith(null);
+  });
+});

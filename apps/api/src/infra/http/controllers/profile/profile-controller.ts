@@ -6,6 +6,7 @@ import {
   updateProfileSchemaOutput,
   usernameAvailabilityQuerySchema,
   usernameAvailabilitySchema,
+  type ProfileAppearance,
 } from "@repo/schemas";
 import { resolve, TOKENS } from "../../../di/container.js";
 import { GetPublicProfileUseCase } from "../../../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
@@ -215,6 +216,7 @@ export class ProfileController {
             bannerImageUrl?: string | null;
             themeAccent?: string | null;
             themePreset?: string | null;
+            appearance?: ProfileAppearance;
             openToWork?: boolean;
             location?: string | null;
             persona?: string | null;
@@ -237,6 +239,7 @@ export class ProfileController {
           bannerImageUrl: request.body.bannerImageUrl,
           themeAccent: request.body.themeAccent,
           themePreset: request.body.themePreset,
+          appearance: request.body.appearance,
           openToWork: request.body.openToWork,
           location: request.body.location,
           persona: request.body.persona,

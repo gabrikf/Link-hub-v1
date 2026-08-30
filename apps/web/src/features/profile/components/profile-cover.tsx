@@ -1,5 +1,7 @@
+import type { ImagePlacement } from "@repo/schemas";
 import { useTranslation } from "react-i18next";
 import { FiBriefcase } from "react-icons/fi";
+import { PlacedImage } from "../../../shared-components/placed-image";
 import { ProfileShareButton } from "./profile-share-button";
 import {
   resolvePersonaLabel,
@@ -9,6 +11,16 @@ import {
 
 type ProfileCoverProps = {
   bannerImageUrl: string | null;
+  /**
+   * Which part of the banner to keep in frame.
+   *
+   * This strip is 176px tall on the public profile and 128px (96px above
+   * `@2xl`) in the compact preview, all of them `object-fit: cover` — so a
+   * banner with no placement is cropped to its MIDDLE, which is how a portrait
+   * photograph ends up showing a shoulder instead of a face. `null` keeps that
+   * centred behaviour, so nothing changes for a profile that never set one.
+   */
+  bannerPlacement?: ImagePlacement | null;
   /**
    * Accepted and deliberately NOT rendered — see the note on {@link openToWork}.
    *
@@ -70,6 +82,7 @@ type ProfileCoverProps = {
  */
 export function ProfileCover({
   bannerImageUrl,
+  bannerPlacement = null,
   persona,
   personaOther = null,
   share,
@@ -89,11 +102,10 @@ export function ProfileCover({
     >
       {banner ? (
         <>
-          <img
+          <PlacedImage
             src={banner}
-            alt=""
-            aria-hidden="true"
-            className="h-full w-full object-cover"
+            placement={bannerPlacement}
+            data-testid="profile-cover-image"
           />
           {/*
             The scrim fades to fully transparent at the top instead of washing

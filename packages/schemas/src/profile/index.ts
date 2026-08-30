@@ -48,6 +48,123 @@ export const personaSchema = z.enum([
  */
 export const personaOtherSchema = z.string().trim().min(1).max(60);
 
+/**
+ * Where an image sits inside a frame it does not have the shape of.
+ *
+ * A FOCAL POINT, deliberately, and not a baked crop rectangle. The same banner
+ * is painted into at least three different frames — 176px tall on the public
+ * profile, 128px (96px above `@2xl`) in the compact preview, and a 3:1 tile in
+ * the editor — and every one of them is `object-fit: cover`, i.e. every one of
+ * them re-crops. A crop rectangle chosen at one aspect ratio is re-cropped by
+ * the next frame and the face the owner centred slides back out of view, which
+ * is the exact bug this feature exists to fix. A focal point survives that: it
+ * says "keep THIS point of the photo at THIS point of the frame", and it holds
+ * at any frame shape.
+ *
+ * - `x` / `y` — percentages, the CSS `object-position` pair. 50/50 is centred,
+ *   which is what every browser already does, so an unset placement and a
+ *   default placement render identically.
+ * - `scale` — magnification on top of `cover`. 1 is untouched; the cap of 3
+ *   is where a 1080p photo starts visibly falling apart on a retina banner.
+ */
+export const imagePlacementSchema = z.object({
+  x: z.number().min(0).max(100),
+  y: z.number().min(0).max(100),
+  scale: z.number().min(1).max(3),
+});
+
+/** A centred, unzoomed placement — what an image with no stored one renders as. */
+export const CENTERED_IMAGE_PLACEMENT: ImagePlacement = {
+  x: 50,
+  y: 50,
+  scale: 1,
+};
+
+/**
+ * The veil painted over the background photo, as a percentage.
+ *
+ * 0 shows the photograph untouched, 100 hides it completely. The default is
+ * NOT a neutral 50: it replaces a hardcoded `bg-zinc-100/82` /
+ * `dark:bg-zinc-950/85` that made every background image people uploaded
+ * essentially invisible — the bug reported as "I set a background and nothing
+ * happened". 55 leaves the photo clearly readable as a photo while the profile
+ * card, which turns to frosted glass whenever there IS a photo, stays
+ * perfectly legible on top of it.
+ */
+export const DEFAULT_BACKGROUND_OVERLAY = 55;
+
+/** Blur radius in CSS pixels applied to the background photo. */
+export const DEFAULT_BACKGROUND_BLUR = 6;
+
+/**
+ * Everything about how the two decorative profile images are PLACED, as opposed
+ * to which file they are (`bannerImageUrl` / `backgroundImageUrl` stay where
+ * they are).
+ *
+ * One object rather than four sibling columns because these four values are
+ * only ever read and written together, by one form, and a profile's appearance
+ * is a single thing to a user. Every field carries a default, so a row written
+ * before this feature existed parses into the exact behaviour it had.
+ */
+export const profileAppearanceSchema = z.object({
+  bannerPlacement: imagePlacementSchema.nullable(),
+  backgroundPlacement: imagePlacementSchema.nullable(),
+  backgroundOverlay: z.number().min(0).max(100),
+  backgroundBlur: z.number().min(0).max(24),
+});
+
+/**
+ * The same four values, each with its own fallback — for READING a stored row
+ * or a payload written by an older build.
+ *
+ * Two schemas rather than one, and the difference is load-bearing. A default on
+ * the object as a whole only fires when the key is missing entirely, so the day
+ * a fifth setting is added, every row already in the table fails the parse and
+ * the owner loses the four settings they DID choose. Per-field defaults degrade
+ * one field at a time.
+ *
+ * The write side deliberately does not get this leniency: the form always knows
+ * all four values, so a partial appearance arriving over HTTP is a bug worth
+ * hearing about rather than one worth filling in.
+ */
+export const storedProfileAppearanceSchema = z.object({
+  bannerPlacement: imagePlacementSchema.nullable().default(null),
+  backgroundPlacement: imagePlacementSchema.nullable().default(null),
+  backgroundOverlay: z
+    .number()
+    .min(0)
+    .max(100)
+    .default(DEFAULT_BACKGROUND_OVERLAY),
+  backgroundBlur: z.number().min(0).max(24).default(DEFAULT_BACKGROUND_BLUR),
+});
+
+export type ImagePlacement = z.infer<typeof imagePlacementSchema>;
+export type ProfileAppearance = z.infer<typeof profileAppearanceSchema>;
+
+/**
+ * What an account that has never touched the appearance controls looks like.
+ *
+ * Spelled out rather than `.default({})`: zod 4 takes `.default()` in the
+ * OUTPUT type, so an empty object is not a legal default for this schema even
+ * though every field has one of its own.
+ */
+export const DEFAULT_PROFILE_APPEARANCE: ProfileAppearance = {
+  bannerPlacement: null,
+  backgroundPlacement: null,
+  backgroundOverlay: DEFAULT_BACKGROUND_OVERLAY,
+  backgroundBlur: DEFAULT_BACKGROUND_BLUR,
+};
+
+/**
+ * Parse anything (a jsonb column, a legacy payload, `null`) into a usable
+ * appearance. Never throws — an appearance is decoration, and a row somebody
+ * hand-edited must not be able to take a profile page down.
+ */
+export function parseProfileAppearance(value: unknown): ProfileAppearance {
+  const result = storedProfileAppearanceSchema.safeParse(value ?? {});
+  return result.success ? result.data : DEFAULT_PROFILE_APPEARANCE;
+}
+
 export const profileSchema = z.object({
   username: z.string(),
   name: z.string(),
@@ -60,6 +177,10 @@ export const profileSchema = z.object({
   openToWork: z.boolean(),
   location: z.string().nullable(),
   persona: personaSchema.nullable(),
+  // Placement + background treatment. Defaulted rather than `.optional()` so a
+  // consumer never has to ask whether the key was there — an account that has
+  // never opened the appearance panel reads as the documented default.
+  appearance: storedProfileAppearanceSchema.default(DEFAULT_PROFILE_APPEARANCE),
   // The free-text label behind `persona: "other"`. `.default(null)` rather
   // than a bare `.nullable()`: responses produced before this field existed
   // (and every fixture written against the old shape) omit the key entirely,
@@ -139,6 +260,10 @@ export const updateProfileSchemaInput = z.object({
   openToWork: z.boolean().optional(),
   location: z.string().max(120).nullable().optional(),
   persona: personaSchema.nullable().optional(),
+  // Optional, and a WHOLE object when present: the appearance panel always
+  // knows all four values, so a partial patch would only add a merge rule with
+  // no caller. Absent means "leave the stored appearance alone".
+  appearance: profileAppearanceSchema.optional(),
   // `null` clears the custom label. The "persona is `other`, so this must be
   // present" rule is NOT expressed here on purpose: this is a partial update,
   // so a request may legitimately carry `persona` without `personaOther` (or
@@ -162,6 +287,7 @@ export const updateProfileSchemaOutput = z.object({
   location: z.string().nullable(),
   persona: personaSchema.nullable(),
   personaOther: z.string().nullable(),
+  appearance: storedProfileAppearanceSchema.default(DEFAULT_PROFILE_APPEARANCE),
   email: z.string().email(),
 });
 

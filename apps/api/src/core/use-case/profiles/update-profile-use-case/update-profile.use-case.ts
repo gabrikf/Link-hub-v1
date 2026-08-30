@@ -14,6 +14,14 @@ export interface IUpdateProfileInput {
   bannerImageUrl?: string | null;
   themeAccent?: string | null;
   themePreset?: string | null;
+  /**
+   * Banner / background placement and background treatment, as ONE object.
+   *
+   * `unknown` rather than the schema type: this arrives from an HTTP body, and
+   * the entity re-parses it through `@repo/schemas` on the way in, so the use
+   * case never has to trust a cast it did not perform.
+   */
+  appearance?: unknown;
   openToWork?: boolean;
   location?: string | null;
   persona?: string | null;
@@ -74,6 +82,10 @@ export class UpdateProfileUseCase {
       user.updateThemePreset(input.themePreset ?? null);
     }
 
+    if (typeof input.appearance !== "undefined") {
+      user.updateAppearance(input.appearance);
+    }
+
     if (typeof input.openToWork !== "undefined") {
       user.updateOpenToWork(input.openToWork);
     }
@@ -118,6 +130,7 @@ export class UpdateProfileUseCase {
       bannerImageUrl: updatedUser.bannerImageUrl,
       themeAccent: updatedUser.themeAccent,
       themePreset: updatedUser.themePreset,
+      appearance: updatedUser.appearance,
       openToWork: updatedUser.openToWork,
       location: updatedUser.location,
       persona: updatedUser.persona,

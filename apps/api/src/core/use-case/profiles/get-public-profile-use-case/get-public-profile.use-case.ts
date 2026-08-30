@@ -38,6 +38,7 @@ export class GetPublicProfileUseCase {
       bannerImageUrl: user.bannerImageUrl,
       themeAccent: user.themeAccent,
       themePreset: user.themePreset,
+      appearance: user.appearance,
       openToWork: user.openToWork,
       location: user.location,
       persona: user.persona,

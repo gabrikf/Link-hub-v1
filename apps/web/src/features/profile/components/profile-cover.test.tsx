@@ -183,3 +183,60 @@ describe("ProfileCover — a role the dropdown does not cover", () => {
     expect(roleChip().textContent).toBe("Developer");
   });
 });
+
+/**
+ * The reported bug: a portrait photograph in a 176px-tall, full-width strip is
+ * cropped to its MIDDLE by `object-fit: cover`, so the owner's face is above
+ * the frame and what shows is her shoulder. The fix is a stored focal point,
+ * and the assertions below are on the two CSS properties that carry it.
+ */
+describe("ProfileCover — where the banner sits", () => {
+  const BANNER = "https://cdn.example.com/banner.jpg";
+
+  it("renders a banner with no placement exactly as a centred cover", () => {
+    render(<ProfileCover bannerImageUrl={BANNER} persona={null} />);
+
+    const image = screen.getByTestId("profile-cover-image");
+    expect(image.style.objectPosition).toBe("50% 50%");
+    expect(image.style.transform).toBe("scale(1)");
+  });
+
+  it("keeps the chosen point of the photo in frame", () => {
+    render(
+      <ProfileCover
+        bannerImageUrl={BANNER}
+        bannerPlacement={{ x: 50, y: 18, scale: 1.2 }}
+        persona={null}
+      />,
+    );
+
+    const image = screen.getByTestId("profile-cover-image");
+    expect(image.style.objectPosition).toBe("50% 18%");
+    // The origin MUST match the position, or zooming walks away from the point
+    // the owner dragged into place.
+    expect(image.style.transformOrigin).toBe("50% 18%");
+    expect(image.style.transform).toBe("scale(1.2)");
+  });
+
+  it("applies the same placement in the compact preview strip", () => {
+    // Same stored value, different frame height — that is the whole reason this
+    // is a focal point and not a baked crop.
+    render(
+      <ProfileCover
+        compact
+        bannerImageUrl={BANNER}
+        bannerPlacement={{ x: 40, y: 10, scale: 1 }}
+        persona={null}
+      />,
+    );
+
+    expect(screen.getByTestId("profile-cover-image").style.objectPosition).toBe(
+      "40% 10%",
+    );
+  });
+
+  it("draws the gradient fallback, and no image, without a banner", () => {
+    render(<ProfileCover bannerImageUrl={null} persona={null} />);
+    expect(screen.queryByTestId("profile-cover-image")).not.toBeInTheDocument();
+  });
+});

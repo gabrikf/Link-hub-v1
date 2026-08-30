@@ -1,3 +1,4 @@
+import { DEFAULT_PROFILE_APPEARANCE } from "@repo/schemas";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
@@ -16,6 +17,10 @@ vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ username: "ada" }),
 }));
 
+const profileOverrides: { backgroundImageUrl: string | null } = {
+  backgroundImageUrl: null,
+};
+
 vi.mock("../../../lib/auth-api", () => ({
   fetchPublicProfile: vi.fn(async () => ({
     name: "Ada Lovelace",
@@ -23,12 +28,16 @@ vi.mock("../../../lib/auth-api", () => ({
     description: "Analytical engine enthusiast",
     userPhoto: null,
     bannerImageUrl: null,
-    backgroundImageUrl: null,
+    backgroundImageUrl: profileOverrides.backgroundImageUrl,
     location: null,
     persona: null,
     personaOther: null,
     themePreset: "violet",
     themeAccent: null,
+    // Present for the same reason every other key here is: the real client
+    // parses this payload through `profileSchema`, which defaults it, so a
+    // double that omits it is testing a response the app can never receive.
+    appearance: DEFAULT_PROFILE_APPEARANCE,
     links: [],
     layout: undefined,
   })),
@@ -86,6 +95,7 @@ function gutters(className: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  profileOverrides.backgroundImageUrl = null;
 
   /*
    * jsdom ships no `matchMedia`, and the page calls it during the very first
@@ -182,5 +192,45 @@ describe("PublicProfilePage horizontal gutters", () => {
     // them.
     expect(Number(gutters(getMain().className).base)).toBeGreaterThan(0);
     expect(Number(gutters((await getBlockStack()).className).base)).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * The reported bug had two halves and this is the second one: the background
+ * photograph is a full-bleed layer behind a card that is `w-full` inside the
+ * page column — i.e. it covers all but ~8px of it at every width, and NINE
+ * pixels on a 390px phone. Painting the photo correctly and then hiding it
+ * under an opaque card is still "I set a background and nothing happened".
+ */
+describe("PublicProfilePage — the card over a background photo", () => {
+  it("stays opaque when there is no background photo", async () => {
+    renderPage();
+    const card = (await screen.findByTestId("profile-blocks")).parentElement
+      ?.parentElement;
+
+    expect(card?.className).toContain("bg-linear-to-b");
+    expect(card?.className).not.toContain("backdrop-blur");
+  });
+
+  it("turns to frosted glass when a background photo is set", async () => {
+    profileOverrides.backgroundImageUrl = "https://cdn.example.com/bg.jpg";
+    renderPage();
+    const card = (await screen.findByTestId("profile-blocks")).parentElement
+      ?.parentElement;
+
+    expect(card?.className).toContain("backdrop-blur");
+    // Translucent in BOTH themes — a dark-mode-only variant would leave light
+    // mode showing an opaque card over an invisible photo.
+    expect(card?.className).toContain("bg-white/75");
+    expect(card?.className).toContain("dark:bg-zinc-900/70");
+  });
+
+  it("ignores a background url that is not http(s)", async () => {
+    profileOverrides.backgroundImageUrl = "javascript:alert(1)";
+    renderPage();
+    const card = (await screen.findByTestId("profile-blocks")).parentElement
+      ?.parentElement;
+
+    expect(card?.className).not.toContain("backdrop-blur");
   });
 });

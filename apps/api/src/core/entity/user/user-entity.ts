@@ -1,7 +1,9 @@
 import {
   DEFAULT_AGENT_DISCLOSURE_LEVEL,
   DEFAULT_TABS_ENABLED,
+  parseProfileAppearance,
   type AgentDisclosureLevel,
+  type ProfileAppearance,
   type ProfileViewport,
 } from "@repo/schemas";
 import { BaseEntity, BaseEntityProps } from "../index.js";
@@ -17,6 +19,17 @@ export interface UserEntityProps extends BaseEntityProps {
   bannerImageUrl?: string | null; // Optional; normalized to null in ctor
   themeAccent?: string | null; // Optional; normalized to null in ctor
   themePreset?: string | null; // Optional; normalized to null in ctor
+  /**
+   * Focal points for the banner and background photos plus the background's
+   * veil and blur. Optional here and normalized to the
+   * shared `DEFAULT_PROFILE_APPEARANCE` in the ctor, so the dozens of existing
+   * construction sites (and every account created before the column existed)
+   * resolve to "centred, untouched" rather than to `undefined`.
+   *
+   * Typed as `unknown` because the honest source is a jsonb column: the ctor
+   * runs it through the shared schema rather than trusting a cast.
+   */
+  appearance?: unknown;
   /**
    * Whether recruiters may find this candidate. See the ctor for why an absent
    * value resolves to TRUE.
@@ -108,6 +121,7 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
   public bannerImageUrl: string | null; // Always null, never undefined
   public themeAccent: string | null; // Always null, never undefined
   public themePreset: string | null; // Always null, never undefined
+  public appearance: ProfileAppearance; // Always a full appearance, never undefined
   public openToWork: boolean; // Always boolean, never undefined
   public tabsEnabledPc: boolean; // Always boolean, never undefined
   public tabsEnabledMobile: boolean; // Always boolean, never undefined
@@ -132,6 +146,9 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     this.bannerImageUrl = props.bannerImageUrl ?? null;
     this.themeAccent = props.themeAccent ?? null;
     this.themePreset = props.themePreset ?? null;
+    // Total, never throwing: see `parseProfileAppearance`. A row nobody has
+    // touched (`null`) and a row somebody hand-edited both land on the default.
+    this.appearance = parseProfileAppearance(props.appearance);
     /**
      * Defaults to TRUE, not false.
      *
@@ -207,6 +224,16 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
 
   updateThemePreset(themePreset: string | null) {
     this.themePreset = themePreset;
+    this.updateTimestamp();
+  }
+
+  /**
+   * Replace the whole appearance. Parsed rather than assigned: this is reached
+   * from an HTTP body, and the entity is the last place that can refuse a
+   * `scale: 900` before it reaches the column.
+   */
+  updateAppearance(appearance: unknown) {
+    this.appearance = parseProfileAppearance(appearance);
     this.updateTimestamp();
   }
 
@@ -314,6 +341,7 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
       bannerImageUrl: this.bannerImageUrl,
       themeAccent: this.themeAccent,
       themePreset: this.themePreset,
+      appearance: this.appearance,
       openToWork: this.openToWork,
       tabsEnabledPc: this.tabsEnabledPc,
       tabsEnabledMobile: this.tabsEnabledMobile,

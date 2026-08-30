@@ -1,4 +1,8 @@
 import type { Locator, Page } from "@playwright/test";
+// The contract itself, not a hand-written copy of it. A local `type
+// ProfileAppearance = {...}` here would keep compiling for exactly as long as
+// it took someone to rename a field on the real one.
+import type { ProfileAppearance } from "@repo/schemas";
 import { API_URL, JOURNEY_ACCOUNTS } from "../support/accounts";
 import { apiLogin, type LoginResult } from "../support/api";
 import { expect, loginAs, test } from "../support/fixtures";
@@ -107,6 +111,7 @@ type ProfileSnapshot = {
   openToWork: boolean;
   location: string | null;
   persona: string | null;
+  appearance: ProfileAppearance | null;
 };
 
 type LayoutBlock = {
@@ -430,6 +435,9 @@ test.afterAll(async () => {
         openToWork: baselineProfile.openToWork,
         location: baselineProfile.location,
         persona: baselineProfile.persona,
+        ...(baselineProfile.appearance
+          ? { appearance: baselineProfile.appearance }
+          : {}),
       },
     });
   } catch (error) {
@@ -583,7 +591,250 @@ test("profile fields survive a reload and reach the public profile", async ({
 });
 
 /* ========================================================================== */
-/* 2. Theme                                                                   */
+/* 2. Banner position and background photo                                    */
+/* ========================================================================== */
+
+/**
+ * A tall photograph in a 3:1 strip, served by Playwright rather than uploaded.
+ *
+ * Uploading through the UI would write a real object into the configured S3
+ * bucket on every nightly run, and would make this journey depend on that
+ * bucket being reachable. Interception gives the browser a REAL image with a
+ * real intrinsic size (600x900 — portrait, so the banner frame genuinely has
+ * something to hide vertically) with neither cost.
+ */
+/*
+ * A host that cannot resolve, on purpose: every request for it is fulfilled by
+ * the route below, so nothing ever leaves the machine — and if the interception
+ * were ever removed, the failure would be a broken image in this journey rather
+ * than a silent request to somebody's server. It also keeps the stored URL
+ * independent of whichever port the web app happens to be on.
+ */
+const FIXTURE_ORIGIN = "http://e2e-fixtures.crafthub.invalid";
+const FIXTURE_HOST_PATH = "/e2e-appearance-fixture.svg";
+
+function fixtureImage(topColor: string, bottomColor: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900">
+    <rect width="600" height="450" fill="${topColor}"/>
+    <rect y="450" width="600" height="450" fill="${bottomColor}"/>
+    <circle cx="300" cy="150" r="90" fill="#ffffff"/>
+  </svg>`;
+}
+
+async function serveFixtureImages(page: Page): Promise<void> {
+  await page.route(`**${FIXTURE_HOST_PATH}*`, async (route) => {
+    const isBackground = route.request().url().includes("kind=background");
+    await route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: isBackground
+        ? fixtureImage("#166534", "#065f46")
+        : fixtureImage("#7c3aed", "#1e1b4b"),
+    });
+  });
+}
+
+const BANNER_FIXTURE_URL = `${FIXTURE_ORIGIN}${FIXTURE_HOST_PATH}?kind=banner`;
+const BACKGROUND_FIXTURE_URL = `${FIXTURE_ORIGIN}${FIXTURE_HOST_PATH}?kind=background`;
+
+/**
+ * The properties that carry a focal point, read off the live DOM.
+ *
+ * BOTH the authored values and what the browser resolved them to. The two
+ * cannot be compared as strings — `getComputedStyle` leaves `object-position`
+ * in percentages and resolves `transform-origin` to pixels — so the invariant
+ * "these two name the same point" is checked in pixels, against the element's
+ * own box, by {@link expectFocalPointIsConsistent}.
+ */
+async function readPlacementStyle(locator: Locator) {
+  return locator.evaluate((element) => {
+    const image = element as HTMLImageElement;
+    const computed = window.getComputedStyle(image);
+    return {
+      objectPosition: image.style.objectPosition,
+      transformOrigin: image.style.transformOrigin,
+      transform: image.style.transform,
+      resolvedTransformOrigin: computed.transformOrigin,
+      width: image.clientWidth,
+      height: image.clientHeight,
+    };
+  });
+}
+
+type PlacementStyle = Awaited<ReturnType<typeof readPlacementStyle>>;
+
+/**
+ * The one invariant the whole feature rests on: the image point pinned by
+ * `object-position` and the point zoom happens around must be the SAME point.
+ * If they drift, zooming walks away from whatever the owner dragged into frame.
+ */
+function expectFocalPointIsConsistent(style: PlacementStyle): void {
+  expect(style.transformOrigin).toBe(style.objectPosition);
+
+  const [xPercent, yPercent] = style.objectPosition
+    .split(" ")
+    .map((part) => Number.parseFloat(part));
+  const [xPixels, yPixels] = style.resolvedTransformOrigin
+    .split(" ")
+    .map((part) => Number.parseFloat(part));
+
+  // Half a pixel of tolerance: `clientWidth`/`clientHeight` are integers while
+  // the browser resolves the origin against the fractional border box. A real
+  // drift between the two properties is tens of pixels, not fractions of one.
+  expect(xPixels).toBeCloseTo(((xPercent ?? 50) / 100) * style.width, 0);
+  expect(yPixels).toBeCloseTo(((yPercent ?? 50) / 100) * style.height, 0);
+}
+
+/**
+ * Scoped in a describe for the sake of `afterEach`: this test parks two
+ * FIXTURE image urls on the account, and the fixture host deliberately does not
+ * resolve. Leaving them behind makes every LATER test in this file log a dozen
+ * `ERR_NAME_NOT_RESOLVED` console errors and fail its own console-error
+ * assertion — a failure with nothing to do with the test that reports it.
+ */
+test.describe("images", () => {
+  test.afterEach(async () => {
+    try {
+      await api("/profile", {
+        method: "PUT",
+        body: {
+          username: baselineProfile.username,
+          bannerImageUrl: baselineProfile.bannerImageUrl,
+          backgroundImageUrl: baselineProfile.backgroundImageUrl,
+          ...(baselineProfile.appearance
+            ? { appearance: baselineProfile.appearance }
+            : {}),
+        },
+      });
+    } catch (error) {
+      console.warn(`[journey-05] fixture image cleanup failed: ${String(error)}`);
+    }
+  });
+
+  /*
+   * `@responsive` so this runs on the Pixel 7 project too. The phone is where
+   * the bug was reported from, and it is the harder case: the dialog is 92vw,
+   * the drag frame is 178px tall, and `touch-none` on that frame is the only
+   * thing stopping the browser reading the gesture as a page scroll.
+   */
+  test("@responsive a dragged banner and a tuned background reach the public profile", async ({
+    page,
+    guard,
+  }) => {
+    await signIn(page);
+    await serveFixtureImages(page);
+
+    // Setup, not assertion: put the two photos on the account over the API so the
+    // test spends its time on the thing under test — choosing where they sit.
+    await api("/profile", {
+      method: "PUT",
+      body: {
+        username: ACCOUNT.login,
+        bannerImageUrl: BANNER_FIXTURE_URL,
+        backgroundImageUrl: BACKGROUND_FIXTURE_URL,
+        appearance: {
+          bannerPlacement: null,
+          backgroundPlacement: null,
+          backgroundOverlay: 55,
+          backgroundBlur: 6,
+        },
+      },
+    });
+
+    await page.goto("/dashboard");
+    const dialog = await openProfileDialog(page);
+
+    /* ---- the banner: drag it, and watch the preview follow ---- */
+
+    const bannerField = dialog.getByTestId("banner-upload");
+    await bannerField.getByRole("button", { name: /Reposition/i }).click();
+
+    const frame = page.getByTestId("image-position-frame");
+    await expect(frame).toBeVisible();
+
+    const before = await readPlacementStyle(
+      page.getByTestId("image-position-preview"),
+    );
+    expect(before.objectPosition).toBe("50% 50%");
+
+    // Drag DOWNWARD: the photo follows the pointer, so what comes into frame is
+    // the TOP of it — the half with the face in it.
+    const box = await frame.boundingBox();
+    if (!box) throw new Error("position frame has no box");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      box.x + box.width / 2,
+      box.y + box.height / 2 + 90,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+
+    const dragged = await readPlacementStyle(
+      page.getByTestId("image-position-preview"),
+    );
+    expect(
+      dragged.objectPosition,
+      "dragging must move the picture, not just the cursor",
+    ).not.toBe(before.objectPosition);
+    expectFocalPointIsConsistent(dragged);
+
+    await page.getByRole("button", { name: /Apply position/i }).click();
+    await expect(frame).toBeHidden();
+
+    /* ---- the background: make it actually visible ---- */
+
+    await dialog.getByLabel(/Veil/i).fill("20");
+    await expect(dialog.getByTestId("profile-background-veil")).toHaveCSS(
+      "opacity",
+      "0.2",
+    );
+
+    await dialog.getByRole("button", { name: /Save profile/ }).click();
+    await expect(dialog).toBeHidden();
+
+    /* ---- persisted, not optimistic ---- */
+
+    const saved = await readProfile();
+    expect(saved.appearance?.bannerPlacement).not.toBeNull();
+    /*
+     * A THRESHOLD, not just "less than 50". A 90px drag against roughly 550px
+     * of hidden photo is ~16 percentage points, so anything above 40 means the
+     * gesture died part-way — which is exactly what happened when the browser
+     * turned the drag into a native image-drag and fired `pointercancel` two
+     * moves in. `y` barely moved and a `< 50` assertion sailed straight past it.
+     */
+    expect(
+      saved.appearance?.bannerPlacement?.y,
+      "a 90px drag must move the focal point by ~16 points, not by one",
+    ).toBeLessThan(40);
+    expect(saved.appearance?.backgroundOverlay).toBe(20);
+
+    /* ---- and it is what a visitor sees ---- */
+
+    await page.goto(PUBLIC_PATH);
+
+    const cover = page.getByTestId("profile-cover-image");
+    await expect(cover).toBeVisible();
+    const published = await readPlacementStyle(cover);
+    const expectedY = saved.appearance?.bannerPlacement?.y ?? 50;
+    expect(published.objectPosition).toBe(`50% ${expectedY}%`);
+    expectFocalPointIsConsistent(published);
+
+    // The background bug: it rendered under an ~85% veil, i.e. invisibly.
+    const background = page.getByTestId("profile-background-image");
+    await expect(background).toBeAttached();
+    await expect(page.getByTestId("profile-background-veil")).toHaveCSS(
+      "opacity",
+      "0.2",
+    );
+
+    expect(guard.errors, "console errors while positioning images").toEqual([]);
+  });
+});
+
+/* ========================================================================== */
+/* 3. Theme                                                                   */
 /* ========================================================================== */
 
 test("a theme preset and a custom accent repaint the public profile", async ({
@@ -628,7 +879,7 @@ test("a theme preset and a custom accent repaint the public profile", async ({
 });
 
 /* ========================================================================== */
-/* 3. Typing cost                                                             */
+/* 4. Typing cost                                                             */
 /* ========================================================================== */
 
 test("typing in the profile form issues no per-keystroke requests", async ({
@@ -665,7 +916,7 @@ test("typing in the profile form issues no per-keystroke requests", async ({
 });
 
 /* ========================================================================== */
-/* 4. Layout editor: add / move / remove, save semantics, request cost        */
+/* 5. Layout editor: add / move / remove, save semantics, request cost        */
 /* ========================================================================== */
 
 test("the layout editor adds, moves and removes a block without losing work", async ({
@@ -847,7 +1098,7 @@ test("a block can be reordered vertically without a mouse", async ({ page }) => 
 });
 
 /* ========================================================================== */
-/* 5. Four states — layout editor                                             */
+/* 6. Four states — layout editor                                             */
 /* ========================================================================== */
 
 test("the layout editor renders all four states", async ({ page }) => {
@@ -925,7 +1176,7 @@ test("the layout editor renders all four states", async ({ page }) => {
 });
 
 /* ========================================================================== */
-/* 6. Four states — dashboard profile panel                                   */
+/* 7. Four states — dashboard profile panel                                   */
 /* ========================================================================== */
 
 test("the dashboard profile panel renders all four states", async ({
@@ -997,7 +1248,7 @@ test("the dashboard profile panel renders all four states", async ({
 });
 
 /* ========================================================================== */
-/* 7. Dark mode                                                               */
+/* 8. Dark mode                                                               */
 /* ========================================================================== */
 
 test("dark mode keeps the editor and the public profile readable", async ({
@@ -1051,7 +1302,7 @@ test("dark mode keeps the editor and the public profile readable", async ({
 });
 
 /* ========================================================================== */
-/* 8. The public result, on both form factors                                 */
+/* 9. The public result, on both form factors                                 */
 /* ========================================================================== */
 
 test("@responsive the configured appearance renders on the public profile", async ({
