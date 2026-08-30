@@ -152,6 +152,32 @@ describe("DashboardProfileForm — background appearance", () => {
     );
   });
 
+  /**
+   * The avatar used to be painted over by the cover strip and arrive on screen
+   * sliced clean in half at the cover's lower edge.
+   *
+   * It is a PAINT-ORDER defect, not a layout one: the row is pulled 40px up so
+   * the avatar straddles the cover, but the cover strip is `relative` with
+   * `z-index: auto` and therefore paints in the positioned-descendant step,
+   * after this static row. Every DOM assertion — the avatar is in the document,
+   * it is "visible", it has the right size — was true the whole time.
+   *
+   * jsdom has no layout and cannot see the overlap. What it CAN pin is the
+   * mechanism: the row must carry a paint position of its own. The overlap
+   * itself is measured in `scripts/visual/scenarios/dialog-chrome.scenario.mjs`.
+   */
+  it("gives the avatar row a paint position, so the cover cannot cover it", () => {
+    renderForm();
+
+    const preview = screen.getByTestId("profile-appearance-preview");
+    const avatarRow = preview.querySelector(".-mt-10");
+
+    expect(avatarRow).not.toBeNull();
+    const classes = avatarRow!.className.split(/\s+/);
+    expect(classes).toContain("relative");
+    expect(classes).toContain("z-10");
+  });
+
   it("offers no veil or blur control while there is no background", () => {
     // Two sliders that move nothing read as broken, not as inapplicable.
     renderForm();

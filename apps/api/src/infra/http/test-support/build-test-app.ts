@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { container } from "tsyringe";
 import type { AgentDisclosureLevel } from "@repo/schemas";
 import fastify, { type FastifyInstance } from "fastify";
+import fastifyMultipart from "@fastify/multipart";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -24,6 +25,8 @@ import { InMemoryOAuthAccountRepository } from "../../../core/repositories/oauth
 import { InMemoryEmailVerificationTokenRepository } from "../../../core/repositories/email-verification-token/in-memory-email-verification-token-repository.js";
 import { InMemoryPasswordResetTokenRepository } from "../../../core/repositories/password-reset-token/in-memory-password-reset-token-repository.js";
 import { InMemoryMailProvider } from "../../../core/providers/mail/in-memory-mail-provider.js";
+import { InMemoryFileStorageProvider } from "../../../core/providers/storage/in-memory-file-storage-provider.js";
+import { createImageOptimizerProvider } from "../../providers/sharp-image-optimizer-provider.js";
 import { InMemoryHashProvider } from "../../../core/providers/hash/in-memory-hash-provider.js";
 import { CryptoTokenProvider } from "../../providers/crypto-token-provider.js";
 import { CryptoWebhookSecretProvider } from "../../providers/crypto-webhook-secret-provider.js";
@@ -71,6 +74,7 @@ import { AiImportController } from "../controllers/ai-import/ai-import-controlle
 import { ProfileController } from "../controllers/profile/profile-controller.js";
 import { profileLayoutRoutes } from "../routes/profile-layout.js";
 import { PreferencesController } from "../controllers/preferences/preferences-controller.js";
+import { UploadsController } from "../controllers/uploads/uploads-controller.js";
 import { CreateUserUseCase } from "../../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 import { LoginUseCase } from "../../../core/use-case/auth/login-use-case/login.use-case.js";
 import { VerifyEmailUseCase } from "../../../core/use-case/auth/verify-email-use-case/verify-email.use-case.js";
@@ -140,6 +144,8 @@ export interface TestAppHandles {
   passwordResetTokenRepository: InMemoryPasswordResetTokenRepository;
   /** Every email the app tried to send. Assert on it, and read links out of it. */
   mailProvider: InMemoryMailProvider;
+  /** Every object the app stored. Assert on the key and the stored MIME type. */
+  fileStorageProvider: InMemoryFileStorageProvider;
   hashProvider: InMemoryHashProvider;
   tokenProvider: CryptoTokenProvider;
   webhookSecretProvider: CryptoWebhookSecretProvider;
@@ -200,6 +206,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   const passwordResetTokenRepository =
     new InMemoryPasswordResetTokenRepository();
   const mailProvider = new InMemoryMailProvider();
+  const fileStorageProvider = new InMemoryFileStorageProvider();
   const hashProvider = new InMemoryHashProvider();
   const tokenProvider = new CryptoTokenProvider();
   const webhookSecretProvider = new CryptoWebhookSecretProvider();
@@ -256,6 +263,25 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   // The real provider interface, backed by an array. Nothing here opens a
   // socket, and a test can read the verification link out of what was "sent".
   container.registerInstance(TOKENS.MailProvider, mailProvider);
+  /**
+   * Object storage, recorded in a Map. The upload route is the one place a
+   * request body becomes a stored artifact, and until this was registered the
+   * route had no HTTP coverage at all: nothing exercised the multipart parsing,
+   * the magic-byte sniff, the size ceiling or the 400s they produce.
+   *
+   * The image optimiser is the REAL one, not a stub. It is hermetic (sharp,
+   * in-process, no network) and it is what decides the stored content type and
+   * therefore the key's extension — a passthrough fake would make the
+   * controller's "trust the optimiser's reported type" branch untested exactly
+   * where it matters. `createImageOptimizerProvider()` already degrades to a
+   * passthrough on a machine whose sharp binding will not load, so this cannot
+   * become the reason a suite fails to run.
+   */
+  container.registerInstance(TOKENS.FileStorageProvider, fileStorageProvider);
+  container.registerInstance(
+    TOKENS.ImageOptimizerProvider,
+    createImageOptimizerProvider(),
+  );
   container.registerInstance(TOKENS.HashProvider, hashProvider);
   container.registerInstance(TOKENS.TokenProvider, tokenProvider);
   container.registerInstance(
@@ -526,6 +552,19 @@ export async function buildTestApp(): Promise<TestAppHandles> {
 
   const app = fastify();
 
+  /**
+   * Same limits as `server.ts`. They are part of the behaviour under test: the
+   * controller asks for a 5 MB per-file cap of its own and relies on this
+   * plugin to have parsed the part at all, so a test app without it would 400
+   * every upload for the wrong reason and look like it was asserting something.
+   */
+  await app.register(fastifyMultipart, {
+    limits: {
+      files: 1,
+      fileSize: 10 * 1024 * 1024,
+    },
+  });
+
   app.setErrorHandler(errorHandler);
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -559,6 +598,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
   await app.register(profileLayoutRoutes);
   await app.register(profileLayoutRoutes, { prefix: "/api/v1" });
   PreferencesController.handle(app);
+  UploadsController.handle(app);
   /**
    * Mounted twice, bare and under `/api/v1`, the way `routes/index.ts` does it
    * in production — the web client's refresher builds its URL from whichever
@@ -596,6 +636,7 @@ export async function buildTestApp(): Promise<TestAppHandles> {
     profileTabsRepository,
     profileBlocksRepository,
     userPreferencesRepository,
+    fileStorageProvider,
     refreshTokenRepository,
     oauthAccountRepository,
     emailVerificationTokenRepository,

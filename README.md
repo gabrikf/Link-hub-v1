@@ -71,7 +71,7 @@ npm@11.1.0`, a single root `package-lock.json`) — not pnpm, not yarn.
 npm install
 npm run build                 # @repo/schemas must exist as dist/ before anything else works
 
-bash db-manage.sh start       # postgres (pgvector/pgvector:pg15) + redis, waits for healthy
+bash db-manage.sh start       # postgres (pgvector/pgvector:pg15) + redis + minio, waits for healthy
 npm run db:migrate            # drizzle-kit migrate
 npm run db:seed:all           # skill/title catalogue + realistic candidate data
 
@@ -93,9 +93,23 @@ Run pieces individually with `npm run dev:api`, `dev:web`, `dev:mcp`,
 start | stop | admin | logs | connect | status | reset | seed | seed-real | seed-all | reseed-real
 ```
 
-`reset` destroys the Docker volume (with a confirmation prompt), it does not
-merely truncate. `bash db-manage.sh admin` starts pgAdmin on
-<http://localhost:5050> behind the compose `tools` profile.
+`reset` destroys the Docker volumes (with a confirmation prompt), it does not
+merely truncate — the uploaded images in MinIO go with the database.
+`bash db-manage.sh admin` starts pgAdmin on <http://localhost:5050> behind the
+compose `tools` profile.
+
+### Image uploads, locally
+
+`start` also brings up **MinIO**, the local stand-in for Cloudflare R2 — S3 API
+on <http://localhost:9000>, console on <http://localhost:9001>
+(`crafthub` / `crafthub_secret`), bucket `crafthub-media` with anonymous read.
+Not behind the `tools` profile: uploading a profile photo is a core flow, and
+without a bucket `POST /me/uploads` returns 500 on a fresh clone.
+
+**No `S3_*` variables needed.** With none set, the API defaults to this MinIO in
+development; production is untouched and still fails loudly when unconfigured.
+Both stores go through the same `S3FileStorageProvider`, so what runs locally is
+the code path that runs for users. Details in `DEVELOPMENT-GUIDE.md`.
 
 ### Environment
 
@@ -212,6 +226,7 @@ One 4 GB VPS runs everything except the frontend and object storage.
                   postgres (pgvector)   redis (AOF, noeviction)
                                  │
               Cloudflare R2 (S3 API) ── avatars, covers, post images
+                                        (MinIO locally — same S3 adapter)
               SMTP provider (587)    ── account-verification e-mail
               Grafana Cloud (OTLP)   ── metrics, traces, logs
               Sentry                 ── errors

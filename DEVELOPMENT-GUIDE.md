@@ -177,6 +177,65 @@ path identical to production, where they are real.
 
 ---
 
+## 🖼️ Uploading images locally (MinIO)
+
+Every image the app stores — avatars, banners, page backgrounds — goes through
+one S3-compatible adapter. In production that is **Cloudflare R2**. Locally it is
+**MinIO**, which speaks the same S3 API, so the adapter, the SigV4 signing, the
+path-style addressing and the public-URL shape are the ones production runs. A
+write-to-disk stub would have been simpler and would have proven nothing about
+the code path that runs for real users.
+
+```bash
+# MinIO comes up with Postgres and Redis — it is NOT behind the `tools` profile
+bash db-manage.sh start
+```
+
+|            | URL                                        | Credentials                  |
+| ---------- | ------------------------------------------ | ---------------------------- |
+| S3 API     | <http://localhost:9000>                    | `crafthub` / `crafthub_secret` |
+| Console    | <http://localhost:9001>                    | same                         |
+| Bucket     | `crafthub-media`, anonymous read enabled    | —                            |
+
+**There is nothing to paste into `apps/api/.env`.** When no `S3_*` variable is
+set, the API defaults to exactly this MinIO in development —
+`LOCAL_MINIO_STORAGE_CONFIG` in
+`apps/api/src/infra/providers/s3-file-storage-provider.ts`. Restart the API,
+open **Edit profile → Appearance**, and drop a photo on the banner tile: the URL
+it comes back with is `http://localhost:9000/crafthub-media/uploads/<your-id>/…`
+and you can paste it straight into a browser.
+
+**Notes worth having:**
+
+- **Production is untouched.** `docker-compose.prod.yml` has no MinIO and never
+  will, and `resolveFileStorageConfig` refuses to hand the fallback to
+  `NODE_ENV=production` — unconfigured production still fails loudly on the
+  first upload, exactly as before.
+- **Setting even one of the five REQUIRED variables turns the fallback off** —
+  `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
+  `S3_PUBLIC_BASE_URL`. A half-filled block is a typo, and quietly redirecting
+  those uploads to a local container would hide it until a visitor's browser
+  tried to load `localhost`. You get the clear "Image storage is not configured"
+  error instead. `S3_REGION` is the one exception: it has a default and used to
+  ship uncommented in `.env.example`, so it sits in everyone's `.env` while
+  saying nothing about whether a bucket was configured — counting it would have
+  made this fallback dead on arrival.
+- **The bucket is publicly readable, on purpose.** `S3_PUBLIC_BASE_URL` is
+  pasted straight into an `<img src>` with no credentials and no signature —
+  the same way R2's public bucket serves it in production. Without the
+  anonymous-download policy every avatar renders as a broken image and the only
+  symptom is a silent 403 in the network tab. `minio-setup` applies it; that
+  container exiting `0` is the success case, not a crash.
+- **Uploaded images survive a restart** (named volume `minio_data`).
+  `bash db-manage.sh reset` throws them away along with the database.
+- The real round trip — write an object, then fetch it back **anonymously** —
+  is covered by
+  `apps/api/src/infra/providers/s3-file-storage-provider.minio.e2e.test.ts`. It
+  self-skips with a printed reason when MinIO is down, and the guardrail gate
+  names it in its TEST SCOPE NOTICE.
+
+---
+
 ## 🧪 Testing
 
 ```bash

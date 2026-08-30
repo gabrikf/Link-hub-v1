@@ -41,7 +41,6 @@ export function Dialog({
   onOpenChange,
 }: DialogProps) {
   const { t } = useTranslation();
-  const hasHeader = Boolean(title) || Boolean(description);
 
   return (
     <RadixDialog.Root
@@ -54,13 +53,13 @@ export function Dialog({
         <RadixDialog.Content
           className={cx(
             // The frame itself NEVER scrolls (`overflow-hidden`) and lays its
-            // one child out as a flex column: the scrolling moved down into
-            // that child. While `overflow-y-auto` lived here, the close button
-            // — an absolutely positioned child of the scroll container —
-            // scrolled away with the content, so on any dialog taller than the
-            // max height (resume review, the auto-post wizard, the layout
-            // preview) the X was gone the moment the user scrolled, which on
-            // mobile is the primary way out of the modal.
+            // two children out as a flex column: a header BAR that stays put
+            // and a body that scrolls. While `overflow-y-auto` lived here, the
+            // close button — an absolutely positioned child of the scroll
+            // container — scrolled away with the content, so on any dialog
+            // taller than the max height (resume review, the auto-post wizard,
+            // the layout preview) the X was gone the moment the user scrolled,
+            // which on mobile is the primary way out of the modal.
             "fixed left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900",
             // Comfortable wider default; suppressed when the caller sets its own.
             hasClassPrefix(contentClassName, "w-") ? "" : "w-[92vw]",
@@ -74,68 +73,96 @@ export function Dialog({
           )}
         >
           {/*
-            Positioned against the frame, not against the scrolled body, so it
-            stays at the same corner at every scroll offset. `absolute` rather
-            than `position: sticky` on a header row: sticky only pins while its
-            containing block is in view and it consumes layout space at the top
-            of the scroller, which would have re-flowed all 14 callers; an
-            absolute child of the non-scrolling frame is unconditional — there
-            is no scroll position, content height or caller `max-h` that can
-            move it. `z-10` keeps it above the body, and the `icon` variant is
-            opaque in both themes, so text sliding under it is hidden rather
-            than smeared through it.
+            THE HEADER BAR. A real, non-scrolling flex row — not an absolutely
+            positioned overlay.
+
+            The X used to be `absolute right-2 top-2 z-10` on the frame. That
+            kept it pinned across scroll (which was the point) but it also
+            floated it OVER the body's scroll area, and the body's scrollbar
+            runs down the frame's right border: on any platform drawing classic
+            scrollbars (Linux/Windows, and macOS with "always show"), the X sat
+            on top of the scrollbar's top arrow and stole its clicks.
+
+            Giving the button a row of its own fixes that at the source. The
+            scroll area starts BELOW this bar, so its scrollbar starts below the
+            button and the two can never occupy the same pixels. `shrink-0`
+            stops the bar collapsing when the body is tall, which is exactly the
+            case the pinning exists for.
+
+            It also retires the `pr-11` gutters the old overlay needed: a long
+            title now wraps against the button's flex edge, not against a
+            hand-counted 44px of reserved padding.
+
+            ONLY THE TITLE IS UP HERE. The description scrolls with the body,
+            deliberately: this bar is permanent chrome, and at 390px the
+            Edit-profile description wraps to two lines, so pinning it would
+            spend ~40px of a 844px phone at every scroll offset to keep a
+            sentence on screen that has already been read. A one-line title is
+            worth that; a paragraph is not. It also keeps the change as close to
+            the previous layout as the fix allows — the description is exactly
+            where it was, at the top of the scrolling body.
           */}
-          <RadixDialog.Close asChild>
-            <Button
-              type="button"
-              variant="icon"
-              size="icon"
-              fullWidth={false}
-              className="absolute right-2 top-2 z-10"
-              aria-label={
-                closeLabel ??
-                (title
-                  ? t("dialog.closeTitled", { title })
-                  : t("dialog.close"))
-              }
-            >
-              <FiX className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </RadixDialog.Close>
+          <div
+            data-testid="dialog-header"
+            className={cx(
+              "flex shrink-0 items-start gap-3",
+              // With a title the bar carries the dialog's own 20px inset. With
+              // none it is pure chrome, so the button hugs the corner at the
+              // same 8px the absolute version used.
+              title ? "px-5 pt-5" : "px-2 pt-2",
+            )}
+          >
+            {/* `min-w-0` is load-bearing: without it a long unbroken title sets
+                the flex item's min-content width and pushes the X off the
+                frame instead of wrapping. */}
+            <div className="min-w-0 flex-1">
+              {title ? (
+                <RadixDialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                  {title}
+                </RadixDialog.Title>
+              ) : null}
+            </div>
+
+            <RadixDialog.Close asChild>
+              <Button
+                type="button"
+                variant="icon"
+                size="icon"
+                fullWidth={false}
+                className="shrink-0"
+                aria-label={
+                  closeLabel ??
+                  (title
+                    ? t("dialog.closeTitled", { title })
+                    : t("dialog.close"))
+                }
+              >
+                <FiX className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </RadixDialog.Close>
+          </div>
 
           {/*
             The scroll container. `min-h-0` is load-bearing: a flex child
             defaults to `min-height: auto`, which refuses to shrink below its
             content and would push the body past the frame's `max-h` instead of
-            scrolling inside it. The padding lives here rather than on the
-            frame so content scrolls to the rounded edge instead of vanishing
-            20px early, and so the scrollbar hugs the border.
+            scrolling inside it. The horizontal padding lives here rather than
+            on the frame so the scrollbar hugs the border instead of floating
+            20px inside it, and content scrolls to the rounded edge instead of
+            vanishing early.
           */}
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            {/* `pr-11` reserves the close button's 36px + 8px inset, so a long
-                title wraps before it reaches the X instead of running under it. */}
-            {hasHeader ? (
-              <div className="pr-11">
-                {title ? (
-                  <RadixDialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                    {title}
-                  </RadixDialog.Title>
-                ) : null}
-
-                {description ? (
-                  <RadixDialog.Description className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                    {description}
-                  </RadixDialog.Description>
-                ) : null}
-              </div>
+          <div
+            data-testid="dialog-body"
+            className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-4"
+          >
+            {description ? (
+              <RadixDialog.Description className="text-sm text-zinc-600 dark:text-zinc-300">
+                {description}
+              </RadixDialog.Description>
             ) : null}
 
-            {/* With no header there is nothing above the children to keep them
-                clear of the X, so they carry the reserved gutter instead. */}
             {children ? (
-              <div className={cx("mt-4", hasHeader ? "" : "pr-11")}>
-                {children}
-              </div>
+              <div className={description ? "mt-4" : ""}>{children}</div>
             ) : null}
 
             {/* `flex-wrap`: at <=470px the three-button unsaved-changes dialog

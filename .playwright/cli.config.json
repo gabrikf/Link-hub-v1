@@ -18,6 +18,7 @@
     "allowedOrigins": [
       "localhost:5173",
       "localhost:3333",
+      "localhost:9000",
       "fonts.googleapis.com",
       "fonts.gstatic.com",
       "*.amazonaws.com",

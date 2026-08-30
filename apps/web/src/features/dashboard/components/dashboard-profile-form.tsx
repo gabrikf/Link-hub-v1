@@ -564,7 +564,23 @@ export function DashboardProfileForm({
                 personaOther={watched.personaOther?.trim() || null}
               />
             </div>
-            <div className="-mt-10 flex flex-col items-center gap-1 px-4 pb-4 text-center">
+            {/*
+              `relative z-10` is what makes the avatar VISIBLE, not decoration.
+
+              This row is pulled 40px up so the avatar straddles the cover's
+              lower edge. But the cover strip beside it is `relative` with
+              `z-index: auto`, which puts it in the positioned-descendant paint
+              step — and this row, being static, paints in the in-flow step
+              BEFORE it. So the banner was painted straight over the top of the
+              avatar and the owner saw a circle sliced clean in half at the
+              cover's bottom edge. Giving the row its own stacking position
+              moves it after the cover in paint order. Same fix, same reason, as
+              in `public-profile-preview.tsx`.
+
+              `z-10` is scoped by the `isolate` on the preview root, so it
+              cannot reach past the dialog's own chrome.
+            */}
+            <div className="relative z-10 -mt-10 flex flex-col items-center gap-1 px-4 pb-4 text-center">
               <span
                 className="inline-flex rounded-full bg-white shadow-md ring-2 dark:bg-zinc-900"
                 style={{
