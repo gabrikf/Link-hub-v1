@@ -163,6 +163,16 @@ const resolveSession = async (queryClient: QueryClient): Promise<boolean> => {
   try {
     const profile = await fetchMyProfile();
     queryClient.setQueryData(["me"], profile);
+    /*
+     * `/me` is the only moment in a load where the app holds the account's
+     * CURRENT handle, and `userInfo` — persisted, and written nowhere but
+     * sign-in — is where the rest of the app reads that handle from. Left
+     * unreconciled, a rename left every already-signed-in device building the
+     * "Public profile" link out of a username nobody owns; see the comment on
+     * `syncUserInfo`. Reconciling here is what heals a device that is already
+     * in that state, without asking the user to sign out to fix it.
+     */
+    useUserInfoStore.getState().syncUserInfo(profile);
     return true;
   } catch (error) {
     if (!getAuthTokens()) {

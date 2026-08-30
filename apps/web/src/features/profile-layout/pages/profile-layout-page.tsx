@@ -1039,7 +1039,8 @@ export function ProfileLayoutPage() {
   // in-card switch is better located and unambiguous.
 
   // Include the appearance fields so the preview modal matches the live profile
-  // (banner, background, theme accent/preset, open-to-work, location, persona)
+  // (banner, background + their placement, theme accent/preset, open-to-work,
+  // location, persona)
   // instead of always rendering the default theme.
   const profileView = {
     name: meQuery.data?.name ?? "",
@@ -1048,6 +1049,10 @@ export function ProfileLayoutPage() {
     userPhoto: meQuery.data?.userPhoto ?? null,
     bannerImageUrl: meQuery.data?.bannerImageUrl ?? null,
     backgroundImageUrl: meQuery.data?.backgroundImageUrl ?? null,
+    // Without this the studio's preview drew the banner and the background at
+    // their default centre while the real profile drew them where the owner put
+    // them — two "previews" of one page disagreeing.
+    appearance: meQuery.data?.appearance ?? null,
     themeAccent: meQuery.data?.themeAccent ?? null,
     themePreset: meQuery.data?.themePreset ?? null,
     openToWork: meQuery.data?.openToWork ?? false,

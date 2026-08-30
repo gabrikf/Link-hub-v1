@@ -1,6 +1,8 @@
+import type { ImagePlacement, ProfileAppearance } from "@repo/schemas";
 import { useTranslation } from "react-i18next";
 import { FiBriefcase, FiEdit2, FiEyeOff, FiMapPin } from "react-icons/fi";
 import { Avatar } from "../../../shared-components/avatar";
+import { PlacedImage } from "../../../shared-components/placed-image";
 import { Button } from "../../../shared-components/button";
 import { BADGE, SURFACE_INSET } from "../../../shared-components/surface";
 import {
@@ -18,6 +20,11 @@ type DashboardProfileDisplayProps = {
   avatarUrl: string | null;
   bannerImageUrl: string | null;
   backgroundImageUrl: string | null;
+  /**
+   * Placement + background treatment. Nullable because this panel also renders
+   * from a `/me` response that predates the field.
+   */
+  appearance: ProfileAppearance | null;
   themePreset: ThemePreset | null;
   themeAccent: string | null;
   openToWork: boolean;
@@ -28,7 +35,20 @@ type DashboardProfileDisplayProps = {
   onEdit: () => void;
 };
 
-function ImageThumb({ label, url }: { label: string; url: string | null }) {
+/**
+ * The thumbnail honours the stored focal point. A thumbnail that showed the
+ * MIDDLE of the photo while the profile showed the chosen part would quietly
+ * contradict the editor the owner just used.
+ */
+function ImageThumb({
+  label,
+  url,
+  placement,
+}: {
+  label: string;
+  url: string | null;
+  placement: ImagePlacement | null;
+}) {
   const { t } = useTranslation();
 
   return (
@@ -37,11 +57,13 @@ function ImageThumb({ label, url }: { label: string; url: string | null }) {
         {label}
       </span>
       {url ? (
-        <img
-          src={url}
-          alt={t("image.labelPreview", { label })}
-          className="h-16 w-full rounded-lg border border-zinc-200 object-cover dark:border-zinc-700"
-        />
+        <div className="h-16 w-full overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+          <PlacedImage
+            src={url}
+            placement={placement}
+            alt={t("image.labelPreview", { label })}
+          />
+        </div>
       ) : (
         <div className="flex h-16 w-full items-center justify-center rounded-lg border border-dashed border-zinc-200 text-[11px] text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
           {t("common.notSet")}
@@ -142,6 +164,7 @@ export function DashboardProfileDisplay({
   avatarUrl,
   bannerImageUrl,
   backgroundImageUrl,
+  appearance,
   themePreset,
   themeAccent,
   openToWork,
@@ -202,10 +225,15 @@ export function DashboardProfileDisplay({
         </h3>
 
         <div className="grid grid-cols-2 gap-3">
-          <ImageThumb label={t("dashboard.banner")} url={bannerImageUrl} />
+          <ImageThumb
+            label={t("dashboard.banner")}
+            url={bannerImageUrl}
+            placement={appearance?.bannerPlacement ?? null}
+          />
           <ImageThumb
             label={t("dashboard.background")}
             url={backgroundImageUrl}
+            placement={appearance?.backgroundPlacement ?? null}
           />
         </div>
 

@@ -27,6 +27,28 @@ export const SURFACE_PROFILE =
 export const SURFACE_GLASS =
   "rounded-2xl border border-zinc-200 bg-white/70 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/50";
 
+/**
+ * The frosted MATERIAL for a profile surface sitting on the owner's own
+ * background photograph.
+ *
+ * Separate from {@link SURFACE_GLASS} in two ways, each measured rather than
+ * chosen: `backdrop-blur-md` because what is behind it is a photograph rather
+ * than a gradient, and a WHITE hairline instead of a zinc one because the edge
+ * sits on that photograph and not on a page ground.
+ *
+ * Colour and blur ONLY — no rounding and no border WIDTH, because the two
+ * callers differ there: the public profile card is `rounded-3xl border`, and
+ * the dashboard preview draws this as an inner layer inside a card that already
+ * has corners. (`border-white/40` with no `border` utility sets a colour on a
+ * zero-width border, i.e. draws nothing — which is what the preview wants.)
+ *
+ * It is a constant rather than a fourth inline fork of the frosted material
+ * precisely because inline forks are how this codebase ended up with ten
+ * versions of one card.
+ */
+export const SURFACE_PROFILE_GLASS =
+  "border-white/40 bg-white/75 backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/70";
+
 /** Recessed panel nested inside a card — form groups, detail rows. */
 export const SURFACE_INSET =
   "rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/40";

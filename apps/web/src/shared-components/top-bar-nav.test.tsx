@@ -276,6 +276,35 @@ describe("TopBarNav (mobile, signed in)", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the hamburger as a bare glyph rather than a bordered chip", () => {
+    renderNav();
+    const hamburger = getHamburger();
+
+    /*
+     * It used to be `Button variant="icon"`, which paints a white square with
+     * a zinc border around three lines — the loudest thing in a phone header,
+     * drawn around the one control that needs no explaining. jsdom loads no
+     * stylesheet, so the assertion is on the utilities themselves: no border,
+     * no fill, and the bar's own ink in both themes.
+     */
+    expect(hamburger.className).not.toMatch(/\bborder\b/);
+    expect(hamburger.className).not.toMatch(/\bbg-/);
+    expect(hamburger.className).toContain("text-zinc-900");
+    expect(hamburger.className).toContain("dark:text-white");
+
+    /*
+     * And no `ring-offset-*`. The focus ring itself stays — closing the sheet
+     * hands focus straight back to this control — but `ring-offset-2` paints a
+     * SOLID ring in the offset colour before the violet one, and that filled
+     * halo is a circle around the hamburger by another name.
+     */
+    expect(hamburger.className).not.toMatch(/ring-offset/);
+
+    // The 44px hit area survives losing the paint.
+    expect(hamburger.className).toContain("h-11");
+    expect(hamburger.className).toContain("w-11");
+  });
+
   it("keeps the language and theme controls out of the header row", () => {
     renderNav();
     const row = getBarRow();

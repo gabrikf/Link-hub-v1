@@ -113,7 +113,9 @@
     "terminal": "Terminal",
     "sending": "Sending...",
     "on": "On",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "percentValue": "{{value}}%",
+    "pixelValue": "{{value}} px"
   },
   "settings": {
     "provider": {
@@ -966,7 +968,18 @@
     "addImageUrl": "Add image URL",
     "clearImage": "Clear image",
     "invalidUrl": "Enter a valid http(s) image URL.",
-    "pasteDirectLink": "Paste a direct link to an image (https://…)."
+    "pasteDirectLink": "Paste a direct link to an image (https://…).",
+    "reposition": "Reposition",
+    "repositionTitle": "Reposition image",
+    "repositionHelp": "Drag the image to choose which part shows.",
+    "applyPosition": "Apply position",
+    "positionFrame": "Image position — drag to reposition",
+    "positionKeyboardHint": "Drag it, or use the arrow keys — hold Shift to move further.",
+    "zoomToReposition": "Zoom in to choose a different part.",
+    "recenter": "Recenter",
+    "positionReadout": "Horizontal {{horizontal}}% · vertical {{vertical}}% · zoom {{zoom}}x",
+    "safeAreaDesktop": "Always visible",
+    "safeAreaPhone": "Always visible"
   },
   "dialog": {
     "closeTitled": "Close {{title}}",
@@ -982,6 +995,11 @@
     "namePlaceholder": "Your name",
     "usernamePlaceholder": "username",
     "usernameReserved": "That username is reserved. Please choose another one.",
+    "usernameChecking": "Checking availability…",
+    "usernameAvailable": "{{username}} is available.",
+    "usernameTaken": "{{username}} is already taken.",
+    "usernameUnavailableReserved": "{{username}} is reserved by CraftHub.",
+    "usernameCheckFailed": "Could not check this username right now.",
     "locationPlaceholder": "City, Country",
     "noRole": "No role",
     "banner": "Banner",
@@ -1014,7 +1032,14 @@
     "customRolePlaceholder": "Physiotherapist",
     "customRoleHelp": "This is what your profile shows instead of “Other”.",
     "customRoleRequired": "Enter your role.",
-    "customRoleTooLong": "Use at most {{max}} characters."
+    "customRoleTooLong": "Use at most {{max}} characters.",
+    "bannerPositionTitle": "Position your banner",
+    "bannerPositionHelp": "Drag until the part you want sits in the lit band — that band is what every screen shows. The dimmed edges are cropped on wide screens.",
+    "backgroundPositionTitle": "Position your background",
+    "backgroundPositionHelp": "Drag to choose which part of the photo sits behind your profile.",
+    "backgroundOverlayLabel": "Veil",
+    "backgroundBlurLabel": "Blur",
+    "backgroundTuningHelp": "The veil keeps your profile readable over the photo. Less veil, more photo."
   },
   "links": {
     "titlePlaceholder": "My website",

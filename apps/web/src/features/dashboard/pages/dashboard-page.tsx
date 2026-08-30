@@ -14,7 +14,11 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import type { LinkIcon, LinkResponse } from "@repo/schemas";
+import {
+  DEFAULT_PROFILE_APPEARANCE,
+  type LinkIcon,
+  type LinkResponse,
+} from "@repo/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -94,6 +98,7 @@ export function DashboardPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const userInfo = useUserInfoStore((state) => state.userInfo);
+  const syncUserInfo = useUserInfoStore((state) => state.syncUserInfo);
 
   const DEFAULT_LINK_ICON_SELECT_OPTION: LinkIconSelectOption = {
     value: "",
@@ -254,7 +259,17 @@ export function DashboardPage() {
 
   const updateProfileMutation = useMutation({
     mutationFn: updateProfile,
-    onSuccess: () => {
+    onSuccess: (updated) => {
+      /*
+       * BEFORE the invalidation, and not optional: this form is the only place
+       * a handle can change, and the persisted `userInfo` is what `TopBarNav`
+       * turns into the "Public profile" link. Invalidating `["me"]` refreshes
+       * this page but not that snapshot, so a rename used to leave the nav
+       * pointing at the old username — a 404 on the owner's own profile until
+       * they signed out. `invalidatePublicProfileCache` still runs against the
+       * OLD handle on purpose: that is the cache entry that just went stale.
+       */
+      syncUserInfo(updated);
       queryClient.invalidateQueries({ queryKey: ["me"] });
       invalidatePublicProfileCache();
     },
@@ -329,6 +344,7 @@ export function DashboardPage() {
       userPhoto: meQuery.data?.userPhoto ?? "",
       bannerImageUrl: meQuery.data?.bannerImageUrl ?? "",
       backgroundImageUrl: meQuery.data?.backgroundImageUrl ?? "",
+      appearance: meQuery.data?.appearance ?? DEFAULT_PROFILE_APPEARANCE,
       themePreset: meQuery.data?.themePreset ?? DEFAULT_THEME_PRESET,
       themeAccent: meQuery.data?.themeAccent ?? "",
       openToWork: meQuery.data?.openToWork ?? false,
@@ -343,6 +359,7 @@ export function DashboardPage() {
       meQuery.data?.userPhoto,
       meQuery.data?.bannerImageUrl,
       meQuery.data?.backgroundImageUrl,
+      meQuery.data?.appearance,
       meQuery.data?.themePreset,
       meQuery.data?.themeAccent,
       meQuery.data?.openToWork,
@@ -521,6 +538,7 @@ export function DashboardPage() {
         userPhoto: data.userPhoto.trim() || null,
         bannerImageUrl: data.bannerImageUrl.trim() || null,
         backgroundImageUrl: data.backgroundImageUrl.trim() || null,
+        appearance: data.appearance,
         themePreset: data.themePreset,
         themeAccent: data.themeAccent.trim() || null,
         openToWork: data.openToWork,
@@ -764,6 +782,7 @@ export function DashboardPage() {
             avatarUrl={meQuery.data?.userPhoto ?? null}
             bannerImageUrl={meQuery.data?.bannerImageUrl ?? null}
             backgroundImageUrl={meQuery.data?.backgroundImageUrl ?? null}
+            appearance={meQuery.data?.appearance ?? null}
             themePreset={meQuery.data?.themePreset ?? null}
             themeAccent={meQuery.data?.themeAccent ?? null}
             openToWork={meQuery.data?.openToWork ?? false}
@@ -784,6 +803,10 @@ export function DashboardPage() {
           <DashboardProfileForm
             avatarUrl={meQuery.data?.userPhoto ?? null}
             initialValues={profileFormInitialValues}
+            // From `/me`, not from `initialValues`: this is "what the account
+            // holds right now", and it is what keeps the availability check
+            // silent about the handle the person already owns.
+            currentUsername={meQuery.data?.username}
             onSubmit={handleSaveProfile}
             isSaving={updateProfileMutation.isPending}
             onDirtyChange={setIsProfileFormDirty}

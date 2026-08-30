@@ -15,6 +15,8 @@ import {
   pickViewport,
   resolveViewportLayout,
 } from "../../profile-layout/grid-utils";
+import { SURFACE_PROFILE_GLASS } from "../../../shared-components/surface";
+import { ProfileBackground } from "../components/profile-background";
 import { ProfileBlocks } from "../components/profile-blocks";
 import { ProfileCover } from "../components/profile-cover";
 import {
@@ -154,7 +156,7 @@ export function PublicProfilePage() {
   }
 
   const theme = getProfileThemeProps(profile ?? {});
-  const backgroundImage = safeImageUrl(profile?.backgroundImageUrl);
+  const hasBackground = Boolean(safeImageUrl(profile?.backgroundImageUrl));
   // `/${username}` is the short URL — `/profile/:username` was removed. The
   // window branch is what actually ships (it carries the origin); the fallback
   // only exists for a non-browser render and must not name the dead path.
@@ -195,25 +197,38 @@ export function PublicProfilePage() {
     // starts 12px under the header's rule and the profile is the first thing on
     // screen. `pb-10` is the old bottom padding, unchanged.
     <main
-      className={`${theme.className} relative mx-auto flex min-h-screen w-full ${
+      /*
+       * `isolate` is LOAD-BEARING, not tidiness.
+       *
+       * The two decorative layers below sit at `-z-20` (the background
+       * photograph) and `-z-10` (the ambient grid and accent blobs). A
+       * negative-z-index child paints above the background of the element that
+       * establishes its stacking context and below everything else in it — but
+       * `relative` alone with `z-index: auto` establishes NO stacking context,
+       * so both layers joined the ROOT one and were painted underneath
+       * `App.tsx`'s opaque `bg-zinc-100` / `dark:bg-zinc-950` wrapper. They
+       * were in the DOM, correctly sized, and invisible.
+       *
+       * That is the whole of "I set a background image and nothing happened":
+       * the veil over it was a second, smaller problem, and even at 0% opacity
+       * the photograph would not have shown. `isolation: isolate` makes this
+       * element a stacking context, so its negative-z children are painted as
+       * part of its own subtree — above the wrapper, below the profile card.
+       */
+      className={`${theme.className} isolate relative mx-auto flex min-h-screen w-full ${
         viewport === "pc" ? "max-w-6xl" : "max-w-md"
       } flex-col items-center gap-5 px-2 pb-10 pt-3 sm:px-4`}
       style={theme.style}
     >
-      {/* Optional full-bleed background image (behind the ambient blobs) */}
-      {backgroundImage ? (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-20 overflow-hidden"
-        >
-          <img
-            src={backgroundImage}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-zinc-100/82 backdrop-blur-sm dark:bg-zinc-950/85" />
-        </div>
-      ) : null}
+      {/* Optional full-bleed background image (behind the ambient blobs).
+          The veil used to be a hardcoded `bg-zinc-100/82` /
+          `dark:bg-zinc-950/85` — a photo shown at 15-18% strength, which is
+          why setting one read as "nothing happened". Strength and blur are the
+          owner's settings now; see `ProfileBackground`. */}
+      <ProfileBackground
+        imageUrl={profile?.backgroundImageUrl}
+        appearance={profile?.appearance}
+      />
 
       {/* Ambient futuristic backdrop */}
       <div
@@ -256,13 +271,32 @@ export function PublicProfilePage() {
         so the duplicate pill and the margin that dodged it are gone with it.
       */}
 
-      {/* `dark:to-zinc-950`: the dark gradient used to run zinc-900 -> zinc-900,
-          i.e. two identical stops — a gradient that rendered as a flat fill. */}
-      <div className="anim-blur-in w-full overflow-hidden rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
+      {/*
+        `dark:to-zinc-950`: the dark gradient used to run zinc-900 -> zinc-900,
+        i.e. two identical stops — a gradient that rendered as a flat fill.
+
+        WITH a background photo the card turns to frosted glass instead. It is
+        not decoration: this card is `w-full` inside `<main>`, so it covers all
+        but ~8px of the column at every width — 160px of photo showed either
+        side on a 1440px desktop and NINE PIXELS on a 390px phone, which is
+        indistinguishable from the "I set a background and nothing happened"
+        this feature exists to fix. Frosted, the photograph reads across the
+        whole page while the blocks inside keep their own opaque surfaces, so
+        no body text is ever asked to sit on a photo. The blur and the owner's
+        veil are already applied to the image underneath.
+      */}
+      <div
+        className={`anim-blur-in w-full overflow-hidden shadow-sm ${
+          hasBackground
+            ? `rounded-3xl border ${SURFACE_PROFILE_GLASS}`
+            : "rounded-3xl border border-zinc-200 bg-linear-to-b from-white to-zinc-50 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950"
+        }`}
+      >
         {profile && chosenLayout ? (
           <>
             <ProfileCover
               bannerImageUrl={profile.bannerImageUrl}
+              bannerPlacement={profile.appearance.bannerPlacement}
               persona={profile.persona}
               personaOther={profile.personaOther}
               share={{ url: shareUrl, name: profile.name }}

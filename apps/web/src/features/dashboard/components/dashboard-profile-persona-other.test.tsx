@@ -1,3 +1,5 @@
+import { DEFAULT_PROFILE_APPEARANCE } from "@repo/schemas";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -19,6 +21,7 @@ const baseValues: ProfileFormValues = {
   userPhoto: "",
   bannerImageUrl: "",
   backgroundImageUrl: "",
+  appearance: DEFAULT_PROFILE_APPEARANCE,
   themePreset: DEFAULT_THEME_PRESET,
   themeAccent: "",
   openToWork: false,
@@ -27,15 +30,33 @@ const baseValues: ProfileFormValues = {
   personaOther: "",
 };
 
+/*
+ * HARNESS ONLY. The form now asks the api whether a typed handle is free, so it
+ * is a networked component and needs a client in scope. No assertion below
+ * changed; the availability behaviour has its own file
+ * (`dashboard-profile-username-availability.test.tsx`).
+ *
+ * The provider is written inline at each call site rather than behind a
+ * `wrap(ui)` helper: two copies of `@types/react` are resolvable in this
+ * workspace, and a helper typed `(ui: ReactElement) => ReactElement` makes the
+ * mismatch between them a compile error (see
+ * `apps/web/AGENTS.md` on duplicate React types). JSX children have no such
+ * problem.
+ */
+const testQueryClient = () =>
+  new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 function renderForm(
   overrides: Partial<ProfileFormValues> = {},
   onSubmit = vi.fn().mockResolvedValue(undefined),
 ) {
   render(
-    <DashboardProfileForm
-      initialValues={{ ...baseValues, ...overrides }}
-      onSubmit={onSubmit}
-    />,
+    <QueryClientProvider client={testQueryClient()}>
+      <DashboardProfileForm
+        initialValues={{ ...baseValues, ...overrides }}
+        onSubmit={onSubmit}
+      />
+    </QueryClientProvider>,
   );
   return onSubmit;
 }

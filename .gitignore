@@ -76,6 +76,33 @@ scripts/visual/scenarios/*.scenario.mjs
 # survives the database, the API response and the schema parse on its way to a
 # logged-out stranger — which is the whole point of the feature.
 !scripts/visual/scenarios/profile-tabs-toggle.scenario.mjs
+# Nor is the mobile header. Its unit tests can assert the CLASSES on the
+# hamburger and the switch, but jsdom has no layout and no stylesheet: only a
+# real browser can say the hamburger computes to zero border and the bar's ink
+# in both themes, and only a real browser can measure whether "Mudar para o
+# tema escuro" still fits beside the knob at 320px. That measurement is what
+# fixes the knob's gutter at 40px, so it needs to fail if anyone widens it.
+!scripts/visual/scenarios/mobile-header.scenario.mjs
+# Nor is the availability check: the component tests assert the STRING each of
+# the five states renders, which is the one thing a missing `dark:` variant does
+# not change. This is the only proof that all six states are legible in both
+# themes, and that the status line holds its height so an arriving verdict
+# cannot shove the field out from under the cursor.
+!scripts/visual/scenarios/dashboard-username-availability.scenario.mjs
+# Nor is the legacy redirect: `router.test.tsx` stubs every page component, so
+# it proves the URL resolves and nothing about what the visitor then sees. This
+# is the only check that the profile actually RENDERS behind the redirect —
+# which is exactly the failure that started this (a link that resolved, to a
+# "profile not found").
+!scripts/visual/scenarios/legacy-profile-redirect.scenario.mjs
+# Nor is the banner/background one. It carries the only paint-proofs in the
+# repo: the same patch of card photographed with two DIFFERENT background
+# images, and a hit test over the live preview while the veil slider is used.
+# Every DOM assertion said the background was fine while it was painted
+# underneath an opaque wrapper and invisible to every human — `isVisible()`
+# cannot see that class of bug, and neither can a class assertion see a preview
+# that another element is painting over.
+!scripts/visual/scenarios/banner-background-position.scenario.mjs
 
 # Spec working directories are committed (docs/specs/**) — QA session output is
 # not, until it is written up.

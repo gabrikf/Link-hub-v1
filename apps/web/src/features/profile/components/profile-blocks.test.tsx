@@ -380,6 +380,49 @@ describe("ProfileBlocks — the header block's location line", () => {
     expect(line).toHaveClass("text-zinc-500", "dark:text-zinc-400");
   });
 
+  /**
+   * The mid-grey above is measured against a SOLID card. With a background
+   * photograph the card turns frosted, and at 4.83:1 there is no headroom to
+   * spend on translucency — the worst composite the veil slider allows drops
+   * this line to 2.6:1. It steps up rather than becoming unreadable over
+   * whatever the owner uploaded.
+   */
+  it("steps up the metadata greys when the card is frosted over a photo", () => {
+    render(
+      <ProfileBlocks
+        layout={headerAndLinks}
+        viewport="pc"
+        profile={{
+          ...profile,
+          location: "Berlin",
+          backgroundImageUrl: "https://cdn.example.com/bg.jpg",
+        }}
+        links={links}
+        resume={null}
+        workExperiences={[]}
+      />,
+    );
+
+    const line = screen.getByTestId("profile-location");
+    expect(line).toHaveClass("text-zinc-700", "dark:text-zinc-200");
+    expect(line).not.toHaveClass("text-zinc-500");
+
+    // The handle is the other weak line on that card.
+    expect(screen.getByText(`@${profile.username}`)).toHaveClass(
+      "text-zinc-700",
+      "dark:text-zinc-200",
+    );
+  });
+
+  it("keeps the mid-grey when there is no background photo to sit on", () => {
+    renderWithLocation("Berlin");
+
+    expect(screen.getByText(`@${profile.username}`)).toHaveClass(
+      "text-zinc-600",
+      "dark:text-zinc-400",
+    );
+  });
+
   it("renders nothing at all when there is no location", () => {
     renderWithLocation(null);
 

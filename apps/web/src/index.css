@@ -300,6 +300,13 @@
   --profile-accent-ring: color-mix(in srgb, var(--profile-accent), transparent 40%);
   /* Grid backdrop follows the selected preset rather than staying violet. */
   --anim-grid-color: color-mix(in srgb, var(--profile-accent), transparent 88%);
+  /* The colour of the veil painted over a profile's background photograph.
+     Only the COLOUR lives here: how much of it shows is the owner's
+     `backgroundOverlay` setting, applied as `opacity` in
+     `profile-background.tsx`, because a runtime number cannot be expressed as
+     a Tailwind opacity utility. zinc-100 / zinc-950 are the two page grounds,
+     so at 100% the veil is indistinguishable from having no photo at all. */
+  --profile-page-veil: #f4f4f5;
 }
 
 /* Dark mode: lighten accent TEXT + slightly strengthen the tint so both
@@ -307,6 +314,7 @@
 .dark .profile-root {
   --profile-accent-fg: color-mix(in srgb, var(--profile-accent), #fff 35%);
   --profile-accent-weak: color-mix(in srgb, var(--profile-accent), transparent 85%);
+  --profile-page-veil: #09090b;
 }
 
 /* Mid-tone bases chosen to read on both light and dark surfaces. */

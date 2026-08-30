@@ -18,6 +18,10 @@ export const createUserSchemaInput = z.object({
    */
   login: z
     .string()
+    // Same rule as `updateProfileSchemaInput.username`, for the same reason: a
+    // login is a URL, and the two paths that can claim one must not disagree
+    // about what " ada " means.
+    .trim()
     .min(1, "Login is required")
     .refine((value) => !isReservedUsername(value), RESERVED_USERNAME_MESSAGE),
   name: z.string().min(1, "Name is required"),

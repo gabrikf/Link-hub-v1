@@ -138,10 +138,14 @@ const resetPasswordRoute = createRoute({
  * shareable artefact of this product: it must render for a stranger with no
  * session, and boot must make no authenticated request on the way to it.
  *
- * `/$username`, NOT `/profile/$username`. The old path is gone and now 404s —
- * a deliberate decision, taken knowing that every already-shared and
- * search-indexed `/profile/*` link breaks on deploy. What it buys is the short
- * URL: `crafthub.dev/gabrielkochf` is the thing people paste into a chat.
+ * `/$username`, NOT `/profile/$username`. What it buys is the short URL:
+ * `crafthub.dev/gabrielkochf` is the thing people paste into a chat.
+ *
+ * Removing the old path was the original decision here, taken knowingly, and it
+ * was REVERSED after a user hit it: every already-shared and search-indexed
+ * `/profile/*` link 404'd for people who had done nothing and could not guess
+ * the new address. `legacyProfileRoute` below redirects them, so this is the
+ * canonical profile URL rather than the only one that resolves.
  *
  * This is a CATCH-ALL at the root, so it changes what an unknown top-level path
  * means. Ranking still puts every static route first — TanStack Router scores a
@@ -172,6 +176,61 @@ const publicProfileRoute = createRoute({
     () => import("./features/profile/pages/public-profile-page"),
     "PublicProfilePage",
   ),
+});
+
+/**
+ * The OLD public-profile path, kept alive as a REDIRECT and nothing else.
+ *
+ * `/profile/:username` was the profile URL for the whole life of the product
+ * before the short URL shipped, so it is the path in every link that was ever
+ * pasted into a chat, printed on a CV, or indexed by a search engine. Removing
+ * the route outright — which is what shipped first — turned all of those into
+ * the app's 404 screen, for people who did nothing wrong and have no way to
+ * guess the new address. Every one of those links now lands on the profile it
+ * always pointed at.
+ *
+ * A CLIENT-SIDE redirect, not a 301: the web app is a static bundle on
+ * Cloudflare Pages whose SPA fallback serves `index.html` for every unmatched
+ * path, so the browser has already been given the app by the time anything can
+ * decide. `replace: true` keeps the dead path out of the history stack, so Back
+ * goes where the visitor came from instead of bouncing through the redirect.
+ *
+ * `beforeLoad` rather than a component that redirects on mount: this route
+ * loads no chunk and paints nothing, so the old URL never renders a frame of
+ * its own before arriving at the profile.
+ *
+ * The reserved-name check is not paranoia. `redirect({ to: "/$username" })`
+ * builds a top-level path, and the router resolves it against the STATIC routes
+ * first — so `/profile/dashboard` would send the visitor to the real dashboard,
+ * and `/profile/verify-email` into the verification screen. Nobody can register
+ * a reserved handle any more, but accounts predating that rule are exactly the
+ * accounts this route exists for. A reserved name here is a link that can never
+ * have been a profile, so it is a 404, same as `/dashboard` typo'd as a handle.
+ */
+const legacyProfileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile/$username",
+  beforeLoad: ({ params, location }) => {
+    if (isReservedUsername(params.username)) {
+      throw notFound();
+    }
+
+    throw redirect({
+      to: "/$username",
+      params: { username: params.username },
+      /*
+       * CARRIED, not dropped. The whole point of this route is honouring links
+       * that were shared before the change, and a shared link is exactly the
+       * kind that arrives with `?utm_source=…` on it or an `#anchor` in it.
+       * `redirect()` builds a fresh location from `to` and `params` alone, so
+       * without these two lines every campaign parameter and every deep anchor
+       * is silently discarded on the way through.
+       */
+      search: location.search,
+      hash: location.hash,
+      replace: true,
+    });
+  },
 });
 
 const advancedSearchRoute = createRoute({
@@ -240,6 +299,7 @@ const routeTree = rootRoute.addChildren([
   postsRoute,
   postsReviewRoute,
   settingsRoute,
+  legacyProfileRoute,
   // Last, because it matches anything one segment long. Ranking does not
   // depend on this order — the router scores static segments above dynamic
   // ones regardless — but reading the list top to bottom should not suggest

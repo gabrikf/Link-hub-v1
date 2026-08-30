@@ -113,7 +113,9 @@
     "terminal": "Terminal",
     "sending": "Enviando...",
     "on": "Ligado",
-    "showLess": "Mostrar menos"
+    "showLess": "Mostrar menos",
+    "percentValue": "{{value}}%",
+    "pixelValue": "{{value}} px"
   },
   "settings": {
     "provider": {
@@ -966,7 +968,18 @@
     "addImageUrl": "Adicionar URL da imagem",
     "clearImage": "Limpar imagem",
     "invalidUrl": "Informe uma URL http(s) válida de imagem.",
-    "pasteDirectLink": "Cole um link direto para uma imagem (https://…)."
+    "pasteDirectLink": "Cole um link direto para uma imagem (https://…).",
+    "reposition": "Reposicionar",
+    "repositionTitle": "Reposicionar imagem",
+    "repositionHelp": "Arraste a imagem para escolher qual parte aparece.",
+    "applyPosition": "Aplicar posição",
+    "positionFrame": "Posição da imagem — arraste para reposicionar",
+    "positionKeyboardHint": "Arraste ou use as setas do teclado — segure Shift para mover mais.",
+    "zoomToReposition": "Aproxime para escolher outra parte.",
+    "recenter": "Centralizar",
+    "positionReadout": "Horizontal {{horizontal}}% · vertical {{vertical}}% · zoom {{zoom}}x",
+    "safeAreaDesktop": "Sempre visível",
+    "safeAreaPhone": "Sempre visível"
   },
   "dialog": {
     "closeTitled": "Fechar {{title}}",
@@ -982,6 +995,11 @@
     "namePlaceholder": "Seu nome",
     "usernamePlaceholder": "usuario",
     "usernameReserved": "Esse nome de usuário é reservado. Escolha outro.",
+    "usernameChecking": "Verificando disponibilidade…",
+    "usernameAvailable": "{{username}} está disponível.",
+    "usernameTaken": "{{username}} já está em uso.",
+    "usernameUnavailableReserved": "{{username}} é reservado pelo CraftHub.",
+    "usernameCheckFailed": "Não foi possível verificar este nome de usuário agora.",
     "locationPlaceholder": "Cidade, País",
     "noRole": "Sem função",
     "banner": "Banner",
@@ -1014,7 +1032,14 @@
     "customRolePlaceholder": "Fisioterapeuta",
     "customRoleHelp": "É isso que o seu perfil mostra no lugar de “Outro”.",
     "customRoleRequired": "Informe a sua função.",
-    "customRoleTooLong": "Use no máximo {{max}} caracteres."
+    "customRoleTooLong": "Use no máximo {{max}} caracteres.",
+    "bannerPositionTitle": "Posicione seu banner",
+    "bannerPositionHelp": "Arraste até que a parte que você quer fique na faixa iluminada — é ela que aparece em todas as telas. As bordas escurecidas são cortadas em telas largas.",
+    "backgroundPositionTitle": "Posicione seu fundo",
+    "backgroundPositionHelp": "Arraste para escolher qual parte da foto fica atrás do seu perfil.",
+    "backgroundOverlayLabel": "Véu",
+    "backgroundBlurLabel": "Desfoque",
+    "backgroundTuningHelp": "O véu mantém seu perfil legível sobre a foto. Menos véu, mais foto."
   },
   "links": {
     "titlePlaceholder": "Meu site",

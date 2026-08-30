@@ -1,5 +1,6 @@
 import type {
   LinkResponse,
+  ProfileAppearance,
   ProfileLayout,
   ProfileViewport,
   PublicWorkExperienceResponse,
@@ -9,10 +10,13 @@ import type {
 import { useTranslation } from "react-i18next";
 import { FiEye } from "react-icons/fi";
 import type { PublicResumeResponse } from "../../../lib/auth-api";
+import { SURFACE_PROFILE_GLASS } from "../../../shared-components/surface";
+import { ProfileBackground } from "./profile-background";
 import { ProfileBlocks } from "./profile-blocks";
 import { ProfileCover } from "./profile-cover";
 import {
   getProfileThemeProps,
+  safeImageUrl,
   type Persona,
   type ThemePreset,
 } from "./profile-theme";
@@ -36,6 +40,13 @@ type PublicProfilePreviewProps = {
     persona?: Persona | null;
     /** The owner's own words for their role, when `persona` is "other". */
     personaOther?: string | null;
+    /**
+     * Banner / background placement and the background's veil and blur.
+     *
+     * Optional for the same reason the two image URLs are: the layout studio
+     * knows only the core identity. Absent renders as the documented default.
+     */
+    appearance?: ProfileAppearance | null;
   };
   links: LinkResponse[];
   resume: ResumeResponse | PublicResumeResponse | null;
@@ -84,33 +95,70 @@ export function PublicProfilePreview({
   // mobile preview (the layout studio). Desktop framed previews fill the wide
   // modal, and unframed callers keep the fluid inline card.
   const isPhone = framed && viewport === "mobile";
+  /*
+   * The preview card IS the page here, so it keeps its opaque ground and the
+   * background photo is painted INSIDE it. What has to be mirrored is the
+   * layer the published page puts between the photo and the blocks: with a
+   * background set, the profile card there turns to frosted glass. Without
+   * this the preview would show the blocks sitting straight on the photograph
+   * — a different picture from the one it is previewing.
+   */
+  // `safeImageUrl`, the same rule the renderer applies: a url that will never
+  // load must not frost the card over a photograph that is not there.
+  const hasBackground = Boolean(safeImageUrl(profile.backgroundImageUrl));
+  // The same constant the published page uses. It carries colour and blur only,
+  // so as an inner layer here it needs nothing removed.
+  const cardSurface = hasBackground ? SURFACE_PROFILE_GLASS : "";
 
   // The profile "screen": cover + blocks with the resolved theme. Shared by all
   // three presentations so they stay pixel-identical apart from the chrome.
   const screen = (
     <>
-      <ProfileCover
-        compact
-        bannerImageUrl={profile.bannerImageUrl ?? null}
-        location={profile.location ?? null}
-        persona={profile.persona ?? null}
-        personaOther={profile.personaOther ?? null}
+      {/*
+        The background photograph, which this preview used to accept as a prop
+        and then never draw. That gap IS the "I set a background and nothing
+        happened" report: the only place it rendered was the published page, so
+        the one screen built to show the owner their result showed everything
+        except it.
+
+        `relative` + `z-0` rather than the page's negative z-index: this sits
+        inside a scroll container with its own stacking context, and a `-z-20`
+        child would slide behind the preview card's own background and vanish
+        again.
+      */}
+      <ProfileBackground
+        imageUrl={profile.backgroundImageUrl}
+        appearance={profile.appearance}
+        className="absolute inset-0 z-0 overflow-hidden"
       />
 
-      <div className="-mt-10 p-4">
-        <ProfileBlocks
-          variant="preview"
-          layout={layout}
-          viewport={viewport}
-          profile={profile}
-          links={links}
-          resume={resume}
-          workExperiences={workExperiences}
-          resumeLoading={resumeLoading}
-          workLoading={workLoading}
-          linksLoading={linksLoading}
-          tabsEnabled={tabsEnabled}
+      {/* The frosted profile card, mirroring the published page's stack:
+          photo, then this, then the blocks. */}
+      <div className={`relative z-10 ${cardSurface}`}>
+        <ProfileCover
+          compact
+          bannerImageUrl={profile.bannerImageUrl ?? null}
+          bannerPlacement={profile.appearance?.bannerPlacement ?? null}
+          location={profile.location ?? null}
+          persona={profile.persona ?? null}
+          personaOther={profile.personaOther ?? null}
         />
+
+        <div className="-mt-10 p-4">
+          <ProfileBlocks
+            variant="preview"
+            layout={layout}
+            viewport={viewport}
+            profile={profile}
+            links={links}
+            resume={resume}
+            workExperiences={workExperiences}
+            resumeLoading={resumeLoading}
+            workLoading={workLoading}
+            linksLoading={linksLoading}
+            tabsEnabled={tabsEnabled}
+          />
+        </div>
       </div>
     </>
   );
@@ -154,7 +202,10 @@ export function PublicProfilePreview({
                 // `svh`, not `vh`: `vh` resolves against the LARGE viewport, so
                 // on a phone the bottom of the preview sat under the browser
                 // chrome inside an already body-scroll-locked dialog.
-                "max-h-[70svh] overflow-y-auto pt-6 bg-linear-to-b from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-900",
+                // `relative`: the background layer is `absolute inset-0`, and
+                // without a positioned ancestor here it would resolve against
+                // whatever dialog happens to hold the preview.
+                "relative max-h-[70svh] overflow-y-auto pt-6 bg-linear-to-b from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-900",
               ].join(" ")}
               style={theme.style}
             >
@@ -178,8 +229,9 @@ export function PublicProfilePreview({
       <div
         className={[
           theme.className,
-          // `svh` over `vh` — see the phone branch above.
-          "mx-auto max-h-[70svh] overflow-hidden overflow-y-auto rounded-3xl border-2 border-zinc-200 bg-linear-to-b from-white to-zinc-50 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900",
+          // `svh` over `vh` — see the phone branch above. `relative` anchors
+          // the `absolute inset-0` background layer to this card.
+          "relative mx-auto max-h-[70svh] overflow-hidden overflow-y-auto rounded-3xl border-2 border-zinc-200 bg-linear-to-b from-white to-zinc-50 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900",
           framed ? "max-h-[72svh] w-full shadow-xl" : "w-full",
         ].join(" ")}
         // `frameWidth` is a maximum here too, so a desktop preview renders at

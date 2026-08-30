@@ -122,6 +122,7 @@ import { UpdateBlockUseCase } from "../../core/use-case/profile-layout/update-bl
 import { DeleteBlockUseCase } from "../../core/use-case/profile-layout/delete-block-use-case/delete-block.use-case.js";
 import { UpdateBlockPositionsUseCase } from "../../core/use-case/profile-layout/update-block-positions-use-case/update-block-positions.use-case.js";
 import { GetPublicProfileUseCase } from "../../core/use-case/profiles/get-public-profile-use-case/get-public-profile.use-case.js";
+import { CheckUsernameAvailabilityUseCase } from "../../core/use-case/profiles/check-username-availability-use-case/check-username-availability.use-case.js";
 import { GetMeProfileUseCase } from "../../core/use-case/profiles/get-me-profile-use-case/get-me-profile.use-case.js";
 import { UpdateProfileUseCase } from "../../core/use-case/profiles/update-profile-use-case/update-profile.use-case.js";
 import { GetUserPreferencesUseCase } from "../../core/use-case/preferences/get-user-preferences-use-case/get-user-preferences.use-case.js";
@@ -249,6 +250,9 @@ export const TOKENS = {
   DeleteBlockUseCase: Symbol.for("DeleteBlockUseCase"),
   UpdateBlockPositionsUseCase: Symbol.for("UpdateBlockPositionsUseCase"),
   GetPublicProfileUseCase: Symbol.for("GetPublicProfileUseCase"),
+  CheckUsernameAvailabilityUseCase: Symbol.for(
+    "CheckUsernameAvailabilityUseCase",
+  ),
   GetMeProfileUseCase: Symbol.for("GetMeProfileUseCase"),
   UpdateProfileUseCase: Symbol.for("UpdateProfileUseCase"),
   GetUserPreferencesUseCase: Symbol.for("GetUserPreferencesUseCase"),
@@ -1108,6 +1112,19 @@ export function setupContainer() {
       return new GetMeProfileUseCase(usersRepository, linksRepository);
     },
   });
+
+  container.register<CheckUsernameAvailabilityUseCase>(
+    TOKENS.CheckUsernameAvailabilityUseCase,
+    {
+      useFactory: (c) => {
+        const usersRepository = c.resolve<IUsersRepository>(
+          TOKENS.UsersRepository,
+        );
+
+        return new CheckUsernameAvailabilityUseCase(usersRepository);
+      },
+    },
+  );
 
   container.register<UpdateProfileUseCase>(TOKENS.UpdateProfileUseCase, {
     useFactory: (c) => {

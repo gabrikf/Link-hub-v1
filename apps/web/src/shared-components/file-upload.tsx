@@ -1,3 +1,4 @@
+import { CENTERED_IMAGE_PLACEMENT, type ImagePlacement } from "@repo/schemas";
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -5,6 +6,7 @@ import {
   FiCamera,
   FiImage,
   FiLoader,
+  FiMove,
   FiTrash2,
   FiUploadCloud,
   FiX,
@@ -13,6 +15,8 @@ import { reportError } from "../lib/report-error";
 import { uploadImage } from "../lib/upload-api";
 import { AvatarCropper } from "./avatar-cropper";
 import { Button } from "./button";
+import { ImagePositionEditor } from "./image-position-editor";
+import { PlacedImage } from "./placed-image";
 
 export type FileUploadAspect = "banner" | "cover" | "square";
 
@@ -42,6 +46,33 @@ type FileUploadProps = {
    * post-image call sites keep the plain pick-and-upload path.
    */
   cropToCircle?: boolean;
+  /**
+   * Opt-in: let the user say WHICH part of the image shows.
+   *
+   * Passing `onPlacementChange` turns the tile into a repositionable one — the
+   * preview renders at the stored focal point, a fresh upload opens the
+   * position editor straight away, and a "Reposition" control stays available
+   * afterwards. Left out, the tile behaves exactly as it did.
+   */
+  placement?: ImagePlacement | null;
+  onPlacementChange?: (placement: ImagePlacement | null) => void;
+  /** Width / height of the frame this image is published at. */
+  placementAspect?: number;
+  /**
+   * A second shape the same image is published at, drawn over the editor frame
+   * as a safe area. See {@link ImagePositionEditor}.
+   */
+  placementSafeAreaAspect?: number;
+  placementSafeAreaLabel?: string;
+  placementTitle?: string;
+  placementDescription?: string;
+  /**
+   * Handle for tests. Two of these tiles sit in the appearance panel and both
+   * label their controls the same way ("Replace image", "Reposition"), so
+   * without a stable per-field root there is no honest way to say "the BANNER's
+   * reposition button".
+   */
+  testId?: string;
 };
 
 const ASPECT_CLASS: Record<FileUploadAspect, string> = {
@@ -63,6 +94,21 @@ const ACCEPTED_MIME_TYPES = [
 ];
 const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
+/**
+ * A small control floating on top of a photograph — Remove, Reposition.
+ *
+ * Deliberately NOT `Button`: these sit on an image the user chose, so they need
+ * a dark scrim and a white focus ring rather than the theme's surfaces, and
+ * they are children of a drop zone that is itself a click target. There is one
+ * definition rather than two identical literals because the second one was a
+ * copy of the first and the pair would have drifted.
+ *
+ * No `dark:` variants, and that is correct here: the backdrop is the
+ * photograph, which is the same picture in both themes.
+ */
+const OVERLAY_CONTROL =
+  "inline-flex items-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur transition hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black/20";
+
 type Status = "idle" | "uploading" | "error";
 
 /**
@@ -79,6 +125,14 @@ export function FileUpload({
   className,
   helperText,
   cropToCircle = false,
+  placement = null,
+  onPlacementChange,
+  placementAspect = 3,
+  placementSafeAreaAspect,
+  placementSafeAreaLabel,
+  placementTitle,
+  placementDescription,
+  testId,
 }: FileUploadProps) {
   const { t } = useTranslation();
   const reactId = useId();
@@ -93,6 +147,10 @@ export function FileUpload({
   const [previewLoaded, setPreviewLoaded] = useState(false);
   /** Validated file waiting on the crop dialog. Only ever set when cropping. */
   const [pendingCrop, setPendingCrop] = useState<File | null>(null);
+  /** The image currently open in the position editor, if any. */
+  const [positioningUrl, setPositioningUrl] = useState<string | null>(null);
+
+  const canReposition = Boolean(onPlacementChange);
 
   /**
    * A new URL means a new `<img>` that has not loaded yet, so the sheen must
@@ -127,6 +185,20 @@ export function FileUpload({
       const url = await uploadImage(file);
       onChange(url);
       setStatus("idle");
+      /*
+       * A NEW image gets a fresh, centred placement and the editor opens on it
+       * immediately.
+       *
+       * Opening it is the whole fix for the reported bug: the previous flow
+       * uploaded a photo, cropped it to the middle of a 3:1 strip and left the
+       * owner looking at a picture of her own shoulder with no visible way to
+       * change it. Keeping the OLD placement would be worse than useless — a
+       * focal point chosen for a different photograph.
+       */
+      if (onPlacementChange) {
+        onPlacementChange(CENTERED_IMAGE_PLACEMENT);
+        setPositioningUrl(url);
+      }
     } catch (uploadError) {
       reportError(uploadError, {
         action: "upload.image-field",
@@ -192,6 +264,9 @@ export function FileUpload({
     setStatus("idle");
     setError(null);
     onChange(null);
+    // A focal point belongs to one photograph. Leaving it behind would apply
+    // this image's framing to whatever is uploaded next.
+    onPlacementChange?.(null);
     if (inputRef.current) {
       inputRef.current.value = "";
     }
@@ -241,7 +316,15 @@ export function FileUpload({
         isAvatar
           ? AVATAR_PREVIEW_CLASS
           : `${ASPECT_CLASS[aspect]} w-full rounded-2xl`,
-        "group relative overflow-hidden border bg-zinc-100 ring-1 ring-inset transition dark:bg-zinc-800/60",
+        /*
+         * `isolate` contains this tile's own `z-10` controls (Remove,
+         * Reposition). Without a stacking context here they escape into the
+         * dialog's and paint OVER the sticky live preview above them — 94% of
+         * it survived at 390px, the rest was two floating pills sitting on the
+         * owner's face. `relative` alone with `z-index: auto` is not a
+         * stacking context.
+         */
+        "group relative isolate overflow-hidden border bg-zinc-100 ring-1 ring-inset transition dark:bg-zinc-800/60",
         hasError
           ? "border-red-400 ring-red-300/60 dark:border-red-500/70 dark:ring-red-500/30"
           : isDragging
@@ -287,16 +370,17 @@ export function FileUpload({
               aria-hidden="true"
             />
           ) : null}
-          <img
+          <PlacedImage
             key={value}
             src={value}
+            placement={canReposition ? placement : null}
             alt={
               label
                 ? t("image.labelPreview", { label })
                 : t("image.uploadedPreview")
             }
             className={[
-              "h-full w-full object-cover transition-opacity duration-300",
+              "transition-opacity duration-300",
               previewLoaded ? "opacity-100" : "opacity-0",
             ].join(" ")}
             onLoad={() => setPreviewLoaded(true)}
@@ -357,12 +441,29 @@ export function FileUpload({
       {/* Corner clear button — tile only. On the avatar an X floating over a
           circle reads as decoration, so removal moves out to a labelled
           button beside the preview. */}
+      {/* Reposition, as a real button rather than a hover-only affordance: the
+          owner comes back to it days later, long after the upload, and a
+          control that only exists on hover does not exist on a phone. */}
+      {!isAvatar && hasValue && canReposition && !isUploading ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setPositioningUrl(value);
+          }}
+          className={`absolute bottom-2 left-2 z-10 gap-1.5 px-3 py-1.5 text-xs font-medium ${OVERLAY_CONTROL}`}
+        >
+          <FiMove className="h-3.5 w-3.5" aria-hidden="true" />
+          {t("image.reposition")}
+        </button>
+      ) : null}
+
       {!isAvatar && hasValue && !isUploading ? (
         <button
           type="button"
           onClick={handleClear}
           aria-label={t("image.removeImage")}
-          className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur transition hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black/20"
+          className={`absolute right-2 top-2 z-10 h-8 w-8 justify-center ${OVERLAY_CONTROL}`}
         >
           <FiX className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -371,7 +472,10 @@ export function FileUpload({
   );
 
   return (
-    <div className={`space-y-2 ${className ?? ""}`.trim()}>
+    <div
+      data-testid={testId}
+      className={`space-y-2 ${className ?? ""}`.trim()}
+    >
       {label ? (
         <label
           className="block text-sm text-zinc-700 dark:text-zinc-300"
@@ -430,6 +534,23 @@ export function FileUpload({
           file={pendingCrop}
           onCancel={handleCropCancel}
           onCropped={handleCropped}
+        />
+      ) : null}
+
+      {canReposition ? (
+        <ImagePositionEditor
+          src={positioningUrl}
+          aspect={placementAspect}
+          safeAreaAspect={placementSafeAreaAspect}
+          safeAreaLabel={placementSafeAreaLabel}
+          placement={placement}
+          title={placementTitle ?? t("image.repositionTitle")}
+          description={placementDescription ?? t("image.repositionHelp")}
+          onCancel={() => setPositioningUrl(null)}
+          onSave={(next) => {
+            onPlacementChange?.(next);
+            setPositioningUrl(null);
+          }}
         />
       ) : null}
     </div>
