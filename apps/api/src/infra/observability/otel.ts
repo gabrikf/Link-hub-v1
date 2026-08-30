@@ -11,6 +11,7 @@ import { PgInstrumentation } from "@opentelemetry/instrumentation-pg";
 import { IORedisInstrumentation } from "@opentelemetry/instrumentation-ioredis";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { RuntimeNodeInstrumentation } from "@opentelemetry/instrumentation-runtime-node";
+import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { telemetryConfig } from "../config/app-config.js";
 
 /**
@@ -109,6 +110,15 @@ export function startTelemetry(): void {
      *   pg             -> Drizzle/postgres.js queries
      *   undici         -> the OpenAI SDK, which calls global fetch
      *   ioredis        -> BullMQ enqueue and the quota/DAU counters
+     *   pino           -> THE ONLY SOURCE OF LOGS. The SDK below configures an
+     *                     OTLP log exporter, but the app logs through pino
+     *                     straight to stdout and pino does not know the
+     *                     OpenTelemetry logs API exists. Without this bridge the
+     *                     log pipeline is fully wired, authenticated, and fed by
+     *                     nothing — which is exactly what it was until now: Loki
+     *                     held zero streams while metrics flowed fine. It also
+     *                     stamps trace_id/span_id onto each line, which is what
+     *                     makes a log jump to its trace.
      *
      * They produce SPANS. No metric on any dashboard in `infra/grafana` comes
      * from them — those are all recorded by hand in `metrics.ts` — so leaving
@@ -132,6 +142,7 @@ export function startTelemetry(): void {
             new PgInstrumentation(),
             new IORedisInstrumentation(),
             new UndiciInstrumentation(),
+            new PinoInstrumentation(),
           ]
         : []),
     ],
