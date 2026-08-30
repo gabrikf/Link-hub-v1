@@ -31,7 +31,7 @@
 export const requiresAuth = false;
 
 const USERNAME = process.env.VISUAL_PROFILE_USERNAME || "gabrielkochf";
-const PROFILE = `/profile/${USERNAME}`;
+const PROFILE = `/${USERNAME}`;
 
 /** "on" = tabs expected; "off" = simple mode expected. */
 const EXPECT_TABS = (process.env.VISUAL_EXPECT_TABS || "on") === "on";

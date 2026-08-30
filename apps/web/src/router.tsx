@@ -3,8 +3,10 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  notFound,
   redirect,
 } from "@tanstack/react-router";
+import { isReservedUsername } from "@repo/schemas";
 import App from "./App";
 import { queryClient } from "./lib/query-client";
 import { hasStoredSession } from "./lib/session";
@@ -17,8 +19,8 @@ import {
 /**
  * Every route was statically imported, so the entry bundle carried the whole
  * app: react-grid-layout + react-draggable for the layout editor, react-select,
- * the recruiter search page and the settings page all landed on `/profile/
- * $username` — the public, shareable, mobile-heavy page that needs none of it.
+ * the recruiter search page and the settings page all landed on `/$username`
+ * — the public, shareable, mobile-heavy page that needs none of it.
  * `lazyRouteComponent` splits each route into its own chunk; measured effect
  * is 996 kB / 295 kB gzip down to 336 kB / 108 kB gzip on the entry.
  *
@@ -135,10 +137,37 @@ const resetPasswordRoute = createRoute({
  * Deliberately ungated, and deliberately the only one. A public profile is the
  * shareable artefact of this product: it must render for a stranger with no
  * session, and boot must make no authenticated request on the way to it.
+ *
+ * `/$username`, NOT `/profile/$username`. The old path is gone and now 404s —
+ * a deliberate decision, taken knowing that every already-shared and
+ * search-indexed `/profile/*` link breaks on deploy. What it buys is the short
+ * URL: `crafthub.dev/gabrielkochf` is the thing people paste into a chat.
+ *
+ * This is a CATCH-ALL at the root, so it changes what an unknown top-level path
+ * means. Ranking still puts every static route first — TanStack Router scores a
+ * static segment above a dynamic one, so `/dashboard` and `/verify-email` are
+ * never swallowed — but a typo like `/dashbord` no longer reaches
+ * `RouteNotFound`. It is now a username lookup that finds nobody, and the
+ * profile's own not-found state is what the visitor sees. That is the right
+ * answer: after this change there is no such thing as "an unknown app path" at
+ * the top level. The top level IS the username namespace, and "no such profile"
+ * is a truthful description of `/dashbord`.
+ *
+ * The `beforeLoad` is the one exception, and it is what keeps a real 404
+ * reachable. A reserved word can never belong to anybody — nobody can register
+ * `login` — so resolving `/login` by asking the API about a user called "login"
+ * would be a request we already know the answer to, answered with the wrong
+ * screen. `notFound()` renders the router's `defaultNotFoundComponent` instead,
+ * before the profile chunk is even fetched.
  */
 const publicProfileRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/profile/$username",
+  path: "/$username",
+  beforeLoad: ({ params }) => {
+    if (isReservedUsername(params.username)) {
+      throw notFound();
+    }
+  },
   component: lazyRouteComponent(
     () => import("./features/profile/pages/public-profile-page"),
     "PublicProfilePage",
@@ -206,12 +235,16 @@ const routeTree = rootRoute.addChildren([
   verifyEmailRoute,
   forgotPasswordRoute,
   resetPasswordRoute,
-  publicProfileRoute,
   advancedSearchRoute,
   profileLayoutRoute,
   postsRoute,
   postsReviewRoute,
   settingsRoute,
+  // Last, because it matches anything one segment long. Ranking does not
+  // depend on this order — the router scores static segments above dynamic
+  // ones regardless — but reading the list top to bottom should not suggest
+  // otherwise.
+  publicProfileRoute,
 ]);
 
 export const router = createRouter({

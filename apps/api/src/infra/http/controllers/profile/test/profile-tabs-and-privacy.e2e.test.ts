@@ -39,11 +39,24 @@ describe("Profile payload: per-viewport tabsEnabled and preference privacy", () 
     await ctx.app.close();
   });
 
-  async function authed() {
-    const user = await ctx.seedUser();
+  async function authed(overrides?: {
+    tabsEnabledPc?: boolean;
+    tabsEnabledMobile?: boolean;
+  }) {
+    const user = await ctx.seedUser(overrides);
     const token = await ctx.signJwt(user.id);
     return { user, auth: { authorization: `Bearer ${token}` } };
   }
+
+  /**
+   * An account whose tab strip is already ON for both viewports, stated rather
+   * than inherited. A BRAND-NEW account now starts with both OFF — a new
+   * profile publishes its always-visible zone and nothing else — so a test
+   * about one viewport's switch not disturbing the other has to say where it
+   * starts, or "mobile is still on" would be asserting the default it never set.
+   */
+  const withTabsOn = () =>
+    authed({ tabsEnabledPc: true, tabsEnabledMobile: true });
 
   /**
    * Three tabs per viewport with one block each, plus a block pinned to all
@@ -201,17 +214,23 @@ describe("Profile payload: per-viewport tabsEnabled and preference privacy", () 
       });
     }
 
-    it("defaults both viewports to true for an account that never set them", async () => {
+    /*
+     * The new-account default, end to end. A profile nobody has arranged yet
+     * publishes the always-visible zone only, so both viewports report their
+     * tab strip off. This test used to assert `true` for both — it encoded the
+     * old default, where a new profile published every seeded block on day one.
+     */
+    it("defaults both viewports to OFF for an account that never set them", async () => {
       const { user } = await authed();
 
       const { layout } = await publicProfile(user.login);
 
-      expect(layout.pc.tabsEnabled).toBe(true);
-      expect(layout.mobile.tabsEnabled).toBe(true);
+      expect(layout.pc.tabsEnabled).toBe(false);
+      expect(layout.mobile.tabsEnabled).toBe(false);
     });
 
     it("turning pc off leaves mobile on", async () => {
-      const { user, auth } = await authed();
+      const { user, auth } = await withTabsOn();
       await seedLayout(user);
 
       const response = await setTabsEnabled(auth, "pc", false);
@@ -226,7 +245,7 @@ describe("Profile payload: per-viewport tabsEnabled and preference privacy", () 
     });
 
     it("turning mobile off leaves pc on", async () => {
-      const { user, auth } = await authed();
+      const { user, auth } = await withTabsOn();
       await seedLayout(user);
 
       const response = await setTabsEnabled(auth, "mobile", false);
@@ -238,7 +257,7 @@ describe("Profile payload: per-viewport tabsEnabled and preference privacy", () 
     });
 
     it("serves each viewport its own flag on the editor layout read too", async () => {
-      const { auth } = await authed();
+      const { auth } = await withTabsOn();
 
       await setTabsEnabled(auth, "mobile", false);
 
@@ -254,7 +273,7 @@ describe("Profile payload: per-viewport tabsEnabled and preference privacy", () 
     });
 
     it("destroys no tab or block data when toggled off and back on", async () => {
-      const { user, auth } = await authed();
+      const { user, auth } = await withTabsOn();
       await seedLayout(user);
 
       const before = (await publicProfile(user.login)).layout;
@@ -421,7 +440,7 @@ describe("Profile payload: per-viewport tabsEnabled and preference privacy", () 
       });
 
       it("strips only the viewport whose tabs are off", async () => {
-        const { user, auth } = await authed();
+        const { user, auth } = await withTabsOn();
         const seeded = await seedLayout(user);
 
         await setTabsEnabled(auth, "pc", false);
@@ -442,7 +461,7 @@ describe("Profile payload: per-viewport tabsEnabled and preference privacy", () 
       });
 
       it("restores the full public payload when tabs are switched back on", async () => {
-        const { user, auth } = await authed();
+        const { user, auth } = await withTabsOn();
         await seedLayout(user);
 
         const before = (await publicProfile(user.login)).layout.pc;

@@ -347,7 +347,7 @@ function ConnectionForm({
             </option>
             {AGENT_DISCLOSURE_LEVELS.map((level) => (
               <option key={level.value} value={level.value}>
-                {level.label}
+                {t(`enum.disclosureLevel.${level.value}`)}
               </option>
             ))}
           </FieldSelect>

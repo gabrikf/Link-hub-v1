@@ -79,6 +79,7 @@
     "professionalExperience": "Professional experience",
     "skills": "Skills",
     "titles": "Titles",
+    "language": "Language",
     "languages": "Languages",
     "seniority": "Seniority",
     "contractType": "Contract type",
@@ -110,7 +111,9 @@
     "creating": "Creating...",
     "connecting": "Connecting...",
     "terminal": "Terminal",
-    "sending": "Sending..."
+    "sending": "Sending...",
+    "on": "On",
+    "showLess": "Show less"
   },
   "settings": {
     "provider": {
@@ -615,6 +618,33 @@
       "detailed": "Detailed",
       "full": "Full"
     },
+    "disclosureLevelDescription": {
+      "summary": "Share what you did and how you did it, never who you did it for.",
+      "detailed": "Everything in Summary, plus the companies and public work behind it.",
+      "full": "No CraftHub-side restriction — you decide what the agent may say."
+    },
+    "disclosureBullet": {
+      "role-titles": "Role titles and seniority",
+      "dates-and-duration": "Start and end dates, and how long each role lasted",
+      "employment-and-work-model": "Employment type (full-time, contract, freelance) and work model (remote, hybrid, on-site)",
+      "tech-stack": "Tech stack and tools used",
+      "engineering-practices": "Engineering practices and strategies (TDD, trunk-based development, event-driven architecture, CI/CD, pair programming)",
+      "generic-problem-domains": "Problem domains described generically (payments, logistics, healthcare scheduling)",
+      "non-identifying-metrics": "Non-identifying outcome metrics (\"cut p95 latency 40%\", \"halved build time\")",
+      "everything-at-summary": "Everything allowed at Summary level",
+      "employer-name": "Employer name",
+      "public-product-names": "Public product names",
+      "public-repositories": "Public repository names and links",
+      "anything-in-profile": "Anything present in the profile, work history and posts",
+      "employer-and-client-names": "Employer and client names",
+      "internal-codenames": "Internal repository, service, project and codenames",
+      "ticket-ids": "Ticket and issue ids",
+      "customer-names": "Customer names",
+      "unreleased-products": "Unreleased product names",
+      "internal-architecture": "Internal architecture specifics (topology, vendor contracts, infrastructure layout)",
+      "headcount-and-revenue": "Headcount and revenue figures",
+      "employer-identifying-metrics": "Any metric that identifies the employer (\"the only Brazilian bank processing 4M PIX/day\")"
+    },
     "workModel": {
       "remote": "Remote",
       "hybrid": "Hybrid",
@@ -688,6 +718,7 @@
       "zinc": "Zinc"
     },
     "themePreset": {
+      "violet": "Violet",
       "ocean": "Ocean",
       "sunset": "Sunset",
       "forest": "Forest",
@@ -809,7 +840,17 @@
     "candidatesFound_one": "{{count}} candidate found.",
     "candidatesFound_other": "{{count}} candidates found.",
     "yearsOfExperience_one": "{{count}} year of experience",
-    "yearsOfExperience_other": "{{count}} years of experience"
+    "yearsOfExperience_other": "{{count}} years of experience",
+    "aiMatchLabel": "AI Match %",
+    "aiMatchExplainer": "Scores how much of your search each candidate covers, using a small model that runs in your browser.",
+    "aiMatchPhoneWarning": "On a phone it downloads about 1.4 MB and does the maths on your device, which can make it heat up and stop responding. A computer is recommended.",
+    "aiMatchDefaultOffHere": "Off by default here, because this looks like a phone or tablet. Your choice is saved on this device.",
+    "aiMatchDefaultOnHere": "On by default here, because this looks like a computer. Your choice is saved on this device.",
+    "aiMatchOffNotice": "AI Match is off, so candidates keep the search engine's own order and no match percentage is shown. Turn it back on above whenever you want it.",
+    "rankedBySearchEngine": "Ordered by the search engine",
+    "searchOrderCount_one": "{{count}} candidate in search order",
+    "searchOrderCount_other": "{{count}} candidates in search order",
+    "semanticHints": "Semantic hints (optional)"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -817,6 +858,7 @@
     "publicProfile": "Public profile",
     "settings": "Settings",
     "logout": "Logout",
+    "menu": "Menu",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "switchTheme": "Switch to {{mode}} theme",
@@ -939,6 +981,7 @@
     "noDescriptionYet": "No description yet.",
     "namePlaceholder": "Your name",
     "usernamePlaceholder": "username",
+    "usernameReserved": "That username is reserved. Please choose another one.",
     "locationPlaceholder": "City, Country",
     "noRole": "No role",
     "banner": "Banner",
@@ -951,6 +994,9 @@
     "backgroundHelp": "Optional full-page background behind your profile.",
     "customAccentColor": "Custom accent color",
     "openToWorkHelp": "Show a recruiter-friendly badge on your profile.",
+    "notDiscoverableTitle": "You're hidden from recruiter search",
+    "notDiscoverableBody": "Open to work is off, so recruiters searching for your skills won't see your profile. Your public profile link keeps working either way — turn this on whenever you want to be found.",
+    "notDiscoverableAction": "Turn on Open to work",
     "savingProfile": "Saving profile...",
     "saveProfile": "Save profile",
     "unableToUpdateProfile": "Unable to update profile",
@@ -963,7 +1009,12 @@
     "resumeSnapshot": "Public-facing resume snapshot",
     "importFromResume": "Import from your resume",
     "importFromResumeHelp": "Upload a PDF or Word file and let AI auto-fill your resume and work history.",
-    "importResumeFile": "Import resume file"
+    "importResumeFile": "Import resume file",
+    "customRoleLabel": "Which?",
+    "customRolePlaceholder": "Physiotherapist",
+    "customRoleHelp": "This is what your profile shows instead of “Other”.",
+    "customRoleRequired": "Enter your role.",
+    "customRoleTooLong": "Use at most {{max}} characters."
   },
   "links": {
     "titlePlaceholder": "My website",
@@ -1193,7 +1244,11 @@
     "yearsExperience_one": "{{count}} year experience",
     "yearsExperience_other": "{{count}} years experience",
     "yearsShort_one": "({{count}}y)",
-    "yearsShort_other": "({{count}}y)"
+    "yearsShort_other": "({{count}}y)",
+    "moreSkills_one": "+{{count}}",
+    "moreSkills_other": "+{{count}}",
+    "showAllSkills_one": "+{{count}} — show all skills",
+    "showAllSkills_other": "+{{count}} — show all skills"
   },
   "layout": {
     "block": {
@@ -1300,10 +1355,15 @@
     "pcLayout": "PC layout",
     "mobileLayout": "Mobile layout",
     "pageSubtitle": "Design independent layouts for desktop and mobile. Arrange blocks in a freeform grid, group them into content tabs — each viewport has its own — and pin blocks so they show everywhere.",
-    "needsWiderScreen": "Open the layout studio on a larger screen",
-    "needsWiderScreenBody": "Arranging blocks needs a canvas at least 1024px wide — on this screen a grid column would be about 15px across. Your published profile is unaffected, and you can still design the mobile layout from a desktop browser.",
     "addToAlwaysVisible": "Add to always-visible",
     "addToTabs": "Add to tabs section",
-    "alwaysVisibleSection": "Always visible"
+    "alwaysVisibleSection": "Always visible",
+    "moveBlockUp": "Move {{label}} up",
+    "moveBlockDown": "Move {{label}} down",
+    "growBlock": "Make {{label}} taller",
+    "shrinkBlock": "Make {{label}} shorter",
+    "touchArrangeTip": "Tip: drag a block by its grip handle to move it, or use the arrows and the plus and minus buttons on each block. Blocks always stack to the top, so moving one pushes the others up to fill the space.",
+    "pcLayoutNeedsWiderScreen": "The desktop layout is arranged on a 1024px canvas, which does not fit this screen — open the studio on a computer to edit it. It is untouched and still live in the meantime.",
+    "previewMobileOnly": "Showing the mobile preview. The desktop preview needs a wider screen."
   }
 }

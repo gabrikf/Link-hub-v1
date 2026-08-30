@@ -79,6 +79,7 @@
     "professionalExperience": "Experiência profissional",
     "skills": "Habilidades",
     "titles": "Cargos",
+    "language": "Idioma",
     "languages": "Idiomas",
     "seniority": "Senioridade",
     "contractType": "Tipo de contrato",
@@ -110,7 +111,9 @@
     "creating": "Criando...",
     "connecting": "Conectando...",
     "terminal": "Terminal",
-    "sending": "Enviando..."
+    "sending": "Enviando...",
+    "on": "Ligado",
+    "showLess": "Mostrar menos"
   },
   "settings": {
     "provider": {
@@ -615,6 +618,33 @@
       "detailed": "Detalhado",
       "full": "Completo"
     },
+    "disclosureLevelDescription": {
+      "summary": "Compartilhe o que você fez e como fez, nunca para quem.",
+      "detailed": "Tudo do nível Resumo, mais as empresas e o trabalho público por trás.",
+      "full": "Sem restrição do lado do CraftHub — você decide o que o agente pode dizer."
+    },
+    "disclosureBullet": {
+      "role-titles": "Cargos e senioridade",
+      "dates-and-duration": "Datas de início e fim, e quanto tempo durou cada cargo",
+      "employment-and-work-model": "Tipo de contratação (tempo integral, contrato, freelance) e modelo de trabalho (remoto, híbrido, presencial)",
+      "tech-stack": "Stack e ferramentas utilizadas",
+      "engineering-practices": "Práticas e estratégias de engenharia (TDD, trunk-based development, arquitetura orientada a eventos, CI/CD, pair programming)",
+      "generic-problem-domains": "Domínios de problema descritos de forma genérica (pagamentos, logística, agendamento na saúde)",
+      "non-identifying-metrics": "Métricas de resultado que não identificam ninguém (\"reduzi a latência p95 em 40%\", \"cortei o tempo de build pela metade\")",
+      "everything-at-summary": "Tudo o que o nível Resumo permite",
+      "employer-name": "Nome do empregador",
+      "public-product-names": "Nomes de produtos públicos",
+      "public-repositories": "Nomes e links de repositórios públicos",
+      "anything-in-profile": "Qualquer coisa presente no perfil, no histórico profissional e nas publicações",
+      "employer-and-client-names": "Nomes de empregadores e clientes",
+      "internal-codenames": "Nomes internos de repositórios, serviços, projetos e codinomes",
+      "ticket-ids": "Ids de tickets e issues",
+      "customer-names": "Nomes de clientes finais",
+      "unreleased-products": "Nomes de produtos ainda não lançados",
+      "internal-architecture": "Detalhes internos de arquitetura (topologia, contratos com fornecedores, layout da infraestrutura)",
+      "headcount-and-revenue": "Número de funcionários e valores de faturamento",
+      "employer-identifying-metrics": "Qualquer métrica que identifique o empregador (\"o único banco brasileiro que processa 4M de PIX por dia\")"
+    },
     "workModel": {
       "remote": "Remoto",
       "hybrid": "Híbrido",
@@ -688,6 +718,7 @@
       "zinc": "Zinco"
     },
     "themePreset": {
+      "violet": "Violeta",
       "ocean": "Oceano",
       "sunset": "Pôr do sol",
       "forest": "Floresta",
@@ -809,7 +840,17 @@
     "candidatesFound_one": "{{count}} candidato encontrado.",
     "candidatesFound_other": "{{count}} candidatos encontrados.",
     "yearsOfExperience_one": "{{count}} ano de experiência",
-    "yearsOfExperience_other": "{{count}} anos de experiência"
+    "yearsOfExperience_other": "{{count}} anos de experiência",
+    "aiMatchLabel": "Compatibilidade IA %",
+    "aiMatchExplainer": "Calcula o quanto cada candidato cobre da sua busca, com um modelo pequeno que roda no seu navegador.",
+    "aiMatchPhoneWarning": "No celular, isso baixa cerca de 1,4 MB e faz as contas no seu aparelho, o que pode esquentá-lo e travar a página. Recomendamos um computador.",
+    "aiMatchDefaultOffHere": "Aqui vem desligado, porque isto parece um celular ou tablet. Sua escolha fica salva neste dispositivo.",
+    "aiMatchDefaultOnHere": "Aqui vem ligado, porque isto parece um computador. Sua escolha fica salva neste dispositivo.",
+    "aiMatchOffNotice": "A Compatibilidade IA está desligada, então os candidatos mantêm a ordem do próprio mecanismo de busca e nenhuma porcentagem é exibida. Ligue de novo acima quando quiser.",
+    "rankedBySearchEngine": "Ordenado pelo mecanismo de busca",
+    "searchOrderCount_one": "{{count}} candidato na ordem da busca",
+    "searchOrderCount_other": "{{count}} candidatos na ordem da busca",
+    "semanticHints": "Dicas semânticas (opcional)"
   },
   "nav": {
     "dashboard": "Painel",
@@ -817,6 +858,7 @@
     "publicProfile": "Perfil público",
     "settings": "Configurações",
     "logout": "Sair",
+    "menu": "Menu",
     "openMenu": "Abrir menu",
     "closeMenu": "Fechar menu",
     "switchTheme": "Mudar para o tema {{mode}}",
@@ -939,6 +981,7 @@
     "noDescriptionYet": "Nenhuma descrição ainda.",
     "namePlaceholder": "Seu nome",
     "usernamePlaceholder": "usuario",
+    "usernameReserved": "Esse nome de usuário é reservado. Escolha outro.",
     "locationPlaceholder": "Cidade, País",
     "noRole": "Sem função",
     "banner": "Banner",
@@ -951,6 +994,9 @@
     "backgroundHelp": "Fundo opcional de página inteira atrás do seu perfil.",
     "customAccentColor": "Cor de destaque personalizada",
     "openToWorkHelp": "Exiba um selo no seu perfil para recrutadores.",
+    "notDiscoverableTitle": "Você está oculto na busca de recrutadores",
+    "notDiscoverableBody": "A opção Aberto a propostas está desligada, então recrutadores que buscam suas habilidades não veem o seu perfil. O link do seu perfil público continua funcionando normalmente — ligue quando quiser ser encontrado.",
+    "notDiscoverableAction": "Ativar Aberto a propostas",
     "savingProfile": "Salvando perfil...",
     "saveProfile": "Salvar perfil",
     "unableToUpdateProfile": "Não foi possível atualizar o perfil",
@@ -963,7 +1009,12 @@
     "resumeSnapshot": "Currículo exibido publicamente",
     "importFromResume": "Importar do seu currículo",
     "importFromResumeHelp": "Envie um PDF ou arquivo Word e deixe a IA preencher seu currículo e histórico profissional.",
-    "importResumeFile": "Importar arquivo de currículo"
+    "importResumeFile": "Importar arquivo de currículo",
+    "customRoleLabel": "Qual?",
+    "customRolePlaceholder": "Fisioterapeuta",
+    "customRoleHelp": "É isso que o seu perfil mostra no lugar de “Outro”.",
+    "customRoleRequired": "Informe a sua função.",
+    "customRoleTooLong": "Use no máximo {{max}} caracteres."
   },
   "links": {
     "titlePlaceholder": "Meu site",
@@ -1193,7 +1244,11 @@
     "yearsExperience_one": "{{count}} ano de experiência",
     "yearsExperience_other": "{{count}} anos de experiência",
     "yearsShort_one": "({{count}}a)",
-    "yearsShort_other": "({{count}}a)"
+    "yearsShort_other": "({{count}}a)",
+    "moreSkills_one": "+{{count}}",
+    "moreSkills_other": "+{{count}}",
+    "showAllSkills_one": "+{{count}} — mostrar todas as habilidades",
+    "showAllSkills_other": "+{{count}} — mostrar todas as habilidades"
   },
   "layout": {
     "block": {
@@ -1300,10 +1355,15 @@
     "pcLayout": "Layout de PC",
     "mobileLayout": "Layout de celular",
     "pageSubtitle": "Crie layouts independentes para desktop e celular. Organize os blocos em uma grade livre, agrupe-os em abas de conteúdo — cada formato de tela tem as suas — e fixe blocos para que apareçam em todas.",
-    "needsWiderScreen": "Abra o estúdio de layout em uma tela maior",
-    "needsWiderScreenBody": "Organizar blocos exige uma área de pelo menos 1024px de largura — nesta tela, uma coluna da grade teria cerca de 15px. Seu perfil publicado não é afetado, e você ainda pode desenhar o layout de celular a partir de um navegador de desktop.",
     "addToAlwaysVisible": "Adicionar em sempre visível",
     "addToTabs": "Adicionar na seção de abas",
-    "alwaysVisibleSection": "Sempre visível"
+    "alwaysVisibleSection": "Sempre visível",
+    "moveBlockUp": "Mover {{label}} para cima",
+    "moveBlockDown": "Mover {{label}} para baixo",
+    "growBlock": "Deixar {{label}} mais alto",
+    "shrinkBlock": "Deixar {{label}} mais baixo",
+    "touchArrangeTip": "Dica: arraste um bloco pela alça para movê-lo, ou use as setas e os botões de mais e menos em cada bloco. Os blocos sempre se empilham no topo, então mover um empurra os outros para cima para preencher o espaço.",
+    "pcLayoutNeedsWiderScreen": "O layout de desktop é montado em uma tela de 1024px, que não cabe nesta tela — abra o estúdio em um computador para editá-lo. Enquanto isso ele continua intacto e no ar.",
+    "previewMobileOnly": "Mostrando a prévia de celular. A prévia de desktop precisa de uma tela mais larga."
   }
 }

@@ -2,7 +2,7 @@
 #
 # The app is a client-side router (TanStack Router, code-based routes), so the
 # only real HTML document is index.html. Without this rule a hard refresh or a
-# shared link on any route other than "/" — /dashboard, /profile/<username> —
+# shared link on any route other than "/" — /dashboard, /<username> —
 # asks Pages for a file that does not exist and gets a 404 instead of the app.
 #
 # 200 (rewrite), not 302: the browser keeps the original URL so the router can

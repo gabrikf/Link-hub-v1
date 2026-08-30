@@ -3,12 +3,30 @@
     "postgres": {
       "command": "uvx",
       "args": [
+        "--with",
+        "mcp<2",
         "postgres-mcp",
         "--access-mode=restricted"
       ],
       "env": {
         "DATABASE_URI": "postgresql://crafthub_user:crafthub_password@localhost:5432/crafthub_dev"
       }
+    },
+    "postgres-prod": {
+      "command": "uvx",
+      "args": [
+        "--with",
+        "mcp<2",
+        "postgres-mcp",
+        "--access-mode=restricted"
+      ],
+      "env": {
+        "DATABASE_URI": "${CRAFTHUB_PROD_DATABASE_URI:-}"
+      }
+    },
+    "grafana": {
+      "type": "http",
+      "url": "https://mcp.grafana.com/mcp"
     }
   }
 }

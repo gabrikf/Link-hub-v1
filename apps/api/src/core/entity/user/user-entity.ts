@@ -1,5 +1,6 @@
 import {
   DEFAULT_AGENT_DISCLOSURE_LEVEL,
+  DEFAULT_TABS_ENABLED,
   type AgentDisclosureLevel,
   type ProfileViewport,
 } from "@repo/schemas";
@@ -16,21 +17,31 @@ export interface UserEntityProps extends BaseEntityProps {
   bannerImageUrl?: string | null; // Optional; normalized to null in ctor
   themeAccent?: string | null; // Optional; normalized to null in ctor
   themePreset?: string | null; // Optional; normalized to null in ctor
-  openToWork?: boolean; // Optional; normalized to false in ctor
+  /**
+   * Whether recruiters may find this candidate. See the ctor for why an absent
+   * value resolves to TRUE.
+   */
+  openToWork?: boolean; // Optional; normalized to true in ctor
   /**
    * Public "simple mode" switch, one per viewport: false means that viewport
    * renders no tab strip. Two fields rather than one because tabs themselves
    * are per-viewport, and a single flag made switching one viewport silently
    * switch the other.
    *
-   * Optional here and normalized to TRUE in the ctor — the opposite of the
-   * usual `?? false`, because every account that predates the columns had tabs
-   * and must keep them.
+   * Optional here and normalized to {@link DEFAULT_TABS_ENABLED} in the ctor.
    */
-  tabsEnabledPc?: boolean; // Optional; normalized to true in ctor
-  tabsEnabledMobile?: boolean; // Optional; normalized to true in ctor
+  tabsEnabledPc?: boolean; // Optional; normalized to DEFAULT_TABS_ENABLED in ctor
+  tabsEnabledMobile?: boolean; // Optional; normalized to DEFAULT_TABS_ENABLED in ctor
   location?: string | null; // Optional; normalized to null in ctor
   persona?: string | null; // Optional; normalized to null in ctor
+  /**
+   * The user's own words for their role. Only meaningful while `persona` is
+   * `"other"` — every other persona has a translated label of its own, so a
+   * label left over from a previous "other" would render instead of it. The
+   * invariant is enforced in one place, `UpdateProfileUseCase`, which clears
+   * this whenever persona leaves "other".
+   */
+  personaOther?: string | null; // Optional; normalized to null in ctor
   /**
    * How much an agent acting for this user may reveal about their employers.
    * Optional here (and normalized in the ctor) so every existing construction
@@ -65,11 +76,12 @@ export interface CreateUserEntityProps {
   bannerImageUrl?: string | null; // Optional at creation, but will be normalized to null
   themeAccent?: string | null; // Optional at creation, but will be normalized to null
   themePreset?: string | null; // Optional at creation, but will be normalized to null
-  openToWork?: boolean; // Optional at creation, but will be normalized to false
-  tabsEnabledPc?: boolean; // Optional at creation, but will be normalized to true
-  tabsEnabledMobile?: boolean; // Optional at creation, but will be normalized to true
+  openToWork?: boolean; // Optional at creation, but will be normalized to true
+  tabsEnabledPc?: boolean; // Optional at creation, but will be normalized to DEFAULT_TABS_ENABLED
+  tabsEnabledMobile?: boolean; // Optional at creation, but will be normalized to DEFAULT_TABS_ENABLED
   location?: string | null; // Optional at creation, but will be normalized to null
   persona?: string | null; // Optional at creation, but will be normalized to null
+  personaOther?: string | null; // Optional at creation, but will be normalized to null
   agentDisclosureLevel?: AgentDisclosureLevel; // Optional at creation; defaults to the strictest level
   agentBlockedTerms?: string[]; // Optional at creation, but will be normalized to []
   emailVerifiedAt?: Date | null; // Optional at creation, but will be normalized to null
@@ -101,6 +113,7 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
   public tabsEnabledMobile: boolean; // Always boolean, never undefined
   public location: string | null; // Always null, never undefined
   public persona: string | null; // Always null, never undefined
+  public personaOther: string | null; // Always null, never undefined
   public agentDisclosureLevel: AgentDisclosureLevel; // Always a level, never undefined
   public agentBlockedTerms: string[]; // Always an array, never undefined
   public emailVerifiedAt: Date | null; // Always null, never undefined
@@ -119,13 +132,33 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     this.bannerImageUrl = props.bannerImageUrl ?? null;
     this.themeAccent = props.themeAccent ?? null;
     this.themePreset = props.themePreset ?? null;
-    this.openToWork = props.openToWork ?? false;
-    // Defaults to true, not false: an absent value means "this account was made
-    // before the columns existed", and those profiles had a tab strip.
-    this.tabsEnabledPc = props.tabsEnabledPc ?? true;
-    this.tabsEnabledMobile = props.tabsEnabledMobile ?? true;
+    /**
+     * Defaults to TRUE, not false.
+     *
+     * `/resumes/search` gates every result on `users.open_to_work` — it is the
+     * authorization boundary for candidate discovery. While this normalised to
+     * `false`, a developer who signed up and built a complete resume was
+     * invisible to every recruiter search until they happened to find the
+     * "Open to work" toggle, and the failure was silent: the API answered 200
+     * with an empty `candidates` array, indistinguishable from "no matches".
+     *
+     * So a NEW account is discoverable by default and opts out deliberately.
+     * Existing rows are NOT affected: every repository maps `open_to_work` from
+     * the database explicitly, so an account that turned the switch off keeps
+     * it off — this branch is only reached when nobody stated a value at all.
+     */
+    this.openToWork = props.openToWork ?? true;
+    // A NEW account starts minimal — photo, name and links only — so an absent
+    // flag resolves to `DEFAULT_TABS_ENABLED` (false). This does NOT reach
+    // existing accounts: `tabs_enabled_pc` / `tabs_enabled_mobile` are NOT NULL
+    // and every repository read passes the stored column straight through, so
+    // the value is never absent for a row that already exists. The only callers
+    // that omit it are the ones minting a brand-new user.
+    this.tabsEnabledPc = props.tabsEnabledPc ?? DEFAULT_TABS_ENABLED;
+    this.tabsEnabledMobile = props.tabsEnabledMobile ?? DEFAULT_TABS_ENABLED;
     this.location = props.location ?? null;
     this.persona = props.persona ?? null;
+    this.personaOther = props.personaOther ?? null;
     // A user who never opens the settings screen must not leak an employer, so
     // an absent level resolves to the strictest one rather than "unset".
     this.agentDisclosureLevel =
@@ -213,6 +246,18 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
     this.updateTimestamp();
   }
 
+  /**
+   * The user's own words for their role. Only meaningful while `persona` is
+   * `"other"` — every other persona has a translated label of its own, so a
+   * label left over from a previous "other" would render instead of it. The
+   * invariant is enforced in one place, `UpdateProfileUseCase`, which clears
+   * this whenever persona leaves "other".
+   */
+  updatePersonaOther(personaOther: string | null) {
+    this.personaOther = personaOther;
+    this.updateTimestamp();
+  }
+
   updateDescription(description: string | null) {
     this.description = description;
     this.updateTimestamp();
@@ -274,6 +319,7 @@ export class UserEntity extends BaseEntity<UserEntityProps> {
       tabsEnabledMobile: this.tabsEnabledMobile,
       location: this.location,
       persona: this.persona,
+      personaOther: this.personaOther,
       googleId: this.googleId,
       emailVerified: this.isEmailVerified(),
       createdAt: this.createdAt,

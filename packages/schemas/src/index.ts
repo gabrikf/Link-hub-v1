@@ -19,6 +19,10 @@ export * from "./links/index.js";
 export * from "./posts/index.js";
 export * from "./profile-blocks/index.js";
 export * from "./profile/index.js";
+// The names nobody may register, because `/:username` is now the ONLY public
+// profile URL and every top-level path is either a route or a profile. Shared
+// so the api rejection and the browser's message come from one list.
+export * from "./reserved-usernames/index.js";
 // Per-user interface preferences (UI language + light/dark). Deliberately NOT
 // part of ./profile: that module's `profileSchema` is served publicly at
 // /profile/:username, and these are private.

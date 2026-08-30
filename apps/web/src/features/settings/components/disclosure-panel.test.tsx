@@ -1,7 +1,11 @@
-import type { AgentPolicy } from "@repo/schemas";
-import { render, screen, within } from "@testing-library/react";
+import { AGENT_DISCLOSURE_LEVELS, type AgentPolicy } from "@repo/schemas";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import i18next from "i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import enUS from "../../../i18n/locales/en-US.json";
+import esES from "../../../i18n/locales/es-ES.json";
+import ptBR from "../../../i18n/locales/pt-BR.json";
 
 const updatePolicyMutate = vi.fn();
 const updateOverrideMutate = vi.fn();
@@ -67,7 +71,14 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // i18next is a singleton: a test that switches language leaks that choice
+  // into every test after it, in this file and the next. `act` because the
+  // components mounted by the test are still on screen when this runs — the
+  // language change re-renders them.
+  await act(async () => {
+    await i18next.changeLanguage("en-US");
+  });
   updatePolicyMutate.mockReset();
   updateOverrideMutate.mockReset();
   useAgentPolicy.mockReset();
@@ -99,17 +110,20 @@ describe("DisclosurePanel", () => {
     );
   });
 
-  it("renders each level's allows and blocks verbatim from the shared schema", () => {
+  it("renders each level's allows and blocks, translated", () => {
     const { container } = render(<DisclosurePanel />);
     const text = container.textContent ?? "";
 
-    // Straight out of AGENT_DISCLOSURE_LEVELS — this copy is the same text the
-    // agent is given, so the UI must not paraphrase it.
-    expect(text).toContain("Role titles and seniority");
-    expect(text).toContain("Employer and client names");
+    // The bullets arrive from the schema as wire values and are resolved
+    // through the catalogue; in en-US the catalogue text matches the English
+    // the MCP is given, which is what makes the two readable side by side.
+    expect(text).toContain(enUS.enum.disclosureBullet["role-titles"]);
     expect(text).toContain(
-      "Share what you did and how you did it, never who you did it for.",
+      enUS.enum.disclosureBullet["employer-and-client-names"],
     );
+    expect(text).toContain(enUS.enum.disclosureLevelDescription.summary);
+    // No raw key leaked through a missing leaf.
+    expect(text).not.toContain("enum.disclosureBullet.");
   });
 
   it("saves a new level when another card is picked", async () => {
@@ -278,6 +292,115 @@ describe("DisclosurePanel", () => {
     expect(
       screen.getByText(/Add work experience to your profile/i),
     ).toBeInTheDocument();
+  });
+
+  /*
+   * The keys this panel builds are template literals — `t(\`enum.disclosureBullet.${id}\`)`
+   * — and `scripts/guardrails/i18n-raw-strings.mjs` cannot see through those.
+   * Adding an eighth bullet to `summary` without three translations would ship
+   * a raw key onto a privacy screen and no guardrail would say a word. These
+   * tests are the only thing standing there, so they enumerate the enum rather
+   * than sampling it.
+   */
+  describe("every level and every bullet resolves in all three locales", () => {
+    // All three files share a shape, so one type covers them and a leaf missing
+    // from pt-BR or es-ES is a compile error before it is a test failure.
+    const CATALOGUES: Record<string, typeof enUS> = {
+      "en-US": enUS,
+      "pt-BR": ptBR,
+      "es-ES": esES,
+    };
+
+    const LEVEL_VALUES = AGENT_DISCLOSURE_LEVELS.map((level) => level.value);
+    const BULLET_IDS = [
+      ...new Set(
+        AGENT_DISCLOSURE_LEVELS.flatMap((level) => [
+          ...level.allowIds,
+          ...level.blockIds,
+        ]),
+      ),
+    ];
+
+    it("enumerates every level the schema defines", () => {
+      // Guards the guard: a level added to the schema would widen the loops
+      // below silently, and this is the line that makes someone look.
+      expect(LEVEL_VALUES).toEqual(["summary", "detailed", "full"]);
+    });
+
+    for (const [language, catalogue] of Object.entries(CATALOGUES)) {
+      it(`translates every level name and description in ${language}`, () => {
+        for (const value of LEVEL_VALUES) {
+          expect(
+            catalogue.enum.disclosureLevel[value],
+            `enum.disclosureLevel.${value} in ${language}`,
+          ).toBeTruthy();
+          expect(
+            catalogue.enum.disclosureLevelDescription[value],
+            `enum.disclosureLevelDescription.${value} in ${language}`,
+          ).toBeTruthy();
+        }
+      });
+
+      it(`translates every allow/block bullet in ${language}`, () => {
+        for (const id of BULLET_IDS) {
+          expect(
+            catalogue.enum.disclosureBullet[id],
+            `enum.disclosureBullet.${id} in ${language}`,
+          ).toBeTruthy();
+        }
+      });
+    }
+
+    it("gives pt-BR its own words, not the English fallback", async () => {
+      await act(async () => {
+        await i18next.changeLanguage("pt-BR");
+      });
+      const { container } = render(<DisclosurePanel />);
+      const text = container.textContent ?? "";
+
+      for (const level of AGENT_DISCLOSURE_LEVELS) {
+        expect(text).toContain(ptBR.enum.disclosureLevelDescription[level.value]);
+
+        for (const id of [...level.allowIds, ...level.blockIds]) {
+          expect(text, `bullet ${id}`).toContain(
+            ptBR.enum.disclosureBullet[id],
+          );
+        }
+
+        // The English the MCP is handed must never reach a Portuguese screen.
+        expect(text).not.toContain(level.shortDescription);
+        for (const english of [...level.allows, ...level.blocks]) {
+          expect(text, `English bullet "${english}" leaked`).not.toContain(
+            english,
+          );
+        }
+      }
+    });
+
+    it("gives es-ES its own words, not the English fallback", async () => {
+      await act(async () => {
+        await i18next.changeLanguage("es-ES");
+      });
+      const { container } = render(<DisclosurePanel />);
+      const text = container.textContent ?? "";
+
+      for (const level of AGENT_DISCLOSURE_LEVELS) {
+        expect(text).toContain(esES.enum.disclosureLevelDescription[level.value]);
+
+        for (const id of [...level.allowIds, ...level.blockIds]) {
+          expect(text, `bullet ${id}`).toContain(
+            esES.enum.disclosureBullet[id],
+          );
+        }
+
+        expect(text).not.toContain(level.shortDescription);
+        for (const english of [...level.allows, ...level.blocks]) {
+          expect(text, `English bullet "${english}" leaked`).not.toContain(
+            english,
+          );
+        }
+      }
+    });
   });
 
   it("surfaces a load failure instead of rendering a misleading empty policy", () => {

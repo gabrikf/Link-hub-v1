@@ -320,9 +320,36 @@ export type BlockPosition = z.infer<typeof blockPositionSchema>;
 export const DEFAULT_TAB_TITLE = "Main";
 
 /**
- * Canonical starting layout for a freshly-seeded viewport: header pinned across
- * all tabs, then links/resume/work/posts stacked full-width in the default tab.
+ * Whether a BRAND-NEW account starts with its tab strip on, per viewport.
+ *
+ * `false`: a new profile publishes only its always-visible zone — the photo,
+ * the name and the links — and nothing else. The resume, work history and posts
+ * blocks are still seeded into the default tab (see
+ * {@link DEFAULT_BUILTIN_BLOCKS}), fully arranged and ready; they simply are not
+ * on the public page until the owner flips "Show tabs" on, at which point they
+ * appear with no further setup.
+ *
+ * This is the NEW-ACCOUNT default only. It is deliberately NOT the value an
+ * absent flag resolves to on an existing row: accounts that predate the columns
+ * had a tab strip, and reading `false` for them would take content off profiles
+ * their owners never touched.
+ */
+export const DEFAULT_TABS_ENABLED = false;
+
+/**
+ * Canonical starting layout for a freshly-seeded viewport.
+ *
+ * A new profile starts MINIMAL: the always-visible zone holds the header (photo
+ * + name) and the links, and that is the whole published page, because
+ * {@link DEFAULT_TABS_ENABLED} is false. Resume, work history and posts are
+ * pre-placed in the default tab so that flipping "Show tabs" on reveals a
+ * finished profile rather than an empty grid — nothing to arrange, nothing to
+ * add.
+ *
  * `gridW` is filled in by the seeder using GRID_COLUMNS[viewport].
+ *
+ * The two zones have INDEPENDENT y-coordinates — they are rendered as separate
+ * grids — so the pinned pair stacks 0/4 and the tab trio re-bases from 0.
  *
  * `posts` is the one non-builtin kind here. It is seeded by default because a
  * candidate's published posts — especially the commit summaries written by the
@@ -338,14 +365,16 @@ export const DEFAULT_BUILTIN_BLOCKS: {
   /** Seeded block config; `null` for built-ins, which take no config. */
   config?: CustomBlockConfig | null;
 }[] = [
+  // Always-visible zone — the entire published profile of a new account.
   { kind: "header", pinnedAllTabs: true, gridY: 0, gridH: 4 },
-  { kind: "links", pinnedAllTabs: false, gridY: 0, gridH: 4 },
-  { kind: "resume", pinnedAllTabs: false, gridY: 4, gridH: 6 },
-  { kind: "work_experiences", pinnedAllTabs: false, gridY: 10, gridH: 6 },
+  { kind: "links", pinnedAllTabs: true, gridY: 4, gridH: 4 },
+  // Default tab — pre-arranged, revealed by the "Show tabs" switch.
+  { kind: "resume", pinnedAllTabs: false, gridY: 0, gridH: 6 },
+  { kind: "work_experiences", pinnedAllTabs: false, gridY: 6, gridH: 6 },
   {
     kind: "posts",
     pinnedAllTabs: false,
-    gridY: 16,
+    gridY: 12,
     gridH: 6,
     config: { title: "Posts", limit: 5, layout: "list" },
   },

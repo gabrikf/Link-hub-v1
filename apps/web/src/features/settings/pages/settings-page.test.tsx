@@ -168,6 +168,31 @@ describe("SettingsPage automatic posts section", () => {
     expect(screen.getByTestId("how-it-works")).toBeInTheDocument();
   });
 
+  it("keeps the header action row mobile-safe instead of forcing an overflow (regression)", () => {
+    // Bug: the row wrapping "How this works" and "Add source" carried an
+    // unconditional `shrink-0`. That pinned it at its two-button intrinsic
+    // width regardless of viewport, so on a 375px phone "Add source"
+    // overflowed past the card's right edge instead of wrapping. The fix
+    // (mirrored from `connections-panel.tsx`'s action row) is `w-full
+    // flex-wrap ... sm:w-auto sm:shrink-0`: full width and free to wrap under
+    // `sm`, pinned to its own width and right-aligned from `sm` up.
+    renderWithTokens();
+
+    const addSourceButton = screen.getByRole("button", { name: /Add source/i });
+    const howThisWorksButton = screen.getByRole("button", {
+      name: /How this works/i,
+    });
+    const buttonRow = addSourceButton.parentElement;
+    expect(buttonRow).not.toBeNull();
+    expect(buttonRow?.contains(howThisWorksButton)).toBe(true);
+
+    const classes = buttonRow!.className.split(/\s+/).filter(Boolean);
+    expect(classes).not.toContain("shrink-0");
+    expect(classes).toContain("w-full");
+    expect(classes).toContain("flex-wrap");
+    expect(classes).toContain("sm:shrink-0");
+  });
+
   it("demotes the manual MCP panel into a collapsed disclosure", () => {
     const { container } = renderWithTokens();
 

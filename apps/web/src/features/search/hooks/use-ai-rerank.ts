@@ -41,6 +41,28 @@ export interface RerankOutcome {
   reason: string | null;
 }
 
+/**
+ * The outcome when the recruiter has AI Match switched OFF.
+ *
+ * Deliberately `degraded: false`. Off-by-choice and broken-by-failure produce
+ * the same candidate list, but they are not the same state: one is a setting
+ * the recruiter can see and flip, the other is a fault they can do nothing
+ * about. Collapsing them would put a warning banner on a screen that is working
+ * exactly as asked.
+ *
+ * `aiScore: null` is still the honest value — there is no match percentage, and
+ * the raw cosine is not one.
+ */
+export function unrankedOutcome(
+  candidates: RecruiterSearchResult[],
+): RerankOutcome {
+  return {
+    candidates: candidates.map((candidate) => ({ ...candidate, aiScore: null })),
+    degraded: false,
+    reason: null,
+  };
+}
+
 export function useAiRerank() {
   const [isModelLoading, setIsModelLoading] = useState(false);
 

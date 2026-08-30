@@ -140,9 +140,14 @@ async function visibleUsernames(page: Page): Promise<string[]> {
   const hrefs = await links.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute("href") ?? ""),
   );
+  // A candidate's profile link is now the SHORT url — `/<username>`, one
+  // segment, because `/profile/<username>` was removed. The old
+  // `startsWith("/profile/")` filter would silently return an empty list and
+  // every assertion built on it would pass vacuously, so this filters on the
+  // shape instead: a single non-empty segment that is not an app route.
   return hrefs
-    .filter((href) => href.startsWith("/profile/"))
-    .map((href) => href.replace("/profile/", ""));
+    .filter((href) => /^\/[^/]+$/.test(href) && !href.startsWith("/dashboard"))
+    .map((href) => decodeURIComponent(href.slice(1)));
 }
 
 /**
@@ -238,8 +243,20 @@ recruiterTest.describe("recruiter semantic search", () => {
 
       const results = page.getByRole("article");
       await expect(results.first()).toBeVisible({ timeout: SEARCH_TIMEOUT_MS });
+      /*
+       * The on-device re-rank is OFF by default on a phone — it is a ~1.4MB
+       * model plus a TF.js pass, which heats and stalls the handset — and ON by
+       * default on a desktop. So the results header is form-factor specific:
+       * "re-ranked locally" only when the model actually ran. Asserting the
+       * desktop wording on both would fail a phone for behaving correctly.
+       */
+      const isPhone = (page.viewportSize()?.width ?? 0) < 768;
       await expect(
-        page.getByText(/\d+ candidates re-ranked locally/),
+        page.getByText(
+          isPhone
+            ? /\d+ candidates? in search order/
+            : /\d+ candidates re-ranked locally/,
+        ),
       ).toBeVisible({ timeout: SEARCH_TIMEOUT_MS });
 
       const renderedCount = await results.count();
@@ -256,7 +273,19 @@ recruiterTest.describe("recruiter semantic search", () => {
       ).toHaveCount(0);
 
       const scores = await visibleMatchScores(page);
-      expect(scores.length, "cards showing an AI Match %").toBe(renderedCount);
+      if (isPhone) {
+        /*
+         * No model ran, so there is no score to show — and showing "—" would
+         * read as a FAILED rank rather than a deliberate one. The phone must
+         * show a clean, unscored list.
+         */
+        expect(
+          scores.length,
+          "a phone must not show AI Match % — the model is off by default",
+        ).toBe(0);
+      } else {
+        expect(scores.length, "cards showing an AI Match %").toBe(renderedCount);
+      }
       for (const score of scores) {
         expect(score).toBeGreaterThanOrEqual(0);
         expect(score).toBeLessThanOrEqual(100);
@@ -300,7 +329,7 @@ recruiterTest.describe("recruiter semantic search", () => {
       expect(topUsername, "top candidate username").toBeTruthy();
 
       await results.first().getByRole("link").first().click();
-      await expect(page).toHaveURL(new RegExp(`/profile/${topUsername}$`), {
+      await expect(page).toHaveURL(new RegExp(`/${topUsername}$`), {
         timeout: 20_000,
       });
       await expect(page.getByRole("heading").first()).toBeVisible();

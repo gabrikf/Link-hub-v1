@@ -3,7 +3,7 @@
  *
  *   npm run visual:run -- scripts/visual/scenarios/i18n-locales.scenario.mjs
  *
- * Why this screen: `/profile/:username` is the page strangers open, it needs no
+ * Why this screen: `/:username` is the page strangers open, it needs no
  * session, and it renders the widest mix of shared vocabulary — headings, empty
  * states, badges, work history, resume details. If a key is missing anywhere,
  * it is most likely to be visible here and most expensive to leave broken.
@@ -25,7 +25,7 @@
 export const requiresAuth = false;
 
 const USERNAME = process.env.VISUAL_PROFILE_USERNAME || "seed-react-frontend-003";
-const PROFILE = `/profile/${USERNAME}`;
+const PROFILE = `/${USERNAME}`;
 
 /** The three locales, and the `<html lang>` each one must produce. */
 const LOCALES = ["en-US", "pt-BR", "es-ES"];

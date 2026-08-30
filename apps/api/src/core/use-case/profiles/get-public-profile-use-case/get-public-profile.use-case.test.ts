@@ -75,7 +75,17 @@ describe("GetPublicProfileUseCase", () => {
     expect(result.links[0].id).toBe(publicLink.id);
   });
 
-  it("returns a default layout with a pinned header for each viewport when none is configured", async () => {
+  /*
+   * A brand-new account starts MINIMAL: `DEFAULT_TABS_ENABLED` is false, so the
+   * public payload is the always-visible zone and nothing else — the header
+   * (photo + name) and the links. The resume/work/posts blocks ARE seeded into
+   * the default tab, they are simply not published until the owner turns tabs
+   * on, which is why `tabs` is empty here rather than one tab deep.
+   *
+   * This assertion used to read "one tab, plus a pinned header". It encoded the
+   * old default, where a new profile published everything on day one.
+   */
+  it("publishes only the always-visible zone for a brand-new profile", async () => {
     await makeUser();
 
     const result = await sut.execute("public-user");
@@ -83,11 +93,14 @@ describe("GetPublicProfileUseCase", () => {
     for (const viewport of ["pc", "mobile"] as const) {
       const layout = result.layout[viewport];
 
-      expect(layout.tabs).toHaveLength(1);
-      const header = layout.blocks.find((block) => block.kind === "header");
-      expect(header).toBeDefined();
-      expect(header?.tabId).toBeNull();
-      expect(header?.pinnedAllTabs).toBe(true);
+      expect(layout.tabsEnabled).toBe(false);
+      expect(layout.tabs).toEqual([]);
+      expect(layout.blocks.map((block) => block.kind)).toEqual([
+        "header",
+        "links",
+      ]);
+      expect(layout.blocks.every((block) => block.pinnedAllTabs)).toBe(true);
+      expect(layout.blocks.every((block) => block.tabId === null)).toBe(true);
       expect(layout.blocks.every((block) => block.isVisible)).toBe(true);
     }
   });

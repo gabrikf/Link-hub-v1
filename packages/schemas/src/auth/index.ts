@@ -1,10 +1,25 @@
 import { z } from "zod/v4";
 import { personaSchema } from "../profile/index.js";
+import {
+  isReservedUsername,
+  RESERVED_USERNAME_MESSAGE,
+} from "../reserved-usernames/index.js";
 
 // Input schema for creating a user
 export const createUserSchemaInput = z.object({
   email: z.string().email("Invalid email format"),
-  login: z.string().min(1, "Login is required"),
+  /**
+   * `login` is the public profile URL. Since `/:username` replaced
+   * `/profile/:username`, a login that collides with an application route
+   * produces an account whose profile can never be opened — the static route
+   * wins forever. The refinement is the only moment that can be stopped, and
+   * it lives on the shared schema so `POST /register` and the browser's
+   * register form reject the same set of names.
+   */
+  login: z
+    .string()
+    .min(1, "Login is required")
+    .refine((value) => !isReservedUsername(value), RESERVED_USERNAME_MESSAGE),
   name: z.string().min(1, "Name is required"),
   password: z
     .string()

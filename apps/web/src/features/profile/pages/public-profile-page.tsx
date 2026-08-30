@@ -4,15 +4,14 @@ import { Link, useParams } from "@tanstack/react-router";
 import axios from "axios";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiLogIn } from "react-icons/fi";
 import {
   fetchPublicProfile,
   fetchPublicResume,
   fetchPublicWorkExperiences,
 } from "../../../lib/auth-api";
 import { reportError, reportHandled } from "../../../lib/report-error";
-import { useUserInfoStore } from "../../../lib/user-info-store";
 import {
+  MOBILE_VIEWPORT_QUERY,
   pickViewport,
   resolveViewportLayout,
 } from "../../profile-layout/grid-utils";
@@ -24,21 +23,18 @@ import {
 } from "../components/profile-theme";
 import { PublicProfileSkeleton } from "../components/public-profile-skeleton";
 
-const MOBILE_QUERY = "(max-width: 1023px)";
-
 export function PublicProfilePage() {
   const { t } = useTranslation();
-  const { username } = useParams({ from: "/profile/$username" });
-  const userInfo = useUserInfoStore((state) => state.userInfo);
+  const { username } = useParams({ from: "/$username" });
 
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined"
-      ? window.matchMedia(MOBILE_QUERY).matches
+      ? window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
       : false,
   );
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia(MOBILE_QUERY);
+    const mediaQuery = window.matchMedia(MOBILE_VIEWPORT_QUERY);
     const handleChange = (event: MediaQueryListEvent) =>
       setIsMobile(event.matches);
     setIsMobile(mediaQuery.matches);
@@ -159,10 +155,11 @@ export function PublicProfilePage() {
 
   const theme = getProfileThemeProps(profile ?? {});
   const backgroundImage = safeImageUrl(profile?.backgroundImageUrl);
+  // `/${username}` is the short URL — `/profile/:username` was removed. The
+  // window branch is what actually ships (it carries the origin); the fallback
+  // only exists for a non-browser render and must not name the dead path.
   const shareUrl =
-    typeof window !== "undefined"
-      ? window.location.href
-      : `/profile/${username}`;
+    typeof window !== "undefined" ? window.location.href : `/${username}`;
 
   return (
     // The theme (`profile-root` + the `--profile-accent` presets) is applied
@@ -180,10 +177,27 @@ export function PublicProfilePage() {
     // No `overflow-hidden`: it turned any overflow into SILENT clipping (it is
     // why the clipped profile name produced no scrollbar). The two ambient
     // layers below carry their own `overflow-hidden` wrappers already.
+    //
+    // Horizontal padding NESTS on this page: this `<main>`, then the block
+    // stack below (`px-6`), then every block's own `p-4`. At 375px that was
+    // 16 + 24 + 16 = 56px of chrome PER SIDE (58 with the two hairline
+    // borders), leaving a 259px reading column inside a 375px phone — the text
+    // read as a compressed ribbon down the middle.
+    //
+    // Below `sm` the outer gutter shrinks to 8px: enough that the card's
+    // `rounded-3xl` corners and its border still read as a card floating on the
+    // page, and no more. `sm:px-4` restores the previous 16px from 640px up, so
+    // desktop is byte-for-byte what it was.
+    //
+    // Vertical: `pt-3` where this used to be `py-10`. `TopBarNav` is a `sticky
+    // top-0` bar with its own bottom border, so 40px of page above the card
+    // read as a gap between two things rather than as one page — the card now
+    // starts 12px under the header's rule and the profile is the first thing on
+    // screen. `pb-10` is the old bottom padding, unchanged.
     <main
       className={`${theme.className} relative mx-auto flex min-h-screen w-full ${
         viewport === "pc" ? "max-w-6xl" : "max-w-md"
-      } flex-col items-center gap-5 px-4 py-10`}
+      } flex-col items-center gap-5 px-2 pb-10 pt-3 sm:px-4`}
       style={theme.style}
     >
       {/* Optional full-bleed background image (behind the ambient blobs) */}
@@ -232,31 +246,15 @@ export function PublicProfilePage() {
       </div>
 
       {/*
-        `mt-3` clears the theme toggle, which is `fixed right-4 top-3 z-40` on
-        the VIEWPORT (App.tsx) while this pill is `self-end` in flow inside the
-        centred container above — so the two overlap at every width where the
-        container's right edge reaches the viewport gutter, and the toggle (on a
-        higher layer) ate the top 8px of the only sign-in CTA on the page. That
-        band is not phones-only: `MOBILE_QUERY` flips `max-w-md` <-> `max-w-6xl`
-        at 1024, which puts ordinary 1024-1152 laptops in it too, so the
-        reservation must NOT be breakpoint-gated.
+        The sign-in CTA lives in `TopBarNav` now, next to the language and theme
+        controls, as siblings in one flex row.
 
-        Vertical, not horizontal: the toggle's bottom edge is at y=48 (top-3 =
-        12 + h-9 = 36) and `py-10` on the container puts this pill's top at 40.
-        12px of top margin moves it to 52 — below the toggle at EVERY width,
-        with the pill still hugging the right edge, stacked under the toggle it
-        used to collide with. `TopBarNav` reserves `pr-28` for the same toggle,
-        but it renders nothing when signed out, so this page never inherits it.
+        It used to be an in-flow `self-end` pill right here, carrying an `mt-3`
+        whose only job was to duck under the `fixed right-4 top-3 z-40` toggle
+        cluster in `App.tsx` — a pixel guess against an element on a higher
+        layer that this page could neither see nor control. The cluster is gone,
+        so the duplicate pill and the margin that dodged it are gone with it.
       */}
-      {!userInfo ? (
-        <Link
-          to="/"
-          className="anim-fade-in mt-3 inline-flex items-center gap-2 self-end rounded-full border border-zinc-300 bg-white/70 px-3 py-2 text-sm shadow-sm backdrop-blur transition hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/70 dark:hover:bg-zinc-900"
-        >
-          <FiLogIn className="h-4 w-4" aria-hidden="true" />
-          {t("auth.loginTab")}
-        </Link>
-      ) : null}
 
       {/* `dark:to-zinc-950`: the dark gradient used to run zinc-900 -> zinc-900,
           i.e. two identical stops — a gradient that rendered as a flat fill. */}
@@ -265,14 +263,25 @@ export function PublicProfilePage() {
           <>
             <ProfileCover
               bannerImageUrl={profile.bannerImageUrl}
-              openToWork={profile.openToWork}
-              location={profile.location}
               persona={profile.persona}
+              personaOther={profile.personaOther}
               share={{ url: shareUrl, name: profile.name }}
             />
 
-            {/* Pull the block stack up so the centered avatar overlaps the cover. */}
-            <div className="-mt-14 px-6 pb-8 sm:px-8">
+            {/*
+              Pull the block stack up so the centered avatar overlaps the cover.
+
+              `px-1.5` below `sm` — the second of the three nested gutters (see
+              the note on `<main>`). Every block already carries its own `p-4`
+              and its own border, so this level only has to keep the blocks off
+              the card's inner edge; 6px does that. `sm:px-8` is the original
+              value from 640px up, so desktop spacing is unchanged. `pb-8` and
+              `-mt-14` are vertical and stay exactly as they were.
+
+              Total at 375px: 8 (main) + 1 (card border) + 6 (here) + 16 (block
+              padding) + 1 (block border) = 32px per side.
+            */}
+            <div className="-mt-14 px-1.5 pb-8 sm:px-8">
               <ProfileBlocks
                 layout={chosenLayout}
                 viewport={viewport}

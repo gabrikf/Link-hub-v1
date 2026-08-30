@@ -315,7 +315,12 @@ export function SettingsPage() {
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
+          {/* `w-full` under sm: two buttons cannot shrink, and `shrink-0` on a
+              flex item inside a 375px row pushed the whole page wider than the
+              viewport (see connections-panel.tsx for the same fix). Full width
+              lets them wrap inside the viewport; desktop keeps the old
+              right-aligned row. */}
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">
             <Button
               type="button"
               variant="ghost"

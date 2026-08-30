@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { CSSProperties } from "react";
 import type { ProfileResponse } from "@repo/schemas";
 
@@ -44,6 +45,37 @@ export const PERSONA_VALUES: ReadonlyArray<Persona> = [
   "devops",
   "other",
 ];
+
+/**
+ * The label to render for a profile's role.
+ *
+ * `persona` is a CLOSED enum of eight categories, which is right for a chip
+ * that has to be translated and searched on, and wrong for the physiotherapist
+ * whose only honest answer is "Other". `personaOther` is their own words, and
+ * it wins over the generic "Other" label whenever it is set.
+ *
+ * Takes `t` rather than calling `useTranslation` so it stays a pure function
+ * usable from a component, a memo or a test — and so this module keeps holding
+ * no user-visible English of its own.
+ */
+export function resolvePersonaLabel(
+  t: TFunction,
+  persona: Persona | null | undefined,
+  personaOther?: string | null,
+): string | null {
+  if (!persona) {
+    return null;
+  }
+
+  if (persona === "other") {
+    const custom = personaOther?.trim();
+    if (custom) {
+      return custom;
+    }
+  }
+
+  return t(`enum.persona.${persona}`);
+}
 
 export function accentForPreset(preset: ThemePreset | null): string {
   const match = THEME_PRESETS.find((p) => p.value === preset);

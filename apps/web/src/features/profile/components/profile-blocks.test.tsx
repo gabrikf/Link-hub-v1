@@ -292,3 +292,103 @@ describe("ProfileBlocks", () => {
     );
   });
 });
+
+/**
+ * Location moved OFF the cover chip and into the header block, after the
+ * description and before the links (round 3, item 6). What has to hold is the
+ * order, the mid-grey treatment, and that an absent location leaves nothing
+ * behind — the failure the merged chip had was a pill that took space even when
+ * it carried half a fact.
+ */
+describe("ProfileBlocks — the header block's location line", () => {
+  const headerAndLinks: ProfileLayout = {
+    tabsEnabled: false,
+    tabs: [{ id: "tab-1", title: "One", order: 0 }],
+    blocks: [
+      block({
+        id: "header",
+        kind: "header",
+        tabId: null,
+        pinnedAllTabs: true,
+        gridX: 0,
+        gridY: 0,
+        gridW: 12,
+      }),
+      block({
+        id: "links",
+        kind: "links",
+        tabId: null,
+        pinnedAllTabs: true,
+        gridX: 0,
+        gridY: 3,
+        gridW: 12,
+      }),
+    ],
+  };
+
+  const renderWithLocation = (location: string | null) =>
+    render(
+      <ProfileBlocks
+        layout={headerAndLinks}
+        viewport="pc"
+        profile={{ ...profile, location }}
+        links={links}
+        resume={null}
+        workExperiences={[]}
+      />,
+    );
+
+  it("renders the location after the description and before the links", () => {
+    renderWithLocation("Jaraguá do Sul, SC");
+
+    const line = screen.getByTestId("profile-location");
+    expect(line).toHaveTextContent("Jaraguá do Sul, SC");
+
+    const description = screen.getByText("Mathematician and first programmer.");
+    const link = screen.getByText("My Portfolio Link");
+
+    // `DOCUMENT_POSITION_FOLLOWING` — the location comes after the description
+    // and the first link comes after the location, in reading order.
+    expect(
+      description.compareDocumentPosition(line) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      line.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("names the field for a screen reader, since the pin icon is decorative", () => {
+    renderWithLocation("Berlin");
+
+    expect(screen.getByTestId("profile-location")).toHaveTextContent(
+      /Location\s*Berlin/,
+    );
+  });
+
+  /**
+   * Mid-grey, in both themes: not the near-black description colour and not so
+   * faint it drops under AA. `zinc-500` measures 4.83:1 on the white end of the
+   * card and 4.63:1 on the `zinc-50` end; `zinc-400` measures 6.91:1 on
+   * `zinc-900`. A future edit to `zinc-600` (too dark to read as metadata) or
+   * `zinc-400` in light mode (2.9:1, under AA) fails here.
+   */
+  it("uses a mid-grey with a dark-mode counterpart", () => {
+    renderWithLocation("Berlin");
+
+    const line = screen.getByTestId("profile-location");
+    expect(line).toHaveClass("text-zinc-500", "dark:text-zinc-400");
+  });
+
+  it("renders nothing at all when there is no location", () => {
+    renderWithLocation(null);
+
+    expect(screen.queryByTestId("profile-location")).not.toBeInTheDocument();
+  });
+
+  it("treats a whitespace-only location as no location", () => {
+    renderWithLocation("   ");
+
+    expect(screen.queryByTestId("profile-location")).not.toBeInTheDocument();
+  });
+});

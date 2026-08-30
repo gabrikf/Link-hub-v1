@@ -48,7 +48,23 @@ export const users = pgTable("users", {
   bannerImageUrl: text("banner_image_url"),
   themeAccent: text("theme_accent"),
   themePreset: text("theme_preset"),
-  openToWork: boolean("open_to_work").notNull().default(false),
+  /*
+   * Whether this account appears in recruiter search at all.
+   *
+   * DEFAULTS TO TRUE, and that default is load-bearing. The search repository
+   * applies `eq(users.openToWork, true)` unconditionally on every query, so
+   * while this defaulted to false a developer could sign up, import a resume
+   * and be the single best match in the database while staying invisible to
+   * every recruiter — the API answering 200 with an empty list, which reads
+   * exactly like "no matches". Signing up to a profile platform IS the intent
+   * to be found, and the profile is already public either way, so being
+   * findable is the honest default and opting out stays one toggle away.
+   *
+   * Changing this default does NOT touch existing rows: Postgres applies a
+   * column default only to inserts that omit the column, so anyone who
+   * deliberately turned this off stays off.
+   */
+  openToWork: boolean("open_to_work").notNull().default(true),
   /*
    * "Simple mode" switch for the public profile: false renders no tab strip,
    * only the first tab's blocks plus pinned ones.
@@ -64,10 +80,31 @@ export const users = pgTable("users", {
    * rather than staying private. Both default to true so every account that
    * existed before these columns keeps exactly the behaviour it had.
    */
-  tabsEnabledPc: boolean("tabs_enabled_pc").notNull().default(true),
-  tabsEnabledMobile: boolean("tabs_enabled_mobile").notNull().default(true),
+  /*
+   * DEFAULT FALSE for new accounts: a brand-new profile should read as a
+   * finished, deliberate page — photo, name and links — not as an empty tab
+   * strip the owner has not filled in yet. The resume/work/posts blocks are
+   * still seeded into the "Main" tab, so flipping this on reveals a populated
+   * profile with no further setup.
+   *
+   * Existing rows keep whatever they hold: a column default only applies to
+   * inserts that omit the column, so every account created while this
+   * defaulted to true keeps its tabs exactly as they are.
+   */
+  tabsEnabledPc: boolean("tabs_enabled_pc").notNull().default(false),
+  tabsEnabledMobile: boolean("tabs_enabled_mobile").notNull().default(false),
   location: text("location"),
   persona: text("persona"),
+  /*
+   * The user's own words for their role, used ONLY when `persona` is "other".
+   *
+   * Deliberately a separate nullable column rather than widening `persona`
+   * into free text: `personaSchema` stays a closed enum, so a typo or a junk
+   * value still fails the contract at the boundary instead of reaching the
+   * profile as a silent runtime surprise. The enum says WHICH bucket; this
+   * says what to print when that bucket is "other" (e.g. "Fisioterapeuta").
+   */
+  personaOther: text("persona_other"),
   // How much an agent acting for this user may reveal about their work history.
   // See `agentDisclosureLevelSchema` in @repo/schemas. Defaults to the most
   // restrictive level so an untouched account never leaks an employer's name.

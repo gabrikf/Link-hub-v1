@@ -1,5 +1,6 @@
 /**
- * Reference scenario — the public profile (`/profile/:username`).
+ * Reference scenario — the public profile (`/:username`, the short URL that
+ * replaced `/profile/:username`).
  *
  * This is the page the whole product exists to produce: the thing a developer
  * shares and a stranger opens. It is also the only major screen with NO session,
@@ -30,11 +31,14 @@ export const requiresAuth = false;
  * then export VISUAL_PROFILE_USERNAME=<that login>.
  */
 const USERNAME = process.env.VISUAL_PROFILE_USERNAME || "seed-react-frontend-003";
-const PROFILE = `/profile/${USERNAME}`;
+const PROFILE = `/${USERNAME}`;
 
 /**
  * The profile fetch. Matching on the path rather than the full origin keeps the
  * scenario working whether VITE_API_URL points at localhost or a preview API.
+ *
+ * Still `/profile/...`: this is the API route, which did NOT move. Only the
+ * page URL became `/:username`.
  */
 const PROFILE_API = `**/profile/${USERNAME}**`;
 
@@ -109,7 +113,7 @@ export default async function publicProfile({
   await unmock(PROFILE_API);
 
   /* ── NOT FOUND — a username nobody owns ─────────────────────────────── */
-  await goto("/profile/definitely-not-a-real-user-000");
+  await goto("/definitely-not-a-real-user-000");
   // `isVisible()` means "in the DOM with a box", NOT "in the viewport", so a
   // state below the fold needs scrolling into view or the screenshot is
   // evidence of nothing.

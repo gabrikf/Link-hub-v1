@@ -17,6 +17,11 @@ export interface IUpdateProfileInput {
   openToWork?: boolean;
   location?: string | null;
   persona?: string | null;
+  /**
+   * Free-text role label, only meaningful while `persona` is "other".
+   * `undefined` leaves it alone, `null` clears it.
+   */
+  personaOther?: string | null;
 }
 
 export class UpdateProfileUseCase {
@@ -81,6 +86,24 @@ export class UpdateProfileUseCase {
       user.updatePersona(input.persona ?? null);
     }
 
+    if (typeof input.personaOther !== "undefined") {
+      user.updatePersonaOther(input.personaOther ?? null);
+    }
+
+    /**
+     * One invariant, enforced server-side rather than trusted from the client:
+     * the custom label belongs to `persona === "other"` and nothing else.
+     *
+     * Without this, a user who typed "Fisioterapeuta", then switched to
+     * "Developer", would keep a dangling label in the row — invisible on
+     * screen (the enum label wins) until they picked "Other" again months
+     * later and their old title reappeared out of nowhere. Clearing it here
+     * means the stored row can never disagree with what is rendered.
+     */
+    if (user.persona !== "other") {
+      user.updatePersonaOther(null);
+    }
+
     user.updateTimestamp();
 
     const updatedUser = await this.usersRepository.update(user);
@@ -98,6 +121,7 @@ export class UpdateProfileUseCase {
       openToWork: updatedUser.openToWork,
       location: updatedUser.location,
       persona: updatedUser.persona,
+      personaOther: updatedUser.personaOther,
       email: updatedUser.email,
     };
   }

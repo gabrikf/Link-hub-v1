@@ -319,7 +319,10 @@ function ConnectionRowSkeleton() {
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-2">
+        {/* Mirrors the real action row's mobile-safe pattern (see
+            `ConnectionRow` below): `shrink-0` alone let this skeleton
+            overflow a 375px card while the query was still loading. */}
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">
           <Skeleton height={36} width={80} className="rounded-md" />
           <Skeleton height={36} width={124} className="rounded-md" />
         </div>

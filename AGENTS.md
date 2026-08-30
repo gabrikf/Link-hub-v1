@@ -173,6 +173,16 @@ sub-second. The `i18n` skill carries the deeper reasoning.
   action that should have written a row, query the table by the correlation id
   you control. "The endpoint returned 201" is not evidence. See
   `docs/mcp-servers.md`.
+- **postgres-prod** — the same server pointed at **production**, off unless
+  `CRAFTHUB_PROD_DATABASE_URI` is exported and `scripts/prod-db-tunnel.sh` is
+  running. Restricted mode blocks writes, not reads, and every row you select
+  leaves the building inside a context window. Query the one id you are
+  investigating; never browse a user table. Reproducible on dev means use dev.
+- **grafana** — Grafana's hosted remote server, for evidence about the *deployed*
+  app: dashboards, data-source queries, alerts, incidents. Read and query first;
+  writing (editing dashboards, silencing alerts) changes what on-call sees, so do
+  it only when asked. OAuth — authenticate once via `/mcp` in an interactive
+  session; never put a service-account token in `.mcp.json`.
 
 ---
 

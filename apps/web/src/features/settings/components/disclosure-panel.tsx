@@ -43,13 +43,18 @@ type LevelCardProps = {
 };
 
 /**
- * One selectable level. `allows` / `blocks` are rendered verbatim from the
- * shared schema rather than restated here — this copy is the same text injected
- * into the agent's tool descriptions, and two versions of it would drift.
+ * One selectable level.
+ *
+ * The bullets come from the shared schema as WIRE VALUES (`allowIds` /
+ * `blockIds`) and are translated here. The schema's sibling `allows` / `blocks`
+ * are the same list in English, written for the agent's tool descriptions — the
+ * two cannot drift because one is derived from the other, and rendering the
+ * English half would put untranslated prose on a Portuguese screen.
  */
 function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
   const { t } = useTranslation();
   const descriptionId = `disclosure-level-${level.value}-description`;
+  const levelName = t(`enum.disclosureLevel.${level.value}`);
 
   return (
     <button
@@ -58,7 +63,7 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
       aria-checked={isSelected}
       // The card body quotes the other levels by name ("Everything in Summary,
       // plus…"), so without an explicit label the accessible names collide.
-      aria-label={level.label}
+      aria-label={levelName}
       aria-describedby={descriptionId}
       disabled={isSaving}
       onClick={onSelect}
@@ -83,7 +88,7 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
           {isSelected ? <FiCheck className="h-2.5 w-2.5" /> : null}
         </span>
         <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-          {level.label}
+          {levelName}
         </span>
         {level.value === "summary" ? (
           <span
@@ -98,23 +103,23 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
         id={descriptionId}
         className="mt-2 text-xs text-zinc-600 dark:text-zinc-400"
       >
-        {level.shortDescription}
+        {t(`enum.disclosureLevelDescription.${level.value}`)}
       </span>
 
       <span className="mt-3 block text-xs font-semibold text-emerald-700 dark:text-emerald-300">
         {t("settings.disclosure.mayShare")}
       </span>
       <ul className="mt-1 space-y-1">
-        {level.allows.map((item) => (
+        {level.allowIds.map((id) => (
           <li
-            key={item}
+            key={id}
             className="flex gap-1.5 text-xs text-zinc-600 dark:text-zinc-400"
           >
             <FiCheck
               className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"
               aria-hidden="true"
             />
-            <span>{item}</span>
+            <span>{t(`enum.disclosureBullet.${id}`)}</span>
           </li>
         ))}
       </ul>
@@ -122,18 +127,18 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
       <span className="mt-3 block text-xs font-semibold text-red-700 dark:text-red-300">
         {t("settings.disclosure.neverShared")}
       </span>
-      {level.blocks.length > 0 ? (
+      {level.blockIds.length > 0 ? (
         <ul className="mt-1 space-y-1">
-          {level.blocks.map((item) => (
+          {level.blockIds.map((id) => (
             <li
-              key={item}
+              key={id}
               className="flex gap-1.5 text-xs text-zinc-600 dark:text-zinc-400"
             >
               <FiX
                 className="mt-0.5 h-3 w-3 shrink-0 text-red-600 dark:text-red-400"
                 aria-hidden="true"
               />
-              <span>{item}</span>
+              <span>{t(`enum.disclosureBullet.${id}`)}</span>
             </li>
           ))}
         </ul>
@@ -408,7 +413,7 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
                       </option>
                       {AGENT_DISCLOSURE_LEVELS.map((level) => (
                         <option key={level.value} value={level.value}>
-                          {level.label}
+                          {t(`enum.disclosureLevel.${level.value}`)}
                         </option>
                       ))}
                     </select>

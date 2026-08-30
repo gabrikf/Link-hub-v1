@@ -41,6 +41,7 @@ export class GetPublicProfileUseCase {
       openToWork: user.openToWork,
       location: user.location,
       persona: user.persona,
+      personaOther: user.personaOther,
       links,
       layout: { pc, mobile },
     };

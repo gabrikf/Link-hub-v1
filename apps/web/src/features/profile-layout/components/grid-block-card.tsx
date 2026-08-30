@@ -6,7 +6,14 @@ import {
 import * as Switch from "@radix-ui/react-switch";
 import type { KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { FiEdit2, FiTrash2 } from "react-icons/fi";
+import {
+  FiChevronDown,
+  FiChevronUp,
+  FiEdit2,
+  FiMinus,
+  FiPlus,
+  FiTrash2,
+} from "react-icons/fi";
 import { FaGripLinesVertical } from "react-icons/fa6";
 import { Button } from "../../../shared-components/button";
 import { FOCUS_RING } from "../../../shared-components/surface";
@@ -30,6 +37,17 @@ type GridBlockCardProps = {
    * turning tabs back on brings the selector back unchanged.
    */
   tabsEnabled?: boolean;
+  /**
+   * Touch screen. Reveals the explicit move/resize buttons below.
+   *
+   * They exist because on a phone the alternatives are not reachable: the
+   * keyboard nudge needs a keyboard, and dragging is a gesture aimed at a grip
+   * that also has to compete with the page's own scrolling. A button that says
+   * "move this up" has none of those failure modes and is the control most
+   * people reach for anyway. They are hidden under a mouse, where the whole
+   * card already drags and the eight resize handles are precise.
+   */
+  showTouchControls?: boolean;
 };
 
 const isCustom = (block: ProfileBlock) =>
@@ -52,11 +70,20 @@ export function GridBlockCard({
   tabs,
   onMoveToTab,
   tabsEnabled = true,
+  showTouchControls = false,
 }: GridBlockCardProps) {
   const { t } = useTranslation();
   const meta = getBlockMeta(t)[block.kind];
   const custom = isCustom(block);
   const movableTabs = block.pinnedAllTabs || !tabsEnabled ? [] : (tabs ?? []);
+  /**
+   * 44px minimums for every control in the card once a finger is driving.
+   * A `min-*` rather than an `h-*` override: `size="icon"` already sets
+   * `h-9 w-9`, and two same-specificity utilities resolve by stylesheet order
+   * rather than by the order they appear in the attribute — a minimum cannot
+   * lose that race. 44px is the WCAG 2.5.8 target size.
+   */
+  const touchTargetClass = showTouchControls ? "min-h-11 min-w-11" : undefined;
 
   /**
    * Keyboard equivalent of drag and resize. react-grid-layout offers neither,
@@ -110,8 +137,15 @@ export function GridBlockCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
+          {/*
+            On a mouse this grip is decoration — the whole card drags. On a
+            touch screen it is THE drag surface (`.block-drag-handle`, see
+            `TOUCH_DRAG_CONFIG` in editor-grid), grown to a 44px target by the
+            coarse-pointer rules there, so the rest of the card is left free to
+            scroll the page under a finger.
+          */}
           <span
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400"
+            className="block-drag-handle inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400"
             aria-label={t("layout.dragBlock", { label: meta.label })}
             title={t("layout.dragTheCard")}
           >
@@ -132,6 +166,7 @@ export function GridBlockCard({
               variant="icon"
               size="icon"
               fullWidth={false}
+              className={touchTargetClass}
               aria-label={t("layout.editBlock", { label: meta.label })}
               onClick={() => onEdit(block)}
             >
@@ -142,6 +177,7 @@ export function GridBlockCard({
               variant="icon"
               size="icon"
               fullWidth={false}
+              className={touchTargetClass}
               aria-label={t("layout.deleteBlock", { label: meta.label })}
               shouldHaveConfirmation
               confirmationTitle={t("layout.deleteBlockTitle")}
@@ -155,6 +191,60 @@ export function GridBlockCard({
       </div>
 
       <div className="block-no-drag relative z-10 flex cursor-default flex-wrap items-center gap-2">
+        {/* Reorder and resize without a gesture. */}
+        {showTouchControls ? (
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              fullWidth={false}
+              className={touchTargetClass}
+              aria-label={t("layout.moveBlockUp", { label: meta.label })}
+              disabled={!onMove}
+              onClick={() => onMove?.(block, 0, -1)}
+            >
+              <FiChevronUp className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              fullWidth={false}
+              className={touchTargetClass}
+              aria-label={t("layout.moveBlockDown", { label: meta.label })}
+              disabled={!onMove}
+              onClick={() => onMove?.(block, 0, 1)}
+            >
+              <FiChevronDown className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              fullWidth={false}
+              className={touchTargetClass}
+              aria-label={t("layout.shrinkBlock", { label: meta.label })}
+              disabled={!onResize}
+              onClick={() => onResize?.(block, 0, -1)}
+            >
+              <FiMinus className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              fullWidth={false}
+              className={touchTargetClass}
+              aria-label={t("layout.growBlock", { label: meta.label })}
+              disabled={!onResize}
+              onClick={() => onResize?.(block, 0, 1)}
+            >
+              <FiPlus className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        ) : null}
+
         <label className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
           <Switch.Root
             checked={block.isVisible}
@@ -162,7 +252,20 @@ export function GridBlockCard({
             aria-label={t("layout.toggleBlockVisibility", {
               label: meta.label,
             })}
-            className="h-4 w-7 cursor-pointer rounded-full bg-zinc-300 transition data-[state=checked]:bg-teal-600 dark:bg-zinc-700 dark:data-[state=checked]:bg-teal-500"
+            className={[
+              "h-4 w-7 cursor-pointer rounded-full bg-zinc-300 transition data-[state=checked]:bg-teal-600 dark:bg-zinc-700 dark:data-[state=checked]:bg-teal-500",
+              /*
+               * A 28x16 track is a fine SWITCH and a hopeless TARGET. The
+               * invisible `::before` grows the tappable area to 44x44 around it
+               * without moving a pixel of the design — the alternative was a
+               * chunky toggle in a card that is only four grid rows tall. Touch
+               * only: on a desktop the same halo would swallow clicks aimed at
+               * the label beside it.
+               */
+              showTouchControls
+                ? "relative before:absolute before:-inset-x-2 before:-inset-y-3.5 before:content-['']"
+                : "",
+            ].join(" ")}
           >
             <Switch.Thumb className="block h-3 w-3 translate-x-0.5 rounded-full bg-white transition-transform duration-150 data-[state=checked]:translate-x-3.5 dark:bg-zinc-900" />
           </Switch.Root>
@@ -191,7 +294,10 @@ export function GridBlockCard({
               value={block.tabId ?? ""}
               onChange={(event) => onMoveToTab(block, event.target.value)}
               aria-label={t("layout.moveBlockToTab", { label: meta.label })}
-              className="cursor-pointer rounded bg-transparent text-[11px] font-medium text-zinc-700 focus:outline-none dark:text-zinc-200"
+              className={[
+                "cursor-pointer rounded bg-transparent text-[11px] font-medium text-zinc-700 focus:outline-none dark:text-zinc-200",
+                showTouchControls ? "min-h-11" : "",
+              ].join(" ")}
             >
               {movableTabs.map((tab) => (
                 <option key={tab.id} value={tab.id}>

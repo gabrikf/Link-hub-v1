@@ -18,13 +18,21 @@ const LANGUAGE_LABELS = {
   // check the key against the catalogue.
 } as const satisfies Record<Language, { code: string; nameKey: string }>;
 
+type LanguageToggleProps = {
+  /**
+   * `bar` is the compact two-letter pill group that sits in the header row.
+   * `menu` is the full-width row inside the mobile dropdown, where there is
+   * room to spell the endonym out and a thumb needs a 44px target.
+   */
+  variant?: "bar" | "menu";
+};
+
 /**
- * Sits beside the theme toggle in the floating top-right cluster and borrows
- * its material exactly — same height, same pill, same border, same shadow.
- * A second floating control with its own visual language would read as two
- * unrelated widgets that happened to land next to each other.
+ * Sits beside the theme toggle in the header row — same height, same pill, same
+ * border. Two neighbouring controls with their own visual language would read
+ * as two unrelated widgets that happened to land next to each other.
  */
-export function LanguageToggle() {
+export function LanguageToggle({ variant = "bar" }: LanguageToggleProps) {
   const { t, i18n } = useTranslation();
   const savePreferences = useSavePreferences();
 
@@ -40,42 +48,54 @@ export function LanguageToggle() {
     savePreferences({ language });
   };
 
+  const isMenu = variant === "menu";
+
   return (
     <div
       role="group"
       aria-label={t("nav.chooseLanguage")}
-      /*
-       * Tighter below `sm`. The floating cluster is reserved for by the nav's
-       * right padding, and at 375px the roomy version wanted 213 of the
-       * header's 375 pixels — which squeezes the brand block past truncation
-       * and pushes the hamburger under the cluster. Measured: 109px roomy,
-       * 81px compact.
-       */
-      className="inline-flex h-9 items-center gap-0 rounded-full border border-zinc-300 bg-white/95 px-0.5 shadow-lg backdrop-blur sm:gap-0.5 sm:px-1 dark:border-zinc-700 dark:bg-zinc-900/90"
+      className={
+        isMenu
+          ? "flex w-full items-center gap-1.5"
+          : // 36px, the shared height of every control in the 52px header bar.
+            // The `bar` variant renders only at `md` and up, where the input is
+            // a mouse — the 44px thumb target lives in the `menu` variant.
+            // Translucent + `backdrop-blur-sm` because this bar can sit over a
+            // user's profile cover image.
+            "inline-flex h-9 shrink-0 items-center gap-0.5 rounded-full border border-zinc-300 bg-white/80 px-1 shadow-sm backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/70"
+      }
     >
       {SUPPORTED_LANGUAGES.map((language) => {
         const isActive = i18n.resolvedLanguage === language;
+        const name = t(LANGUAGE_LABELS[language].nameKey);
         return (
           <button
             key={language}
             type="button"
             lang={language}
-            aria-label={t(LANGUAGE_LABELS[language].nameKey)}
+            /*
+             * In the menu the endonym is the visible text, so it is already the
+             * accessible name — a duplicate `aria-label` would only be a second
+             * copy to drift. In the bar the visible text is a two-letter code,
+             * which needs one.
+             */
+            aria-label={isMenu ? undefined : name}
             aria-pressed={isActive}
             onClick={() => handleSelect(language)}
             className={[
-              // Fixed width, not padding: the nav reserves room for this
-              // cluster in `pr-*` steps, and a two-letter code sized by its
-              // own glyphs would move that number with the font that happens
-              // to resolve.
-              "inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-[11px] font-semibold transition sm:w-8 sm:text-xs",
+              isMenu
+                ? "inline-flex h-11 flex-1 cursor-pointer items-center justify-center rounded-md px-2 text-sm font-medium transition"
+                : // Fixed square, not padding: a two-letter code sized by its
+                  // own glyphs would move the header's width with whichever
+                  // font happens to resolve.
+                  "inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-xs font-semibold transition",
               FOCUS_RING_PAGE,
               isActive
                 ? "bg-violet-700 text-white dark:bg-violet-500"
                 : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")}
           >
-            {LANGUAGE_LABELS[language].code}
+            {isMenu ? name : LANGUAGE_LABELS[language].code}
           </button>
         );
       })}
