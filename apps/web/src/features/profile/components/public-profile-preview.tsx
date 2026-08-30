@@ -144,7 +144,15 @@ export function PublicProfilePreview({
           personaOther={profile.personaOther ?? null}
         />
 
-        <div className="-mt-10 p-4">
+        {/*
+          `relative z-10`: the blocks are pulled 40px up so the avatar straddles
+          the cover's lower edge, but `ProfileCover`'s strip is `relative` with
+          `z-index: auto` and therefore paints in the positioned-descendant
+          step — after this static row. Without a paint position of its own the
+          banner covered the top half of the avatar. See the same note in
+          `dashboard-profile-form.tsx`.
+        */}
+        <div className="relative z-10 -mt-10 p-4">
           <ProfileBlocks
             variant="preview"
             layout={layout}

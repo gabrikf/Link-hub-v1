@@ -597,11 +597,16 @@ test("profile fields survive a reload and reach the public profile", async ({
 /**
  * A tall photograph in a 3:1 strip, served by Playwright rather than uploaded.
  *
- * Uploading through the UI would write a real object into the configured S3
- * bucket on every nightly run, and would make this journey depend on that
- * bucket being reachable. Interception gives the browser a REAL image with a
- * real intrinsic size (600x900 — portrait, so the banner frame genuinely has
- * something to hide vertically) with neither cost.
+ * Interception, not an upload, for the POSITIONING tests below: they run
+ * `@responsive` and repeatedly, and a real object per run is cost this journey
+ * does not need to pay to prove that a drag moves a focal point. It also gives
+ * the browser a REAL image with a real intrinsic size (600x900 — portrait, so
+ * the banner frame genuinely has something to hide vertically).
+ *
+ * The upload path itself is NOT left untested by that choice — see
+ * "a real image upload reaches object storage" at the end of this describe,
+ * which does write a real object, to the local MinIO, and is skipped with a
+ * printed reason when no object store is reachable.
  */
 /*
  * A host that cannot resolve, on purpose: every request for it is fulfilled by
@@ -830,6 +835,159 @@ test.describe("images", () => {
     );
 
     expect(guard.errors, "console errors while positioning images").toEqual([]);
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* The upload itself                                                   */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * A 400x200 gradient PNG, inline. The journey carries its own fixture rather
+   * than reading a file: nothing to go stale, nothing to ship alongside it.
+   */
+  const UPLOAD_FIXTURE_PNG = Buffer.from(
+    [
+    "iVBORw0KGgoAAAANSUhEUgAAAZAAAADICAIAAABJdyC1AAAIYklEQVR42u3U0xIoBgIE0Rvb",
+    "tpOJbdu2bdu2bdu2bXNj23ayOz+xb6eqf6HPgAH5bxso/7aB888g+bsNmr8Gy59t8PwxRH5v",
+    "Q+a3NlR+HTq/tGHy87D5qQ2XH4fPD22EfN9GzHcj5ds2cr4ZJV+3UfPVaPmyjZ4v2hj5fMx8",
+    "1sbKp2PnkzZOPh43H7Xx8mEbPx9MkPfbhHlvorzbJs47k+TtNmneapPlzcnzRpsiryf/aVPm",
+    "tanyaps6r7Rp8vK0ealNlxenzwtthjw/Y55rM+XZmfNMmyVPt1nz1Gx5ss2eJ+bI423OPDZX",
+    "Hm1z55E2Tx6eNw+1+fLg/HmgLZD7F8x9baHc2xbOPYvk7rZo7losd7bFc8cSub0tmdvaUrl1",
+    "6dzSlsnNy+amtlxuXD43tBVyfVsx162Ua9vKuWaVXN1WzVWr5cq2eq5oa+TyNXNZWyuXrp1L",
+    "2jq5eN1c1NbLhW39XLBBzm8b5ryNcm7bOOdskrPbpjlrs5zZNs8ZbYucvmVOa1vl1K1zStsm",
+    "J2+bk9p2ObFtnxN2yPFtxxy3U45tO+eYXXJ02zVHtd1y5O45ou2Rw/fMYW2vHLp3Dmn75OC2",
+    "bw7aLwe2/XPAAdm/HZj9Dsq+7eDs0w7J3odmr3ZY9jw8e7QjsvuR2a0dlV3b0dnlmOzcjs1O",
+    "x2XHdnx2OCHbtxOzXTsp256cbdop2frUbNVOy5anZ4t2RjY/M5u1s7JpOzubnJON27nZ6Lxs",
+    "2M7PBhdk/XZh1msXZd2Ls067JGtfmrXaZVnz8qzRrsjq7cqsdlVWbVdnlWuycrs2K12XFdv1",
+    "WaHdkOVvzHLtpix7c5Zpt2TpW7NUuy1LttuzxB1ZvN2Zxe7Kou3uLHJPFm73ZqF2Xxa8Pwu0",
+    "BzL/g5mvPZR5H8487ZHM3R7NXI9lzvZ45ngis7cnM9tTmbU9nVmeyczt2czUnsuMz2eG9kKm",
+    "fzHTtZcy7cuZpr2Sqdurmeq1TNm6zeuZor2Ryd/MZO2tTNreziTvZOL2biZ6LxO29zPBBxm/",
+    "fZjx2kcZ9+OM0z7J2J9mrPZZxvw8Y7QvMnr7MqN9lVHb1xnlm4zcvs1I32XE9n1GaD9k+B8z",
+    "XPspw/6cYdovGfrXDNV+y5Dt9wzxRwZvf2awvzJo+zuD/JOB278ZaACwgAUsYAELWMACFrCA",
+    "BSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhaw",
+    "gAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIW",
+    "sIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMAC",
+    "FrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jA",
+    "AhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtY",
+    "wAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAEL",
+    "WMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGAB",
+    "C1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxg",
+    "AQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUs",
+    "YAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAF",
+    "LGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCA",
+    "BSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhaw",
+    "gAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIW",
+    "sIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMAC",
+    "FrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jA",
+    "AhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtY",
+    "wAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAEL",
+    "WMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGAB",
+    "C1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxg",
+    "AQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUs",
+    "YAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAF",
+    "LGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCA",
+    "BSxgAQtYwAIWsIAFLGABC1jAAhawgAUsYAELWMACFrCABSxgAQtYwAIWsIAFLGABC1jAAhaw",
+    "gAUsYAELWMACFrCABSxgAQtY/z+w/gc0BDCZBIFwnQAAAABJRU5ErkJggg=="
+  ].join(""),
+    "base64",
+  );
+
+  /**
+   * Is there an object store behind `POST /me/uploads` at all?
+   *
+   * Locally that is the MinIO in `docker-compose.dev.yml`, which
+   * `bash db-manage.sh start` brings up and which the API defaults to when no
+   * `S3_*` variable is set. Against an environment with no bucket the route
+   * answers 500 by design, and a hard failure there would be this journey
+   * reporting an infrastructure gap as a product bug — so the test SKIPS, and
+   * says so, exactly like the api-side MinIO and Mailpit suites.
+   */
+  async function objectStorageIsReachable(): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_ORIGIN}/health`, {
+        signal: AbortSignal.timeout(2_000),
+      });
+      if (!response.ok) return false;
+    } catch {
+      return false;
+    }
+    try {
+      // MinIO's own liveness endpoint. Deliberately NOT a probe of the API's
+      // config: what this test needs is a bucket that answers.
+      const minio = await fetch("http://127.0.0.1:9000/minio/health/live", {
+        signal: AbortSignal.timeout(1_500),
+      });
+      return minio.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  test("a real image upload reaches object storage and renders from it", async ({
+    page,
+    guard,
+  }) => {
+    test.skip(
+      !(await objectStorageIsReachable()),
+      "No object store on :9000 — start it with `bash db-manage.sh start`. " +
+        "The real upload path is UNVERIFIED by this run.",
+    );
+
+    await signIn(page);
+    await page.goto("/dashboard");
+
+    const dialog = await openProfileDialog(page);
+    const bannerField = dialog.getByTestId("banner-upload");
+    await expect(bannerField).toBeVisible();
+
+    const uploadResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/me/uploads") &&
+        response.request().method() === "POST",
+      { timeout: 30_000 },
+    );
+
+    await bannerField.locator('input[type="file"]').setInputFiles({
+      name: "banner.png",
+      mimeType: "image/png",
+      buffer: UPLOAD_FIXTURE_PNG,
+    });
+
+    const response = await uploadResponse;
+    expect(
+      response.status(),
+      "POST /me/uploads accepted the image",
+    ).toBe(201);
+
+    const { url } = (await response.json()) as { url: string };
+    expect(url, "the API returned an absolute URL").toMatch(/^https?:\/\//);
+
+    /*
+     * The assertion a mock cannot make: fetch the returned URL back with NO
+     * credentials and NO signature, the way an `<img>` does. A private bucket
+     * answers 403 here while every DOM assertion above still passes — the
+     * failure would only ever surface as a broken image on somebody's profile.
+     */
+    const anonymous = await page.request.get(url);
+    expect(anonymous.status(), `the stored object is publicly readable at ${url}`).toBe(200);
+    expect(anonymous.headers()["content-type"] ?? "").toContain("image/");
+
+    // And the browser really decoded it into the live preview.
+    const preview = dialog
+      .getByTestId("profile-appearance-preview")
+      .getByTestId("profile-cover-image");
+    await expect(preview).toHaveAttribute("src", url, { timeout: 15_000 });
+    await expect
+      .poll(() =>
+        preview.evaluate(
+          (image) =>
+            (image as HTMLImageElement).complete &&
+            (image as HTMLImageElement).naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
+
+    expect(guard.errors, "console errors while uploading an image").toEqual([]);
   });
 });
 

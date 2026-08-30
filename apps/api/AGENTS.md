@@ -103,10 +103,54 @@ Need a funded `OPENAI_API_KEY` (excluded by name in CI, and by the gate):
 - `src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts`
 - `src/infra/database/drizzle/search-indexes.e2e.test.ts`
 
+Need MinIO on 9000 (`bash db-manage.sh start` brings it up with Postgres):
+
+- `src/infra/providers/s3-file-storage-provider.minio.e2e.test.ts`
+
+Need Mailpit on 1025 (`bash db-manage.sh admin`):
+
+- `src/infra/providers/smtp-mail-provider.mailpit.e2e.test.ts`
+
+The last two SELF-SKIP with a printed reason rather than hanging, and the gate
+excludes them by name so its TEST SCOPE NOTICE says what went unverified.
+
 **Consequence, stated plainly:** semantic-search relevance and the pgvector index
 behaviour are not covered by any automated run you or CI will normally do. If
 you change resume search or the embedding pipeline, run those three locally with
 a key. Do not add a `.skip` to them.
+
+---
+
+## File storage
+
+One port, `IFileStorageProvider`, one adapter, `S3FileStorageProvider`. Both
+environments are S3-compatible, so there is no second implementation to keep in
+step:
+
+| | Store | Config |
+|---|---|---|
+| production | Cloudflare R2 | the six `S3_*` variables |
+| local | MinIO, `docker-compose.dev.yml` | **nothing** — `resolveFileStorageConfig` falls back |
+
+`resolveFileStorageConfig(env)` in
+`src/infra/providers/s3-file-storage-provider.ts` decides, in this order:
+
+1. a **complete** `S3_*` environment always wins;
+2. a **partial** one is an error (`null`), never quietly redirected — four of
+   five set is a typo, and hiding it ships a photo that resolves to `localhost`
+   for every visitor. "Partial" counts the five REQUIRED keys only;
+   `S3_REGION` has a default and is excluded, because it shipped uncommented in
+   `.env.example` and therefore sits in every developer's `.env`;
+3. nothing set **and** `NODE_ENV=development` → `LOCAL_MINIO_STORAGE_CONFIG`.
+
+Production and `test` never reach step 3. Do not "simplify" that gate: the whole
+point is that a deployed CraftHub cannot silently write user photographs to a
+loopback address and report success.
+
+If you change the MinIO credentials, bucket or ports, change them in
+`docker-compose.dev.yml` **and** `LOCAL_MINIO_STORAGE_CONFIG` — the MinIO e2e
+test reads the constant and talks to the container, so a drift between the two
+fails there rather than in someone's browser.
 
 ---
 

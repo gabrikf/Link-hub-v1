@@ -167,7 +167,63 @@ describe("Dialog close button pinning", () => {
     expect(scrollContainer().contains(button)).toBe(false);
   });
 
-  it("reserves horizontal room so a long title cannot run under the X", () => {
+  /**
+   * The X used to be `absolute right-2 top-2 z-10` on the FRAME. That kept it
+   * pinned across scroll, but it also floated it over the body's scroll area —
+   * and the body's scrollbar runs down the frame's right border, so wherever
+   * classic (non-overlay) scrollbars are drawn, the button sat on top of the
+   * scrollbar's top arrow and took its clicks. The bar below is the fix: a real
+   * non-scrolling row, so the scroll area — and therefore its scrollbar —
+   * starts BELOW the button and the two can never share a pixel.
+   */
+  const header = (): HTMLElement =>
+    screen.getByTestId("dialog-header") as HTMLElement;
+
+  it("gives the close button its own row instead of floating it over the body", () => {
+    render(
+      <Dialog open title="Layered">
+        body
+      </Dialog>,
+    );
+
+    const button = closeButton();
+    expect(header().contains(button)).toBe(true);
+    // An `absolute` button is one that overlaps whatever is under it. The whole
+    // point of the bar is that nothing is under it.
+    expect(button.className).not.toContain("absolute");
+    expect(header().className).not.toContain("absolute");
+  });
+
+  it("puts the header bar before the scroll area, so the scrollbar starts below the X", () => {
+    render(
+      <Dialog open title="Ordered">
+        body
+      </Dialog>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    const children = Array.from(dialog.children);
+    expect(children[0]).toBe(header());
+    expect(children[1]).toBe(scrollContainer());
+    expect(header().contains(scrollContainer())).toBe(false);
+    expect(scrollContainer().contains(header())).toBe(false);
+  });
+
+  it("keeps the header bar from collapsing when the body is tall", () => {
+    render(
+      <Dialog open title="Tall">
+        <div>
+          {Array.from({ length: 200 }, (_, index) => (
+            <p key={index}>Row {index}</p>
+          ))}
+        </div>
+      </Dialog>,
+    );
+
+    expect(header().className).toContain("shrink-0");
+  });
+
+  it("lets a long title wrap against the button instead of a hand-counted gutter", () => {
     render(
       <Dialog
         open
@@ -177,31 +233,27 @@ describe("Dialog close button pinning", () => {
       </Dialog>,
     );
 
-    const header = screen.getByText(
+    const titleBox = screen.getByText(
       "A very long dialog title that would otherwise reach the corner",
     ).parentElement;
-    expect(header?.className).toContain("pr-11");
+    // The title shares a flex row with the X; `min-w-0` is what makes it wrap
+    // rather than push the button off the frame. The old `pr-11` reservation is
+    // gone precisely because the layout no longer has anything to reserve for.
+    expect(titleBox?.className).toContain("min-w-0");
+    expect(titleBox?.className).toContain("flex-1");
+    expect(titleBox?.className).not.toContain("pr-11");
+    expect(header().className).toContain("flex");
   });
 
-  it("reserves that room on the body when there is no header to carry it", () => {
+  it("needs no gutter on the body when there is no header to carry one", () => {
     render(
       <Dialog open>
         <p>orphan body</p>
       </Dialog>,
     );
 
-    const body = screen.getByText("orphan body").parentElement;
-    expect(body?.className).toContain("pr-11");
-  });
-
-  it("paints the close button above the scrolled body", () => {
-    render(
-      <Dialog open title="Layered">
-        body
-      </Dialog>,
-    );
-
-    expect(closeButton().className).toContain("z-10");
+    expect(scrollContainer().className).not.toContain("pr-11");
+    expect(header().contains(closeButton())).toBe(true);
   });
 });
 
@@ -382,15 +434,68 @@ describe("Dialog regressions that survived the close-button restructure", () => 
     );
 
     // Padding moved off the frame so content scrolls to the rounded edge
-    // instead of disappearing 20px early.
-    expect(screen.getByRole("dialog").className.split(/\s+/)).not.toContain(
-      "p-5",
+    // instead of disappearing 20px early — and so the scrollbar hugs the
+    // border rather than floating 20px inside it.
+    const frameClasses = screen.getByRole("dialog").className.split(/\s+/);
+    expect(frameClasses).not.toContain("p-5");
+    expect(frameClasses).not.toContain("px-5");
+
+    const bodyClasses = screen
+      .getByRole("dialog")
+      .querySelector(".overflow-y-auto")
+      ?.className.split(/\s+/);
+    expect(bodyClasses).toContain("px-5");
+    expect(bodyClasses).toContain("pb-5");
+    // 16px between the pinned title and the first thing below it, which is what
+    // the old `mt-4` on the children wrapper produced.
+    expect(bodyClasses).toContain("pt-4");
+  });
+
+  /**
+   * Only the TITLE is permanent chrome. The description scrolls with the body:
+   * at 390px the Edit-profile description wraps to two lines, so pinning it
+   * would spend ~40px of an 844px phone at every scroll offset on a sentence
+   * that has already been read.
+   */
+  it("pins the title but lets the description scroll with the body", () => {
+    render(
+      <Dialog open title="Edit profile" description="Update your details.">
+        body
+      </Dialog>,
     );
-    expect(
-      screen
-        .getByRole("dialog")
-        .querySelector(".overflow-y-auto")
-        ?.className.split(/\s+/),
-    ).toContain("p-5");
+
+    const dialog = screen.getByRole("dialog");
+    const header = screen.getByTestId("dialog-header");
+    const scroller = dialog.querySelector(".overflow-y-auto") as HTMLElement;
+
+    expect(header.contains(screen.getByText("Edit profile"))).toBe(true);
+    expect(scroller.contains(screen.getByText("Update your details."))).toBe(
+      true,
+    );
+    expect(header.contains(screen.getByText("Update your details."))).toBe(
+      false,
+    );
+  });
+
+  it("still exposes the description to Radix as the dialog's description", () => {
+    // Moving it into the scroller must not cost the accessible description:
+    // `aria-describedby` is what a screen reader reads after the title.
+    render(<Dialog open title="Titled" description="The accessible summary." />);
+
+    const dialog = screen.getByRole("dialog");
+    const describedBy = dialog.getAttribute("aria-describedby");
+
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)?.textContent).toBe(
+      "The accessible summary.",
+    );
+  });
+
+  it("keeps a description-only dialog rendering its description", () => {
+    // `title` alone gates the header bar's padding; a dialog with only a
+    // description must still show it rather than silently drop it.
+    render(<Dialog open description="No title, just this." />);
+
+    expect(screen.getByText("No title, just this.")).toBeTruthy();
   });
 });

@@ -94,6 +94,16 @@ const NEEDS_MAILPIT = [
 ];
 
 /**
+ * api test files that write a real object to the local MinIO and read it back
+ * anonymously. Self-skips with its own console notice when run outside this
+ * gate, and is excluded here too so the gate's NOTICE block names it — same
+ * belt and braces as NEEDS_POSTGRES and NEEDS_MAILPIT.
+ */
+const NEEDS_MINIO = [
+  "src/infra/providers/s3-file-storage-provider.minio.e2e.test.ts",
+];
+
+/**
  * vitest's CLI `--exclude` REPLACES `test.exclude` instead of adding to it, so
  * these two defaults have to be repeated or vitest starts collecting test files
  * out of node_modules. Same footgun, same fix, as in .github/workflows/ci.yml.
@@ -109,6 +119,8 @@ const noFetch = argv.includes("--no-fetch");
 const explicitBase = argv.includes("--base") ? argv[argv.indexOf("--base") + 1] : null;
 
 const steps = [];
+
+const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
 function say(message = "") {
   // stderr, not stdout: Claude Code's Stop hook feeds stderr back to the model
@@ -226,6 +238,28 @@ function mailpitReachable(timeoutMs = 700) {
   return result.status === 0;
 }
 
+/**
+ * A TCP connect to MinIO's S3 API port, same shape as the two probes above:
+ * what the test needs is a reachable object store, not a particular way of
+ * having started one (`bash db-manage.sh start`, a bare `docker compose ... up
+ * -d minio`, or a developer's own MinIO all count).
+ */
+function minioReachable(timeoutMs = 700) {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `const s=require('net').connect(9000,'127.0.0.1');` +
+        `s.setTimeout(${timeoutMs});` +
+        `s.on('connect',()=>{s.destroy();process.exit(0)});` +
+        `s.on('error',()=>process.exit(1));` +
+        `s.on('timeout',()=>{s.destroy();process.exit(1)});`,
+    ],
+    { encoding: "utf8", timeout: timeoutMs + 2000 },
+  );
+  return result.status === 0;
+}
+
 /* ────────────────────────── affected-workspace set ─────────────────────── */
 
 function resolveBase() {
@@ -284,29 +318,70 @@ function lintChanged(base) {
   ]).status === 0;
 }
 
+/**
+ * Every reason a file can be held back, with what that costs.
+ *
+ * `covers` is why this list is a table rather than four `if` blocks: the notice
+ * used to end in a FIXED sentence naming semantic search, the pgvector indexes
+ * and the DI container wiring, printed whenever anything at all was skipped. So
+ * a run that skipped only the Mailpit file announced that pgvector was
+ * unverified — while a run with docker up and no OpenAI key announced the
+ * container wiring was unverified when it had just passed. A scope notice that
+ * overstates what it missed is the same failure as one that understates it:
+ * either way you stop believing it. The sentence is now assembled from the
+ * groups that actually fired.
+ */
+const TEST_SCOPE_GROUPS = [
+  {
+    files: NEEDS_POSTGRES,
+    available: () => postgresReachable(),
+    reason:
+      "Postgres is not reachable on 5432 — start it with `bash db-manage.sh start`.",
+    covers: "the pgvector indexes and the DI container wiring",
+  },
+  {
+    files: NEEDS_OPENAI_KEY,
+    available: () => hasOpenAiKey(),
+    reason:
+      "OPENAI_API_KEY is not set — these call the live API and cost money per run.",
+    covers: "semantic-search relevance",
+  },
+  {
+    files: NEEDS_MAILPIT,
+    available: () => mailpitReachable(),
+    reason:
+      "Mailpit is not reachable on 1025 — start it with `docker compose -f " +
+      "docker-compose.dev.yml --profile tools up -d mailpit` (or `bash " +
+      "db-manage.sh admin`).",
+    covers: "real SMTP delivery",
+  },
+  {
+    files: NEEDS_MINIO,
+    available: () => minioReachable(),
+    reason:
+      "MinIO is not reachable on 9000 — start it with `bash db-manage.sh " +
+      "start` (or `docker compose -f docker-compose.dev.yml up -d minio " +
+      "minio-setup`).",
+    covers: "the real object-storage upload path",
+  },
+];
+
+/** "a", "a and b", "a, b and c" — the notice is prose, not a bullet list. */
+function joinWithAnd(parts) {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
 function apiTests() {
   const skipped = new Set();
   const reasons = [];
+  const uncovered = [];
 
-  if (!postgresReachable()) {
-    for (const file of NEEDS_POSTGRES) skipped.add(file);
-    reasons.push(
-      "Postgres is not reachable on 5432 — start it with `bash db-manage.sh start`.",
-    );
-  }
-  if (!hasOpenAiKey()) {
-    for (const file of NEEDS_OPENAI_KEY) skipped.add(file);
-    reasons.push(
-      "OPENAI_API_KEY is not set — these call the live API and cost money per run.",
-    );
-  }
-  if (!mailpitReachable()) {
-    for (const file of NEEDS_MAILPIT) skipped.add(file);
-    reasons.push(
-      "Mailpit is not reachable on 1025 — start it with `docker compose -f " +
-        "docker-compose.dev.yml --profile tools up -d mailpit` (or `bash " +
-        "db-manage.sh admin`).",
-    );
+  for (const group of TEST_SCOPE_GROUPS) {
+    if (group.available()) continue;
+    for (const file of group.files) skipped.add(file);
+    reasons.push(group.reason);
+    uncovered.push(group.covers);
   }
 
   if (skipped.size > 0) {
@@ -314,8 +389,11 @@ function apiTests() {
     say("    ┌─ TEST SCOPE NOTICE — these api test files were NOT run");
     for (const file of [...skipped].sort()) say(`    │  ${file}`);
     for (const reason of reasons) say(`    │  ${reason}`);
-    say("    │  Semantic search, the pgvector indexes and the DI container wiring");
-    say("    │  are therefore UNVERIFIED by this run. To cover them:");
+    const verb = uncovered.length > 1 ? "are" : "is";
+    say(
+      `    │  ${capitalize(joinWithAnd(uncovered))} ${verb} therefore UNVERIFIED`,
+    );
+    say("    │  by this run. To cover them:");
     say("    │    bash db-manage.sh start && npm run test --workspace=api");
     say("    └─");
     say("");
