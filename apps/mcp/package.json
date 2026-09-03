@@ -1,5 +1,5 @@
 {
-  "name": "mcp",
+  "name": "crafthub-mcp",
   "version": "1.0.0",
   "description": "CraftHub MCP server — create and manage CraftHub posts from any MCP client (Claude Desktop, Claude Code, Cursor, VS Code).",
   "main": "dist/index.js",
@@ -7,30 +7,42 @@
   "bin": {
     "crafthub-mcp": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://crafthub.dev",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "dev": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --external:zod --external:@modelcontextprotocol/sdk --outfile=dist/index.js --watch",
+    "build": "tsc --noEmit -p tsconfig.build.json && rm -rf dist && esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --external:@modelcontextprotocol/sdk --external:zod --outfile=dist/index.js && chmod +x dist/index.js",
     "start": "node dist/index.js",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --watch",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
     "model-context-protocol",
     "crafthub"
   ],
-  "author": "",
+  "author": "gabrikf",
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@repo/schemas": "*",
     "zod": "^4.1.1"
   },
   "devDependencies": {
+    "@repo/schemas": "*",
     "@repo/typescript-config": "*",
     "@types/node": "^24.3.0",
+    "esbuild": "^0.25.9",
     "tsx": "^4.20.5",
     "typescript": "5.9.2"
   }

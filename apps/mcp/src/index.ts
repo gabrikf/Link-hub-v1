@@ -6,10 +6,8 @@ import { ConfigError, loadConfig } from "./config.js";
 import { loadDisclosureContext } from "./disclosure.js";
 import { registerAllPrompts } from "./prompts/index.js";
 import { registerAllResources } from "./resources/index.js";
+import { SERVER_NAME, SERVER_VERSION } from "./server-info.js";
 import { registerAllTools } from "./tools/index.js";
-
-const SERVER_NAME = "crafthub";
-const SERVER_VERSION = "1.0.0";
 
 async function main(): Promise<void> {
   // Fail fast with a clear message if the PAT is missing/misconfigured.

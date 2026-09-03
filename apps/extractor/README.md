@@ -75,10 +75,17 @@ credits TypeScript. Only.
 
 ## Install
 
+Nothing to install — `npx` fetches it on first use and caches it:
+
 ```bash
-npm install                          # from the monorepo root
-npm run build:extractor
-npm link --workspace=extractor       # optional: puts both commands on PATH
+npx crafthub-extract ~/code/my-repo
+```
+
+Or put both commands on your PATH, which the Claude Code hook needs since a
+hook command is spawned without a shell that knows about `npx`:
+
+```bash
+npm install -g crafthub-extract      # provides crafthub-extract + crafthub-hook
 ```
 
 Set up auth. Extraction needs neither of these — only uploading does:
@@ -228,9 +235,31 @@ for the prose and fails if it appears.
 ## Development
 
 ```bash
-npm run test --workspace=extractor
-npm run check-types --workspace=extractor
+npm run test --workspace=crafthub-extract
+npm run check-types --workspace=crafthub-extract
 ```
+
+`npm run build` type-checks the shipping surface and then bundles all three
+entry points with esbuild — `@repo/schemas` is inlined, so the published
+tarball depends only on zod and never on this monorepo. To publish a release,
+bump `version` in `package.json`, then from the repo root:
+
+```bash
+npm run publish:extractor
+```
+
+The npm account needs **two-factor authentication enabled**; without it the
+registry answers `403` *after* building and printing a perfectly good tarball.
+If npm asks for a one-time code, pass it through with `--`:
+
+```bash
+npm run publish:extractor -- --otp=123456
+```
+
+Or publish from CI with no OTP at all: **Actions → Publish → Run workflow**,
+pick the package. That path uses npm trusted publishing (OIDC), so there is no
+token in the repo and no one-time code to type — see
+`.github/workflows/publish.yml` for the one-time npmjs.com setup it needs.
 
 Tests build throwaway git repositories in temp directories — nothing reads this
 repository's own history. The privacy tests work by planting confidential
