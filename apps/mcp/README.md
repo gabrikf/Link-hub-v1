@@ -73,17 +73,13 @@ at startup) *and* stopped at the door if it ignores them.
 ## Quick start
 
 ```bash
-# 1. Build the server — it is not published to npm, you run it from a checkout
-npm install
-npm run build --workspace=mcp
+# 1. Nothing to install — your MCP client spawns it with npx on first run:
+#    npx -y crafthub-mcp@latest
 
-# 2. Print the absolute path your MCP client needs
-echo "$(git rev-parse --show-toplevel)/apps/mcp/dist/index.js"
-
-# 3. Create a token in CraftHub: Settings → Personal access tokens → Create token
+# 2. Create a token in CraftHub: Settings → Personal access tokens → Create token
 #    Check posts:read, posts:write and profile:read.
 
-# 4. Add it to your client (below), then in your agent:
+# 3. Add it to your client (below), then in your agent:
 #    /crafthub:weekly_update
 ```
 
@@ -108,8 +104,10 @@ agent never edits your resume, and it can never widen its own disclosure policy.
 
 ## Client configuration
 
-The server is **stdio only**. Every client runs it as `node <absolute path to
-dist/index.js>`. There is no HTTP transport and no hosted URL.
+The server is **stdio only**: every client spawns
+`npx -y crafthub-mcp@latest` and talks to it over stdin/stdout. There is no HTTP
+transport and no hosted URL, and nothing to clone or build first — npm fetches
+the package on the first run and caches it.
 
 ### Claude Desktop
 
@@ -121,8 +119,8 @@ Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
 {
   "mcpServers": {
     "crafthub": {
-      "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/crafthub-v.1/apps/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "crafthub-mcp@latest"],
       "env": {
         "CRAFTHUB_API_URL": "http://localhost:3333",
         "CRAFTHUB_API_TOKEN": "lh_pat_your_token_here"
@@ -137,25 +135,24 @@ Prompts appear under the **+** button in the composer.
 
 ### Claude Code (CLI)
 
-One command, from anywhere inside the repo — the shell resolves the entry path,
-so there is nothing to hand-edit but the token:
+One command, from anywhere — there is nothing to hand-edit but the token:
 
 ```bash
 claude mcp add crafthub \
   --env CRAFTHUB_API_URL=http://localhost:3333 \
   --env CRAFTHUB_API_TOKEN=lh_pat_your_token_here \
-  -- node "$(git rev-parse --show-toplevel)/apps/mcp/dist/index.js"
+  -- npx -y crafthub-mcp@latest
 ```
 
-Or project-scoped, in a `.mcp.json` at the repo root. A repo-relative path works
-here, so this one needs no path editing at all:
+Or project-scoped, in a `.mcp.json` at the root of any repo you want the server
+available in:
 
 ```json
 {
   "mcpServers": {
     "crafthub": {
-      "command": "node",
-      "args": ["./apps/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "crafthub-mcp@latest"],
       "env": {
         "CRAFTHUB_API_URL": "http://localhost:3333",
         "CRAFTHUB_API_TOKEN": "lh_pat_your_token_here"
@@ -175,8 +172,8 @@ Create `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):
 {
   "mcpServers": {
     "crafthub": {
-      "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/crafthub-v.1/apps/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "crafthub-mcp@latest"],
       "env": {
         "CRAFTHUB_API_URL": "http://localhost:3333",
         "CRAFTHUB_API_TOKEN": "lh_pat_your_token_here"
@@ -196,8 +193,8 @@ explicit `type`:
   "servers": {
     "crafthub": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/crafthub-v.1/apps/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "crafthub-mcp@latest"],
       "env": {
         "CRAFTHUB_API_URL": "http://localhost:3333",
         "CRAFTHUB_API_TOKEN": "lh_pat_your_token_here"
@@ -235,7 +232,7 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"cli","version":"1"}}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"prompts/list"}' \
-  | CRAFTHUB_API_TOKEN=lh_pat_your_token_here node apps/mcp/dist/index.js
+  | CRAFTHUB_API_TOKEN=lh_pat_your_token_here npx -y crafthub-mcp@latest
 ```
 
 ---
@@ -545,8 +542,10 @@ The API isn't running, or `CRAFTHUB_API_URL` is wrong. Check with
 
 **The server doesn't appear in my client at all**
 
-- Did you run `npm run build --workspace=mcp`? The `args` path points at
-  `dist/index.js`, which does not exist until you build.
+- Is `npx` on the PATH your MCP client sees? GUI clients (Claude Desktop,
+  Cursor) do not read your shell profile, so a Node installed by nvm or fnm is
+  often invisible to them. Put the absolute path `which npx` prints into
+  `command`, or install Node system-wide.
 - Is the path **absolute**? Most clients do not expand `~` or resolve relative
   paths, and they do not run the command through a shell — `$(...)` inside a
   JSON config is a literal string, not a command substitution. The one exception
@@ -581,7 +580,33 @@ npm run build
 ```
 
 During development you can point a client at the source entry with
-`tsx apps/mcp/src/index.ts` instead of the built `dist/index.js`.
+`tsx apps/mcp/src/index.ts` instead of the published package. `npm run build`
+type-checks the shipping surface and then bundles it — `@repo/schemas` is
+inlined, so the published tarball depends only on the MCP SDK and zod and never
+on this monorepo.
+
+To publish a release, bump `version` here **and** `SERVER_VERSION` in
+`src/server-info.ts` (a test fails if they drift), then from the repo root:
+
+```bash
+npm run publish:mcp
+```
+
+The npm account needs **two-factor authentication enabled** — since 2025 the
+registry refuses a publish from an account without it, with a `403` that says
+"Two-factor authentication or granular access token with bypass 2fa enabled is
+required" *after* the tarball has already been built and shown to you. That is
+an account setting, not a repo problem. If npm then asks for a one-time code,
+pass it through the chain with `--`:
+
+```bash
+npm run publish:mcp -- --otp=123456
+```
+
+Or publish from CI with no OTP at all: **Actions → Publish → Run workflow**,
+pick the package. That path uses npm trusted publishing (OIDC), so there is no
+token in the repo and no one-time code to type — see
+`.github/workflows/publish.yml` for the one-time npmjs.com setup it needs.
 
 Layout:
 

@@ -24,14 +24,20 @@ describe("ConnectPanel", () => {
     }
   });
 
-  it("emits node-based stdio snippets (NOT an @crafthub/mcp npm package)", () => {
+  it("emits npx snippets for the published package, never a checkout path", () => {
     const { container } = render(<ConnectPanel token={null} />);
     const codeText = codeTextOf(container);
 
-    expect(codeText).toContain("node");
-    expect(codeText).toContain("apps/mcp/dist/index.js");
-    expect(codeText).not.toContain("@crafthub/mcp");
-    expect(codeText).not.toContain("npx");
+    expect(codeText).toContain("npx");
+    expect(codeText).toContain("crafthub-mcp@latest");
+
+    // The whole point of publishing: nothing on this panel may ask a user to
+    // clone, build or path-resolve this repo. These four are every spelling of
+    // that instruction the panel used to carry.
+    expect(codeText).not.toContain("apps/mcp/dist");
+    expect(codeText).not.toContain("/absolute/path/to");
+    expect(codeText).not.toContain("git rev-parse");
+    expect(codeText).not.toContain("--workspace=");
   });
 
   it("shows the placeholder token until a real one is provided", () => {
@@ -63,22 +69,7 @@ describe("ConnectPanel", () => {
     expect(screen.getByText("Terminal (claude mcp add)")).toBeInTheDocument();
   });
 
-  it("replaces the hand-edited path step with copyable build + path commands", () => {
-    const { container } = render(<ConnectPanel token={null} />);
-    const codeText = codeTextOf(container);
-
-    // The build step is a copyable command, not prose.
-    expect(screen.getByText("Terminal — build once")).toBeInTheDocument();
-    expect(codeText).toContain("npm run build --workspace=mcp");
-
-    // A one-liner that prints the user's real absolute entry path.
-    expect(
-      screen.getByText("Terminal — print your absolute entry path"),
-    ).toBeInTheDocument();
-    expect(codeText).toContain("git rev-parse --show-toplevel");
-  });
-
-  it("resolves the entry path inline in the Claude Code CLI snippet", async () => {
+  it("gives Claude Code a copy-paste `claude mcp add` with no path to edit", async () => {
     const user = userEvent.setup();
     const { container } = render(<ConnectPanel token={null} />);
 
@@ -87,15 +78,10 @@ describe("ConnectPanel", () => {
       .map((el) => el.textContent ?? "")
       .find((text) => text.includes("claude mcp add"));
 
-    // Zero-edit: the shell resolves the absolute path itself.
-    expect(cli).toContain(
-      'node "$(git rev-parse --show-toplevel)/apps/mcp/dist/index.js"',
-    );
-    expect(cli).not.toContain("/absolute/path/to/crafthub");
-
-    // The whole Claude Code tab is hand-edit free — the project-scoped
-    // .mcp.json uses a repo-relative path.
-    expect(codeTextOf(container)).not.toContain("/absolute/path/to/crafthub");
+    expect(cli).toContain("-- npx -y crafthub-mcp@latest");
+    // Nothing on this tab depends on where — or whether — the user has a
+    // checkout of this repository.
+    expect(codeTextOf(container)).not.toContain("apps/mcp/dist");
   });
 
   it("shows a host-specific verification step", async () => {
@@ -174,21 +160,16 @@ describe("ConnectPanel", () => {
   });
 
   /**
-   * Building from a checkout is impossible for a user who never had one, and
-   * the package is unpublished so `npx` is not an option either. It must not
-   * read as a mandatory numbered step.
+   * The panel used to open with a collapsed "build it from a checkout first"
+   * disclosure, because the package was unpublished and there was no other way
+   * to run the server. Now that `crafthub-mcp` is on npm there is no local
+   * build, so the disclosure is gone and step 1 is the first thing on screen.
    */
-  it("folds the local-checkout build into an opt-in disclosure", () => {
-    render(<ConnectPanel token={null} />);
+  it("starts at step 1 with no local-build disclosure above it", () => {
+    const { container } = render(<ConnectPanel token={null} />);
 
-    const summary = screen.getByText(/Running CraftHub locally\?/);
-    const details = summary.closest("details");
-
-    expect(details).not.toBeNull();
-    // Collapsed by default — the hosted path is the default path.
-    expect(details).not.toHaveAttribute("open");
-
-    // And the numbered flow now starts at "Add CraftHub to your tool".
+    expect(screen.queryByText(/Running CraftHub locally\?/)).toBeNull();
+    expect(container.querySelector("details")).toBeNull();
     expect(screen.getByText("Add CraftHub to your tool")).toBeInTheDocument();
   });
 
