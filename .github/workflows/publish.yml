@@ -32,6 +32,11 @@ on:
         options:
           - crafthub-mcp
           - crafthub-extract
+      dry_run:
+        description: "Rehearse without publishing (build + test + pack only)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: publish-${{ inputs.package }}
@@ -96,9 +101,15 @@ jobs:
           VERSION=$(node -p "require('./node_modules/$NAME/package.json').version")
           echo "Publishing $NAME@$VERSION"
           if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
-            echo "::error::$NAME@$VERSION is already published. Bump the version in its package.json first."
-            exit 1
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "::notice::$NAME@$VERSION is already published — fine for a rehearsal, would be fatal for a real run."
+            else
+              echo "::error::$NAME@$VERSION is already published. Bump the version in its package.json first."
+              exit 1
+            fi
           fi
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
 
       # `--provenance=false` is deliberate and must stay until this repository
       # is public. Provenance attestations go to a PUBLIC transparency log, so
@@ -108,5 +119,19 @@ jobs:
       # npm's docs say trusted publishing turns provenance on by default, and
       # practitioners report it does not — being explicit makes the outcome the
       # same either way. When the repo goes public, flip this to `--provenance`.
+      #
+      # On a rehearsal this becomes `--dry-run`, which builds the tarball and
+      # prints its contents without contacting the registry. Useful, but be
+      # clear about its limit: a dry run never performs the OIDC exchange, so a
+      # green rehearsal says nothing about whether the trusted-publisher config
+      # on npmjs.com is correct. Only a real publish tests that.
       - name: Publish to npm (trusted publishing, no token)
-        run: npm publish --workspace=${{ inputs.package }} --provenance=false
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "::notice::Rehearsal — packing only, nothing is published and OIDC is not exercised."
+            npm publish --workspace=${{ inputs.package }} --provenance=false --dry-run
+          else
+            npm publish --workspace=${{ inputs.package }} --provenance=false
+          fi
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
