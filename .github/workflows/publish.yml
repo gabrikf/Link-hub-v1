@@ -1,0 +1,112 @@
+name: Publish
+
+# Publishes one of the two user-facing npm packages using npm **trusted
+# publishing** (OIDC). No NPM_TOKEN lives in this repository: GitHub mints a
+# short-lived OIDC token, npm verifies it against the trusted publisher
+# configured for the package, and the publish is authorised by that alone.
+#
+# Because there is no long-lived token, this is also the way to publish WITHOUT
+# a 2FA one-time code. The `gabrikf` account is on `auth-and-writes`, so a
+# publish from a laptop prompts for an OTP every time; a publish from here does
+# not prompt at all.
+#
+# ── One-time setup on npmjs.com, per package ────────────────────────────────
+# For BOTH `crafthub-mcp` and `crafthub-extract`:
+#   Package → Settings → Trusted Publisher → GitHub Actions, then:
+#     Organization or user   gabrikf
+#     Repository             Link-hub-v1
+#     Workflow filename      publish.yml     ← filename only, not a path
+#     Environment name       (leave empty)
+#     Allowed actions        npm publish
+# Every field is CASE-SENSITIVE and must match exactly. If this file is ever
+# renamed, both trusted-publisher configs must be updated in the same change or
+# the next publish fails with a permission error that does not mention renaming.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to publish (version comes from its package.json)"
+        required: true
+        type: choice
+        options:
+          - crafthub-mcp
+          - crafthub-extract
+
+concurrency:
+  group: publish-${{ inputs.package }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # The whole point: lets the job mint the OIDC token npm checks. Without it the
+  # publish fails as unauthenticated even though everything else is correct.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22.14.0+ and npm 11.5.1+ are hard requirements for trusted
+      # publishing. `packageManager` in the root package.json pins npm@11.1.0,
+      # which is BELOW that floor, so the explicit upgrade below is load-bearing
+      # rather than housekeeping.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+
+      - name: Upgrade npm past the trusted-publishing floor
+        run: |
+          npm install -g npm@latest
+          echo "npm $(npm --version) / node $(node --version)"
+          node -e '
+            const [maj, min, patch] = process.versions.node.split(".").map(Number);
+            if (maj < 22 || (maj === 22 && min < 14)) {
+              throw new Error("node >= 22.14.0 required for trusted publishing");
+            }
+          '
+
+      - run: npm ci
+
+      # Publishing something that does not pass its own tests is how a broken
+      # CLI reaches every user at once. This is the package's own suite, not the
+      # whole monorepo gate — proportionate to what is being shipped.
+      - name: Test the package being published
+        run: npm run test --workspace=${{ inputs.package }}
+
+      - name: Build
+        run: |
+          npm run build:schemas
+          npm run build --workspace=${{ inputs.package }}
+
+      # A version already on the registry is immutable. Catching it here gives a
+      # sentence that says what to do; letting npm catch it gives a 403 that
+      # reads like an auth failure and sends you back to the token settings.
+      - name: Refuse to republish an existing version
+        run: |
+          # npm ci symlinks every workspace into node_modules under its own
+          # name, so the package resolves without hardcoding apps/mcp vs
+          # apps/extractor — a mapping that would silently rot on the next
+          # rename.
+          NAME='${{ inputs.package }}'
+          VERSION=$(node -p "require('./node_modules/$NAME/package.json').version")
+          echo "Publishing $NAME@$VERSION"
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::$NAME@$VERSION is already published. Bump the version in its package.json first."
+            exit 1
+          fi
+
+      # `--provenance=false` is deliberate and must stay until this repository
+      # is public. Provenance attestations go to a PUBLIC transparency log, so
+      # GitHub dropped support for generating them from private source repos in
+      # July 2023; asking for one here fails the publish with "Only public
+      # source repositories are supported when publishing with provenance".
+      # npm's docs say trusted publishing turns provenance on by default, and
+      # practitioners report it does not — being explicit makes the outcome the
+      # same either way. When the repo goes public, flip this to `--provenance`.
+      - name: Publish to npm (trusted publishing, no token)
+        run: npm publish --workspace=${{ inputs.package }} --provenance=false

@@ -603,6 +603,11 @@ pass it through the chain with `--`:
 npm run publish:mcp -- --otp=123456
 ```
 
+Or publish from CI with no OTP at all: **Actions → Publish → Run workflow**,
+pick the package. That path uses npm trusted publishing (OIDC), so there is no
+token in the repo and no one-time code to type — see
+`.github/workflows/publish.yml` for the one-time npmjs.com setup it needs.
+
 Layout:
 
 ```
