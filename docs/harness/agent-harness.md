@@ -69,14 +69,16 @@ Three consequences shape everything below:
 
 ---
 
-## The sensor
+## The sensors
 
 ```bash
 npm run harness:check              # or it runs inside npm run guardrails
 npm run harness:check:self-test    # proves the check still catches violations
 ```
 
-`scripts/guardrails/harness-check.mjs` enforces, on every push and in CI:
+Four kinds, all wired into the gate and CI.
+
+**`scripts/guardrails/harness-check.mjs`** enforces:
 
 - every path cite in the harness resolves;
 - every `npm run x` cite exists in some `package.json`;
@@ -88,19 +90,42 @@ It is deliberately quiet about anything ambiguous — placeholders, elisions,
 globs, URLs, fenced examples and cites into trees this repo does not have are
 not cites. A gate that cries wolf gets bypassed.
 
+**`scripts/guardrails/design-tokens.mjs`** enforces "no `slate` / `gray` /
+`blue` / `indigo`", and "no hardcoded hex in a component" for the case with
+teeth — an arbitrary hex inside a Tailwind class. `docs/harness/sensor-backlog.md`
+records the part of that rule this sensor does not yet cover.
+
+**`scripts/guardrails/lint-changed.mjs`** is the ratchet. It lints the files a
+change touched — against `eslint.config.js` at push time, against
+`eslint.typed.config.js` too — and compares findings to
+`scripts/guardrails/lint-baseline.json`, keyed by file and rule. An inherited
+finding passes; a new one fails. It is what makes the type-aware lint layer
+usable while its 555-finding backlog is still open, and what stops a rule
+that fired once from being silently reintroduced two commits later.
+
+**Eslint rules that became checks** — a prose rule expressed directly as a
+lint rule instead of a sentence somebody has to remember, plus
+`eslint-plugin-sonarjs`'s whole recommended set (see below for what that is).
+Which rules currently fire as checks, what each replaced, and which have since
+stopped firing without anyone deciding that on purpose, is tracked in
+`docs/harness/sensor-backlog.md`'s "Built" table rather than copied here — that
+is the one place this repo keeps that list current.
+
 ---
 
 ## The hooks
 
-Four, and each answers a different question. The cost of the answer is what
-decides where it runs.
+Three scripts, each answering a different question, at a cost that decides
+where it runs. A fourth trigger point — Claude Code's `Stop` event — exists
+too, but it invokes the same script as `pre-push` rather than being its own
+question.
 
 | Hook                        | Scope                            | Cost                           | Question                                                       |
 | --------------------------- | -------------------------------- | ------------------------------ | -------------------------------------------------------------- |
 | `PostToolUse` (Claude Code) | the one file an agent just wrote | < 1s                           | did that edit introduce a lint error?                          |
 | `pre-commit` (husky)        | staged files                     | ~3s, ~5s across two workspaces | is this well-formed, and free of new findings?                 |
 | `pre-push` (husky)          | the affected graph               | < 90s                          | does it still build, type-check, test and hold its guardrails? |
-| `Stop` (Claude Code)        | same as pre-push                 | < 90s                          | can this agent call itself done?                               |
+| `Stop` (Claude Code)        | same script as `pre-push`        | < 90s                          | can this agent call itself done?                               |
 
 **`PostToolUse` is the one worth understanding.** `Stop` already prevents an
 agent finishing on a red tree, but it fires at the end: the model writes a file,
@@ -115,6 +140,24 @@ It **fails open on everything** — malformed payload, path outside a workspace,
 eslint erroring — because a hook that blocks an agent because of its own bug is
 worse than no hook.
 
+**`pre-commit` autofixes and re-stages, then blocks on what is left.**
+`scripts/guardrails/pre-commit.mjs` runs against staged files only: prettier
+first, then `eslint --fix` through `lint-changed.mjs --syntactic`, then it
+re-stages whatever either one touched — otherwise the fix sits in the working
+tree and the commit records the unformatted version, which is the single most
+confusing way for a format-on-commit hook to fail. It is deliberately not a
+small `pre-push`: it never runs tests, and it never touches the type-aware
+layer, because that layer's cost (a TypeScript program per workspace) is a
+large fixed cost rather than a per-file one — fine inside `pre-push`'s
+90-second budget, wrong between typing `git commit` and getting the terminal
+back.
+
+**`pre-push` is unchanged by this round of work**, other than the ratchet now
+running across all seven workspaces instead of two. It is still the full gate:
+build, type-check, test, and every other guardrail, budgeted at under 90
+seconds. `Stop` calls the identical script with `--stop-hook`, so there is one
+definition of "does this still hold," not two that can drift apart.
+
 **Two lint layers, and the split is about cost.** `eslint.config.js` is
 syntactic and runs in seconds; `npm run lint` uses it and it is meant to be
 green. `eslint.typed.config.js` adds the rules that need a TypeScript program —
@@ -122,6 +165,16 @@ green. `eslint.typed.config.js` adds the rules that need a TypeScript program �
 it carries a recorded backlog, so it runs only through
 `scripts/guardrails/lint-changed.mjs` against the ratchet in
 `lint-baseline.json`. Inherited findings pass; new ones fail.
+
+**`eslint-plugin-sonarjs` is SonarQube's own analyzer, running locally.**
+`packages/eslint-config/base.js` loads `sonarjs.configs.recommended` into the
+syntactic layer, so it runs through `npm run lint`, `PostToolUse` and
+`pre-commit` like any other syntactic rule — cognitive complexity, duplicated
+branches, useless assignments, identical sub-expressions, the bug classes a
+type-checker cannot see. It is the same rule set the `sonarqube` MCP server's
+cloud instance runs, packaged as an eslint plugin instead: no server
+round-trip, no account, nothing about this repo leaves the machine to produce
+these findings.
 
 ---
 

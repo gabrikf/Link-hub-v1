@@ -53,6 +53,75 @@ export const config = [
     },
   },
   {
+    /**
+     * THE LAYER RULE, AS A CHECK.
+     *
+     * `src/core/` is pure: entities, use cases, and the INTERFACES they depend
+     * on. It must not know that Fastify, Drizzle, Redis or OpenAI exist. That
+     * is what lets every use-case test run against in-memory repositories with
+     * no database, no network and no container, in under a minute.
+     *
+     * It lives HERE, in the shared config, rather than in
+     * `apps/api/eslint.config.js`, because it was already lost once: the
+     * workspace configs were regenerated wholesale during the lint rollout and
+     * this block went with them, silently, while the docs went on citing it as
+     * the thing that found four violations. A rule in the shared base survives
+     * a workspace config being rewritten, and
+     * `scripts/guardrails/lint-sensors-self-test.mjs` proves it still fires.
+     */
+    files: ["**/src/core/**/*.ts"],
+    ignores: ["**/src/core/**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/infra/**",
+                "../infra/*",
+                "../../infra/*",
+                "../../../infra/*",
+              ],
+              message:
+                "src/core/ must not import from src/infra/. Declare an interface in " +
+                "src/core/providers/ or src/core/repositories/ and let src/infra/ implement it.",
+            },
+          ],
+          paths: [
+            {
+              name: "fastify",
+              message:
+                "src/core/ is transport-agnostic. HTTP belongs in src/infra/http/.",
+            },
+            {
+              name: "drizzle-orm",
+              message:
+                "src/core/ must not know the ORM. Depend on a repository interface; " +
+                "src/infra/database/ implements it.",
+            },
+            {
+              name: "ioredis",
+              message:
+                "src/core/ must not talk to Redis. Go through the queue provider interface.",
+            },
+            {
+              name: "openai",
+              message:
+                "src/core/ must not call the OpenAI client. Use the provider interfaces in " +
+                "src/core/providers/.",
+            },
+            {
+              name: "pg",
+              message:
+                "src/core/ must not open a database connection. That is src/infra/.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: [
       "**/bin/**",
       "**/scripts/**",
@@ -60,6 +129,25 @@ export const config = [
       "**/run-*.ts",
       "**/main.ts",
       "**/index.ts",
+      // Drizzle migration/seed CLIs: run standalone via `tsx`, never imported
+      // into a request path. `migrate.ts` is `scripts/deploy.sh`'s pre-restart
+      // step; `seed.ts` and `seed-realistic.ts` guard their `process.exit`
+      // behind a `process.argv[1] === currentFile`/`main().catch` entry check
+      // so importing their exported helpers (`seedDefaultCatalog`) elsewhere
+      // never triggers it.
+      "**/infra/database/drizzle/migrate.ts",
+      "**/infra/database/drizzle/seed.ts",
+      "**/infra/database/drizzle/seed-realistic.ts",
+      // The Fastify process entry point: `process.exit(1)` on a failed boot,
+      // `process.exit(0)` at the end of the SIGTERM/SIGINT graceful-shutdown
+      // handler. Both run only outside `isTest()`, after the listening socket
+      // and its dependents are already closed — never mid-request.
+      "**/infra/http/server.ts",
+      // `npx tsx .../backfill-search-index.ts <command>` — a standalone
+      // search-index maintenance CLI (status/open-to-work/reembed). It lives
+      // under `src/core/use-case/**` for proximity to the search code it
+      // maintains, not because it is imported at runtime.
+      "**/maintenance/backfill-search-index.ts",
     ],
     rules: { "n/no-process-exit": "off" },
   },

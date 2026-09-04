@@ -9,26 +9,40 @@ knows exactly what it has to catch.
 
 ## Built
 
-| Sensor | Replaces | Where |
-|---|---|---|
-| `harness-check.mjs` | "every cite in the harness resolves", the size budgets, skill frontmatter shape | `scripts/guardrails/harness-check.mjs`, in the gate and CI |
-| `design-tokens.mjs` | "no `slate` / `gray` / `blue` / `indigo`", and "no hardcoded hex in a component" for the case with teeth — an arbitrary hex inside a Tailwind class | `scripts/guardrails/design-tokens.mjs`, in the gate and CI |
-| eslint `no-restricted-imports` on `apps/api/src/core/**` | "`src/core/` must not import from `src/infra/`, `fastify`, `drizzle-orm`, `ioredis`, `openai` or `pg`" | `apps/api/eslint.config.js` |
-| eslint `no-restricted-imports` for `react-icons` | "Icons: `react-icons/fi` only" | `apps/web/eslint.config.js`, with a named brand-mark exception list |
-| `router-lazy.test.ts` | "Every route component is lazy via `lazyRouteComponent`" | `apps/web/src/router-lazy.test.ts` |
+| Sensor                                                                                       | Replaces                                                                                                                                            | Where                                                                                                                                           |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `harness-check.mjs`                                                                          | "every cite in the harness resolves", the size budgets, skill frontmatter shape                                                                     | `scripts/guardrails/harness-check.mjs`, in the gate and CI                                                                                      |
+| `design-tokens.mjs`                                                                          | "no `slate` / `gray` / `blue` / `indigo`", and "no hardcoded hex in a component" for the case with teeth — an arbitrary hex inside a Tailwind class | `scripts/guardrails/design-tokens.mjs`, in the gate and CI                                                                                      |
+| `lint-changed.mjs` (the ratchet)                                                             | "the type-aware rules ratchet, so an inherited finding passes and one you add fails" (root `AGENTS.md`)                                             | `scripts/guardrails/lint-changed.mjs`, run by `pre-commit` (syntactic only) and by the gate/CI (both lint layers, against `lint-baseline.json`) |
+| `eslint.config.js` + a `lint` script in all seven workspaces, gated by `LINT_ERROR_BASELINE` | "`npm run lint` is the syntactic layer" being true of the whole repo, not `apps/web` alone                                                          | every workspace's `eslint.config.js`; `.github/workflows/ci.yml`                                                                                |
+| `@typescript-eslint/no-explicit-any` as `"error"`                                            | "Type everything. Never `any`." (root `AGENTS.md`)                                                                                                  | `packages/eslint-config/base.js` — off only in test files                                                                                       |
+| `sonarjs.configs.recommended` (`eslint-plugin-sonarjs`)                                      | no prose rule existed for these bug classes; this is new coverage, not a check replacing a sentence                                                 | `packages/eslint-config/base.js`, in the syntactic layer, so it runs through `npm run lint`, `PostToolUse` and `pre-commit`                     |
+| `router-lazy.test.ts`                                                                        | "Every route component is lazy via `lazyRouteComponent`"                                                                                            | `apps/web/src/router-lazy.test.ts`                                                                                                              |
 
-Each of the five was checked against a deliberate violation before being wired
-in; `harness-check` and `design-tokens` carry that proof as `--self-test`, and
-`router-lazy.test.ts` has a sabotage case as its third test.
+`harness-check` and `design-tokens` carry self-test proof as `--self-test`,
+and `router-lazy.test.ts` has a sabotage case as its third test — each checked
+against a deliberate violation before being wired in. The four rows added on
+2026-09-04 came from turning existing eslint rules on repo-wide rather than
+from writing new detection logic, so their proof is the measured, named error
+counts in `docs/harness/known-debt.md` (67 syntactic, 555 type-aware) instead
+of a sabotage case.
 
-Two of them found real violations the prose rule had not:
-
-- **The layer rule** was already broken in four `apps/api/src/core/` files (see
-  `docs/harness/known-debt.md`). The gate lints only changed files, so nothing
-  is red today — but the rule now blocks new violations, which is the point.
-- **The icon family rule** and **the hex rule** were both stated absolutely and
-  are both violated on purpose, by third-party brand marks. The sensors encode
-  that exception explicitly instead of leaving it to whoever reads the rule next.
+**Two sensors that were in this table before 2026-09-04 no longer fire, and
+neither removal reads like a decision.** `eslint no-restricted-imports` on
+`apps/api/src/core/**` and `eslint no-restricted-imports` for `react-icons`
+lived inline in `apps/api/eslint.config.js` and `apps/web/eslint.config.js`.
+The 2026-09-04 change replaced both files' entire contents with
+`export default [...config]` from the new shared `@repo/eslint-config/node`
+and `@repo/eslint-config/react` — and neither restriction was carried into the
+shared config. Re-derive this any time: `npx eslint 'src/core/**/*.ts'` from
+`apps/api` reports no `no-restricted-imports` findings today, and an
+`apps/web` file importing from `react-icons/md` (outside the allowed `/fi`
+family) lints clean. `docs/harness/known-debt.md` still describes the
+`src/core` layer violations as "found by the new eslint sensor on 2026-09-04";
+that sentence and this section now disagree, and resolving which one is stale
+is a decision for whoever picks the rule back up — rebuild it in the shared
+config (where it would reach every workspace, not just the one it started in)
+or record the loss as accepted debt.
 
 ## Not built
 
@@ -77,25 +91,21 @@ to name them as the exception. Either way it is a decision, not a check.
 There is no `<Card>` component — the constants are the card."
 
 **Why not yet:** detecting a hand-written copy means recognising a
-*near*-duplicate of a long utility string, and the constants change. A literal
+_near_-duplicate of a long utility string, and the constants change. A literal
 substring match misses a variant that reordered two utilities; a fuzzy match
 fires on any card-ish element.
 
-**Next step, if picked up:** compare the token *set* of each `className`
+**Next step, if picked up:** compare the token _set_ of each `className`
 literal in a `.tsx` file against the token set of each exported constant, and
 flag an overlap above a threshold. Prototype it against the current tree first
 — if it produces more than a handful of findings, it is not ready to block.
 
-### `@typescript-eslint/no-explicit-any` as an error
+### `@typescript-eslint/no-explicit-any` — moved to Built
 
-**Rule it would replace** (root `AGENTS.md`): "Type everything. Never `any`."
-
-**Why not yet:** it is `"warn"` in `apps/api/eslint.config.js` — deliberately,
-because `apps/api` carries an unlinted backlog and a config that is red on
-arrival is a config people bypass. `apps/web` does not configure the rule at
-all beyond the typescript-eslint recommended default. So the prose rule is
-still the only thing enforcing this, and it stays in the root in full.
-
-**Next step, if picked up:** it is downstream of the `apps/api` lint backlog in
-`docs/harness/known-debt.md`. Raise it to `"error"` in the same change that
-clears the backlog, not before.
+It is `"error"` in `packages/eslint-config/base.js` as of 2026-09-04 (off only
+in test files — partial fakes and deliberately malformed payloads legitimately
+reach for `any` there). Every workspace extends `base.js`, so this is now a
+repo-wide check rather than a prose rule; see the Built table above. What is
+left is the existing backlog of pre-2026-09-04 `any` usage that the rule now
+reports but does not block — it is counted inside the syntactic and type-aware
+totals in `docs/harness/known-debt.md`, not tracked separately here.

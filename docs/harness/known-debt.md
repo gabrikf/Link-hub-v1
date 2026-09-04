@@ -5,15 +5,15 @@ own review. **Do not fix one as a side quest, and do not let it grow.**
 
 Last verified against the tree: 2026-09-04.
 
-| Debt                                                                   | Where it bites                                 | Status                                                                                                                                                                                              |
-| ---------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A backlog of eslint errors in `apps/web` (29 on 2026-09-04)            | `npm run lint`                                 | counted, printed and ratcheted every CI run by `LINT_ERROR_BASELINE` in `.github/workflows/ci.yml`                                                                                                  |
-| Type-aware findings across `apps/api` and `apps/web`                   | new code only                                  | 788 recorded in `scripts/guardrails/lint-baseline.json`; the ratchet blocks the 789th                                                                                                               |
-| `packages/ui` is dead scaffolding                                      | nothing                                        | no workspace imports `@repo/ui`                                                                                                                                                                     |
-| `apps/api` and `apps/training` do not extend `@repo/typescript-config` | those two workspaces                           | they miss `noUncheckedIndexedAccess`                                                                                                                                                                |
-| A stray `pluguins/` directory (typo for `plugins`)                     | `apps/api/src/infra/http/pluguins/database.ts` | one file, imported under that name; renaming it is a one-line import change plus a build check, and nobody has wanted it enough                                                                     |
-| The gate's infra probes identify a PORT, not a service                 | `pre-push.mjs`                                 | fixed for MinIO on 2026-09-04 after a foreign instance on 9000 made the gate fail on someone else's credentials; Postgres (5432) and Redis still probe the port alone and have the same latent flaw |
-| Four files in `apps/api/src/core/` import from `src/infra/`            | the layer rule                                 | found by the new eslint sensor on 2026-09-04; the gate lints only changed files, so it blocks new violations and does not block today                                                               |
+| Debt                                                                                                                                      | Where it bites                                 | Status                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A backlog of eslint errors across four workspaces (67 on 2026-09-04: `apps/api` 13, `apps/web` 51, `apps/extractor` 2, `apps/training` 1) | `npm run lint`                                 | counted, printed and ratcheted every CI run by `LINT_ERROR_BASELINE` in `.github/workflows/ci.yml`; `apps/mcp`, `packages/schemas` and `packages/ui` report clean                                   |
+| Type-aware findings across all seven workspaces                                                                                           | new code only                                  | 555 recorded in `scripts/guardrails/lint-baseline.json`, across 208 files; the ratchet blocks the 556th                                                                                             |
+| `packages/ui` is dead scaffolding                                                                                                         | nothing                                        | no workspace imports `@repo/ui`                                                                                                                                                                     |
+| `apps/api` and `apps/training` do not extend `@repo/typescript-config`                                                                    | those two workspaces                           | they miss `noUncheckedIndexedAccess`                                                                                                                                                                |
+| A stray `pluguins/` directory (typo for `plugins`)                                                                                        | `apps/api/src/infra/http/pluguins/database.ts` | one file, imported under that name; renaming it is a one-line import change plus a build check, and nobody has wanted it enough                                                                     |
+| The gate's infra probes identify a PORT, not a service                                                                                    | `pre-push.mjs`                                 | fixed for MinIO on 2026-09-04 after a foreign instance on 9000 made the gate fail on someone else's credentials; Postgres (5432) and Redis still probe the port alone and have the same latent flaw |
+| Four files in `apps/api/src/core/` import from `src/infra/`                                                                               | the layer rule                                 | found by the new eslint sensor on 2026-09-04; the gate lints only changed files, so it blocks new violations and does not block today                                                               |
 
 ### The four `src/core` layer violations
 
@@ -36,16 +36,26 @@ which is its own task.
 
 ## Detail
 
-### The eslint backlog in `apps/web`
+### The eslint backlog
 
-Mostly `react-hooks/set-state-in-effect` (new in eslint-plugin-react-hooks v7)
-and `react-refresh/only-export-components`. The CI job runs eslint, prints the
-count, and fails the moment it exceeds the baseline. It does not block the merge
-queue while the debt is being paid.
+67 errors on 2026-09-04, measured with `npm run lint` (Turbo's `--continue`
+runs every workspace and prints a total): `apps/api` 13, `apps/web` 51,
+`apps/extractor` 2, `apps/training` 1. `apps/mcp`, `packages/schemas` and
+`packages/ui` report zero.
+
+Until 2026-09-04 this row was `apps/web`-only, because `apps/web` was the only
+workspace with a `lint` script. All seven have one now, so the backlog is
+whatever each workspace's syntactic config (`eslint.config.js`, which is what
+`npm run lint` runs) actually finds — mostly `react-hooks/set-state-in-effect`
+(new in eslint-plugin-react-hooks v7) and `react-refresh/only-export-components`
+in `apps/web`, plus `sonarjs/cognitive-complexity` wherever a function already
+crossed the threshold of 15 before `eslint-plugin-sonarjs` started enforcing
+it. The CI job runs eslint, prints the count, and fails the moment it exceeds
+the baseline. It does not block the merge queue while the debt is being paid.
 
 The count itself lives in one place — `LINT_ERROR_BASELINE` — precisely so it
-cannot drift. It was written as 30 and stood at 29 on 2026-09-04; the ratchet
-was lowered to match, which is the only direction it may move.
+cannot drift. It is 67, matching a fresh `npm run lint` run; the ratchet may
+only move down from here.
 
 The gate lints only the files **you** changed. If a rule fires on your code,
 fix the code — an inline `eslint-disable` to clear the ratchet is a workaround,
@@ -54,16 +64,33 @@ from the workflow and let `npm run lint` fail the job outright.
 
 ### The type-aware backlog
 
-Turning on `no-unsafe-assignment`, `no-unsafe-member-access`,
-`no-floating-promises` and `no-misused-promises` reported **788 existing
-errors** — 629 in `apps/api`, 159 in `apps/web`. Roughly a third are async
-hygiene and the rest are the `no-unsafe-*` family, which is what "a value flowed
-in here without a type" looks like.
+555 recorded findings across 208 files in `scripts/guardrails/lint-baseline.json`
+(`_totalErrors`), spread over every workspace that now has a type-aware config:
+`apps/web` 311, `apps/api` 184, `apps/training` 28, `packages/schemas` 24,
+`apps/mcp` 12, `apps/extractor` 11, `packages/ui` 2.
+
+This replaces the 788 figure (629 in `apps/api`, 159 in `apps/web`) that stood
+before 2026-09-04. The count did not drop because 216 findings were fixed — it
+moved for two structural reasons, both in `packages/eslint-config/typed.js`:
+
+- Build and test **config files** (`**/*.config.ts` / `.js` / `.mjs` / `.mts`)
+  are now excluded from the type-aware layer. They sit outside every
+  workspace's tsconfig `include`, so the project service could not place them
+  and each one failed to parse — recorded as a `(fatal)` finding
+  indistinguishable from real debt. They are still fully covered by the
+  syntactic config, which is what actually matters for a config file.
+- `packages/schemas`' test files were **brought into** the type-aware layer,
+  through the new `packages/schemas/tsconfig.lint.json`. Its own
+  `tsconfig.json` excludes tests so vitest never ends up in the package's
+  published type surface, which meant the project service could not place
+  those files either — 12 files the type-aware rules were silently never
+  running on, recorded the same way as the config files above.
 
 They are recorded per file and rule, so `lint-changed.mjs` passes an inherited
 finding and fails a new one. New code is fully type-checked from 2026-09-04.
-Clearing the backlog is its own task: most of it is in request handlers and
-queue payloads, and every fix is a real change to how a value is validated.
+Clearing the backlog is its own task, and now spans every workspace rather than
+just `apps/api` and `apps/web`: most of it is in request handlers and queue
+payloads, and every fix is a real change to how a value is validated.
 
 ## Retired — items that were here and are no longer true
 

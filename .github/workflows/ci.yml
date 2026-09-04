@@ -9,7 +9,11 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    # `develop` as well as `main`. Feature branches merge into `develop` here,
+    # so a workflow that only watched `main` gave those pull requests no CI at
+    # all — every "CI enforces this" claim in the docs was vacuous for exactly
+    # the branches people actually open.
+    branches: [main, develop]
   workflow_dispatch:
 
 # A force-push to a PR branch should cancel the previous run rather than pay for
@@ -76,7 +80,7 @@ jobs:
       # without `--continue` turbo stops at the first failing workspace and the
       # count below is silently partial — it read 1 instead of 73 the first time
       # this ran with seven workspaces.
-      LINT_ERROR_BASELINE: "75"
+      LINT_ERROR_BASELINE: "67"
 
     steps:
       - name: Checkout
@@ -248,8 +252,24 @@ jobs:
       - name: Build shared packages
         run: npm run build:schemas
 
+      # `github.base_ref` is empty on a workflow_dispatch run, which would make
+      # this `--base origin/` and fail. Passing no `--base` lets the script fall
+      # back to its own merge-base resolution, which is the right answer when
+      # there is no pull request to compare against.
+      # A deleted test turns a suite red; a deleted eslint rule turns lint
+      # GREEN. Two sensors were lost exactly that way during this rollout, and
+      # nothing said so. This asserts each one still fires on a probe and stays
+      # quiet on a control.
+      - name: Prove the eslint sensors still bite
+        run: node scripts/guardrails/lint-sensors-self-test.mjs
+
       - name: Lint the changed files against the ratchet
-        run: node scripts/guardrails/lint-changed.mjs --base origin/${{ github.base_ref }}
+        run: |
+          if [ -n "${{ github.base_ref }}" ]; then
+            node scripts/guardrails/lint-changed.mjs --base "origin/${{ github.base_ref }}"
+          else
+            node scripts/guardrails/lint-changed.mjs
+          fi
 
   # ---------------------------------------------------------------------------
   # TEST — a real gate, against real Postgres + Redis

@@ -95,6 +95,18 @@ import {
 } from "../config/app-config.js";
 import { isRedisConfigured } from "../redis/redis-client.js";
 import { InternalServerError } from "../../core/errors/index.js";
+import { passThroughValidator } from "./pass-through-validator.js";
+import {
+  ICreateUserUseCaseInput,
+  ILoginUseCaseInput,
+  IOAuthSignInUseCaseInput,
+  IGoogleSignInUseCaseInput,
+  IVerifyEmailUseCaseInput,
+  IResendVerificationUseCaseInput,
+  IRefreshSessionUseCaseInput,
+  IForgotPasswordUseCaseInput,
+  IResetPasswordUseCaseInput,
+} from "../../core/use-case/types.js";
 import { CreateUserUseCase } from "../../core/use-case/auth/create-user-use-case/create-user.use-case.js";
 import { LoginUseCase } from "../../core/use-case/auth/login-use-case/login.use-case.js";
 import { GoogleSignInUseCase } from "../../core/use-case/auth/google-sign-in-use-case/google-sign-in.use-case.js";
@@ -353,12 +365,9 @@ export function setupContainer() {
     useClass: DrizzleProfileTabsRepository,
   });
 
-  container.register<IProfileBlocksRepository>(
-    TOKENS.ProfileBlocksRepository,
-    {
-      useClass: DrizzleProfileBlocksRepository,
-    },
-  );
+  container.register<IProfileBlocksRepository>(TOKENS.ProfileBlocksRepository, {
+    useClass: DrizzleProfileBlocksRepository,
+  });
 
   container.register<IRefreshTokenRepository>(TOKENS.RefreshTokenRepository, {
     useClass: DrizzleRefreshTokenRepository,
@@ -684,7 +693,7 @@ export function setupContainer() {
       const mailProvider = c.resolve<IMailProvider>(TOKENS.MailProvider);
 
       // Simple validator that passes through (Zod validation happens at controller level)
-      const validator = (input: unknown) => input as any;
+      const validator = passThroughValidator<ICreateUserUseCaseInput>();
 
       // No refresh-token repository and no JWT provider any more: registering
       // no longer mints a session.
@@ -715,7 +724,7 @@ export function setupContainer() {
       const jwtProvider = c.resolve<IJwtProvider>(TOKENS.JwtProvider);
 
       // Simple validator that passes through (Zod validation happens at controller level)
-      const validator = (input: unknown) => input as any;
+      const validator = passThroughValidator<ILoginUseCaseInput>();
 
       return new LoginUseCase(
         usersRepository,
@@ -742,7 +751,7 @@ export function setupContainer() {
       const hashProvider = c.resolve<IHashProvider>(TOKENS.HashProvider);
       const jwtProvider = c.resolve<IJwtProvider>(TOKENS.JwtProvider);
 
-      const validator = (input: unknown) => input as any;
+      const validator = passThroughValidator<IOAuthSignInUseCaseInput>();
 
       return new OAuthSignInUseCase(
         usersRepository,
@@ -764,7 +773,7 @@ export function setupContainer() {
         TOKENS.OAuthSignInUseCase,
       );
 
-      const validator = (input: unknown) => input as any;
+      const validator = passThroughValidator<IGoogleSignInUseCaseInput>();
 
       return new GoogleSignInUseCase(
         googleOAuthProvider,
@@ -776,7 +785,7 @@ export function setupContainer() {
 
   container.register<VerifyEmailUseCase>(TOKENS.VerifyEmailUseCase, {
     useFactory: (c) => {
-      const validator = (input: unknown) => input as any;
+      const validator = passThroughValidator<IVerifyEmailUseCaseInput>();
 
       return new VerifyEmailUseCase(
         c.resolve<IUsersRepository>(TOKENS.UsersRepository),
@@ -795,7 +804,8 @@ export function setupContainer() {
     TOKENS.ResendVerificationUseCase,
     {
       useFactory: (c) => {
-        const validator = (input: unknown) => input as any;
+        const validator =
+          passThroughValidator<IResendVerificationUseCaseInput>();
 
         return new ResendVerificationUseCase(
           c.resolve<IUsersRepository>(TOKENS.UsersRepository),
@@ -817,7 +827,7 @@ export function setupContainer() {
 
   container.register<RefreshSessionUseCase>(TOKENS.RefreshSessionUseCase, {
     useFactory: (c) => {
-      const validator = (input: unknown) => input as any;
+      const validator = passThroughValidator<IRefreshSessionUseCaseInput>();
 
       return new RefreshSessionUseCase(
         c.resolve<IRefreshTokenRepository>(TOKENS.RefreshTokenRepository),
@@ -829,7 +839,7 @@ export function setupContainer() {
 
   container.register<ForgotPasswordUseCase>(TOKENS.ForgotPasswordUseCase, {
     useFactory: (c) => {
-      const validator = (input: unknown) => input as any;
+      const validator = passThroughValidator<IForgotPasswordUseCaseInput>();
 
       return new ForgotPasswordUseCase(
         c.resolve<IUsersRepository>(TOKENS.UsersRepository),
@@ -849,7 +859,7 @@ export function setupContainer() {
 
   container.register<ResetPasswordUseCase>(TOKENS.ResetPasswordUseCase, {
     useFactory: (c) => {
-      const validator = (input: unknown) => input as any;
+      const validator = passThroughValidator<IResetPasswordUseCaseInput>();
 
       return new ResetPasswordUseCase(
         c.resolve<IUsersRepository>(TOKENS.UsersRepository),
@@ -1148,10 +1158,9 @@ export function setupContainer() {
     TOKENS.GetUserPreferencesUseCase,
     {
       useFactory: (c) => {
-        const userPreferencesRepository =
-          c.resolve<IUserPreferencesRepository>(
-            TOKENS.UserPreferencesRepository,
-          );
+        const userPreferencesRepository = c.resolve<IUserPreferencesRepository>(
+          TOKENS.UserPreferencesRepository,
+        );
 
         return new GetUserPreferencesUseCase(userPreferencesRepository);
       },
@@ -1162,10 +1171,9 @@ export function setupContainer() {
     TOKENS.UpdateUserPreferencesUseCase,
     {
       useFactory: (c) => {
-        const userPreferencesRepository =
-          c.resolve<IUserPreferencesRepository>(
-            TOKENS.UserPreferencesRepository,
-          );
+        const userPreferencesRepository = c.resolve<IUserPreferencesRepository>(
+          TOKENS.UserPreferencesRepository,
+        );
 
         return new UpdateUserPreferencesUseCase(userPreferencesRepository);
       },
@@ -1475,10 +1483,9 @@ export function setupContainer() {
             TOKENS.SearchResumesByRecruiterQueryUseCase,
           );
 
-        const userPreferencesRepository =
-          c.resolve<IUserPreferencesRepository>(
-            TOKENS.UserPreferencesRepository,
-          );
+        const userPreferencesRepository = c.resolve<IUserPreferencesRepository>(
+          TOKENS.UserPreferencesRepository,
+        );
 
         return new TransformRecruiterSearchInputUseCase(
           queryConversionProvider,
@@ -1937,9 +1944,7 @@ export function setupContainer() {
           TOKENS.WorkExperienceRepository,
         );
 
-        return new SetWorkExperienceDisclosureUseCase(
-          workExperienceRepository,
-        );
+        return new SetWorkExperienceDisclosureUseCase(workExperienceRepository);
       },
     },
   );

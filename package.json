@@ -47,6 +47,7 @@
     "lint:changed": "node scripts/guardrails/lint-changed.mjs",
     "lint:fix": "node scripts/guardrails/lint-changed.mjs --syntactic --fix",
     "lint:baseline": "node scripts/guardrails/lint-changed.mjs --update-baseline",
+    "lint:sensors": "node scripts/guardrails/lint-sensors-self-test.mjs",
     "pre-commit": "node scripts/guardrails/pre-commit.mjs",
     "harness:check": "node scripts/guardrails/harness-check.mjs",
     "design:tokens": "node scripts/guardrails/design-tokens.mjs",
