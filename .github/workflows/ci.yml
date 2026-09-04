@@ -56,7 +56,8 @@ jobs:
     env:
       # The number of eslint errors that existed when this workflow was written.
       # This may only ever go DOWN. Lower it as violations are fixed.
-      LINT_ERROR_BASELINE: "30"
+      # 30 when this workflow was written; 29 as of 2026-09-04.
+      LINT_ERROR_BASELINE: "29"
 
     steps:
       - name: Checkout
@@ -149,6 +150,44 @@ jobs:
 
       - name: Type check all workspaces
         run: npm run check-types
+
+  # ---------------------------------------------------------------------------
+  # HARNESS — the agent instructions, checked like code
+  # ---------------------------------------------------------------------------
+  #
+  # AGENTS.md, the nested workspace files and the skills are loaded as
+  # instructions by Claude Code, Cursor, Codex and Kiro. Nothing else in this
+  # workflow reads them, so a rule that cites a file somebody renamed stays
+  # "true" until an agent goes looking and improvises instead. This job is the
+  # same check the pre-push gate runs, plus the sensor's own self-test — a
+  # check nobody has seen fire is indistinguishable from one that cannot.
+  #
+  # No dependencies, no build: it is node and the repo, and it finishes in
+  # under a second.
+  harness:
+    name: Harness (cites, budgets, skills)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Prove the sensor still bites
+        run: node scripts/guardrails/harness-check.mjs --self-test
+
+      - name: Check the harness
+        run: node scripts/guardrails/harness-check.mjs
+
+      - name: Prove the palette check still bites
+        run: node scripts/guardrails/design-tokens.mjs --self-test
+
+      - name: Check the palette
+        run: node scripts/guardrails/design-tokens.mjs
 
   # ---------------------------------------------------------------------------
   # TEST — a real gate, against real Postgres + Redis

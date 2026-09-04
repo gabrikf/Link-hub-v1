@@ -2,20 +2,18 @@
 /**
  * Locale parity check — a NO-OP today, on purpose.
  *
- * CraftHub has no i18n. Every user-visible string is hardcoded English and
- * `index.html` says `<html lang="en">`. The plan (see the `i18n` skill) is
- * react-i18next with three locales — pt-BR, en-US, es-ES — under
- * `apps/web/src/i18n/locales/`.
+ * CraftHub ships react-i18next with three locales — pt-BR, en-US, es-ES —
+ * under `apps/web/src/i18n/locales/`, with en-US as the source and fallback.
  *
- * This script exists BEFORE that migration rather than after it because the
- * failure mode it guards against is not "a locale file is malformed", it is
- * "somebody added a key to en-US and shipped, and pt-BR silently renders the
- * raw key three weeks later in front of a user". That regression is cheap to
- * prevent on day one of i18n and expensive to retrofit once six hundred keys
- * exist. Wiring the check into the gate now means the day the first locale
- * file lands, parity is already enforced — nobody has to remember.
+ * The failure mode this guards against is not "a locale file is malformed", it
+ * is "somebody added a key to en-US and shipped, and pt-BR silently renders the
+ * raw key three weeks later in front of a user". Nothing else catches that: the
+ * type-checker cannot see into a JSON file, and the component renders happily
+ * with a key where a sentence should be.
  *
- * Until `apps/web/src/i18n/locales/` exists it prints one line and exits 0.
+ * This script was written before the locales existed, so that parity was
+ * enforced from the first one. It still degrades to one line and exit 0 if the
+ * directory is ever missing.
  *
  * Rules once locales exist:
  *   - every locale must hold exactly the same key set (deep, dotted paths)
@@ -50,8 +48,8 @@ function flatten(value, prefix = "", out = new Map()) {
 function main() {
   if (!existsSync(LOCALES_DIR)) {
     console.log(
-      "i18n-parity: skipped — apps/web/src/i18n/locales/ does not exist yet " +
-        "(CraftHub has no i18n; see the `i18n` skill for the planned setup).",
+      "i18n-parity: skipped — apps/web/src/i18n/locales/ does not exist. That " +
+        "directory is supposed to be there; see the `i18n` skill.",
     );
     return 0;
   }

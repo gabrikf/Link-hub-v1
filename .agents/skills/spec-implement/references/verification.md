@@ -38,15 +38,27 @@ VERIFY (automated)
 Blocking, and it runs before UI work against any endpoint someone claims already exists. See SKILL.md §2.4 for the full procedure. The short form:
 
 ```bash
+# 0. Is the API up at all?
 curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:3333/health
+
+# 1. What does Swagger actually declare? (the authoritative route list)
 curl -sS http://localhost:3333/docs/json | jq -r '.paths | keys[]' | grep -i '<resource>'
 
+# 2. Probe BOTH registrations and demand real JSON
 for base in "http://localhost:3333" "http://localhost:3333/api/v1"; do
-  curl -sS -D- -o /tmp/probe-body.json -H 'Accept: application/json' \
-       -H "Authorization: Bearer $TOKEN" "$base/<resource>" \
+  echo "--- $base/<resource>"
+  curl -sS -D- -o /tmp/probe-body.json \
+       -H 'Accept: application/json' \
+       -H "Authorization: Bearer $TOKEN" \
+       "$base/<resource>" \
     | grep -iE '^(HTTP/|content-type:)'
-  jq -e . /tmp/probe-body.json >/dev/null && echo "OK: JSON" || echo "BLOCKED: not JSON"
+  jq -e . /tmp/probe-body.json >/dev/null \
+    && echo "OK: body is valid JSON" \
+    || echo "BLOCKED: body is not JSON — this route is not live"
 done
+
+# 3. Freeze the real payload as the fixture
+cp /tmp/probe-body.json docs/specs/[feature]/contracts/fixtures/<endpoint>.example.json
 ```
 
 **Pass requires all four:** 2xx, `content-type: application/json`, a body that parses, and a body the schema in `contracts/` accepts. Probe **both** registrations — bare and `/api/v1` — because a module can be live on one and 404 on the other. Probe port **3333 directly**: a request through the web dev server at 5173 can return the SPA's `index.html` at HTTP 200, and a 200 is not proof of an endpoint.
@@ -243,11 +255,11 @@ Checklist against the design:
 
 ### Level 8: Copy (after UI tasks)
 
-There is no i18n. `node scripts/guardrails/i18n-parity.mjs` exists but is a **no-op until locales exist** — running it proves nothing today.
+Run `npm run i18n:check`. Parity proves the same key set exists in all three locales with no empty values; the raw-string half proves the string became a key at all. Both run in the gate.
 
 Check instead:
 - Every user-visible string matches the copy table in `definitions.md`
-- Strings are hardcoded English in the component — **no invented `t()`**, no locale file, no translation helper
+- Every user-visible string goes through `t()`, and every new key is in all three locale files
 - No leftover placeholder or lorem text
 - No raw enum value or id leaking where a human-readable label belongs
 
@@ -338,6 +350,25 @@ npm run test --workspace=api
 ```
 
 `packages/schemas` is consumed by api, web, mcp, extractor and training. Tightening a field there is not a local change. Note that `apps/mcp` has **zero tests** — a schema change that breaks it will not be caught by a test suite, so read its call sites by hand.
+
+### Shared-Code Impact Check
+
+The full procedure behind SKILL.md §4.3.1. Runs whenever the feature changed anything in `apps/web/src/shared-components/`,
+`apps/web/src/lib/`, `packages/schemas/src/`, or `apps/api/src/infra/di/container.ts`
+— do this before closing:
+
+1. Map the consumers (grep the import, per the commands above)
+2. Group them by **usage shape** (distinct combination of props/variants)
+3. Assess the blast radius of each change: new required prop, changed default,
+   DOM/class changes, hook return shape, event signature, removed prop/export,
+   a schema field made stricter
+4. Fix the broken consumers **in this same PR** — or preserve compatibility
+   with an opt-in prop whose default keeps current behaviour
+5. Screenshot one screen per usage shape, before × after: a shape that should
+   not have changed and did is a regression — fix it now
+6. Hand the dev **one screen per usage shape** (route + how to get there +
+   props exercised + what to look at) — never the full list of screens
+   sharing the same props
 
 ---
 

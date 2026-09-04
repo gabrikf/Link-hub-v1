@@ -15,9 +15,7 @@ argument-hint: "[--pr N | --base <ref> | --staged | --worktree] [--files p1,p2] 
 
 # Deep Review
 
-Review at CodeRabbit grade with no file cap and one assertive posture: funnel the diff, discover root/nested project instructions and relevant local skills, shard defects and polish into independent cohorts, fan out reviewers, then merge with complete hunk/rule accounting. Defects require causal evidence and control the verdict; advisories require a concrete improvement and always remain visible.
-
-Steps 1–4 drive an idempotent artifact pipeline under `<out>`: every stage gate is a bundled-script exit 0, valid agent outputs are never re-run, and an interrupted round resumes by re-running the same commands.
+Review at CodeRabbit grade with no file cap and one assertive posture. Defects require causal evidence and control the verdict; advisories require a concrete improvement and always remain visible.
 
 `<skill-dir>` below means the directory containing this SKILL.md; run every bundled command from the repo root.
 
@@ -50,7 +48,7 @@ The manifest builder resolves `path_filters` into manifest.json; the knowledge s
 
 ## CraftHub: runtime, rubric sources, priorities, and artifacts
 
-**Runtime — `native` is the only supported one here.** The upstream `--subagent claude-opus|grok|codex` values dispatch through `compozy exec`, and `compozy` is not installed in this repo (`command -v compozy` → nothing). Those values are removed from the flag list above and from the argument hint; **do not pass `--subagent`**. Step 3 runs on the Workflow/Agent engines in `references/orchestration.md`. If `compozy` is ever installed, verify it first and only then read `references/subagent-runtimes.md`.
+**Runtime — `native` is the only supported one here.** The upstream `--subagent claude-opus|grok|codex` values are removed from the flag list above and from the argument hint; **do not pass `--subagent`**. Step 3 runs on the Workflow/Agent engines in `references/orchestration.md`.
 
 **Rubric sources this repo actually has.** `build_knowledge.py` auto-discovers root and nested `AGENTS.md` / `CLAUDE.md`, `.deep-review/learnings.md`, and every `SKILL.md` under `.claude/skills/`. Two high-value sources it does **not** discover must be added to `<out>/rules.json` by hand in Step 2, each read in full:
 
@@ -64,7 +62,7 @@ The manifest builder resolves `path_filters` into manifest.json; the knowledge s
 
 **The six CraftHub review priorities** — contract drift against `@repo/schemas`, disclosure-policy leaks, missing dark-mode variants, N+1 queries through Drizzle, unbounded OpenAI spend, and missing four-state UI handling — are defined with their severity calibration at the end of `references/taxonomy.md`. Every defect cohort checks all six against its scope. `references/context-pack.md` carries the architecture model and the recorded-debt list a reviewer needs before extracting rules.
 
-**Do not report a missing `t()` call or any i18n gap.** CraftHub has no i18n layer: `<html lang="en">` and all user-visible strings are hardcoded English, by decision. A finding that asks for translation infrastructure is a finding against the reviewer.
+**A missing `t()` call IS a finding.** CraftHub ships react-i18next with three locales in `apps/web/src/i18n/locales/`, and the gate runs `i18n-parity.mjs` and `i18n-raw-strings.mjs` on every push. A user-visible string outside `t()`, or a key missing from one of the three locale files, is a real defect against a live guardrail.
 
 **Linter lanes here** (from the repo root, in this order):
 
@@ -132,7 +130,7 @@ Findings from those lanes are recorded as `linter-overlap`, never re-reported as
 
 **Step 3: Fan-out — parallel review**
 
-Execute `<out>/jobs.json` with the mutating runner and engine contract loaded in Step 2. In this repo the runtime is always `native` — `compozy` is not installed, so `references/subagent-runtimes.md` does not apply (read it only if `command -v compozy` starts returning a path). Completion is engine-independent — re-dispatch whatever is listed as pending/invalid until exit 0:
+Execute `<out>/jobs.json` with the mutating runner and engine contract loaded in Step 2. Completion is engine-independent — re-dispatch whatever is listed as pending/invalid until exit 0:
 
 ```bash
 python3 <skill-dir>/scripts/run_jobs.py --out <out> --validate-only

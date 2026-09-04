@@ -149,3 +149,12 @@ docs/qa/evidence/
 
 # deep-review generates hundreds of artifact files per round.
 .deep-review/
+
+# harness-eval writes one directory per run: inventory, the claim deck, judge
+# score files, agreement reports. It is a record of ONE evaluation, and the
+# claim deck alone is ~1,400 records. The durable output is committed instead:
+# docs/harness/eval-log.md and the ledger under docs/harness/.
+.harness-eval/runs/
+
+# Python bytecode from the harness-eval skill scripts.
+__pycache__/

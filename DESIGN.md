@@ -49,10 +49,13 @@ Nothing else. No blue, no indigo, no slate, no gray. `slate` and `gray` next to
 `zinc` are the kind of difference that is invisible in isolation and obvious
 when two components sit side by side.
 
-**No hardcoded hex in a component.** The only hex values in this codebase live
-in `index.css` (the link-icon brand colours, which are third-party brand marks,
-and the accent presets) and in `brand-logo.tsx`. If you need a colour, it is a
-Tailwind scale token or a `--profile-accent-*` variable.
+**No hardcoded hex in a component.** If you need a colour it is a Tailwind scale
+token or a `--profile-accent-*` variable, and
+`scripts/guardrails/design-tokens.mjs` fails the gate on an arbitrary hex inside
+a class (`text-[#0A66C2]`). The exceptions are data, not design: third-party
+brand marks in `lib/link-icons.tsx`, the accent presets in
+`features/profile/components/profile-theme.ts`, `index.css`, and
+`brand-logo.tsx`. `#E4405F` is Instagram's, not a choice anyone here made.
 
 ### Page background
 
@@ -329,7 +332,7 @@ Read a diff against this list:
 
 - [ ] No hand-written surface / badge / focus-ring class strings — constants imported
 - [ ] Every colour utility has a `dark:` counterpart
-- [ ] No hardcoded hex outside `index.css` and `brand-logo.tsx`
+- [ ] No hardcoded hex in a class — `npm run design:tokens` checks this
 - [ ] Only `zinc` + the seven semantic colours; no `slate` / `gray` / `blue` / `indigo`
 - [ ] At most one `primary` button per view
 - [ ] `fullWidth={false}` on any button in a row

@@ -54,6 +54,67 @@ export default tseslint.config(
     },
   },
   {
+    // THE LAYER RULE, AS A CHECK.
+    //
+    // `src/core/` is pure: entities, use cases, and the INTERFACES they depend
+    // on. It must not know that Fastify, Drizzle, Redis or OpenAI exist. That
+    // is not architectural taste — it is what lets every use-case test run
+    // against in-memory repositories with no database, no network and no
+    // container, in under a minute.
+    //
+    // The violation is always accidental and always invisible: somebody needs
+    // one type, imports it from `../../infra/...`, and the suite still passes
+    // locally because that import happens to pull in something harmless today.
+    // The cost arrives later, when the whole use-case suite needs a container.
+    //
+    // `apps/api` has no `lint` script (see the note at the top of this file),
+    // so this fires through `scripts/guardrails/lint-changed.mjs` on the files
+    // a change actually touches — which is exactly when it matters.
+    files: ["src/core/**/*.ts"],
+    ignores: ["src/core/**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/infra/**", "../infra/*", "../../infra/*", "../../../infra/*"],
+              message:
+                "src/core/ must not import from src/infra/. Declare an interface in " +
+                "src/core/providers/ or src/core/repositories/ and let src/infra/ implement it.",
+            },
+          ],
+          paths: [
+            {
+              name: "fastify",
+              message: "src/core/ is transport-agnostic. HTTP belongs in src/infra/http/.",
+            },
+            {
+              name: "drizzle-orm",
+              message:
+                "src/core/ must not know the ORM. Depend on a repository interface; " +
+                "src/infra/database/ implements it.",
+            },
+            {
+              name: "ioredis",
+              message: "src/core/ must not talk to Redis. Go through the queue provider interface.",
+            },
+            {
+              name: "openai",
+              message:
+                "src/core/ must not call the OpenAI client. Use the provider interfaces in " +
+                "src/core/providers/ — that is also what keeps the cached embedding provider in play.",
+            },
+            {
+              name: "pg",
+              message: "src/core/ must not open a database connection. That is src/infra/.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Test files legitimately reach for shapes the production code never has:
     // partial fakes, deliberately malformed payloads for a rejection path.
     files: ["**/*.test.ts", "**/test-support/**", "**/in-memory-*.ts"],

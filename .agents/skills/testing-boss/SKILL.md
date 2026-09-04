@@ -46,8 +46,6 @@ The Iron Laws are the always-loaded tripwire; each reference is the contract. Ma
 | Triaging flaky CI, designing gates, or choosing contract / property / mutation tests | `references/ci-automation.md` |
 | Designing an eval for an LLM/agent feature — oracle ladder, LLM-as-judge, RAG, trajectory vs outcome | `references/llm-eval.md` |
 
-Each reference ends with its own sources; `references/sources.md` is the consolidated bibliography for auditing any claim.
-
 ---
 
 # CraftHub binding — the doctrine, concrete in this repo

@@ -18,6 +18,24 @@ The ideal strategy is the **fastest** one that does not compromise **quality** o
 
 ---
 
+## Quick Table (scenario → strategy)
+
+| Scenario | Strategy | Rationale |
+|---------|-----------|---------------|
+| ≤5 tasks, small feature | **Sequential, single branch** | Least overhead, most control |
+| 6-10 tasks, independent groups | **Sequential, single branch, grouped commits** | Commits organised by group |
+| >10 tasks, 3+ independent groups | **Parallel worktrees** | Maximum speed with isolation |
+| Complex coordination | **Subagents (max 3)** | Delegation with isolation |
+
+**Default:** for most features here, **sequential on a single branch** is the most efficient — it avoids merge/rebase overhead, keeps context, and the harness runs directly.
+
+**Parallel worktrees** only when:
+- There are 3+ task groups with zero shared files
+- The feature is large (>10 tasks)
+- The dev confirmed they want parallelism
+
+---
+
 ## Available Strategies
 
 ### 1. Sequential — Single Branch (DEFAULT)
@@ -59,6 +77,16 @@ feat: add block editor page and route
 feat: add block config form
 test: cover block variants and business rules
 ```
+
+**Commit types by task:**
+
+| Task produces | Commit type |
+|---|---|
+| Contract/schema | `feat: add [resource] schema` |
+| Hook/API | `feat: add [resource] query hook` |
+| UI | `feat: add [component/screen]` |
+| Form | `feat: add [action] form` |
+| Tests | `test: cover [feature]` |
 
 ---
 
@@ -106,7 +134,7 @@ main ──┬── feat/feature ── [G0] ───────────�
 **NEVER use when:**
 - Tasks share `apps/web/src/router.tsx` (routing is code-based — one hand-written file)
 - Tasks both touch `packages/schemas/src/` (the contract package; five workspaces consume it)
-- Tasks both touch `apps/api/src/infra/di/container.ts` (~1900 lines of registration)
+- Tasks both touch `apps/api/src/infra/di/container.ts` (over 2,200 lines of registration)
 - One task imports a type another task is still creating
 - <6 tasks (overhead > benefit)
 
@@ -217,7 +245,7 @@ Before choosing parallel worktrees, analyse each group's files.
 ### HIGH conflict risk (never split across parallel groups):
 - `apps/web/src/router.tsx` — code-based routing, one hand-edited file
 - `packages/schemas/src/**` — the contract package; api, web, mcp, extractor and training all consume it
-- `apps/api/src/infra/di/container.ts` — the ~1900-line registration file
+- `apps/api/src/infra/di/container.ts` — the 2,200-line registration file
 - `apps/web/src/shared-components/**` — shared primitives
 - The single Zustand store in `apps/web`
 - `package.json` / `package-lock.json` (if groups add different dependencies)

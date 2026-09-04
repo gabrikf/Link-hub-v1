@@ -426,10 +426,36 @@ Tempo trace.
 
 ---
 
+## Working with coding agents
+
+This repo is set up so Claude Code, Cursor, Codex and Kiro all read the same
+instructions, from one set of files rather than one copy per tool.
+
+- **[AGENTS.md](AGENTS.md)** — the root index every tool loads: the gate, the
+  non-negotiables, and a table pointing at everything else. `CLAUDE.md` is a
+  symlink to it.
+- **[apps/api/AGENTS.md](apps/api/AGENTS.md)**,
+  **[apps/web/AGENTS.md](apps/web/AGENTS.md)**,
+  **[packages/schemas/AGENTS.md](packages/schemas/AGENTS.md)** — the depth for
+  each workspace, loaded when you are working inside it.
+- **[docs/harness/agent-harness.md](docs/harness/agent-harness.md)** — how the
+  wiring works, which tool reads what, how to add a rule or a skill, and how to
+  onboard a new agent tool.
+
+`npm run harness:check` verifies the whole thing on every push: every path an
+instruction cites exists, every command it names is real, and no file has grown
+past the size its reader will actually load.
+
+---
+
 ## Further reading
 
-- **[DEVELOPMENT-GUIDE.md](DEVELOPMENT-GUIDE.md)** — architecture layers, DI, how
-  to add a use case, testing conventions
+- **[DEVELOPMENT-GUIDE.md](DEVELOPMENT-GUIDE.md)** — a reference for the npm
+  scripts, and nothing else
+- **[docs/harness/agent-harness.md](docs/harness/agent-harness.md)** — the agent
+  harness: layout, per-tool loading rules, and how to extend it
+- **[docs/harness/known-debt.md](docs/harness/known-debt.md)** — the debt that is
+  recorded on purpose, and why each item is still there
 - **[apps/mcp/README.md](apps/mcp/README.md)** — MCP server setup for Claude
   Desktop / Claude Code / Cursor / VS Code, the tool surface, and the disclosure
   policy model

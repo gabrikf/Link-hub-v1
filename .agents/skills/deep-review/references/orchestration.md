@@ -79,6 +79,12 @@ After the workflow returns, run the validate-only gate; re-invoke with the still
 
 **Agent fallback (`--no-workflow` or no Workflow tool).** Same contract through the Agent tool: dispatch each pending job's prompt file to a subagent ("Read `<prompt>` and follow it exactly…"), at most 6 concurrent, then the validate-only gate.
 
-**External runtimes (`--subagent` ≠ `native`) — not available in this repo:** `compozy` is not installed, so `--subagent` is removed from the skill's flags and every round runs `native`. Kept for the day it is installed: `run_jobs.py --command` drives `compozy exec` per subagent-runtimes.md — the runner owns concurrency, retries, output validation, provider-block detection, and the freeze check.
+**External runtimes (`--subagent` ≠ `native`) — not available in this repo:** `compozy` is not installed, so `--subagent` is removed from the skill's flags and every round runs `native`. Kept for the day it is installed — `run_jobs.py --command` would drive `compozy exec` per the runtime map below, with the runner owning concurrency, retries, output validation, provider-block detection, and the freeze check:
+
+| Value | Invocation |
+| --- | --- |
+| `claude-opus` | `compozy exec --ide claude --model opus --reasoning-effort max` |
+| `grok` | `compozy exec --ide cursor-agent --model 'grok-4.5[effort=high,fast=true]'` |
+| `codex` | `compozy exec --ide codex --model gpt-5.6-sol --reasoning-effort xhigh` |
 
 The orchestrator never reviews inline, regardless of PR size: reviewers spend their own context on their cohort; the orchestrator plans, dispatches, gates, and reports.

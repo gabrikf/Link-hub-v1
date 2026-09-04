@@ -3,8 +3,10 @@
 > **Scope:** this is a reference for the **npm scripts** and nothing else. It was
 > once described as an architecture guide, which it is not. For architecture and
 > orientation read `README.md`; for the rules an agent (or a new contributor)
-> must follow read `AGENTS.md`, plus `apps/api/AGENTS.md` and
-> `apps/web/AGENTS.md`; for anything visual read `DESIGN.md`.
+> must follow read `AGENTS.md` and the workspace file for wherever you are
+> working — `apps/api/AGENTS.md`, `apps/web/AGENTS.md`,
+> `packages/schemas/AGENTS.md`; for anything visual read `DESIGN.md`; for how
+> that whole set is wired together read `docs/harness/agent-harness.md`.
 >
 > Ports here are **api 3333** and **web 5173**. An earlier version of this file
 > said the web app ran on port 3000. It never did — `apps/web/vite.config.ts`

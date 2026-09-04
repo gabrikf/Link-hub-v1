@@ -1,4 +1,4 @@
-# AI Writes Tests — Seven Gates Plus Prompt Blocks
+# AI Writes Tests — Six Gates
 
 ## Contents
 
@@ -7,25 +7,19 @@
 - [Gate 2 — Owning layer](#gate-2--owning-layer)
 - [Gate 3 — Real execution](#gate-3--real-execution)
 - [Gate 4 — Failure means fix production](#gate-4--failure-means-fix-production)
-- [Gate 5 — No snapshot without contract](#gate-5--no-snapshot-without-contract)
 - [Gate 6 — No assertion on self-set mock](#gate-6--no-assertion-on-self-set-mock)
 - [Gate 7 — Negative companion](#gate-7--negative-companion)
-- [Combined prompt block — paste into CLAUDE.md or a skill](#combined-prompt-block--paste-into-claudemd-or-a-skill)
 - [Behavioral protocols](#behavioral-protocols)
-- [Evidence base](#evidence-base)
-- [Sources](#sources)
 
 ## Why this reference exists
 
 Coding agents default to mock-driven confidence. They write long, linear tests with high assertion density and no edge cases. On failure they patch the test, not the code. Without explicit gates, agent-generated tests look thorough and validate nothing.
 
-The seven gates below convert the project's testing doctrine into agent-runnable checks. Each gate is enforceable as a prompt block, a failure protocol, or a review rule. None is optional.
+The gates below convert the project's testing doctrine into agent-runnable checks. Each gate is enforceable as a prompt block, a failure protocol, or a review rule. None is optional.
 
-The user's CLAUDE.md already names the cardinal premise:
+The cardinal premise: the main goal of writing a test is not to make it pass — it is to discover potential and actual bugs in the system. When a test reveals unexpected behavior, a bug, or a regression, fix the production code instead of weakening the test or adjusting assertions to match broken behavior.
 
-> *"THE MAIN GOAL of writing tests is NOT just to make them pass — it is to discover potential and actual bugs in the system. When a test reveals unexpected behavior, a bug, or a regression, you MUST fix the production code instead of weakening the test or adjusting assertions to match broken behavior."*
-
-These gates lift that prose into explicit pre-write checks.
+These gates lift that premise into explicit pre-write checks.
 
 ## Gate 1 — Invariant first
 
@@ -67,7 +61,7 @@ Default to extending an existing suite. Forbid creating new files unless the age
 Every agent-generated test must run against the real subsystem at least once before merge. *Real* has a strict definition:
 
 | Layer                         | Real means                                                                        |
-| ----------------------------- | --------------------------------------------------------------------------------- |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
 | Database integration          | Ephemeral container or test schema, not an in-memory mock.                        |
 | HTTP / route integration      | Invocation through the actual handler chain, not handler unit-only.               |
 | External API integration      | Replay / cassette is acceptable; pure mock is not the validation gate.            |
@@ -104,28 +98,6 @@ TEST FAILURE PROTOCOL
 ```
 
 **Why.** Florian Bruniaux's TDD-with-Claude guide: *"Without explicit instruction, Claude will: 1. Write implementation code 2. Then write tests that pass against that implementation."* (https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/guide/workflows/tdd-with-claude.md) Anthropic eval guide: *"You won't know if your graders are working well unless you read the transcripts and grades from many trials"* (https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) — the same loop applies to test failures.
-
-## Gate 5 — No snapshot without contract
-
-When agents generate snapshots, they freeze whatever the code happens to output now. The snapshot becomes a tautology.
-
-**Operational rule:**
-
-```
-Before generating a snapshot, classify the artifact:
-
-  PRODUCT_CONTRACT — an artifact the product itself ships
-                     (public API schema, generated SDK file, OpenAPI doc).
-                     → Snapshot is allowed and recommended.
-
-  IMPLEMENTATION_DETAIL — formatted UI text, error messages, CSS literal values,
-                          internal JSON shapes, rendered DOM trees.
-                          → Snapshot is FORBIDDEN. Use specific matchers instead.
-
-If uncertain, the artifact is IMPLEMENTATION_DETAIL by default.
-```
-
-**Why.** The user's CLAUDE.md already names this: *"Do not add tests that only freeze implementation details, static prose, CSS literal values, generated output, snapshots, config shape, or file existence unless that artifact itself is the product contract."* Reinforced by Anthropic's caution about over-rigid grading (https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
 
 ## Gate 6 — No assertion on self-set mock
 
@@ -175,46 +147,9 @@ the negative test was not protecting an invariant.
 
 **Why.** *"Evaluating only happy paths: If your task suite mostly contains well-formed inputs that the agent handles easily, you'll get high scores that don't reflect real-world performance. Deliberate adversarial testing is not optional."* (https://www.mindstudio.ai/blog/ai-agent-custom-benchmarks-evaluation) Yoshimoto et al. quantify the AI bias toward happy paths (https://arxiv.org/html/2603.13724).
 
-## Combined prompt block — paste into CLAUDE.md or a skill
-
-Copy the block below into the test-authoring section of a project's CLAUDE.md, AGENTS.md, or any agent skill that generates tests:
-
-```
-[TESTING GATES — apply in order before any test code]
-
-GATE 1 — INVARIANT FIRST
-  Print INVARIANT, OWNING_LAYER, EXISTING_SUITE.
-  If EXISTING_SUITE = NO_SUITE_FOUND, stop and ask the user.
-
-GATE 2 — OWNING LAYER
-  Default to extending the canonical suite. Justify any new file in writing.
-
-GATE 3 — REAL EXECUTION
-  Name the integration boundary this test crosses.
-  If "none", add an integration companion. Run the real boundary at least once.
-
-GATE 4 — FAILURE MEANS FIX PRODUCTION
-  On red, read the SUT, propose a SUT change.
-  Test edits require a written "SUT_IS_CORRECT_BECAUSE:" rationale
-  and human confirmation.
-
-GATE 5 — NO SNAPSHOT WITHOUT CONTRACT
-  Classify the artifact PRODUCT_CONTRACT or IMPLEMENTATION_DETAIL.
-  Snapshots are forbidden for IMPLEMENTATION_DETAIL.
-
-GATE 6 — NO ASSERTION ON SELF-SET MOCK
-  Cite the source of every expected value: constant in SUT, external contract,
-  or re-derivable computation. No mock-return-value assertions otherwise.
-
-GATE 7 — NEGATIVE COMPANION
-  Every positive assertion ships with a negative test that asserts a specific
-  failure mode. Delete the negative — does the positive still pass? If yes,
-  the negative was hollow.
-```
-
 ## Behavioral protocols
 
-Beyond the seven gates, two recurring behaviors deserve their own rules.
+Beyond the six gates, two recurring behaviors deserve their own rules.
 
 ### Read the failure verbatim before any edit
 
@@ -238,28 +173,3 @@ Review checklist for every agent-generated test:
 - Does a negative companion exist and protect a specific invariant? (Gate 7)
 - Mutation-test the file: does the suite still detect a defect?
 ```
-
-## Evidence base
-
-The corpus is unambiguous on three claims that justify the gates:
-
-1. **AI agents produce longer, linear, assertion-dense tests with low cyclomatic complexity** — Yoshimoto et al., *Testing with AI Agents: An Empirical Study* (https://arxiv.org/html/2603.13724). Median assertions/test: 2.0 for AI vs 1.0 for human.
-
-2. **AI-assisted code increases vulnerability density when authors trust it without verification** — Perry et al., Stanford / UIUC (https://arxiv.org/abs/2211.03622): *"41% more likely to introduce security vulnerabilities when they trusted the generated code without manual verification"*, summarized in https://getautonoma.com/blog/vibe-coding-best-practices.
-
-3. **Agents will hack any grader they can read** — *"24% of the top 50 leaderboard positions are incorrect"* on benchmarks like SWE-bench-Verified and τ-bench (https://arxiv.org/html/2507.02825v2). Trilogy AI documents o3 reading the grader's reference answer off the Python call stack (https://trilogyai.substack.com/p/a-practical-guide-to-llm-and-agent). Apply the same skepticism to internal test suites — if the agent can hack the test, it will.
-
-## Sources
-
-- Yoshimoto et al. — *Testing with AI Agents: An Empirical Study* — https://arxiv.org/html/2603.13724
-- Anthropic — *Demystifying Evals for AI Agents* — https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents
-- Stanford / UIUC — *Do Users Write More Insecure Code with AI Assistants?* — https://arxiv.org/abs/2211.03622
-- Autonoma — *Vibe Coding Best Practices* — https://getautonoma.com/blog/vibe-coding-best-practices
-- Florian Bruniaux — *TDD with Claude* — https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/guide/workflows/tdd-with-claude.md
-- nmn.gl — *Cursor AI Gold Files* — https://nmn.gl/blog/cursor-ai-gold-files
-- InfoQ — *Evaluating AI Agents: Lessons Learned* — https://www.infoq.com/articles/evaluating-ai-agents-lessons-learned
-- Mindstudio — *AI Agent Custom Benchmarks Evaluation* — https://www.mindstudio.ai/blog/ai-agent-custom-benchmarks-evaluation
-- Martin Fowler — *The Practical Test Pyramid* — https://martinfowler.com/articles/practical-test-pyramid.html
-- Confident AI — *Definitive AI Agent Evaluation Guide* — https://www.confident-ai.com/blog/definitive-ai-agent-evaluation-guide
-- Trilogy AI — *A Practical Guide to LLM and Agent Evaluation* — https://trilogyai.substack.com/p/a-practical-guide-to-llm-and-agent
-- *Establishing Best Practices for Building Rigorous Agentic Benchmarks* — https://arxiv.org/html/2507.02825v2

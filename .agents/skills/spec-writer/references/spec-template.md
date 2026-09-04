@@ -203,8 +203,8 @@ there is no generated tree.
 
 ## 8. Copy
 
-CraftHub has **no i18n**. User-visible strings are hardcoded English in the component. The
-`i18n` skill documents the planned setup — **this spec must not invent `t()` calls** or a
+CraftHub ships **three locales**. Every user-visible string goes through `t()`, with the key
+added to `pt-BR.json`, `en-US.json` and `es-ES.json` in the same commit. The `i18n` skill is a
 locale file.
 
 | Where | String | Note |

@@ -1,5 +1,7 @@
 ---
 name: i18n
+paths:
+  - apps/web/**
 description: How internationalisation works in CraftHub's web app — react-i18next with pt-BR, en-US and es-ES, already shipped. Use when adding or changing any user-visible string, adding a locale, touching apps/web/src/i18n/, or when a guardrail reports a raw string or an unresolved key. Every user-visible string in apps/web goes through t(); this skill is the contract for keeping it that way.
 ---
 

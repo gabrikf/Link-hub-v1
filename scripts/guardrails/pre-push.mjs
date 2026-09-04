@@ -420,6 +420,31 @@ function otherTests(base) {
   return result.status === 0;
 }
 
+/**
+ * The harness — AGENTS.md, the nested workspace files, the skills — is prose
+ * that four coding tools read as instructions, and nothing else in this gate
+ * looks at it. A renamed file leaves a rule pointing at nothing; a file that
+ * grows past 32 KiB is silently truncated by Codex. Sub-second, so it runs
+ * unconditionally like the i18n pair rather than only on affected packages.
+ */
+function harnessCheck() {
+  return run(process.execPath, [
+    resolve(ROOT, "scripts/guardrails/harness-check.mjs"),
+  ]).status === 0;
+}
+
+/**
+ * DESIGN.md's palette, as a check. `text-gray-500` next to `text-zinc-500` is
+ * invisible in a diff and obvious on the screen, and an arbitrary hex in a
+ * class bypasses the token system at the one place it is meant to apply.
+ * Sub-second, so it runs unconditionally alongside the other doc-level checks.
+ */
+function designTokens() {
+  return run(process.execPath, [
+    resolve(ROOT, "scripts/guardrails/design-tokens.mjs"),
+  ]).status === 0;
+}
+
 function i18nParity() {
   return run(process.execPath, [resolve(ROOT, "scripts/guardrails/i18n-parity.mjs")])
     .status === 0;
@@ -479,6 +504,8 @@ function main() {
     say("  · tests skipped (--skip-tests)");
   }
 
+  if (ok) ok = step("harness (cites, budgets, skills)", harnessCheck);
+  if (ok) ok = step("design tokens (palette)", designTokens);
   if (ok) ok = step("i18n locale parity", i18nParity);
   if (ok) ok = step("i18n raw strings", i18nRawStrings);
 

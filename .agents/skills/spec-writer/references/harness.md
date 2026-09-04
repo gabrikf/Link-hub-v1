@@ -86,8 +86,8 @@ Before starting any task, the agent MUST read:
 **Project**
 13. `shared-components/` and the Radix primitives first; `DESIGN.md` tokens and the `SURFACE*`
     constants from `surface.ts`; zero hardcoded hex.
-14. **No i18n.** User-visible strings are hardcoded English. The `i18n` skill documents the
-    planned setup — **do not invent `t()` calls** or a locale file.
+14. **i18n is shipped.** Every user-visible string goes through `t()`, and every new key is
+    added to all three locale files in the same commit. The `i18n` skill is the contract.
 15. State logic lives in the feature's hook, never inside JSX.
 16. `kebab-case` file names; English identifiers.
 17. Do not touch the known, deliberate debt: `packages/ui` (dead scaffolding),
@@ -218,13 +218,13 @@ For each task that produces visible UI:
 
 ### FB-03: Copy check (after UI tasks)
 
-There is no i18n and no locale parity to check. `node scripts/guardrails/i18n-parity.mjs`
+Locale parity is checked by `npm run i18n:check`. `node scripts/guardrails/i18n-parity.mjs`
 exists but is a **no-op until locales exist** — running it proves nothing today.
 
 What to check instead:
 - [ ] Every user-visible string matches the copy listed in `definitions.md`
-- [ ] Strings are hardcoded English, in the component — **no invented `t()` calls**, no new
-      locale file, no translation helper
+- [ ] Every user-visible string goes through `t()`, with its key added to all three
+      existing locale files — no fourth locale file, no hand-rolled translation helper
 - [ ] No placeholder or lorem text left behind
 - [ ] No raw enum value or id leaking into the UI where a human-readable label belongs
 
@@ -298,7 +298,7 @@ The feature is "done" only when every FB-05 check passes.
 6. **FB-01** = the fixed command set, plus the feature-specific sensors generated from
    `variants.md`, `contracts/fixtures/` and the business rules in `definitions.md`
 7. **FB-02** is fixed (the visual scenario runner) with the feature's scenario file named
-8. **FB-03** is fixed (no i18n in this repo)
+8. **FB-03** is fixed (`npm run i18n:check` — parity plus raw strings)
 9. **FB-04** is generated from the acceptance criteria in SPEC.md §3
 10. **FB-05** is fixed plus feature-specific items
 
