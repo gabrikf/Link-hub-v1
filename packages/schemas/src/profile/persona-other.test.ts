@@ -49,9 +49,13 @@ describe("profileSchema — the personaOther contract", () => {
   });
 
   it("reads a pre-personaOther payload as 'no custom label' instead of failing", () => {
-    const { personaOther: _omitted, ...legacyPayload } =
-      realisticProfilePayload;
+    const { personaOther, ...legacyPayload } = realisticProfilePayload;
 
+    // The split itself is worth asserting: the fixture must really carry the
+    // field, and `legacyPayload` must really be missing it, or the null default
+    // below would pass for the wrong reason.
+    expect(personaOther).toBeDefined();
+    expect("personaOther" in legacyPayload).toBe(false);
     expect(profileSchema.parse(legacyPayload).personaOther).toBeNull();
   });
 

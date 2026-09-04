@@ -28,11 +28,13 @@
  * so a line-keyed baseline reports a wave of phantom "new" findings after any
  * insertion — which is how a ratchet becomes noise and gets deleted.
  *
- * WHY IT ALSO COVERS apps/api. apps/api is the largest codebase here and has
- * never been linted. `apps/api/eslint.config.js` was added with this harness but
- * apps/api deliberately has NO `lint` npm script — adding one would drop its
- * whole backlog into `turbo run lint` and the CI baseline in one commit. This
- * script is how api files get linted: recorded once, ratcheted from then on.
+ * WHAT IT ADDS OVER `npm run lint`. Since 2026-09-04 every workspace has a
+ * `lint` script, so the syntactic rules are covered repo-wide by that. This
+ * script exists for the layer that is NOT: the type-aware rules in
+ * `eslint.typed.config.js`, which cost about five times the runtime and carry a
+ * 589-finding backlog. Running those repo-wide would be red on arrival; running
+ * them here, against the baseline, blocks the 590th without blocking anybody on
+ * the 589.
  *
  * Usage:
  *   node scripts/guardrails/lint-changed.mjs                    # vs merge-base with origin/main
@@ -60,9 +62,40 @@ const BASELINE_PATH = resolve(ROOT, "scripts/guardrails/lint-baseline.json");
  * directory, so each workspace is linted with `cwd` set to it. Linting from the
  * repo root with one `--config` flag silently matches nothing.
  */
-const LINTABLE_WORKSPACES = ["apps/web", "apps/api", "packages/ui"];
+const LINTABLE_WORKSPACES = [
+  "apps/web",
+  "apps/api",
+  "apps/mcp",
+  "apps/extractor",
+  "apps/training",
+  "packages/schemas",
+  "packages/ui",
+];
+
+/**
+ * The ratchet lints with `eslint.typed.config.js`, not `eslint.config.js`.
+ *
+ * That config is the syntactic rules PLUS the type-aware ones —
+ * `no-unsafe-assignment`, `no-unsafe-member-access`, `no-floating-promises`,
+ * `no-misused-promises`. They are the only rules that can answer "is this value
+ * actually typed?", and they are the reason this ratchet exists: turning them on
+ * reported 788 findings across api and web. Every one is recorded in
+ * lint-baseline.json, and the 789th fails.
+ *
+ * They are NOT in `eslint.config.js` because that is what `npm run lint` runs,
+ * repo-wide, and it is meant to be green. Type-aware linting also costs about
+ * five times the runtime (40s for apps/api against 8s), which is fine for a
+ * handful of changed files and far too slow for a whole-repo script.
+ */
+const RATCHET_CONFIG = "eslint.typed.config.js";
 
 const LINTABLE_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
+
+/**
+ * The config files themselves. Linting `eslint.config.js` with the type-aware
+ * config is a chicken-and-egg crash — the file is not in any tsconfig.
+ */
+const NOT_LINTABLE = /(^|\/)eslint(\.typed)?\.config\.(js|mjs)$/;
 
 /* ─────────────────────────────── git plumbing ──────────────────────────── */
 
@@ -115,6 +148,7 @@ function groupByWorkspace(files) {
   const groups = new Map();
   for (const file of files) {
     if (!LINTABLE_EXTENSIONS.test(file)) continue;
+    if (NOT_LINTABLE.test(file)) continue;
     // A file deleted in the range still appears in some diff filters on a dirty
     // tree; linting a path that is gone is a crash, not a finding.
     if (!existsSync(resolve(ROOT, file))) continue;
@@ -123,7 +157,7 @@ function groupByWorkspace(files) {
       (ws) => file === ws || file.startsWith(`${ws}/`),
     );
     if (!workspace) continue;
-    if (!existsSync(resolve(ROOT, workspace, "eslint.config.js"))) continue;
+    if (!existsSync(resolve(ROOT, workspace, RATCHET_CONFIG))) continue;
 
     if (!groups.has(workspace)) groups.set(workspace, []);
     groups.get(workspace).push(relative(workspace, file));
@@ -135,14 +169,30 @@ function groupByWorkspace(files) {
 
 /**
  * Returns `{ "<repo-relative file>": { "<ruleId>": count } }` for ERRORS only.
- * Warnings are reported but never gate — `@typescript-eslint/no-explicit-any` is
- * configured as a warning precisely so it nudges without blocking.
+ * Warnings are reported but never gate.
  */
-function lintWorkspace(workspace, files) {
+function lintWorkspace(
+  workspace,
+  files,
+  { syntactic = false, fix = false } = {},
+) {
   const result = spawnSync(
     "npx",
-    ["eslint", "--no-error-on-unmatched-pattern", "--format", "json", ...files],
-    { cwd: resolve(ROOT, workspace), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    [
+      "eslint",
+      "--config",
+      syntactic ? "eslint.config.js" : RATCHET_CONFIG,
+      ...(fix ? ["--fix"] : []),
+      "--no-error-on-unmatched-pattern",
+      "--format",
+      "json",
+      ...files,
+    ],
+    {
+      cwd: resolve(ROOT, workspace),
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    },
   );
 
   const stdout = String(result.stdout ?? "").trim();
@@ -157,7 +207,9 @@ function lintWorkspace(workspace, files) {
   try {
     report = JSON.parse(stdout);
   } catch {
-    throw new Error(`eslint output in ${workspace} was not JSON:\n${stdout.slice(0, 800)}`);
+    throw new Error(
+      `eslint output in ${workspace} was not JSON:\n${stdout.slice(0, 800)}`,
+    );
   }
 
   const counts = {};
@@ -180,11 +232,11 @@ function lintWorkspace(workspace, files) {
   return { counts, details };
 }
 
-function lintFileGroups(groups) {
+function lintFileGroups(groups, options) {
   const counts = {};
   const details = [];
   for (const [workspace, files] of groups) {
-    const result = lintWorkspace(workspace, files);
+    const result = lintWorkspace(workspace, files, options);
     Object.assign(counts, result.counts);
     details.push(...result.details);
   }
@@ -260,19 +312,38 @@ function newFindings(counts, baseline, details) {
 /* ──────────────────────────────── the run ──────────────────────────────── */
 
 function parseArgs(argv) {
-  const base = argv.includes("--base") ? argv[argv.indexOf("--base") + 1] : null;
+  const base = argv.includes("--base")
+    ? argv[argv.indexOf("--base") + 1]
+    : null;
   const filesIndex = argv.indexOf("--files");
   const files =
     filesIndex === -1
       ? null
       : argv.slice(filesIndex + 1).filter((arg) => !arg.startsWith("--"));
-  return { base, files, updateBaseline: argv.includes("--update-baseline") };
+  return {
+    base,
+    files,
+    updateBaseline: argv.includes("--update-baseline"),
+    /**
+     * `--syntactic` lints with `eslint.config.js` instead of the type-aware
+     * config. The pre-commit hook uses it: type-aware linting costs about five
+     * times the runtime, which is fine at push time and not fine between typing
+     * `git commit` and getting your editor back.
+     */
+    syntactic: argv.includes("--syntactic"),
+    /** `--fix` writes autofixes back before reporting what is left. */
+    fix: argv.includes("--fix"),
+  };
 }
 
 function main() {
-  const { base: explicitBase, files: explicitFiles, updateBaseline } = parseArgs(
-    process.argv.slice(2),
-  );
+  const {
+    base: explicitBase,
+    files: explicitFiles,
+    updateBaseline,
+    syntactic,
+    fix,
+  } = parseArgs(process.argv.slice(2));
 
   if (updateBaseline) {
     // The baseline must cover the WHOLE repo, not just what changed — a partial
@@ -299,7 +370,7 @@ function main() {
   }
 
   const fileCount = [...groups.values()].flat().length;
-  const { counts, details } = lintFileGroups(groups);
+  const { counts, details } = lintFileGroups(groups, { syntactic, fix });
   const baseline = readBaseline();
   const surplus = newFindings(counts, baseline, details);
 
@@ -307,8 +378,10 @@ function main() {
 
   if (surplus.length === 0) {
     console.log(
-      `lint-changed: ${fileCount} changed file(s) — clean` +
-        (knownCount > 0 ? `, ${knownCount} known recorded finding(s) ignored.` : "."),
+      `lint-changed: ${fileCount} file(s)${syntactic ? " (syntactic)" : ""} — clean` +
+        (knownCount > 0
+          ? `, ${knownCount} known recorded finding(s) ignored.`
+          : "."),
     );
     return 0;
   }

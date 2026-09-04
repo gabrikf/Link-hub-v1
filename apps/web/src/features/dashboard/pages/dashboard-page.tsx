@@ -468,6 +468,23 @@ export function DashboardPage() {
     setFocus("title");
   };
 
+  // Hoisted out of the list's map callback: an inline handler there nested a
+  // third function (the `setQueryData` updater) inside a second (the JSX
+  // callback prop) inside the map, tripping sonarjs/no-nested-functions.
+  const handleToggleVisibility = (linkId: string, isPublic: boolean) => {
+    queryClient.setQueryData<LinkResponse[]>(["links"], (previous) => {
+      if (!previous) {
+        return previous;
+      }
+
+      return previous.map((item) =>
+        item.id === linkId ? { ...item, isPublic } : item,
+      );
+    });
+
+    toggleLinkVisibilityMutation.mutate({ linkId, isPublic });
+  };
+
   // Without an explicit sensor list dnd-kit falls back to a KeyboardSensor with
   // no coordinate getter: arrow keys translate the lifted item by a fixed
   // offset that never reaches the neighbour's collision box, so `over` stays
@@ -614,22 +631,7 @@ export function DashboardPage() {
                   <SortableLinkItem
                     key={link.id}
                     link={link}
-                    onToggleVisibility={(linkId, isPublic) => {
-                      queryClient.setQueryData<LinkResponse[]>(
-                        ["links"],
-                        (previous) => {
-                          if (!previous) {
-                            return previous;
-                          }
-
-                          return previous.map((item) =>
-                            item.id === linkId ? { ...item, isPublic } : item,
-                          );
-                        },
-                      );
-
-                      toggleLinkVisibilityMutation.mutate({ linkId, isPublic });
-                    }}
+                    onToggleVisibility={handleToggleVisibility}
                     onEdit={handleEditClick}
                     onDelete={(linkId) => deleteLinkMutation.mutate(linkId)}
                   />

@@ -61,7 +61,8 @@ export const EXCLUDED_PATH_PATTERNS: ReadonlyArray<{
     why: "compiler / bundler output",
   },
   {
-    pattern: /(^|\/)(\.next|\.nuxt|\.svelte-kit|\.output|\.turbo|\.parcel-cache)\//,
+    pattern:
+      /(^|\/)(\.next|\.nuxt|\.svelte-kit|\.output|\.turbo|\.parcel-cache)\//,
     why: "framework build caches",
   },
   {
@@ -95,7 +96,7 @@ export const EXCLUDED_PATH_PATTERNS: ReadonlyArray<{
     why: "protobuf / gRPC codegen",
   },
   {
-    pattern: /(\.|_)(generated|gen)\.[a-z0-9]+$/i,
+    pattern: /[._](generated|gen)\.[a-z0-9]+$/i,
     why: "conventionally named generated file",
   },
   {

@@ -4,9 +4,9 @@ How CraftHub's instructions for coding agents are wired, how to add to them,
 and how to onboard a new tool. If you are here to add a rule, jump to
 [Adding a rule](#adding-a-rule).
 
-The vocabulary is Böckeler's: a **guide** is context an agent reads *before*
+The vocabulary is Böckeler's: a **guide** is context an agent reads _before_
 acting (`AGENTS.md`, skills, `DESIGN.md`); a **sensor** is feedback it gets
-*after* acting (the gate, `harness-check`, the i18n checks, the visual runner,
+_after_ acting (the gate, `harness-check`, the i18n checks, the visual runner,
 verifying a write through the postgres MCP server). When a rule can become a
 check, make it a check — a sensor cannot be forgotten, and its failure message
 carries the fix.
@@ -48,13 +48,13 @@ drift.
 Verified against vendor documentation on 2026-09-03. Re-check it when you add a
 tool — this table is the reason the layout looks the way it does.
 
-| Surface | Claude Code | Cursor | Codex | Kiro |
-|---|---|---|---|---|
-| Root `AGENTS.md` | through the `CLAUDE.md` symlink | native, always | native; whole chain capped at **32 KiB** (`project_doc_max_bytes`) | native, always |
-| Nested `apps/x/AGENTS.md` | only via `apps/x/CLAUDE.md`, then on demand when a file there is read | native, nearest wins | only when the session cwd is inside that directory | **all** nested files, **every** session |
-| Skills in `.agents/skills` | through `.claude/skills` | native | native | `.kiro/skills` only — symlinked here, unverified |
-| Path-scoped always-on rules | `.claude/rules/*.md` with `paths:` | `.cursor/rules/*.mdc` with `globs:` | none | `.kiro/steering/*.md` |
-| Recommended size | < 200 lines per file | rules < 500 lines | chain < 32 KiB | "focused by domain" |
+| Surface                     | Claude Code                                                           | Cursor                              | Codex                                                              | Kiro                                             |
+| --------------------------- | --------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------ |
+| Root `AGENTS.md`            | through the `CLAUDE.md` symlink                                       | native, always                      | native; whole chain capped at **32 KiB** (`project_doc_max_bytes`) | native, always                                   |
+| Nested `apps/x/AGENTS.md`   | only via `apps/x/CLAUDE.md`, then on demand when a file there is read | native, nearest wins                | only when the session cwd is inside that directory                 | **all** nested files, **every** session          |
+| Skills in `.agents/skills`  | through `.claude/skills`                                              | native                              | native                                                             | `.kiro/skills` only — symlinked here, unverified |
+| Path-scoped always-on rules | `.claude/rules/*.md` with `paths:`                                    | `.cursor/rules/*.mdc` with `globs:` | none                                                               | `.kiro/steering/*.md`                            |
+| Recommended size            | < 200 lines per file                                                  | rules < 500 lines                   | chain < 32 KiB                                                     | "focused by domain"                              |
 
 Three consequences shape everything below:
 
@@ -87,6 +87,41 @@ npm run harness:check:self-test    # proves the check still catches violations
 It is deliberately quiet about anything ambiguous — placeholders, elisions,
 globs, URLs, fenced examples and cites into trees this repo does not have are
 not cites. A gate that cries wolf gets bypassed.
+
+---
+
+## The hooks
+
+Four, and each answers a different question. The cost of the answer is what
+decides where it runs.
+
+| Hook                        | Scope                            | Cost                           | Question                                                       |
+| --------------------------- | -------------------------------- | ------------------------------ | -------------------------------------------------------------- |
+| `PostToolUse` (Claude Code) | the one file an agent just wrote | < 1s                           | did that edit introduce a lint error?                          |
+| `pre-commit` (husky)        | staged files                     | ~3s, ~5s across two workspaces | is this well-formed, and free of new findings?                 |
+| `pre-push` (husky)          | the affected graph               | < 90s                          | does it still build, type-check, test and hold its guardrails? |
+| `Stop` (Claude Code)        | same as pre-push                 | < 90s                          | can this agent call itself done?                               |
+
+**`PostToolUse` is the one worth understanding.** `Stop` already prevents an
+agent finishing on a red tree, but it fires at the end: the model writes a file,
+writes nine more, and only then learns the first had an unused import — by which
+point the context that would have made the fix obvious is gone.
+`scripts/guardrails/lint-file-hook.mjs` runs eslint on that single file straight
+after the `Edit` or `Write` and exits 2, which Claude Code feeds back to the
+model as text. It reports rather than autofixes, because rewriting the file an
+agent just wrote desynchronises it from what the agent believes is on disk.
+
+It **fails open on everything** — malformed payload, path outside a workspace,
+eslint erroring — because a hook that blocks an agent because of its own bug is
+worse than no hook.
+
+**Two lint layers, and the split is about cost.** `eslint.config.js` is
+syntactic and runs in seconds; `npm run lint` uses it and it is meant to be
+green. `eslint.typed.config.js` adds the rules that need a TypeScript program —
+`no-unsafe-*`, `no-floating-promises` — at roughly five times the runtime, and
+it carries a recorded backlog, so it runs only through
+`scripts/guardrails/lint-changed.mjs` against the ratchet in
+`lint-baseline.json`. Inherited findings pass; new ones fail.
 
 ---
 

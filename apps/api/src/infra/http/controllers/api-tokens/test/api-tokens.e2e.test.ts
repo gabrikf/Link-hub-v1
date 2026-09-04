@@ -52,7 +52,7 @@ describe("API Tokens E2E — management with JWT", () => {
   });
 
   it("lists the caller's own tokens without leaking the hash or plaintext", async () => {
-    const { user, token } = await authedUser();
+    const { token } = await authedUser();
 
     const created = await ctx.app.inject({
       method: "POST",
@@ -91,7 +91,6 @@ describe("API Tokens E2E — management with JWT", () => {
     expect(serialized).not.toContain("tokenHash");
     // The plaintext is only ever returned at creation, never on listing.
     expect(serialized).not.toContain(plaintext);
-    void user;
   });
 
   it("revokes the caller's own token (200)", async () => {

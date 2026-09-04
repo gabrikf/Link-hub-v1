@@ -182,11 +182,19 @@ export function normalizeDescriptionMarkdown(input: string): string {
     normalized.push(line.replace(LEADING_BULLET_RE, "- "));
   }
 
-  return normalized
-    .join("\n")
-    .replace(/ +$/gm, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    normalized
+      .join("\n")
+      // Trailing spaces on each line. Anchored at "start of line OR right after
+      // a non-space" rather than the bare `/ +$/gm`: unanchored at the front,
+      // that one is a `scslre`/`sonarjs/super-linear-regex` finding — a
+      // rejecting scan has to restart from every position in the line.
+      // Anchoring removes the ambiguity without changing which spaces match,
+      // all-space lines included.
+      .replace(/(?:^|(?<=\S)) +$/gm, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
 function asString(value: unknown): string | null {
@@ -269,7 +277,7 @@ function normalizeWorkExperience(raw: unknown): ParsedWorkExperience | null {
   const endDate = isCurrent ? null : asIsoDate(value.endDate);
   const rawDescription = asString(value.description);
   const description = rawDescription
-    ? (normalizeDescriptionMarkdown(rawDescription) || null)
+    ? normalizeDescriptionMarkdown(rawDescription) || null
     : null;
 
   return {

@@ -6,6 +6,7 @@ import {
   type PostStatus,
   type UpdatePostInput,
 } from "@repo/schemas";
+import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiEye, FiEyeOff, FiPlus, FiTrash2 } from "react-icons/fi";
@@ -26,6 +27,18 @@ type PostComposerDialogProps = {
 };
 
 const EMPTY_IMAGE_ROW = "";
+
+/** The message shown when a save fails: the server's own message if it sent one, else a generic retry prompt. */
+function resolveSaveErrorMessage(
+  cause: unknown,
+  isEditing: boolean,
+  t: TFunction,
+): string {
+  if (cause instanceof Error && cause.message) {
+    return cause.message;
+  }
+  return isEditing ? t("posts.saveFailedRetry") : t("posts.publishFailedRetry");
+}
 
 export function PostComposerDialog({
   open,
@@ -120,13 +133,7 @@ export function PostComposerDialog({
         action: isEditing ? "posts.update" : "posts.create",
         extra: { status },
       });
-      setError(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : isEditing
-            ? t("posts.saveFailedRetry")
-            : t("posts.publishFailedRetry"),
-      );
+      setError(resolveSaveErrorMessage(cause, isEditing, t));
       return;
     }
 

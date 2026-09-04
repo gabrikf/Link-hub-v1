@@ -6,6 +6,7 @@ import { CraftHubActivityClient, CraftHubApiError } from "../api-client.js";
 import { ArgError, flag, parseArgs, value, values } from "../args.js";
 import { ConfigError, loadConfig } from "../config.js";
 import { buildEnvelope, extract, resolveAuthors } from "../extract.js";
+import type { ExtractStats } from "../extract.js";
 import { isUuid, loadSettings, resolveConnectionId } from "../settings.js";
 import { renderExtractSummary, renderUploadPreamble } from "../summary.js";
 
@@ -102,50 +103,100 @@ export async function runExtractCli(argv: readonly string[]): Promise<number> {
   }
 }
 
+/** Repositories to scan: explicit args, else `--repo`, else the config file. */
+function resolveRepoPaths(
+  positionals: readonly string[],
+  args: ReturnType<typeof parseArgs>,
+  settings: ReturnType<typeof loadSettings>,
+): string[] {
+  const repoFlags = values(args, "repo");
+  const fromConfig =
+    positionals.length === 0 && repoFlags.length === 0
+      ? (settings.repos ?? [])
+      : [];
+  return [...positionals, ...repoFlags, ...fromConfig].map((path) =>
+    resolve(path),
+  );
+}
+
+/** Resolves and validates `--connection`. Throws `ArgError` when it is missing or malformed. */
+function requireConnectionId(
+  args: ReturnType<typeof parseArgs>,
+  settings: ReturnType<typeof loadSettings>,
+): string {
+  const connectionId = resolveConnectionId(value(args, "connection"), settings);
+  if (connectionId && isUuid(connectionId)) return connectionId;
+  throw new ArgError(
+    connectionId
+      ? `--connection must be a uuid; got "${connectionId}".`
+      : "No connection id. Create a git connection in CraftHub settings, then pass " +
+        '--connection <uuid>, set CRAFTHUB_CONNECTION_ID, or add "connectionId" to ' +
+        "~/.crafthub/extractor.json.",
+  );
+}
+
+/** Resolves the author emails to match. Throws `ArgError` when there are none. */
+function requireAuthors(
+  args: ReturnType<typeof parseArgs>,
+  settings: ReturnType<typeof loadSettings>,
+  targets: readonly string[],
+): string[] {
+  const authors = resolveAuthors(
+    values(args, "author"),
+    settings.authors,
+    targets,
+  );
+  if (authors.length > 0) return authors;
+  throw new ArgError(
+    "No author email to match. Pass --author <email> (repeatable — use it once " +
+      "per address you commit under), or set `git config user.email` in the repository.",
+  );
+}
+
+/** Parses `--max-commits`. Throws `ArgError` when it is present but not a positive integer. */
+function parseMaxCommits(
+  args: ReturnType<typeof parseArgs>,
+): number | undefined {
+  const raw = value(args, "max-commits");
+  if (!raw) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    throw new ArgError("--max-commits must be a positive integer.");
+  }
+  return parsed;
+}
+
+/** Prints the "nothing matched" report, including any skipped, non-git paths. */
+function reportNoCommits(
+  authors: readonly string[],
+  stats: ExtractStats,
+): void {
+  console.log(
+    "\n  No commits matched, so no file was written.\n" +
+      `  Author emails tried: ${authors.length} (${authors.length === 1 ? "one address" : "several addresses"}).\n` +
+      "  Check --author against the commit author email, and widen --since.\n",
+  );
+  if (stats.skippedPaths.length > 0) {
+    console.log(
+      `  Skipped (not a git repository):\n${stats.skippedPaths
+        .map((p) => `    · ${p}`)
+        .join("\n")}\n`,
+    );
+  }
+}
+
 async function runExtract(
   positionals: readonly string[],
   args: ReturnType<typeof parseArgs>,
 ): Promise<number> {
   const settings = loadSettings(value(args, "config"));
-
-  const repoPaths = [
-    ...positionals,
-    ...values(args, "repo"),
-    ...(positionals.length === 0 && values(args, "repo").length === 0
-      ? (settings.repos ?? [])
-      : []),
-  ].map((path) => resolve(path));
-
+  const repoPaths = resolveRepoPaths(positionals, args, settings);
   // No paths anywhere means "the repository I am standing in".
   const targets = repoPaths.length > 0 ? repoPaths : [process.cwd()];
 
-  const connectionId = resolveConnectionId(value(args, "connection"), settings);
-  if (!connectionId || !isUuid(connectionId)) {
-    console.error(
-      connectionId
-        ? `--connection must be a uuid; got "${connectionId}".`
-        : "No connection id. Create a git connection in CraftHub settings, then pass " +
-          "--connection <uuid>, set CRAFTHUB_CONNECTION_ID, or add \"connectionId\" to " +
-          "~/.crafthub/extractor.json.",
-    );
-    return 1;
-  }
-
-  const authors = resolveAuthors(values(args, "author"), settings.authors, targets);
-  if (authors.length === 0) {
-    console.error(
-      "No author email to match. Pass --author <email> (repeatable — use it once " +
-        "per address you commit under), or set `git config user.email` in the repository.",
-    );
-    return 1;
-  }
-
-  const maxCommitsRaw = value(args, "max-commits");
-  const maxCommits = maxCommitsRaw ? Number.parseInt(maxCommitsRaw, 10) : undefined;
-  if (maxCommits !== undefined && (!Number.isFinite(maxCommits) || maxCommits < 1)) {
-    console.error("--max-commits must be a positive integer.");
-    return 1;
-  }
+  const connectionId = requireConnectionId(args, settings);
+  const authors = requireAuthors(args, settings, targets);
+  const maxCommits = parseMaxCommits(args);
 
   const { events, stats } = extract(targets, {
     authors,
@@ -157,18 +208,7 @@ async function runExtract(
   const outputPath = resolve(value(args, "out") ?? DEFAULT_OUTPUT);
 
   if (events.length === 0) {
-    console.log(
-      "\n  No commits matched, so no file was written.\n" +
-        `  Author emails tried: ${authors.length} (${authors.length === 1 ? "one address" : "several addresses"}).\n` +
-        "  Check --author against the commit author email, and widen --since.\n",
-    );
-    if (stats.skippedPaths.length > 0) {
-      console.log(
-        `  Skipped (not a git repository):\n${stats.skippedPaths
-          .map((p) => `    · ${p}`)
-          .join("\n")}\n`,
-      );
-    }
+    reportNoCommits(authors, stats);
     return 0;
   }
 
@@ -217,7 +257,10 @@ async function runUpload(
     // it un-sendable rather than letting the API answer with a 400.
     console.error(
       `${path} is not a valid activity payload:\n${result.error.issues
-        .map((issue) => `  · ${issue.path.join(".") || "(root)"}: ${issue.message}`)
+        .map(
+          (issue) =>
+            `  · ${issue.path.join(".") || "(root)"}: ${issue.message}`,
+        )
         .join("\n")}`,
     );
     return 1;

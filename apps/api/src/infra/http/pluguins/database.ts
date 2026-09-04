@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyPluginOptions } from "fastify";
+import { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
 import { db } from "../../database/drizzle/index.js";
 

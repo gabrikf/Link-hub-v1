@@ -50,7 +50,13 @@
  *   --skip-tests     type-check + lint only
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { connect } from "node:net";
 import { resolve } from "node:path";
 
@@ -116,7 +122,9 @@ const argv = process.argv.slice(2);
 const isStopHook = argv.includes("--stop-hook");
 const skipTests = argv.includes("--skip-tests");
 const noFetch = argv.includes("--no-fetch");
-const explicitBase = argv.includes("--base") ? argv[argv.indexOf("--base") + 1] : null;
+const explicitBase = argv.includes("--base")
+  ? argv[argv.indexOf("--base") + 1]
+  : null;
 
 const steps = [];
 
@@ -244,16 +252,32 @@ function mailpitReachable(timeoutMs = 700) {
  * having started one (`bash db-manage.sh start`, a bare `docker compose ... up
  * -d minio`, or a developer's own MinIO all count).
  */
+/**
+ * Is THIS repo's MinIO on 9000 — not merely something.
+ *
+ * This was a TCP connect probe, and that is not the same question. Port 9000 is
+ * the MinIO default, so any other project's MinIO answers it. When one did, the
+ * gate concluded MinIO was available, ran the e2e tests against a stranger's
+ * instance, and failed with "The Access Key Id you provided does not exist in
+ * our records" — a red gate that had nothing to do with the change being
+ * pushed. A probe that answers a different question than the one you asked is
+ * worse than no probe: it converts "not tested" into "broken".
+ *
+ * So: ask anonymously for the bucket the dev compose creates. `minio-setup`
+ * makes `crafthub-media` public-read, which is the very thing the e2e test
+ * asserts, so ours answers 200. A foreign MinIO answers 403 AccessDenied (or
+ * 404 NoSuchBucket), and we correctly report MinIO as unavailable and say so by
+ * name in the TEST SCOPE NOTICE.
+ */
 function minioReachable(timeoutMs = 700) {
   const result = spawnSync(
     process.execPath,
     [
       "-e",
-      `const s=require('net').connect(9000,'127.0.0.1');` +
-        `s.setTimeout(${timeoutMs});` +
-        `s.on('connect',()=>{s.destroy();process.exit(0)});` +
-        `s.on('error',()=>process.exit(1));` +
-        `s.on('timeout',()=>{s.destroy();process.exit(1)});`,
+      `const t=setTimeout(()=>process.exit(1),${timeoutMs});` +
+        `fetch('http://127.0.0.1:9000/crafthub-media/')` +
+        `.then(r=>{clearTimeout(t);process.exit(r.status===403||r.status===404?1:0)})` +
+        `.catch(()=>{clearTimeout(t);process.exit(1)});`,
     ],
     { encoding: "utf8", timeout: timeoutMs + 2000 },
   );
@@ -307,15 +331,20 @@ function buildSchemas() {
 }
 
 function checkTypes(base) {
-  return run("npx", ["turbo", "run", "check-types", `--filter=...[${base}]`]).status === 0;
+  return (
+    run("npx", ["turbo", "run", "check-types", `--filter=...[${base}]`])
+      .status === 0
+  );
 }
 
 function lintChanged(base) {
-  return run(process.execPath, [
-    resolve(ROOT, "scripts/guardrails/lint-changed.mjs"),
-    "--base",
-    base,
-  ]).status === 0;
+  return (
+    run(process.execPath, [
+      resolve(ROOT, "scripts/guardrails/lint-changed.mjs"),
+      "--base",
+      base,
+    ]).status === 0
+  );
 }
 
 /**
@@ -399,14 +428,15 @@ function apiTests() {
     say("");
   }
 
-  const excludes = [...VITEST_DEFAULT_EXCLUDES, ...skipped].flatMap((pattern) => [
-    "--exclude",
-    pattern,
-  ]);
+  const excludes = [...VITEST_DEFAULT_EXCLUDES, ...skipped].flatMap(
+    (pattern) => ["--exclude", pattern],
+  );
 
-  return run("npx", ["vitest", "run", ...excludes], {
-    cwd: resolve(ROOT, "apps/api"),
-  }).status === 0;
+  return (
+    run("npx", ["vitest", "run", ...excludes], {
+      cwd: resolve(ROOT, "apps/api"),
+    }).status === 0
+  );
 }
 
 function otherTests(base) {
@@ -428,9 +458,11 @@ function otherTests(base) {
  * unconditionally like the i18n pair rather than only on affected packages.
  */
 function harnessCheck() {
-  return run(process.execPath, [
-    resolve(ROOT, "scripts/guardrails/harness-check.mjs"),
-  ]).status === 0;
+  return (
+    run(process.execPath, [
+      resolve(ROOT, "scripts/guardrails/harness-check.mjs"),
+    ]).status === 0
+  );
 }
 
 /**
@@ -440,14 +472,18 @@ function harnessCheck() {
  * Sub-second, so it runs unconditionally alongside the other doc-level checks.
  */
 function designTokens() {
-  return run(process.execPath, [
-    resolve(ROOT, "scripts/guardrails/design-tokens.mjs"),
-  ]).status === 0;
+  return (
+    run(process.execPath, [
+      resolve(ROOT, "scripts/guardrails/design-tokens.mjs"),
+    ]).status === 0
+  );
 }
 
 function i18nParity() {
-  return run(process.execPath, [resolve(ROOT, "scripts/guardrails/i18n-parity.mjs")])
-    .status === 0;
+  return (
+    run(process.execPath, [resolve(ROOT, "scripts/guardrails/i18n-parity.mjs")])
+      .status === 0
+  );
 }
 
 /**
@@ -456,9 +492,11 @@ function i18nParity() {
  * they run unconditionally rather than only on affected packages.
  */
 function i18nRawStrings() {
-  return run(process.execPath, [
-    resolve(ROOT, "scripts/guardrails/i18n-raw-strings.mjs"),
-  ]).status === 0;
+  return (
+    run(process.execPath, [
+      resolve(ROOT, "scripts/guardrails/i18n-raw-strings.mjs"),
+    ]).status === 0
+  );
 }
 
 /* ──────────────────────────────── the run ──────────────────────────────── */
@@ -470,9 +508,13 @@ function main() {
   if (isStopHook && attempts >= MAX_ATTEMPTS) {
     say("");
     say("⚠️  GUARDRAILS LOOP GUARD TRIPPED");
-    say(`   The gate has blocked ${attempts} times in a row without going green.`);
+    say(
+      `   The gate has blocked ${attempts} times in a row without going green.`,
+    );
     say("   Letting this stop through so the session does not loop forever.");
-    say("   THE TREE IS STILL RED. Run `npm run guardrails` and read the output,");
+    say(
+      "   THE TREE IS STILL RED. Run `npm run guardrails` and read the output,",
+    );
     say("   or hand it to a human — do not push and do not call this done.");
     say("");
     clearAttempts();
@@ -499,7 +541,8 @@ function main() {
     const apiAffected = affected === null || affected.has("api");
 
     if (apiAffected) ok = step("test — api", apiTests);
-    if (ok) ok = step("test — other workspaces (affected)", () => otherTests(base));
+    if (ok)
+      ok = step("test — other workspaces (affected)", () => otherTests(base));
   } else if (skipTests) {
     say("  · tests skipped (--skip-tests)");
   }
@@ -511,7 +554,9 @@ function main() {
 
   const elapsed = (Date.now() - startedAt) / 1000;
   say("");
-  say(`   total ${elapsed.toFixed(1)}s${elapsed > BUDGET_SECONDS ? `  ⚠️  over the ${BUDGET_SECONDS}s budget` : ""}`);
+  say(
+    `   total ${elapsed.toFixed(1)}s${elapsed > BUDGET_SECONDS ? `  ⚠️  over the ${BUDGET_SECONDS}s budget` : ""}`,
+  );
 
   if (ok) {
     clearAttempts();
@@ -529,7 +574,9 @@ function main() {
   say("   assertion or a `--no-verify` to get past this.");
   if (isStopHook) {
     writeAttempts(attempts + 1);
-    say(`   (attempt ${attempts + 1} of ${MAX_ATTEMPTS} before the loop guard releases the stop)`);
+    say(
+      `   (attempt ${attempts + 1} of ${MAX_ATTEMPTS} before the loop guard releases the stop)`,
+    );
   }
   say("");
   return 2;

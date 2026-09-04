@@ -15,6 +15,13 @@ import { dirname, join } from "node:path";
 
 const created: string[] = [];
 
+/**
+ * Spawned by bare name so it resolves through `PATH`, same as typing `git` at
+ * a shell — the standard, expected way to invoke it for a tool like this one.
+ * Hoisted to a named const per the repo's os-command-from-path convention.
+ */
+const GIT_BIN = "git";
+
 /** An empty repository on a known branch, with commit signing disabled. */
 export function createTempRepo(prefix = "crafthub-extractor-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
@@ -73,9 +80,7 @@ export function commit(repo: string, options: CommitOptions): string {
       "-m",
       message,
     ],
-    stamp
-      ? { GIT_AUTHOR_DATE: stamp, GIT_COMMITTER_DATE: stamp }
-      : undefined,
+    stamp ? { GIT_AUTHOR_DATE: stamp, GIT_COMMITTER_DATE: stamp } : undefined,
   );
 
   return run(repo, ["rev-parse", "HEAD"]).trim();
@@ -100,7 +105,7 @@ export function run(
   args: readonly string[],
   env?: Record<string, string>,
 ): string {
-  return execFileSync("git", ["-C", repo, ...args], {
+  return execFileSync(GIT_BIN, ["-C", repo, ...args], {
     encoding: "utf8",
     env: { ...process.env, ...env },
   });

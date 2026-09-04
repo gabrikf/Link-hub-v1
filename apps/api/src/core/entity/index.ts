@@ -4,6 +4,8 @@ export interface BaseEntityProps {
   updatedAt: Date;
 }
 
+type BaseEntityIdentityKeys = "id" | "createdAt" | "updatedAt";
+
 export class BaseEntity<T extends BaseEntityProps> {
   id: string;
   createdAt: Date;
@@ -19,7 +21,7 @@ export class BaseEntity<T extends BaseEntityProps> {
 
   protected static buildBaseProps(): Pick<
     BaseEntityProps,
-    "id" | "createdAt" | "updatedAt"
+    BaseEntityIdentityKeys
   > {
     return {
       id: crypto.randomUUID(),
@@ -30,7 +32,7 @@ export class BaseEntity<T extends BaseEntityProps> {
 
   static create<T extends BaseEntityProps, TClass extends BaseEntity<T>>(
     this: new (props: T) => TClass,
-    props: Omit<T, "id" | "createdAt" | "updatedAt">
+    props: Omit<T, BaseEntityIdentityKeys>,
   ): TClass {
     const baseProps = BaseEntity.buildBaseProps();
     return new this({
@@ -43,7 +45,7 @@ export class BaseEntity<T extends BaseEntityProps> {
     this.updatedAt = new Date();
   }
 
-  update(props: Partial<Omit<T, "id" | "createdAt" | "updatedAt">>) {
+  update(props: Partial<Omit<T, BaseEntityIdentityKeys>>) {
     Object.assign(this, props);
     this.updateTimestamp();
   }

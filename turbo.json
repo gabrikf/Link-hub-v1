@@ -1,6 +1,74 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
+
+  // Runtime configuration the tasks READ but that must not enter the cache key.
+  //
+  // `eslint-plugin-turbo` reports every `process.env.X` a task reads and
+  // turbo.json does not declare — 141 findings across api, mcp and extractor
+  // before this block existed. An undeclared var is a real hazard: turbo hands
+  // you a cache hit for a build that never saw it.
+  //
+  // `globalPassThroughEnv` and not `globalEnv` on purpose. `globalEnv` makes
+  // each name part of the hash, so changing `LOG_LEVEL` or rotating
+  // `OPENAI_API_KEY` would invalidate every cached build and test in the repo.
+  // Everything below is read at RUN time by a server, a worker or a CLI — none
+  // of it changes what `tsc` or `vite build` emits — so it is passed through
+  // and deliberately not hashed.
+  //
+  // Adding an env var? Add it here in the same change, or the lint step will
+  // say so.
+  "globalPassThroughEnv": [
+    "ACTIVITY_DIGEST_WORKER_CONCURRENCY",
+    "AI_QUOTA_ENABLED",
+    "AI_QUOTA_RESUME_PARSE_DAILY",
+    "AUTH_EMAIL_RESPONSE_FLOOR_MS",
+    "CRAFTHUB_API_TOKEN",
+    "CRAFTHUB_API_URL",
+    "CRAFTHUB_CONNECTION_ID",
+    "CRAFTHUB_EXTRACTOR_CONFIG",
+    "DATABASE_CONNECT_TIMEOUT_SECONDS",
+    "DATABASE_IDLE_TIMEOUT_SECONDS",
+    "DATABASE_MAX_LIFETIME_SECONDS",
+    "DATABASE_POOL_MAX",
+    "DATABASE_URL",
+    "EMBEDDING_CACHE_MAX_ITEMS",
+    "EMBEDDING_CACHE_TTL_SECONDS",
+    "EMBEDDING_MODEL",
+    "EMBEDDING_VERSION",
+    "GIT_SHA",
+    "GOOGLE_CLIENT_ID",
+    "GRAFANA_CLOUD_API_TOKEN",
+    "GRAFANA_CLOUD_INSTANCE_ID",
+    "IMAGE_MAX_DIMENSION",
+    "IMAGE_OPTIMIZATION_ENABLED",
+    "IVFFLAT_PROBES",
+    "JWT_EXPIRES_IN",
+    "JWT_SECRET",
+    "LINKEDIN_CLIENT_ID",
+    "LINKEDIN_CLIENT_SECRET",
+    "LINKEDIN_REDIRECT_URI",
+    "LOG_LEVEL",
+    "MAIL_TRANSPORT",
+    "NODE_ENV",
+    "OPENAI_API_KEY",
+    "OPENAI_MAX_RETRIES",
+    "OPENAI_PARSE_TIMEOUT_MS",
+    "OPENAI_TIMEOUT_MS",
+    "OTEL_ESM_LOADER_HOOK",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_HEADERS",
+    "QUERY_CONVERSION_MODEL",
+    "REDIS_URL",
+    "RESUME_EMBEDDING_WORKER_CONCURRENCY",
+    "RESUME_PARSING_MODEL",
+    "SEARCH_MIN_SIMILARITY",
+    "SEED_REAL_USE_OPENAI",
+    "SMTP_HOST",
+    "UPDATE_SEARCH_BASELINE",
+    "WEB_APP_URL"
+  ],
+
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

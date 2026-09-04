@@ -55,9 +55,11 @@ const seeded: SeededRow[] = [];
 
 /** Deterministic unit vectors — a flaky recall number is a useless one. */
 function randomUnitVector(random: () => number): number[] {
-  const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, () =>
-    // Box-Muller-free: uniform in [-1, 1] is plenty for a recall experiment.
-    random() * 2 - 1,
+  const vector = Array.from(
+    { length: EMBEDDING_DIMENSIONS },
+    () =>
+      // Box-Muller-free: uniform in [-1, 1] is plenty for a recall experiment.
+      random() * 2 - 1,
   );
   const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
   return vector.map((value) => value / norm);
@@ -145,7 +147,9 @@ function exactTopK(
       id: row.resumeId,
       score: cosine(row.embedding, queryEmbedding),
     }))
-    .sort((a, b) => (b.score === a.score ? a.id.localeCompare(b.id) : b.score - a.score))
+    .sort((a, b) =>
+      b.score === a.score ? a.id.localeCompare(b.id) : b.score - a.score,
+    )
     .slice(0, k)
     .map((row) => row.id);
 }
@@ -240,7 +244,10 @@ describe("recruiter search — SQL boundaries", () => {
 
   afterAll(async () => {
     // Cascades to resumes and resume_embeddings.
-    await db.execute(sql`DELETE FROM users WHERE login LIKE ${`${PREFIX}-%`}`);
+    const loginPrefixPattern = `${PREFIX}-%`;
+    await db.execute(
+      sql`DELETE FROM users WHERE login LIKE ${loginPrefixPattern}`,
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -542,7 +549,11 @@ describe("recruiter search — SQL boundaries", () => {
     });
 
     it("returns identical results for identical requests", async () => {
-      const first = await annTopK(recallQuery, { usernameContains: PREFIX }, 30);
+      const first = await annTopK(
+        recallQuery,
+        { usernameContains: PREFIX },
+        30,
+      );
       const second = await annTopK(
         recallQuery,
         { usernameContains: PREFIX },

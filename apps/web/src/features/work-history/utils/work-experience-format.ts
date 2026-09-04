@@ -54,8 +54,12 @@ export function formatWorkMonth(
   const year = match[1];
   const monthIndex = Number(match[2]) - 1;
   const monthKey = MONTH_KEYS[monthIndex];
+  if (!monthKey) {
+    return year;
+  }
 
-  return monthKey ? `${t(`enum.month.${monthKey}`)} ${year}` : year;
+  const monthLabel = t(`enum.month.${monthKey}`);
+  return `${monthLabel} ${year}`;
 }
 
 export function formatWorkDateRange(

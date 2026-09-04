@@ -40,7 +40,9 @@ describe("DeterministicEmbeddingProvider", () => {
   });
 
   it("places documents that share words closer together", async () => {
-    const query = embedder.embed("react node.js typescript full stack engineer");
+    const query = embedder.embed(
+      "react node.js typescript full stack engineer",
+    );
     const related = embedder.embed(
       "full stack engineer working with react and node.js in typescript",
     );
@@ -72,9 +74,11 @@ describe("DeterministicEmbeddingProvider", () => {
   it("does not reward padding a document with irrelevant text", async () => {
     const query = embedder.embed("react node.js");
     const honest = embedder.embed("react node.js engineer");
-    const padded = embedder.embed(
-      `react node.js engineer ${Array.from({ length: 400 }, (_, index) => `filler${index}`).join(" ")}`,
-    );
+    const fillerWords = Array.from(
+      { length: 400 },
+      (_, index) => `filler${index}`,
+    ).join(" ");
+    const padded = embedder.embed(`react node.js engineer ${fillerWords}`);
 
     expect(cosine(query, padded)).toBeLessThan(cosine(query, honest));
   });

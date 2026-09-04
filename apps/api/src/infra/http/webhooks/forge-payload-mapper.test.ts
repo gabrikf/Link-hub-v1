@@ -50,8 +50,10 @@ describe("mapGithubDelivery", () => {
   });
 
   it("synthesizes a host-qualified repo when the payload has no html_url", () => {
-    const { html_url, ...bareRepository } = pushPayload.repository;
-    void html_url;
+    const bareRepository = {
+      full_name: pushPayload.repository.full_name,
+      default_branch: pushPayload.repository.default_branch,
+    };
 
     const [event] = mapGithubDelivery(
       "push",
@@ -68,9 +70,16 @@ describe("mapGithubDelivery", () => {
     // hashed locally from `git@github.com:acme/rocket.git` must land on ONE
     // fingerprint. A bare "acme/rocket" would take the local-path branch of
     // `normalizeRepoIdentity` and resolve against process.cwd().
-    const [withUrl] = mapGithubDelivery("push", pushPayload, "octocat", RECEIVED_AT);
-    const { html_url, ...bareRepository } = pushPayload.repository;
-    void html_url;
+    const [withUrl] = mapGithubDelivery(
+      "push",
+      pushPayload,
+      "octocat",
+      RECEIVED_AT,
+    );
+    const bareRepository = {
+      full_name: pushPayload.repository.full_name,
+      default_branch: pushPayload.repository.default_branch,
+    };
     const [synthesized] = mapGithubDelivery(
       "push",
       { ...pushPayload, repository: bareRepository },
@@ -183,7 +192,10 @@ describe("mapGithubDelivery", () => {
     const payload = {
       action: "submitted",
       repository: { full_name: "acme/rocket" },
-      review: { submitted_at: "2026-08-11T10:00:00Z", user: { login: "octocat" } },
+      review: {
+        submitted_at: "2026-08-11T10:00:00Z",
+        user: { login: "octocat" },
+      },
       pull_request: { user: { login: "someone-else" } },
     };
 
@@ -220,12 +232,12 @@ describe("mapGithubDelivery", () => {
   });
 
   it("ignores a payload with no repository identity", () => {
-    expect(mapGithubDelivery("push", { commits: [] }, null, RECEIVED_AT)).toEqual(
-      [],
-    );
-    expect(mapGithubDelivery("push", "not an object", null, RECEIVED_AT)).toEqual(
-      [],
-    );
+    expect(
+      mapGithubDelivery("push", { commits: [] }, null, RECEIVED_AT),
+    ).toEqual([]);
+    expect(
+      mapGithubDelivery("push", "not an object", null, RECEIVED_AT),
+    ).toEqual([]);
   });
 });
 
@@ -285,8 +297,13 @@ describe("mapGitlabDelivery", () => {
   });
 
   it("falls back to the array length only when the count is absent", () => {
-    const { total_commits_count, ...withoutCount } = cappedPush;
-    void total_commits_count;
+    const withoutCount = {
+      object_kind: cappedPush.object_kind,
+      ref: cappedPush.ref,
+      project: cappedPush.project,
+      user_email: cappedPush.user_email,
+      commits: cappedPush.commits,
+    };
 
     const [event] = mapGitlabDelivery(
       "Push Hook",

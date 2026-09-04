@@ -2,6 +2,7 @@
 
 Fastify 5, clean architecture, tsyringe DI, Drizzle + Postgres/pgvector, BullMQ,
 OpenAI. Read the root `AGENTS.md` first; this file is the depth.
+
 ```bash
 npm run dev:api            # :3333, Swagger at /docs, health at /health{,/ready}
 bash db-manage.sh start    # Postgres 5432 + Redis 6379 + MinIO 9000
@@ -31,6 +32,7 @@ Four files in `src/core/` already break this; they are named in
 ## DI — `src/infra/di/container.ts`
 
 Over 2,200 lines, and every dependency in the app is registered there.
+
 - Register the **interface token** (`TOKENS.*`), not the concrete class.
 - A new use case means: register it, and add it to the controller that calls it.
 - `container-wiring.test.ts` catches a token you forgot, but it needs docker up
@@ -48,7 +50,6 @@ comes from `@repo/schemas` — never an inline zod object for a shape that cross
 the boundary. That is what keeps Swagger, the web client and the MCP server in
 agreement.
 
-
 **Every module is registered twice: at the bare path and under `/api/v1`** — so
 `/posts` and `/api/v1/posts` are the same route. Do not "fix" one of them.
 
@@ -57,8 +58,8 @@ domain error from the use case and let the handler map it. Never catch one in a
 controller to return a generic 500 — that erases the mapping and the Sentry
 breadcrumb.
 
-Auth is argon2 + JWT, with Google OAuth, long-lived API tokens for agents and
-HMAC-signed webhooks alongside it; `GET /me` is the authed identity endpoint.
+Auth is argon2 + JWT, plus Google OAuth, long-lived agent API tokens and
+HMAC-signed webhooks; `GET /me` is the authed identity endpoint.
 
 ## Tests
 
@@ -127,6 +128,7 @@ container, so drift fails there rather than in someone's browser.
 ## Database
 
 Drizzle, schema in `src/infra/database/drizzle/schema.ts`.
+
 ```bash
 npm run db:generate    # after editing schema.ts, then npm run db:migrate
 npm run db:push        # dev only, no migration file
@@ -166,7 +168,8 @@ queue provider interface, never by importing BullMQ into core.
 
 ## Lint
 
-`apps/api/eslint.config.js` exists but there is **no `lint` script here** — the
-comment at the top of that file says why. Your changed files are linted by
-`node scripts/guardrails/lint-changed.mjs`, which the gate runs. New api code is
-held to the config from today; the backlog is in `docs/harness/known-debt.md`.
+`npm run lint` works here now — it did not until 2026-09-04. `eslint.config.js`
+is syntactic and is what that script runs; `eslint.typed.config.js` adds
+`no-unsafe-*` and the promise rules and runs through the ratchet in
+`scripts/guardrails/lint-changed.mjs`, where an inherited finding passes and a
+new one fails. That is what keeps untyped values out of new code.

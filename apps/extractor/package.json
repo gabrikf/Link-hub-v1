@@ -15,7 +15,8 @@
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --watch",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint ."
   },
   "keywords": [
     "crafthub",
@@ -31,8 +32,10 @@
     "zod": "^4.1.1"
   },
   "devDependencies": {
+    "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
     "@types/node": "^24.3.0",
+    "eslint": "^9.39.4",
     "tsx": "^4.20.5",
     "typescript": "5.9.2",
     "vitest": "^3.2.4"

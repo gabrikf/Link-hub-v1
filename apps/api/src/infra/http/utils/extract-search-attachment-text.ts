@@ -37,7 +37,13 @@ function normalizeWhitespace(input: string): string {
       // padding a PDF extractor emits between layout boxes. `\n` is excluded so
       // this can never eat a line break.
       .replace(/[^\S\n]+/g, " ")
-      .replace(/ +$/gm, "")
+      // Trailing spaces on each line. Anchored at "start of line OR right
+      // after a non-space" rather than the bare `/ +$/gm`: unanchored at the
+      // front, that one is a `scslre`/`sonarjs/super-linear-regex` finding —
+      // a rejecting scan has to restart from every position in the line.
+      // Anchoring removes the ambiguity without changing which spaces match,
+      // all-space lines included.
+      .replace(/(?:^|(?<=\S)) +$/gm, "")
       // A page break can leave a dozen empty lines. One blank line is a
       // paragraph break; the rest is just the PDF's pagination.
       .replace(/\n{3,}/g, "\n\n")

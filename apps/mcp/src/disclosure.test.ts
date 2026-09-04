@@ -302,14 +302,19 @@ describe("renderPolicyForToolDescription", () => {
   it("does not leak degradedReason into the tool description", () => {
     // CHARACTERIZATION: the reason string (which can carry the api url) stays
     // out of the tool description and appears only in the resource.
+    // `203.0.113.0/24` is the RFC 5737 TEST-NET-3 block reserved for exactly
+    // this — documentation and example addresses that are guaranteed not to
+    // be a real host — standing in for whatever a deployment's
+    // CRAFTHUB_API_URL might resolve to.
+    const UNREACHABLE_API_HOST = "203.0.113.7";
     const rendered = renderPolicyForToolDescription(
       contextFor("summary", {
         degraded: true,
-        degradedReason: "Could not reach the CraftHub API at http://10.0.0.7:3333",
+        degradedReason: `Could not reach the CraftHub API at http://${UNREACHABLE_API_HOST}:3333`,
       }),
     );
 
-    expect(rendered).not.toContain("10.0.0.7");
+    expect(rendered).not.toContain(UNREACHABLE_API_HOST);
   });
 
   it("names the level value, its label and its short description", () => {
@@ -412,8 +417,10 @@ describe("renderPolicyResource", () => {
 
     expect(rendered).toContain("## What you may say");
     expect(rendered).toContain("## What you must not say");
-    for (const allowed of info.allows) expect(rendered).toContain(`- ${allowed}`);
-    for (const blocked of info.blocks) expect(rendered).toContain(`- ${blocked}`);
+    for (const allowed of info.allows)
+      expect(rendered).toContain(`- ${allowed}`);
+    for (const blocked of info.blocks)
+      expect(rendered).toContain(`- ${blocked}`);
   });
 
   it("substitutes the empty-blocks sentence at `full`", () => {
@@ -438,7 +445,9 @@ describe("renderPolicyResource", () => {
     );
 
     expect(rendered).toContain("## Terms the user banned outright");
-    expect(rendered).toContain("These are blocked at EVERY level, including `full`");
+    expect(rendered).toContain(
+      "These are blocked at EVERY level, including `full`",
+    );
     expect(rendered).toContain("- Initech");
     expect(rendered).toContain("- project-hemlock");
     expect(rendered).toContain("- PIX-4M");

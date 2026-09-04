@@ -2,6 +2,7 @@
 
 React 19, Vite 8, TanStack Router + Query, Tailwind v4, Zustand, Radix.
 Read the root `AGENTS.md` first, and `DESIGN.md` before touching anything visual.
+
 ```bash
 npm run dev:web      # http://localhost:5173
 ```
@@ -34,6 +35,7 @@ src/features/<feature>/{pages,components,hooks,lib}/
 src/shared-components/     primitives used across features
 src/lib/                   cross-cutting helpers (api clients, auth, theme, query client)
 ```
+
 Rule: something used by **one** feature lives in that feature. Used by two, it
 moves up to `shared-components/` or `lib/`. Do not import from another feature's
 internals — that is the signal to promote. Components are kebab-case too
@@ -61,6 +63,7 @@ not put server data in it.
 
 Every screen that reads from the network renders **loading, empty, error and
 filled**. All four. Each one designed and each one actually looked at.
+
 ```bash
 npm run visual:run -- scripts/visual/scenarios/public-profile.scenario.mjs
 ```
@@ -138,11 +141,21 @@ asserts nothing is 100% covered and worth nothing. See `docs/coverage.md`.
 
 ## Lint
 
-`apps/web` is the only workspace with a `lint` script, and `npm run lint`
-reports a **recorded backlog of pre-existing errors** — counted, printed and
-ratcheted by `.github/workflows/ci.yml` (`LINT_ERROR_BASELINE`, which may only
-go down), with the detail in `docs/harness/known-debt.md`. Read the number off
-the CI job rather than off a copy in prose; that copy has already drifted once.
+Every workspace has a `lint` script now; `apps/web` was the only one until
+2026-09-04. The shared config is `@repo/eslint-config/react` — typescript-eslint,
+SonarQube's analyzer rules via `eslint-plugin-sonarjs`, react-hooks and
+react-refresh.
+
+`npm run lint` reports a **recorded backlog** — counted, printed and ratcheted
+by `.github/workflows/ci.yml`, with the detail in `docs/harness/known-debt.md`.
+Read the number off the CI job rather than off a copy in prose; that copy has
+already drifted once. The 26 `react-hooks/set-state-in-effect` and
+`react-refresh/only-export-components` findings are the bulk of it, and clearing
+them means refactoring components that work today — a separate task, with its
+own review and its own visual check.
+
+The type-aware rules live in `eslint.typed.config.js` and run through the
+ratchet in `scripts/guardrails/lint-changed.mjs`, not through `npm run lint`.
 
 Do not fix them as a side quest, and do not add to them. The gate lints only the
 files you changed; if a rule fires on your code, fix the code. An inline

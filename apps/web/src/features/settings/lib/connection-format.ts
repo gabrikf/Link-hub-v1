@@ -128,6 +128,15 @@ export function formatLastDigest(value: Date | null): string {
   return value ? formatDate(value) : i18n.t("settings.cadence.noDigestYet");
 }
 
+/** Strips trailing slashes without a backtracking-prone regex. */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
 /**
  * The URL the user pastes into the forge. The connection id is the path — it is
  * how a delivery is attributed, and it only exists once the server has answered
@@ -142,7 +151,7 @@ export function buildWebhookUrl(
     return null;
   }
 
-  return `${apiUrl.replace(/\/+$/, "")}/webhooks/${provider}/${connectionId}`;
+  return `${stripTrailingSlashes(apiUrl)}/webhooks/${provider}/${connectionId}`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -173,7 +182,10 @@ export type EffectiveDisclosure = {
  * because there is no third party whose name is at stake.
  */
 export function resolveEffectiveDisclosure(
-  connection: Pick<GitConnection, "workExperienceId" | "disclosureLevelOverride">,
+  connection: Pick<
+    GitConnection,
+    "workExperienceId" | "disclosureLevelOverride"
+  >,
   policy: AgentPolicy | undefined,
 ): EffectiveDisclosure {
   const roleOverride = connection.workExperienceId
@@ -327,7 +339,11 @@ const CLAUDE_HOOK_SETTINGS = {
   },
 } as const;
 
-export const CLAUDE_HOOK_SNIPPET = JSON.stringify(CLAUDE_HOOK_SETTINGS, null, 2);
+export const CLAUDE_HOOK_SNIPPET = JSON.stringify(
+  CLAUDE_HOOK_SETTINGS,
+  null,
+  2,
+);
 
 export const CLAUDE_HOOK_TARGET = "~/.claude/settings.json";
 
@@ -361,11 +377,7 @@ export const EXTRACTOR_CONFIG_TARGET = "~/.crafthub/extractor.json";
  * only after the create call answers, so the user never types a UUID by hand.
  */
 export function buildExtractorConfig(connectionId: string): string {
-  return JSON.stringify(
-    { connectionId, includeAgentSummary: false },
-    null,
-    2,
-  );
+  return JSON.stringify({ connectionId, includeAgentSummary: false }, null, 2);
 }
 
 /* ------------------------------------------------------------------ *

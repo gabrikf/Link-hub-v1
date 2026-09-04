@@ -19,6 +19,18 @@ export function sha256Hex(value: string): string {
 }
 
 /**
+ * Removes every trailing `/`. Written as an explicit scan rather than a
+ * `/\/+$/` regex: the regex is unanchored at the start and a linter's static
+ * analyzer cannot prove it never backtracks, where this loop is provably O(n)
+ * by construction.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") end -= 1;
+  return value.slice(0, end);
+}
+
+/**
  * Collapses the many spellings of "the same repository" into one string.
  *
  * This matters for de-duplication, not just tidiness: the same repo cloned over
@@ -44,7 +56,9 @@ export function normalizeRepoIdentity(identity: string): string {
     // Strip scheme and any embedded credentials — a token pasted into a remote
     // URL is exactly the kind of secret that must not become part of a hash
     // input the user cannot audit.
-    value = value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/^[^@/]*@/, "");
+    value = value
+      .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+      .replace(/^[^@/]*@/, "");
     value = value.toLowerCase();
   } else if (scpLike && !value.startsWith("/") && !value.startsWith(".")) {
     // `git@github.com:acme/thing.git` → `github.com/acme/thing`
@@ -55,7 +69,8 @@ export function normalizeRepoIdentity(identity: string): string {
   }
 
   // Trailing `.git` and slashes are noise the two clone forms disagree about.
-  value = value.replace(/\/+$/, "").replace(/\.git$/i, "").replace(/\/+$/, "");
+  value = stripTrailingSlashes(value).replace(/\.git$/i, "");
+  value = stripTrailingSlashes(value);
 
   return value;
 }

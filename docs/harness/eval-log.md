@@ -28,12 +28,12 @@ concatenating the shards is equivalent to one answer.
 
 ### Inventory
 
-| | Count |
-|---|---|
-| T0 surfaces | 4 (`AGENTS.md`, `apps/api/AGENTS.md`, `apps/web/AGENTS.md`, `.claude/CLAUDE.md`) |
-| T1 skills | 11 |
-| T2 refs | 43 |
-| Atomic claims | 1,429 |
+|               | Count                                                                            |
+| ------------- | -------------------------------------------------------------------------------- |
+| T0 surfaces   | 4 (`AGENTS.md`, `apps/api/AGENTS.md`, `apps/web/AGENTS.md`, `.claude/CLAUDE.md`) |
+| T1 skills     | 11                                                                               |
+| T2 refs       | 43                                                                               |
+| Atomic claims | 1,429                                                                            |
 
 ### Track A — correctness
 
@@ -84,9 +84,17 @@ edits, and downgraded a third to Mixed.
    instruction to ignore a live guardrail costs more than any redundancy.
 2. **Two known-debt items were stale.** `apps/mcp` was recorded as having zero
    tests and a coverage floor of 0; it has seven test files and floors of
-   92/96/97/92. The `pluguins/` typo directory does not exist and never appears
-   in git history. Both retired, with the retirement recorded so nobody
-   re-adds them from an old branch.
+   92/96/97/92. Retired, with the retirement recorded so nobody re-adds it from an old branch.
+
+   **A correction to this entry, made 2026-09-04:** it also claimed the stray
+   `pluguins/` directory did not exist. It does —
+   `apps/api/src/infra/http/pluguins/database.ts`. The check behind that claim
+   was `find . -maxdepth 3`, which cannot reach a path five levels deep, and
+   the eval judge that agreed with it was believed over the one that did not.
+   The debt item is reinstated in `known-debt.md`. A false claim introduced by
+   the change that existed to remove false claims is worth leaving on the
+   record.
+
 3. **`container.ts` was recorded as ~1900 lines.** It is 2,202.
 4. **The lint backlog was recorded as 30 errors.** It is 29. The ratchet was
    lowered to match, and the prose now points at `LINT_ERROR_BASELINE` rather
@@ -128,13 +136,13 @@ What Phase 2 actually did, and what it deliberately did not.
 
 ### Sizes
 
-| File | Before | After |
-|---|---|---|
-| `AGENTS.md` | 220 lines / 10,061 B | 94 lines / ~5,100 B |
-| `apps/api/AGENTS.md` | 212 lines / 8,131 B | 173 lines / 8,135 B |
-| `apps/web/AGENTS.md` | 166 lines / 6,349 B | 149 lines / ~7,000 B |
-| `packages/schemas/AGENTS.md` | — | 68 lines / 2,715 B (new) |
-| `.claude/CLAUDE.md` | 21 lines of HTML comment | 19 lines, pointing at `docs/harness/agent-harness.md` |
+| File                         | Before                   | After                                                 |
+| ---------------------------- | ------------------------ | ----------------------------------------------------- |
+| `AGENTS.md`                  | 220 lines / 10,061 B     | 94 lines / ~5,100 B                                   |
+| `apps/api/AGENTS.md`         | 212 lines / 8,131 B      | 173 lines / 8,135 B                                   |
+| `apps/web/AGENTS.md`         | 166 lines / 6,349 B      | 149 lines / ~7,000 B                                  |
+| `packages/schemas/AGENTS.md` | —                        | 68 lines / 2,715 B (new)                              |
+| `.claude/CLAUDE.md`          | 21 lines of HTML comment | 19 lines, pointing at `docs/harness/agent-harness.md` |
 
 The root is now an index: identity, the gate, the non-negotiables, an MCP table,
 a "where the rest lives" table, and the Output contract verbatim.
@@ -158,15 +166,15 @@ is the constraint that actually truncates instructions.
 
 Final numbers, against the tree as committed:
 
-| | Claims |
-|---|---|
-| In the baseline | 1,429 |
-| Retained, matched in place | 1,369 |
-| Relocated, each verified against a named destination | 17 |
-| Deleted because the claim was **false**, each with evidence | 4 |
-| Cut | 39 — of which 37 are named by `11-mixed-apply.md`, and 2 are the routing claims of the two files the second model confirmed for deletion |
-| **Protected cuts** | **0** |
-| **Gate** | **PASS** |
+|                                                             | Claims                                                                                                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| In the baseline                                             | 1,429                                                                                                                                    |
+| Retained, matched in place                                  | 1,369                                                                                                                                    |
+| Relocated, each verified against a named destination        | 17                                                                                                                                       |
+| Deleted because the claim was **false**, each with evidence | 4                                                                                                                                        |
+| Cut                                                         | 39 — of which 37 are named by `11-mixed-apply.md`, and 2 are the routing claims of the two files the second model confirmed for deletion |
+| **Protected cuts**                                          | **0**                                                                                                                                    |
+| **Gate**                                                    | **PASS**                                                                                                                                 |
 
 It did not pass first time, and most of the failures were the ledger's own fault
 rather than the change's. Recording them because a proof nobody stress-tested is
@@ -182,7 +190,7 @@ not a proof:
   the quote of every cut claim, so a deleted rule could match its own obituary
   and come back RETAINED.
 - **Whole-file matching, which a review caught.** The first version scored a
-  claim against the token set of an *entire file* and took the best-scoring file
+  claim against the token set of an _entire file_ and took the best-scoring file
   anywhere in the corpus, so "retained" meant "60% of these words appear
   somewhere in some one file". A root `AGENTS.md` pointer was scoring 0.57
   against `deep-review/SKILL.md`, a file with nothing to do with it. It now
@@ -193,7 +201,7 @@ Two of those fixes made the number **worse**, not better. That is the point.
 
 ### Relocations and corrections, verified rather than asserted
 
-A rule that moved *and* was reworded fails a window match while being perfectly
+A rule that moved _and_ was reworded fails a window match while being perfectly
 present, and a claim deleted because it was false is a fix rather than a loss.
 Both get an answer in `docs/harness/claim-resolutions.json` — and every answer
 is re-checked by the ledger on every run:
@@ -249,13 +257,13 @@ every correctness fix listed in the baseline entry.
 
 Five, each verified against a deliberate violation before being wired in:
 
-| Sensor | Replaces | Found on arrival |
-|---|---|---|
-| `harness-check.mjs` | cite resolution, size budgets, skill frontmatter | the size overruns this change then fixed |
-| `design-tokens.mjs` | the banned palette scales, and hex inside a Tailwind class | nothing — the tree was already clean |
-| eslint `no-restricted-imports` on `apps/api/src/core/**` | the core/infra layer rule | **7 violations in 4 files** |
-| eslint `no-restricted-imports` for `react-icons` | one icon family | 5 files, all legitimate brand marks — encoded as a named exception |
-| `router-lazy.test.ts` | every route component is lazy | nothing |
+| Sensor                                                   | Replaces                                                   | Found on arrival                                                   |
+| -------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| `harness-check.mjs`                                      | cite resolution, size budgets, skill frontmatter           | the size overruns this change then fixed                           |
+| `design-tokens.mjs`                                      | the banned palette scales, and hex inside a Tailwind class | nothing — the tree was already clean                               |
+| eslint `no-restricted-imports` on `apps/api/src/core/**` | the core/infra layer rule                                  | **7 violations in 4 files**                                        |
+| eslint `no-restricted-imports` for `react-icons`         | one icon family                                            | 5 files, all legitimate brand marks — encoded as a named exception |
+| `router-lazy.test.ts`                                    | every route component is lazy                              | nothing                                                            |
 
 The layer-rule violations are recorded in `docs/harness/known-debt.md`. The gate
 lints only changed files, so nothing is red today; the rule blocks the eighth.
@@ -271,18 +279,18 @@ strings, hex outside a class, and `no-explicit-any` as an error.
 Same Q1 scope, same judge model (`claude-sonnet-5`) as the baseline, so the two
 runs are comparable.
 
-| | Baseline | Post |
-|---|---|---|
-| T0 surfaces | 4 | 5 (`packages/schemas/AGENTS.md` is new) |
-| T1 skills | 11 | 11 |
-| T2 refs | 43 | 47 |
-| Claims | 1,429 | 1,326 |
-| Track A BROKEN | 0 (after the sensor fix) | **0** |
-| Track C trap gate | PASS | **PASS** |
-| Track C Keep-core | 29 | **35** |
-| Track C Slim | 4 | **1** |
-| Track C Mixed | 7 | **6** |
-| Track C fan-in blocked | 0 | 0 |
+|                        | Baseline                 | Post                                    |
+| ---------------------- | ------------------------ | --------------------------------------- |
+| T0 surfaces            | 4                        | 5 (`packages/schemas/AGENTS.md` is new) |
+| T1 skills              | 11                       | 11                                      |
+| T2 refs                | 43                       | 47                                      |
+| Claims                 | 1,429                    | 1,326                                   |
+| Track A BROKEN         | 0 (after the sensor fix) | **0**                                   |
+| Track C trap gate      | PASS                     | **PASS**                                |
+| Track C Keep-core      | 29                       | **35**                                  |
+| Track C Slim           | 4                        | **1**                                   |
+| Track C Mixed          | 7                        | **6**                                   |
+| Track C fan-in blocked | 0                        | 0                                       |
 
 **The four known OVERLAPs.** Judge1 confirmed lint debt and Tests guidance are
 resolved — lint debt lives only in `docs/harness/known-debt.md` and is
@@ -318,13 +326,13 @@ The 12 sharded judges it would cost buy a comparison number and nothing else.
 A fresh-context reviewer read the whole diff against `develop`. Its findings and
 what happened to each:
 
-| Finding | Outcome |
-|---|---|
-| The no-loss proof did not reproduce; the log claimed PASS the diff file did not show | **Fixed.** The log had been written mid-work. Numbers above are from the final tree, and the ledger is re-run as the last step. |
-| `RETAINED` was a much weaker claim than reported — whole-file matching | **Fixed.** Sliding 12-line window, and the reported cuts went from 1 to 60 before resolutions. |
-| A **new false claim**: "five files / eight violations" in `src/core` — `update-post.use-case.ts` has no infra import | **Fixed.** It is seven violations across four files. Corrected in `known-debt.md`, `apps/api/AGENTS.md`, `sensor-backlog.md` and here. Exactly the class of error this change existed to remove, introduced by this change. |
-| The reports that authorise every cut are gitignored | **Fixed.** The five decision-bearing reports are committed under `docs/harness/reports/`. |
-| Forked Track A could miss a dead cite across workspaces (`src/router.tsx` cited from `apps/api`) | **Fixed.** A cite in a file that lives in a workspace now resolves against *that* workspace only. Verified with a fixture; the repo is still 0 BROKEN. |
-| `harness-check` misses a bare top-level filename cite | **Not fixed, deliberately.** The harness cites `router.tsx`, `surface.ts` and `tasks.md` as shorthand, and `tailwind.config.js` precisely because it does not exist. All would fail. The reasoning is now a comment in the script. |
-| Two `SKILL.md` files sit 2-9 lines under the 500 ceiling | Acknowledged. No headroom, and the check will say so the moment either grows. |
-| A concurrent session was editing the tree during the review | That session was this work, still in progress. The ledger was among the files changing, which is why its verdict moved — twice in the direction of *more* reported loss. |
+| Finding                                                                                                              | Outcome                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The no-loss proof did not reproduce; the log claimed PASS the diff file did not show                                 | **Fixed.** The log had been written mid-work. Numbers above are from the final tree, and the ledger is re-run as the last step.                                                                                                    |
+| `RETAINED` was a much weaker claim than reported — whole-file matching                                               | **Fixed.** Sliding 12-line window, and the reported cuts went from 1 to 60 before resolutions.                                                                                                                                     |
+| A **new false claim**: "five files / eight violations" in `src/core` — `update-post.use-case.ts` has no infra import | **Fixed.** It is seven violations across four files. Corrected in `known-debt.md`, `apps/api/AGENTS.md`, `sensor-backlog.md` and here. Exactly the class of error this change existed to remove, introduced by this change.        |
+| The reports that authorise every cut are gitignored                                                                  | **Fixed.** The five decision-bearing reports are committed under `docs/harness/reports/`.                                                                                                                                          |
+| Forked Track A could miss a dead cite across workspaces (`src/router.tsx` cited from `apps/api`)                     | **Fixed.** A cite in a file that lives in a workspace now resolves against _that_ workspace only. Verified with a fixture; the repo is still 0 BROKEN.                                                                             |
+| `harness-check` misses a bare top-level filename cite                                                                | **Not fixed, deliberately.** The harness cites `router.tsx`, `surface.ts` and `tasks.md` as shorthand, and `tailwind.config.js` precisely because it does not exist. All would fail. The reasoning is now a comment in the script. |
+| Two `SKILL.md` files sit 2-9 lines under the 500 ceiling                                                             | Acknowledged. No headroom, and the check will say so the moment either grows.                                                                                                                                                      |
+| A concurrent session was editing the tree during the review                                                          | That session was this work, still in progress. The ledger was among the files changing, which is why its verdict moved — twice in the direction of _more_ reported loss.                                                           |

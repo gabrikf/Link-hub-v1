@@ -1,0 +1,21 @@
+{
+  // Type-aware LINTING only. Never used to build.
+  //
+  // `tsconfig.json` excludes `src/**/*.test.ts` on purpose: tests are compiled
+  // by vitest and must not be emitted into `dist`, or `vitest` ends up in the
+  // published type surface of a package whose consumers do not have it.
+  //
+  // The side effect was that typescript-eslint's project service could not
+  // place those files in any project, so every one of them failed to parse and
+  // the type-aware rules silently never ran on them. They were recorded in the
+  // lint baseline as `(fatal)`, which reads exactly like debt and is actually a
+  // hole: 12 test files nothing was checking.
+  //
+  // This config includes them and emits nothing.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

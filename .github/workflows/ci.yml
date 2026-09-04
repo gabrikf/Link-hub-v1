@@ -29,6 +29,16 @@ jobs:
   # LINT — RECORDED BASELINE, NOT A GATE (yet)
   # ---------------------------------------------------------------------------
   #
+  # SCOPE CHANGED 2026-09-04. `npm run lint` used to cover 238 of the repo's
+  # ~800 TypeScript files: apps/web and packages/ui were the only workspaces
+  # with a `lint` script. apps/api (476 files), apps/mcp, apps/extractor,
+  # apps/training and packages/schemas had no ESLint config at all.
+  #
+  # All seven workspaces are now wired to `@repo/eslint-config`, which adds
+  # `eslint-plugin-sonarjs` (SonarQube's own JS/TS analyzer rules, run locally)
+  # and `eslint-plugin-n`. The baseline below counts findings across all of
+  # them, so it is not comparable to the number that preceded it.
+  #
   # `continue-on-error: true` is deliberate and it is NOT a way of pretending
   # the repo is clean.
   #
@@ -56,8 +66,17 @@ jobs:
     env:
       # The number of eslint errors that existed when this workflow was written.
       # This may only ever go DOWN. Lower it as violations are fixed.
-      # 30 when this workflow was written; 29 as of 2026-09-04.
-      LINT_ERROR_BASELINE: "29"
+      # This number is NOT comparable to the one before 2026-09-04. It was 30,
+      # then 29, counting apps/web and packages/ui only — 238 of the repo's ~800
+      # TypeScript files. All seven workspaces are now linted, with sonarjs and
+      # the Node rules added, so the scope roughly quadrupled. 495 findings came
+      # out of that; 75 remain. It may still only ever go DOWN from here.
+      #
+      # The root script is `turbo run lint --continue` for this step's sake:
+      # without `--continue` turbo stops at the first failing workspace and the
+      # count below is silently partial — it read 1 instead of 73 the first time
+      # this ran with seven workspaces.
+      LINT_ERROR_BASELINE: "75"
 
     steps:
       - name: Checkout
@@ -188,6 +207,49 @@ jobs:
 
       - name: Check the palette
         run: node scripts/guardrails/design-tokens.mjs
+
+  # ---------------------------------------------------------------------------
+  # LINT RATCHET — the gate that actually blocks
+  # ---------------------------------------------------------------------------
+  #
+  # The `lint` job above counts findings and does not block. THIS one blocks,
+  # and it asks a different question: not "is the repo clean" but "did this
+  # pull request add anything".
+  #
+  # It lints the changed files with `eslint.typed.config.js` — the syntactic
+  # rules plus the type-aware ones (`no-unsafe-*`, `no-floating-promises`) —
+  # and compares each file+rule count against
+  # `scripts/guardrails/lint-baseline.json`. A finding already recorded there is
+  # inherited debt and passes. One that is not, fails.
+  #
+  # `fetch-depth: 0` because the ratchet diffs against the merge-base, and a
+  # shallow clone has no merge-base to find.
+  lint-ratchet:
+    name: Lint ratchet (new findings only)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The type-aware rules need @repo/schemas' emitted types to resolve, the
+      # same reason check-types and test both depend on ^build.
+      - name: Build shared packages
+        run: npm run build:schemas
+
+      - name: Lint the changed files against the ratchet
+        run: node scripts/guardrails/lint-changed.mjs --base origin/${{ github.base_ref }}
 
   # ---------------------------------------------------------------------------
   # TEST — a real gate, against real Postgres + Redis

@@ -58,7 +58,10 @@ const SENIORITY_HINTS = [
  */
 const PRACTICE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   { label: "TDD", pattern: /\b(tdd|test[- ]driven)\b/i },
-  { label: "CI/CD", pattern: /\b(ci\/cd|cicd|continuous (integration|delivery|deployment))\b/i },
+  {
+    label: "CI/CD",
+    pattern: /\b(ci\/cd|cicd|continuous (integration|delivery|deployment))\b/i,
+  },
   { label: "trunk-based development", pattern: /\btrunk[- ]based\b/i },
   { label: "code review", pattern: /\bcode review(s)?\b/i },
   { label: "pair programming", pattern: /\bpair(ing| programming)\b/i },
@@ -66,8 +69,14 @@ const PRACTICE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   { label: "microservices", pattern: /\bmicro[- ]?services?\b/i },
   { label: "domain-driven design", pattern: /\b(ddd|domain[- ]driven)\b/i },
   { label: "clean architecture", pattern: /\bclean architecture\b/i },
-  { label: "observability", pattern: /\b(observability|monitoring|telemetry)\b/i },
-  { label: "infrastructure as code", pattern: /\b(terraform|infrastructure as code|iac)\b/i },
+  {
+    label: "observability",
+    pattern: /\b(observability|monitoring|telemetry)\b/i,
+  },
+  {
+    label: "infrastructure as code",
+    pattern: /\b(terraform|infrastructure as code|iac)\b/i,
+  },
   { label: "agile/scrum", pattern: /\b(agile|scrum|kanban)\b/i },
   { label: "mentoring", pattern: /\bmentor(ing|ship|ed)?\b/i },
   { label: "accessibility", pattern: /\b(accessibility|a11y|wcag)\b/i },
@@ -79,16 +88,45 @@ const PRACTICE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
  * ever leaves this use case.
  */
 const DOMAIN_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
-  { label: "payments", pattern: /\b(payment|checkout|billing|pix|invoicing)\w*\b/i },
-  { label: "fintech", pattern: /\b(fintech|banking|lending|credit|trading)\w*\b/i },
-  { label: "e-commerce", pattern: /\b(e-?commerce|marketplace|retail|storefront)\w*\b/i },
-  { label: "logistics", pattern: /\b(logistics|shipping|fleet|delivery|supply chain)\w*\b/i },
+  {
+    label: "payments",
+    pattern: /\b(payment|checkout|billing|pix|invoicing)\w*\b/i,
+  },
+  {
+    label: "fintech",
+    pattern: /\b(fintech|banking|lending|credit|trading)\w*\b/i,
+  },
+  {
+    label: "e-commerce",
+    pattern: /\b(e-?commerce|marketplace|retail|storefront)\w*\b/i,
+  },
+  {
+    label: "logistics",
+    pattern: /\b(logistics|shipping|fleet|delivery|supply chain)\w*\b/i,
+  },
   { label: "healthcare", pattern: /\b(health|medical|clinical|patient)\w*\b/i },
-  { label: "education", pattern: /\b(education|learning|e-?learning|course)\w*\b/i },
-  { label: "developer tooling", pattern: /\b(developer tool|devtool|sdk|cli|platform engineering)\w*\b/i },
-  { label: "data and analytics", pattern: /\b(analytics|data pipeline|etl|warehouse|reporting)\w*\b/i },
-  { label: "security", pattern: /\b(security|authentication|authorization|identity|compliance)\w*\b/i },
-  { label: "artificial intelligence", pattern: /\b(machine learning|\bml\b|artificial intelligence|\bai\b|llm|embedding)\w*\b/i },
+  {
+    label: "education",
+    pattern: /\b(education|learning|e-?learning|course)\w*\b/i,
+  },
+  {
+    label: "developer tooling",
+    pattern: /\b(developer tool|devtool|sdk|cli|platform engineering)\w*\b/i,
+  },
+  {
+    label: "data and analytics",
+    pattern: /\b(analytics|data pipeline|etl|warehouse|reporting)\w*\b/i,
+  },
+  {
+    label: "security",
+    pattern:
+      /\b(security|authentication|authorization|identity|compliance)\w*\b/i,
+  },
+  {
+    label: "artificial intelligence",
+    pattern:
+      /\b(machine learning|\bml\b|artificial intelligence|\bai\b|llm|embedding)\w*\b/i,
+  },
 ];
 
 /** First seniority word present in the title, in most-senior-first order. */
@@ -136,7 +174,9 @@ function extractPractices(text: string): string[] {
 }
 
 function extractDomain(text: string): string | null {
-  return DOMAIN_PATTERNS.find(({ pattern }) => pattern.test(text))?.label ?? null;
+  return (
+    DOMAIN_PATTERNS.find(({ pattern }) => pattern.test(text))?.label ?? null
+  );
 }
 
 /**
@@ -150,7 +190,7 @@ function splitAchievements(description: string | null): string[] {
 
   const lines = description
     .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*[-*••]\s*/, "").trim())
+    .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
     .filter((line) => line.length > 0);
 
   const source = lines.length > 1 ? lines : splitSentences(description);
@@ -197,7 +237,12 @@ export class GetWorkContextUseCase {
     return {
       disclosureLevel: user.agentDisclosureLevel,
       roles: workExperiences.map((role) =>
-        this.toRole(role, user.agentDisclosureLevel, user.agentBlockedTerms, companies),
+        this.toRole(
+          role,
+          user.agentDisclosureLevel,
+          user.agentBlockedTerms,
+          companies,
+        ),
       ),
     };
   }

@@ -22,7 +22,7 @@ export class Argon2HashProvider implements IHashProvider {
   async compare(plain: string, hashed: string): Promise<boolean> {
     try {
       return await argon2.verify(hashed, plain);
-    } catch (error) {
+    } catch (_error) {
       // If verification fails due to invalid hash format, return false
       return false;
     }

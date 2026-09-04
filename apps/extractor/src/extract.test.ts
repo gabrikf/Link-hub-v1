@@ -82,7 +82,7 @@ describe("the payload never carries a clear-text identity", () => {
     const { repo, author } = buildConfidentialRepo();
     const { events } = extract([repo], { authors: [author] });
 
-    expect(events.length).toBe(2);
+    expect(events).toHaveLength(2);
     for (const event of events) {
       expect(event.repoFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(event.externalDeliveryId).toMatch(/^[0-9a-f]{64}$/);
@@ -107,7 +107,10 @@ describe("the payload never carries a clear-text identity", () => {
     for (const event of events) {
       expect(event.occurredOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
-    expect(events.map((e) => e.occurredOn)).toEqual(["2026-03-04", "2026-03-06"]);
+    expect(events.map((e) => e.occurredOn)).toEqual([
+      "2026-03-04",
+      "2026-03-06",
+    ]);
     // No ISO timestamp, no offset, anywhere in the payload.
     expect(JSON.stringify(events)).not.toMatch(/\d{2}:\d{2}/);
   });
@@ -210,10 +213,9 @@ describe("multiple author emails", () => {
   it("prefers explicit flags over discovery", () => {
     const repo = createTempRepo();
     commit(repo, { files: { "a.ts": "1\n" } });
-    expect(resolveAuthors(["Flag@Example.com"], ["cfg@example.com"], [repo])).toEqual([
-      "flag@example.com",
-      "cfg@example.com",
-    ]);
+    expect(
+      resolveAuthors(["Flag@Example.com"], ["cfg@example.com"], [repo]),
+    ).toEqual(["flag@example.com", "cfg@example.com"]);
   });
 });
 
@@ -276,7 +278,7 @@ describe("robustness", () => {
     const { events, stats } = extract([repo, "/definitely/not/a/repo"], {
       authors: [author],
     });
-    expect(events.length).toBe(2);
+    expect(events).toHaveLength(2);
     expect(stats.skippedPaths).toEqual(["/definitely/not/a/repo"]);
   });
 

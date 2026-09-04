@@ -138,9 +138,7 @@ function foldedColumn(column: SQL | SQL.Aliased | unknown): SQL {
 
 function normalizeTerms(values: string[]): string[] {
   return Array.from(
-    new Set(
-      values.map((value) => normalizeSearchText(value)).filter(Boolean),
-    ),
+    new Set(values.map((value) => normalizeSearchText(value)).filter(Boolean)),
   );
 }
 
@@ -159,7 +157,10 @@ function normalizeTerms(values: string[]): string[] {
  *    the element type, but `foldedColumn` wraps it in `regexp_replace(...)`, and
  *    an expression gives the planner nothing to infer from.
  */
-function foldedInAny(column: SQL | SQL.Aliased | unknown, wanted: string[]): SQL {
+function foldedInAny(
+  column: SQL | SQL.Aliased | unknown,
+  wanted: string[],
+): SQL {
   return sql`${foldedColumn(column)} = ANY(${sql.param(wanted)}::text[])`;
 }
 
@@ -280,10 +281,10 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
       // candidate is searchable on the sources they have, and requiring the
       // blended row too would drop anyone mid-reindex.
       const query = scopedSources
-        ? tx.select(selection).from(resumes).innerJoin(
-            users,
-            eq(users.id, resumes.userId),
-          )
+        ? tx
+            .select(selection)
+            .from(resumes)
+            .innerJoin(users, eq(users.id, resumes.userId))
         : tx
             .select(selection)
             .from(resumes)
@@ -293,14 +294,16 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
               eq(resumeEmbeddings.resumeId, resumes.id),
             );
 
-      return query
-        .where(whereClause)
-        // `resumes.id ASC` is not cosmetic: without a total order, two
-        // candidates on an identical score come back in whatever order the
-        // executor happened to produce, so the same request can return
-        // different pages. Tests assert byte-identical repeat responses.
-        .orderBy(sql`${similarity} DESC`, sql`${resumes.id} ASC`)
-        .limit(fetchLimit);
+      return (
+        query
+          .where(whereClause)
+          // `resumes.id ASC` is not cosmetic: without a total order, two
+          // candidates on an identical score come back in whatever order the
+          // executor happened to produce, so the same request can return
+          // different pages. Tests assert byte-identical repeat responses.
+          .orderBy(sql`${similarity} DESC`, sql`${resumes.id} ASC`)
+          .limit(fetchLimit)
+      );
     });
 
     const kept = rows.slice(0, input.topK);
@@ -530,8 +533,13 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
     // `Number(process.env.IVFFLAT_PROBES)` used to be interpolated raw: with
     // `IVFFLAT_PROBES=abc` this became `SET LOCAL ivfflat.probes = NaN`, which
     // aborts the transaction and 500s every search (defect F20).
-    const probes = Math.max(1, Math.round(readNumericEnv("IVFFLAT_PROBES", 10)));
-    await tx.execute(sql`SET LOCAL ivfflat.probes = ${sql.raw(String(probes))}`);
+    const probes = Math.max(
+      1,
+      Math.round(readNumericEnv("IVFFLAT_PROBES", 10)),
+    );
+    await tx.execute(
+      sql`SET LOCAL ivfflat.probes = ${sql.raw(String(probes))}`,
+    );
 
     const version = await getPgVectorVersion();
 
@@ -648,7 +656,9 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
     }
 
     if (where.openToRelocation !== undefined) {
-      filters.push(sql`${resumes.openToRelocation} = ${where.openToRelocation}`);
+      filters.push(
+        sql`${resumes.openToRelocation} = ${where.openToRelocation}`,
+      );
     }
 
     if (where.minYearsExperience !== undefined) {
@@ -726,14 +736,14 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
     }
 
     if (where.nameContains) {
-      filters.push(
-        sql`${foldedColumn(users.name)} LIKE ${`%${normalizeSearchText(where.nameContains)}%`}`,
-      );
+      const nameLikePattern = `%${normalizeSearchText(where.nameContains)}%`;
+      filters.push(sql`${foldedColumn(users.name)} LIKE ${nameLikePattern}`);
     }
 
     if (where.usernameContains) {
+      const usernameLikePattern = `%${normalizeSearchText(where.usernameContains)}%`;
       filters.push(
-        sql`${foldedColumn(users.login)} LIKE ${`%${normalizeSearchText(where.usernameContains)}%`}`,
+        sql`${foldedColumn(users.login)} LIKE ${usernameLikePattern}`,
       );
     }
 

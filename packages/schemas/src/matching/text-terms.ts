@@ -7,11 +7,27 @@ import { normalizeMatchToken, termMatches } from "./term-matching.js";
  * Single characters are dropped — they are never a skill and they match
  * everything.
  */
+/** Strips a leading and trailing run of `.` characters, index-based so there
+ * is no unanchored-quantifier regex for a long run of dots to backtrack on. */
+function stripSurroundingDots(token: string): string {
+  let start = 0;
+  let end = token.length;
+
+  while (start < end && token[start] === ".") {
+    start += 1;
+  }
+  while (end > start && token[end - 1] === ".") {
+    end -= 1;
+  }
+
+  return token.slice(start, end);
+}
+
 export function tokenizeMatchText(value: string): string[] {
   return value
     .toLowerCase()
     .split(/[^a-z0-9+#.]+/g)
-    .map((token) => token.trim().replace(/^\.+|\.+$/g, ""))
+    .map((token) => stripSurroundingDots(token.trim()))
     .filter((token) => token.length >= 2);
 }
 

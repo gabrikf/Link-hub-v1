@@ -86,29 +86,7 @@ export class UpdateBlockUseCase {
       let current: ProfileBlockEntity = block;
 
       for (const row of groupRows) {
-        if (configData !== undefined) {
-          row.updateConfig(configData);
-        }
-
-        if (input.isVisible !== undefined) {
-          row.setVisibility(input.isVisible);
-        }
-
-        if (row.id === blockId) {
-          if (tabChange.type === "pin") {
-            row.setPinned(true);
-          } else if (tabChange.type === "unpin") {
-            // No tab to unpin into (viewport has none) — staying pinned keeps
-            // the block visible instead of anchoring it nowhere.
-            if (tabChange.tabId === null) {
-              row.setPinned(true);
-            } else {
-              row.setPinned(false, tabChange.tabId);
-            }
-          } else if (tabChange.type === "move") {
-            row.moveToTab(tabChange.tabId);
-          }
-        }
+        this.applyRowUpdate(row, blockId, configData, input, tabChange);
 
         const updated = await this.blocksRepository.update(row, tx);
         if (updated.id === blockId) {
@@ -120,6 +98,57 @@ export class UpdateBlockUseCase {
     });
 
     return toBlockDTO(currentRow);
+  }
+
+  /**
+   * Applies the content changes (config, visibility) shared across every row
+   * in the group, plus the tab-association change — but only to the row
+   * actually being edited. Extracted out of the `runInTransaction` callback
+   * in `execute` purely to keep that callback's cognitive complexity down;
+   * behaviour is unchanged.
+   */
+  private applyRowUpdate(
+    row: ProfileBlockEntity,
+    blockId: string,
+    configData: unknown | undefined,
+    input: UpdateBlockInput,
+    tabChange: TabChange,
+  ): void {
+    if (configData !== undefined) {
+      row.updateConfig(configData);
+    }
+
+    if (input.isVisible !== undefined) {
+      row.setVisibility(input.isVisible);
+    }
+
+    if (row.id !== blockId) {
+      return;
+    }
+
+    this.applyTabChange(row, tabChange);
+  }
+
+  private applyTabChange(row: ProfileBlockEntity, tabChange: TabChange): void {
+    if (tabChange.type === "pin") {
+      row.setPinned(true);
+      return;
+    }
+
+    if (tabChange.type === "unpin") {
+      // No tab to unpin into (viewport has none) — staying pinned keeps
+      // the block visible instead of anchoring it nowhere.
+      if (tabChange.tabId === null) {
+        row.setPinned(true);
+      } else {
+        row.setPinned(false, tabChange.tabId);
+      }
+      return;
+    }
+
+    if (tabChange.type === "move") {
+      row.moveToTab(tabChange.tabId);
+    }
   }
 
   private async resolveTabChange(

@@ -80,9 +80,37 @@ const fold = (value: string): string => {
  * `com` — a high-value Portuguese preposition — and a page of links reads as
  * fluent Portuguese. `Node.js` and `React.dev` go the same way, which is a
  * bonus: they are proper nouns and carry no evidence about the prose.
+ *
+ * Three separate patterns, tried in the same priority order the one combined
+ * regex used to (URL, then email, then bare domain), rather than one big
+ * alternation: that single pattern was both a ReDoS finding — `\S+@\S+\.\S+`
+ * lets the two `\S+` runs fight over which one "owns" the `@`, since `\S`
+ * matches `@` too — and, independently, over Sonar's regex-complexity budget.
+ * Excluding `@` from the character classes either side of it removes the
+ * ambiguity that caused the backtracking.
  */
-const NOISE_PATTERN =
-  /(?:https?:\/\/|www\.)\S+|\S+@\S+\.\S+|\b[\w-]+\.(?:com|org|net|io|dev|app|ai|js|ts|co|br|es|mx|pt|uk|de)\b/gi;
+const URL_PATTERN = /(?:https?:\/\/|www\.)\S+/gi;
+// The lookahead only CHECKS that a dot exists somewhere in the domain — it
+// consumes nothing, so it cannot fight the following `[^\s@]+` over which one
+// "owns" a character. That group is also the last thing in the pattern, so it
+// greedily consumes the whole domain once and never needs to backtrack. The
+// leading `\b` anchors the match to a word boundary: unanchored, a rejecting
+// scan has to restart this pattern from every position in the input in turn,
+// which is quadratic on its own regardless of backtracking inside the match
+// (`scslre`'s "Move" report) — anchoring is what the tool itself recognises
+// as immune to that. In practice this only misses the rare local-part that
+// starts on a non-word character (`+tag@example.com`), which was never a
+// case this noise filter specifically targeted.
+const EMAIL_PATTERN = /\b[^\s@]+@(?=[^\s@]*\.)[^\s@]+/gi;
+const DOMAIN_SUFFIX_PATTERN =
+  /\b[\w-]+\.(?:com|org|net|io|dev|app|ai|js|ts|co|br|es|mx|pt|uk|de)\b/gi;
+
+function stripNoise(input: string): string {
+  return input
+    .replace(URL_PATTERN, " ")
+    .replace(EMAIL_PATTERN, " ")
+    .replace(DOMAIN_SUFFIX_PATTERN, " ");
+}
 
 /** Letters only. Digits, punctuation, emoji and control characters never match. */
 const WORD_PATTERN = /\p{L}+/gu;
@@ -103,71 +131,435 @@ const WORD_PATTERN = /\p{L}+/gu;
  * detector that reads Spanish as Portuguese.
  */
 const PORTUGUESE_WORDS = [
-  "e", "o", "a", "os", "as", "do", "da", "dos", "das", "de", "que", "no", "na",
-  "nos", "nas", "em", "um", "uma", "uns", "umas", "para", "por", "com", "se",
-  "como", "mas", "mais", "muito", "muita", "muitos", "muitas", "nao", "sim",
-  "tambem", "ja", "ate", "sobre", "entre", "quando", "onde", "porque", "pois",
-  "ser", "sou", "foi", "fui", "era", "sao", "esta", "estou", "estava", "ter",
-  "tem", "tinha", "fazer", "fiz", "feito", "seu", "sua", "seus", "suas", "meu",
-  "minha", "ele", "ela", "eles", "elas", "voce", "voces", "nosso", "nossa",
-  "este", "esse", "essa", "isso", "aquele", "ao", "aos", "pelo", "pela",
-  "pelos", "pelas", "atraves", "alem", "todos", "todas", "cada", "depois",
-  "antes", "durante", "desde", "atual", "atualmente", "responsavel",
-  "experiencia", "empresa", "trabalho", "trabalhei", "trabalhando", "projeto",
-  "projetos", "equipe", "equipes", "desenvolvimento", "desenvolvedor",
-  "desenvolvi", "desenvolvendo", "tecnologias", "sistemas", "aplicacoes",
-  "solucoes", "ferramentas", "dados", "anos", "meses", "area", "formacao",
-  "atuei", "atuo", "liderei", "implementei", "criei", "melhorias", "entrega",
-  "entregas", "negocio", "cliente", "clientes", "resultados", "aumentando",
-  "reduzindo", "utilizando", "junto", "seguranca", "tempo", "novo", "nova",
-  "novos", "dentro", "mediante", "eu", "isto", "nem", "sem", "ainda",
-  "sempre", "entao", "assim", "tenho", "hoje", "ha", "pessoas",
+  "e",
+  "o",
+  "a",
+  "os",
+  "as",
+  "do",
+  "da",
+  "dos",
+  "das",
+  "de",
+  "que",
+  "no",
+  "na",
+  "nos",
+  "nas",
+  "em",
+  "um",
+  "uma",
+  "uns",
+  "umas",
+  "para",
+  "por",
+  "com",
+  "se",
+  "como",
+  "mas",
+  "mais",
+  "muito",
+  "muita",
+  "muitos",
+  "muitas",
+  "nao",
+  "sim",
+  "tambem",
+  "ja",
+  "ate",
+  "sobre",
+  "entre",
+  "quando",
+  "onde",
+  "porque",
+  "pois",
+  "ser",
+  "sou",
+  "foi",
+  "fui",
+  "era",
+  "sao",
+  "esta",
+  "estou",
+  "estava",
+  "ter",
+  "tem",
+  "tinha",
+  "fazer",
+  "fiz",
+  "feito",
+  "seu",
+  "sua",
+  "seus",
+  "suas",
+  "meu",
+  "minha",
+  "ele",
+  "ela",
+  "eles",
+  "elas",
+  "voce",
+  "voces",
+  "nosso",
+  "nossa",
+  "este",
+  "esse",
+  "essa",
+  "isso",
+  "aquele",
+  "ao",
+  "aos",
+  "pelo",
+  "pela",
+  "pelos",
+  "pelas",
+  "atraves",
+  "alem",
+  "todos",
+  "todas",
+  "cada",
+  "depois",
+  "antes",
+  "durante",
+  "desde",
+  "atual",
+  "atualmente",
+  "responsavel",
+  "experiencia",
+  "empresa",
+  "trabalho",
+  "trabalhei",
+  "trabalhando",
+  "projeto",
+  "projetos",
+  "equipe",
+  "equipes",
+  "desenvolvimento",
+  "desenvolvedor",
+  "desenvolvi",
+  "desenvolvendo",
+  "tecnologias",
+  "sistemas",
+  "aplicacoes",
+  "solucoes",
+  "ferramentas",
+  "dados",
+  "anos",
+  "meses",
+  "area",
+  "formacao",
+  "atuei",
+  "atuo",
+  "liderei",
+  "implementei",
+  "criei",
+  "melhorias",
+  "entrega",
+  "entregas",
+  "negocio",
+  "cliente",
+  "clientes",
+  "resultados",
+  "aumentando",
+  "reduzindo",
+  "utilizando",
+  "junto",
+  "seguranca",
+  "tempo",
+  "novo",
+  "nova",
+  "novos",
+  "dentro",
+  "mediante",
+  "eu",
+  "isto",
+  "nem",
+  "sem",
+  "ainda",
+  "sempre",
+  "entao",
+  "assim",
+  "tenho",
+  "hoje",
+  "ha",
+  "pessoas",
   // `time` and `data` are Portuguese words (team, date) that happen to be
   // spelled like common English ones. Listed on both sides so they cancel;
   // without this, "o time" and "a data" in Portuguese prose vote for English.
-  "time", "data",
+  "time",
+  "data",
 ];
 
 const SPANISH_WORDS = [
-  "y", "el", "la", "los", "las", "un", "una", "unos", "unas", "del", "al", "en",
-  "de", "que", "no", "por", "para", "con", "se", "como", "pero", "mas", "muy",
-  "si", "tambien", "ya", "hasta", "sobre", "entre", "cuando", "donde",
-  "porque", "pues", "ser", "soy", "fue", "era", "son", "esta", "estoy",
-  "estaba", "tener", "tiene", "tenia", "hacer", "hice", "hecho", "su", "sus",
-  "mi", "mis", "ella", "ellos", "ellas", "usted", "ustedes", "nuestro",
-  "nuestra", "este", "ese", "esa", "eso", "aquel", "a", "o", "dos", "ademas",
-  "todos", "todas", "cada", "despues", "antes", "durante", "desde", "actual",
-  "actualmente", "responsable", "experiencia", "empresa", "trabajo", "trabaje",
-  "trabajando", "proyecto", "proyectos", "equipo", "equipos", "desarrollo",
-  "desarrollador", "desarrolle", "desarrollando", "tecnologias", "sistemas",
-  "aplicaciones", "soluciones", "herramientas", "datos", "años", "año",
-  "meses", "area", "formacion", "lidere", "implemente", "mejoras", "entrega",
-  "entregas", "negocio", "cliente", "clientes", "resultados", "aumentando",
-  "reduciendo", "utilizando", "junto", "seguridad", "tiempo", "nuevo", "nueva",
-  "nuevos", "dentro", "mediante", "es", "lo", "les", "esto", "yo", "mucho",
-  "mucha", "muchos", "muchas", "sin", "aun", "todavia", "siempre", "entonces",
-  "asi", "tengo", "hoy", "personas",
+  "y",
+  "el",
+  "la",
+  "los",
+  "las",
+  "un",
+  "una",
+  "unos",
+  "unas",
+  "del",
+  "al",
+  "en",
+  "de",
+  "que",
+  "no",
+  "por",
+  "para",
+  "con",
+  "se",
+  "como",
+  "pero",
+  "mas",
+  "muy",
+  "si",
+  "tambien",
+  "ya",
+  "hasta",
+  "sobre",
+  "entre",
+  "cuando",
+  "donde",
+  "porque",
+  "pues",
+  "ser",
+  "soy",
+  "fue",
+  "era",
+  "son",
+  "esta",
+  "estoy",
+  "estaba",
+  "tener",
+  "tiene",
+  "tenia",
+  "hacer",
+  "hice",
+  "hecho",
+  "su",
+  "sus",
+  "mi",
+  "mis",
+  "ella",
+  "ellos",
+  "ellas",
+  "usted",
+  "ustedes",
+  "nuestro",
+  "nuestra",
+  "este",
+  "ese",
+  "esa",
+  "eso",
+  "aquel",
+  "a",
+  "o",
+  "dos",
+  "ademas",
+  "todos",
+  "todas",
+  "cada",
+  "despues",
+  "antes",
+  "durante",
+  "desde",
+  "actual",
+  "actualmente",
+  "responsable",
+  "experiencia",
+  "empresa",
+  "trabajo",
+  "trabaje",
+  "trabajando",
+  "proyecto",
+  "proyectos",
+  "equipo",
+  "equipos",
+  "desarrollo",
+  "desarrollador",
+  "desarrolle",
+  "desarrollando",
+  "tecnologias",
+  "sistemas",
+  "aplicaciones",
+  "soluciones",
+  "herramientas",
+  "datos",
+  "años",
+  "año",
+  "meses",
+  "area",
+  "formacion",
+  "lidere",
+  "implemente",
+  "mejoras",
+  "entrega",
+  "entregas",
+  "negocio",
+  "cliente",
+  "clientes",
+  "resultados",
+  "aumentando",
+  "reduciendo",
+  "utilizando",
+  "junto",
+  "seguridad",
+  "tiempo",
+  "nuevo",
+  "nueva",
+  "nuevos",
+  "dentro",
+  "mediante",
+  "es",
+  "lo",
+  "les",
+  "esto",
+  "yo",
+  "mucho",
+  "mucha",
+  "muchos",
+  "muchas",
+  "sin",
+  "aun",
+  "todavia",
+  "siempre",
+  "entonces",
+  "asi",
+  "tengo",
+  "hoy",
+  "personas",
   // `he`/`han`/`ha` are the Spanish perfect auxiliary — "he trabajado" is
   // ordinary prose, and `he` would otherwise be counted as the English pronoun.
   // `ha` is listed for Portuguese too (`há oito anos`), so it cancels.
-  "he", "han", "ha",
+  "he",
+  "han",
+  "ha",
 ];
 
 const ENGLISH_WORDS = [
-  "the", "of", "and", "to", "in", "for", "with", "a", "is", "are", "was",
-  "were", "be", "been", "being", "at", "on", "by", "from", "as", "that",
-  "this", "these", "those", "it", "its", "his", "her", "their", "our", "we",
-  "they", "you", "your", "he", "she", "have", "has", "had", "will", "would",
-  "should", "could", "can", "an", "or", "but", "not", "all", "more", "most",
-  "than", "then", "when", "where", "which", "who", "while", "my", "do", "does",
-  "did", "work", "working", "worked", "company", "experience", "team", "teams",
-  "developer", "development", "developing", "years", "months", "also", "about",
-  "into", "over", "through", "between", "using", "used", "build", "built",
-  "led", "managed", "responsible", "delivered", "improved", "increased",
-  "reduced", "across", "within", "including", "such", "both", "each", "other",
-  "new", "current", "currently", "project", "projects", "systems", "tools",
-  "data", "area", "skills", "role", "roles", "during", "after", "before",
-  "time", "security", "still", "without", "always", "since", "every", "people",
+  "the",
+  "of",
+  "and",
+  "to",
+  "in",
+  "for",
+  "with",
+  "a",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "at",
+  "on",
+  "by",
+  "from",
+  "as",
+  "that",
+  "this",
+  "these",
+  "those",
+  "it",
+  "its",
+  "his",
+  "her",
+  "their",
+  "our",
+  "we",
+  "they",
+  "you",
+  "your",
+  "he",
+  "she",
+  "have",
+  "has",
+  "had",
+  "will",
+  "would",
+  "should",
+  "could",
+  "can",
+  "an",
+  "or",
+  "but",
+  "not",
+  "all",
+  "more",
+  "most",
+  "than",
+  "then",
+  "when",
+  "where",
+  "which",
+  "who",
+  "while",
+  "my",
+  "do",
+  "does",
+  "did",
+  "work",
+  "working",
+  "worked",
+  "company",
+  "experience",
+  "team",
+  "teams",
+  "developer",
+  "development",
+  "developing",
+  "years",
+  "months",
+  "also",
+  "about",
+  "into",
+  "over",
+  "through",
+  "between",
+  "using",
+  "used",
+  "build",
+  "built",
+  "led",
+  "managed",
+  "responsible",
+  "delivered",
+  "improved",
+  "increased",
+  "reduced",
+  "across",
+  "within",
+  "including",
+  "such",
+  "both",
+  "each",
+  "other",
+  "new",
+  "current",
+  "currently",
+  "project",
+  "projects",
+  "systems",
+  "tools",
+  "data",
+  "area",
+  "skills",
+  "role",
+  "roles",
+  "during",
+  "after",
+  "before",
+  "time",
+  "security",
+  "still",
+  "without",
+  "always",
+  "since",
+  "every",
+  "people",
 ];
 
 interface WordTables {
@@ -283,44 +675,23 @@ const countMatches = (text: string, pattern: RegExp): number => {
  * this runs on the request path, where a resume full of control characters must
  * degrade to "I don't know" rather than to a 500.
  */
-export const detectLanguage = (
-  text: string | null | undefined,
-): UiLanguage | null => {
-  if (typeof text !== "string" || text.trim().length === 0) {
-    return null;
-  }
-
-  const scanned = text.slice(0, MAX_SCAN_CHARS).toLowerCase();
-  const cleaned = scanned.replace(NOISE_PATTERN, " ");
-
-  const scores: Record<UiLanguage, number> = {
-    "en-US": 0,
-    "pt-BR": 0,
-    "es-ES": 0,
-  };
-
-  for (const { language, pattern } of MARKER_PATTERNS) {
-    scores[language] += Math.min(
-      countMatches(cleaned, pattern) * MARKER_POINTS,
-      MAX_MARKER_POINTS,
-    );
-  }
-
-  // Tokenise the ORIGINAL-case text, because capitalisation is the cheapest
-  // available proper-noun filter. A Portuguese resume is dense with English
-  // technology names — React, Node, PostgreSQL, Docker — and every one of them
-  // arrives capitalised. Ignoring capitalised tokens keeps the verdict on the
-  // prose that surrounds them, which is the thing actually written in a
-  // language. The cost is the occasional sentence-initial function word; that
-  // is a uniform loss across all three languages, so it does not bias the
-  // margin.
-  const original = text.slice(0, MAX_SCAN_CHARS).replace(NOISE_PATTERN, " ");
+/**
+ * Walks the ORIGINAL-case text and scores every capitalised-first-letter
+ * function word it recognises, mutating `scores` in place. Extracted out of
+ * `detectLanguage` purely to keep that function's cognitive complexity
+ * (nested loop + three conditions inside it) from stacking on top of the
+ * scoring and ranking steps around it — behaviour is unchanged.
+ */
+function countDiscriminatingFunctionWords(
+  originalCaseText: string,
+  scores: Record<UiLanguage, number>,
+): number {
   WORD_PATTERN.lastIndex = 0;
 
   let functionWordHits = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = WORD_PATTERN.exec(original)) !== null) {
+  while ((match = WORD_PATTERN.exec(originalCaseText)) !== null) {
     const raw = match[0];
     const firstCharacter = raw[0] ?? "";
     if (firstCharacter !== firstCharacter.toLowerCase()) {
@@ -336,15 +707,21 @@ export const detectLanguage = (
 
     const language = DISCRIMINATING_WORDS.get(word);
     if (language) {
-      scores[language] +=
-        word.length === 1 ? SHORT_WORD_POINTS : WORD_POINTS;
+      scores[language] += word.length === 1 ? SHORT_WORD_POINTS : WORD_POINTS;
     }
   }
 
-  if (functionWordHits < MIN_FUNCTION_WORD_HITS) {
-    return null;
-  }
+  return functionWordHits;
+}
 
+/**
+ * Ranks the per-language scores and applies the confidence gates (a minimum
+ * score, a minimum margin over the runner-up, a minimum ratio) that decide
+ * whether the winner is trustworthy enough to report at all.
+ */
+function pickWinningLanguage(
+  scores: Record<UiLanguage, number>,
+): UiLanguage | null {
   const ranked = (Object.keys(scores) as UiLanguage[])
     .map((language) => ({ language, score: scores[language] }))
     // Ties keep the declaration order of `scores`; it does not matter, because
@@ -372,4 +749,45 @@ export const detectLanguage = (
   }
 
   return winner.language;
+}
+
+export const detectLanguage = (
+  text: string | null | undefined,
+): UiLanguage | null => {
+  if (typeof text !== "string" || text.trim().length === 0) {
+    return null;
+  }
+
+  const scanned = text.slice(0, MAX_SCAN_CHARS).toLowerCase();
+  const cleaned = stripNoise(scanned);
+
+  const scores: Record<UiLanguage, number> = {
+    "en-US": 0,
+    "pt-BR": 0,
+    "es-ES": 0,
+  };
+
+  for (const { language, pattern } of MARKER_PATTERNS) {
+    scores[language] += Math.min(
+      countMatches(cleaned, pattern) * MARKER_POINTS,
+      MAX_MARKER_POINTS,
+    );
+  }
+
+  // Tokenise the ORIGINAL-case text, because capitalisation is the cheapest
+  // available proper-noun filter. A Portuguese resume is dense with English
+  // technology names — React, Node, PostgreSQL, Docker — and every one of them
+  // arrives capitalised. Ignoring capitalised tokens keeps the verdict on the
+  // prose that surrounds them, which is the thing actually written in a
+  // language. The cost is the occasional sentence-initial function word; that
+  // is a uniform loss across all three languages, so it does not bias the
+  // margin.
+  const original = stripNoise(text.slice(0, MAX_SCAN_CHARS));
+  const functionWordHits = countDiscriminatingFunctionWords(original, scores);
+
+  if (functionWordHits < MIN_FUNCTION_WORD_HITS) {
+    return null;
+  }
+
+  return pickWinningLanguage(scores);
 };

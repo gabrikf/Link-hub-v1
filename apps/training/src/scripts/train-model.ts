@@ -31,7 +31,10 @@ import {
   evaluateCalibrationGates,
 } from "../lib/quality-gates.js";
 import { enrichDatasetWithSyntheticRows } from "../lib/synthetic.js";
-import { temporalSplit } from "../lib/temporal-split.js";
+import {
+  temporalSplit,
+  type TemporalSplitResult,
+} from "../lib/temporal-split.js";
 import type {
   CandidateTrainingProfile,
   InteractionTrainingRow,
@@ -168,7 +171,8 @@ async function loadInteractions(
 
   return rows.map((row) => ({
     ...row,
-    interactionType: row.interactionType as InteractionTrainingRow["interactionType"],
+    interactionType:
+      row.interactionType as InteractionTrainingRow["interactionType"],
   }));
 }
 
@@ -288,10 +292,9 @@ async function loadDataset(
   }
 
   const aggregates = aggregateInteractions(interactions);
-  const profiles = await loadCandidateProfiles(
-    sqlClient,
-    [...new Set(aggregates.map((aggregate) => aggregate.resumeId))],
-  );
+  const profiles = await loadCandidateProfiles(sqlClient, [
+    ...new Set(aggregates.map((aggregate) => aggregate.resumeId)),
+  ]);
 
   const rows = buildTrainingRows(aggregates, profiles);
   const skipAbove = deriveSkipAboveNegatives(rows);
@@ -445,7 +448,10 @@ async function loadPersistedConfig(
   modelDir: string,
 ): Promise<PreprocessingConfig | null> {
   try {
-    const raw = await readFile(path.join(modelDir, "preprocessing.json"), "utf-8");
+    const raw = await readFile(
+      path.join(modelDir, "preprocessing.json"),
+      "utf-8",
+    );
     return preprocessingConfigSchema.parse(JSON.parse(raw));
   } catch {
     return null;
@@ -466,20 +472,44 @@ async function loadWarmStartModel(
 // Training
 // ---------------------------------------------------------------------------
 
-async function trainModel(
-  mode: TrainMode,
-  dataset: ResumeTrainingRow[],
-  now: number,
-): Promise<{ version: string; samples: number }> {
-  const { current: currentVersion, next: nextVersion } = resolveNextVersion(
-    await readCurrentVersion(),
-    await listExistingVersions(),
-  );
-  const currentModelDir = path.join(modelsDir, currentVersion);
-  const newModelDir = path.join(modelsDir, nextVersion);
+function logDroppedVocabulary(
+  built: ReturnType<typeof buildVocabularyFromDataset>,
+): void {
+  const droppedTotal =
+    built.dropped.skills.length +
+    built.dropped.titles.length +
+    built.dropped.locations.length +
+    built.dropped.languages.length +
+    built.dropped.noticePeriods.length;
 
-  // Warm-start is only attempted when BOTH the weights and the exact vocabulary
-  // they were trained against are available.
+  if (droppedTotal === 0) {
+    return;
+  }
+
+  console.warn(
+    `[training] Vocabulary truncated: dropped ${built.dropped.skills.length} skills, ` +
+      `${built.dropped.titles.length} titles, ${built.dropped.locations.length} locations, ` +
+      `${built.dropped.languages.length} languages, ${built.dropped.noticePeriods.length} notice periods.`,
+  );
+  console.warn(
+    `[training] Dropped skills: ${built.dropped.skills.slice(0, 20).join(", ")}${built.dropped.skills.length > 20 ? " …" : ""}`,
+  );
+}
+
+/**
+ * Warm-start is only attempted when BOTH the weights and the exact vocabulary
+ * they were trained against are available.
+ */
+async function resolvePreprocessingConfig(
+  mode: TrainMode,
+  currentModelDir: string,
+  currentVersion: string,
+  dataset: readonly ResumeTrainingRow[],
+): Promise<{
+  config: PreprocessingConfig;
+  reusableConfig: PreprocessingConfig | null;
+  persistedConfig: PreprocessingConfig | null;
+}> {
   const persistedConfig =
     mode === "incremental" ? await loadPersistedConfig(currentModelDir) : null;
 
@@ -488,105 +518,105 @@ async function trainModel(
       ? persistedConfig
       : null;
 
-  let preprocessingConfig: PreprocessingConfig;
-
   if (reusableConfig) {
-    preprocessingConfig = reusableConfig;
     console.log(
       `[training] Reusing persisted vocabulary from ${currentVersion} (${reusableConfig.knownSkills.length} skills)`,
     );
-  } else {
-    const built = buildVocabularyFromDataset(dataset);
-    preprocessingConfig = built.config;
-
-    const droppedTotal =
-      built.dropped.skills.length +
-      built.dropped.titles.length +
-      built.dropped.locations.length +
-      built.dropped.languages.length +
-      built.dropped.noticePeriods.length;
-
-    if (droppedTotal > 0) {
-      console.warn(
-        `[training] Vocabulary truncated: dropped ${built.dropped.skills.length} skills, ` +
-          `${built.dropped.titles.length} titles, ${built.dropped.locations.length} locations, ` +
-          `${built.dropped.languages.length} languages, ${built.dropped.noticePeriods.length} notice periods.`,
-      );
-      console.warn(
-        `[training] Dropped skills: ${built.dropped.skills.slice(0, 20).join(", ")}${built.dropped.skills.length > 20 ? " …" : ""}`,
-      );
-    }
+    return { config: reusableConfig, reusableConfig, persistedConfig };
   }
 
-  // Temporal split, shared cutoff, with an embargo gap. A random split would
-  // train on the future and report a number nobody can reproduce in production.
-  const split = temporalSplit(dataset);
-  console.log(
-    `[training] Split: ${split.train.length} train / ${split.holdout.length} holdout / ${split.embargoed} embargoed (cutoff ${split.cutoff?.toISOString() ?? "n/a"})`,
-  );
+  const built = buildVocabularyFromDataset(dataset);
+  logDroppedVocabulary(built);
 
-  const train = buildTrainingMatrices(
-    split.train,
-    preprocessingConfig,
-    now,
-    true,
-  );
-  const holdout =
-    split.holdout.length > 0
-      ? buildTrainingMatrices(split.holdout, preprocessingConfig, now, false)
-      : null;
+  return { config: built.config, reusableConfig, persistedConfig };
+}
 
-  const inputDim = train.xs.shape[1];
-
-  let model: tf.LayersModel | null = null;
-  let warmStarted = false;
-
-  if (mode === "incremental") {
-    const candidate = reusableConfig
-      ? await loadWarmStartModel(currentModelDir)
-      : null;
-
-    const decision = decideWarmStart({
-      mode,
-      persistedConfig,
-      loadedInputDim: candidate ? modelInputDimension(candidate) : null,
-      dataInputDim: inputDim,
-    });
-
-    if (decision.warmStart && candidate) {
-      (candidate as tf.Sequential).compile({
-        optimizer: tf.train.adam(0.0005),
-        loss: "binaryCrossentropy",
-        metrics: ["mse", "mae"],
-      });
-      model = candidate;
-      warmStarted = true;
-      console.log(
-        `[training] Warm-start from ${currentVersion}, fine-tuning for ${nextVersion}`,
-      );
-    } else {
-      // This whole decision used to live inside a `try/catch` that only wrapped
-      // `loadLayersModel` + `compile`, with `model.fit` outside it — so an
-      // incompatible artifact killed the run instead of cold-starting.
-      candidate?.dispose();
-      console.warn(
-        `[training] Cold-starting: ${decision.reason}${"detail" in decision && decision.detail ? ` (${decision.detail})` : ""}`,
-      );
-    }
+/**
+ * Attempts to warm-start `mode === "incremental"` training from the current
+ * model artifact. Returns `model: null` whenever cold-starting is the right
+ * call — including for `mode === "full"`, where warm-start is never attempted.
+ */
+async function attemptWarmStart({
+  mode,
+  reusableConfig,
+  persistedConfig,
+  currentModelDir,
+  currentVersion,
+  nextVersion,
+  inputDim,
+}: {
+  mode: TrainMode;
+  reusableConfig: PreprocessingConfig | null;
+  persistedConfig: PreprocessingConfig | null;
+  currentModelDir: string;
+  currentVersion: string;
+  nextVersion: string;
+  inputDim: number;
+}): Promise<{ model: tf.LayersModel | null; warmStarted: boolean }> {
+  if (mode !== "incremental") {
+    return { model: null, warmStarted: false };
   }
 
-  model ??= buildModel(inputDim);
+  const candidate = reusableConfig
+    ? await loadWarmStartModel(currentModelDir)
+    : null;
 
-  await model.fit(train.xs, train.ys, {
-    epochs: mode === "incremental" ? 20 : 80,
-    batchSize: 16,
-    shuffle: true,
-    ...(holdout ? { validationData: [holdout.xs, holdout.ys] } : {}),
-    verbose: 1,
+  const decision = decideWarmStart({
+    mode,
+    persistedConfig,
+    loadedInputDim: candidate ? modelInputDimension(candidate) : null,
+    dataInputDim: inputDim,
   });
 
-  const calibration = holdout ? await reportCalibration(model, holdout) : null;
+  if (decision.warmStart && candidate) {
+    (candidate as tf.Sequential).compile({
+      optimizer: tf.train.adam(0.0005),
+      loss: "binaryCrossentropy",
+      metrics: ["mse", "mae"],
+    });
+    console.log(
+      `[training] Warm-start from ${currentVersion}, fine-tuning for ${nextVersion}`,
+    );
+    return { model: candidate, warmStarted: true };
+  }
 
+  // This whole decision used to live inside a `try/catch` that only wrapped
+  // `loadLayersModel` + `compile`, with `model.fit` outside it — so an
+  // incompatible artifact killed the run instead of cold-starting.
+  candidate?.dispose();
+  const detailSuffix =
+    "detail" in decision && decision.detail ? ` (${decision.detail})` : "";
+  console.warn(`[training] Cold-starting: ${decision.reason}${detailSuffix}`);
+  return { model: null, warmStarted: false };
+}
+
+async function persistTrainedModel({
+  newModelDir,
+  model,
+  preprocessingConfig,
+  nextVersion,
+  now,
+  mode,
+  dataset,
+  split,
+  inputDim,
+  warmStarted,
+  currentVersion,
+  calibration,
+}: {
+  newModelDir: string;
+  model: tf.LayersModel;
+  preprocessingConfig: PreprocessingConfig;
+  nextVersion: string;
+  now: number;
+  mode: TrainMode;
+  dataset: readonly ResumeTrainingRow[];
+  split: TemporalSplitResult;
+  inputDim: number;
+  warmStarted: boolean;
+  currentVersion: string;
+  calibration: Awaited<ReturnType<typeof reportCalibration>> | null;
+}): Promise<void> {
   await mkdir(newModelDir, { recursive: true });
   await model.save(`file://${newModelDir}`);
 
@@ -618,6 +648,87 @@ async function trainModel(
     ),
     "utf-8",
   );
+}
+
+async function trainModel(
+  mode: TrainMode,
+  dataset: ResumeTrainingRow[],
+  now: number,
+): Promise<{ version: string; samples: number }> {
+  const { current: currentVersion, next: nextVersion } = resolveNextVersion(
+    await readCurrentVersion(),
+    await listExistingVersions(),
+  );
+  const currentModelDir = path.join(modelsDir, currentVersion);
+  const newModelDir = path.join(modelsDir, nextVersion);
+
+  const {
+    config: preprocessingConfig,
+    reusableConfig,
+    persistedConfig,
+  } = await resolvePreprocessingConfig(
+    mode,
+    currentModelDir,
+    currentVersion,
+    dataset,
+  );
+
+  // Temporal split, shared cutoff, with an embargo gap. A random split would
+  // train on the future and report a number nobody can reproduce in production.
+  const split = temporalSplit(dataset);
+  console.log(
+    `[training] Split: ${split.train.length} train / ${split.holdout.length} holdout / ${split.embargoed} embargoed (cutoff ${split.cutoff?.toISOString() ?? "n/a"})`,
+  );
+
+  const train = buildTrainingMatrices(
+    split.train,
+    preprocessingConfig,
+    now,
+    true,
+  );
+  const holdout =
+    split.holdout.length > 0
+      ? buildTrainingMatrices(split.holdout, preprocessingConfig, now, false)
+      : null;
+
+  const inputDim = train.xs.shape[1];
+
+  const warmStart = await attemptWarmStart({
+    mode,
+    reusableConfig,
+    persistedConfig,
+    currentModelDir,
+    currentVersion,
+    nextVersion,
+    inputDim,
+  });
+  const model = warmStart.model ?? buildModel(inputDim);
+  const warmStarted = warmStart.warmStarted;
+
+  await model.fit(train.xs, train.ys, {
+    epochs: mode === "incremental" ? 20 : 80,
+    batchSize: 16,
+    shuffle: true,
+    ...(holdout ? { validationData: [holdout.xs, holdout.ys] } : {}),
+    verbose: 1,
+  });
+
+  const calibration = holdout ? await reportCalibration(model, holdout) : null;
+
+  await persistTrainedModel({
+    newModelDir,
+    model,
+    preprocessingConfig,
+    nextVersion,
+    now,
+    mode,
+    dataset,
+    split,
+    inputDim,
+    warmStarted,
+    currentVersion,
+    calibration,
+  });
 
   train.xs.dispose();
   train.ys.dispose();
@@ -652,9 +763,7 @@ async function reportCalibration(model: tf.LayersModel, holdout: Matrices) {
     for (const failure of gates.failures) {
       console.error(`[training] GATE FAILED: ${failure}`);
     }
-    throw new Error(
-      `Calibration gates failed: ${gates.failures.join(" | ")}`,
-    );
+    throw new Error(`Calibration gates failed: ${gates.failures.join(" | ")}`);
   }
 
   return {

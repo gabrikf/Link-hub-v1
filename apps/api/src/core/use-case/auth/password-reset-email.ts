@@ -55,6 +55,21 @@ export function buildPasswordResetMessage(params: {
 }
 
 /**
+ * Removes trailing slashes without a regex. `/\/+$/` is unanchored at the
+ * start, so a rejecting scan has to be retried from every position in the
+ * input — `scslre` (the engine behind `sonarjs/super-linear-regex`) flags
+ * exactly that as super-linear. A plain loop bounded by the actual number of
+ * trailing slashes has no such cost and behaves identically.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
+/**
  * Where the emailed link points. One function so the API and the web app cannot
  * disagree about the shape of the URL that gets parsed.
  */
@@ -62,6 +77,6 @@ export function buildPasswordResetUrl(
   appPublicUrl: string,
   rawToken: string,
 ): string {
-  const base = appPublicUrl.replace(/\/+$/, "");
+  const base = stripTrailingSlashes(appPublicUrl);
   return `${base}/reset-password?token=${encodeURIComponent(rawToken)}`;
 }

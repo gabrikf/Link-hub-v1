@@ -134,6 +134,6 @@ describe("temporalSplit", () => {
 
   it("honours the requested holdout fraction", () => {
     const split = temporalSplit(rows, { holdoutFraction: 0.1, embargoMs: 0 });
-    expect(split.holdout.length).toBe(10);
+    expect(split.holdout).toHaveLength(10);
   });
 });

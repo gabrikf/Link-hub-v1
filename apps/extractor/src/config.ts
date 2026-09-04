@@ -32,6 +32,18 @@ export class ConfigError extends Error {
 let cached: CraftHubConfig | null = null;
 
 /**
+ * Removes every trailing `/`. Written as an explicit scan rather than a
+ * `/\/+$/` regex: the regex is unanchored at the start and a linter's static
+ * analyzer cannot prove it never backtracks, where this loop is provably O(n)
+ * by construction.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") end -= 1;
+  return value.slice(0, end);
+}
+
+/**
  * Loads and validates configuration. Fails fast (throws ConfigError) when the
  * PAT is missing. The result is memoized so a multi-batch upload shares one
  * config.
@@ -39,9 +51,9 @@ let cached: CraftHubConfig | null = null;
 export function loadConfig(): CraftHubConfig {
   if (cached) return cached;
 
-  const apiUrl = (process.env.CRAFTHUB_API_URL ?? DEFAULT_API_URL)
-    .trim()
-    .replace(/\/+$/, "");
+  const apiUrl = stripTrailingSlashes(
+    (process.env.CRAFTHUB_API_URL ?? DEFAULT_API_URL).trim(),
+  );
 
   const token = process.env.CRAFTHUB_API_TOKEN?.trim();
 

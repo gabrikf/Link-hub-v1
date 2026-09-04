@@ -61,7 +61,10 @@ export interface ExtractResult {
  * claiming them would need the other person's history, which this tool has no
  * business reading.
  */
-function toEvent(commit: RawCommit, repoFingerprint: string): IngestActivityEventInput {
+function toEvent(
+  commit: RawCommit,
+  repoFingerprint: string,
+): IngestActivityEventInput {
   const technologies = inferTechnologies(commit.changedPaths);
 
   const counterpartyFingerprints = [
@@ -78,7 +81,9 @@ function toEvent(commit: RawCommit, repoFingerprint: string): IngestActivityEven
     // Only the pre-hashed field is ever populated. The clear-text
     // `counterparties` field exists in the schema for callers that cannot hash;
     // this one can, so it never uses it.
-    ...(counterpartyFingerprints.length > 0 ? { counterpartyFingerprints } : {}),
+    ...(counterpartyFingerprints.length > 0
+      ? { counterpartyFingerprints }
+      : {}),
     payload: {
       // A count, not a list. "How much moved" is signal; which files moved is
       // the employer's business.
@@ -105,6 +110,30 @@ export function extractRepository(
   };
 }
 
+/** Running totals folded across every event `extract` collects. */
+interface ExtractAccumulator {
+  readonly technologies: Set<string>;
+  readonly counterparties: Set<string>;
+  earliestDate: string | null;
+  latestDate: string | null;
+}
+
+/** Folds one event's technologies, counterparties and date range into `acc`. */
+function foldEventStats(
+  event: IngestActivityEventInput,
+  acc: ExtractAccumulator,
+): void {
+  for (const tag of event.technologies ?? []) acc.technologies.add(tag);
+  for (const fp of event.counterpartyFingerprints ?? [])
+    acc.counterparties.add(fp);
+  if (!acc.earliestDate || event.occurredOn < acc.earliestDate) {
+    acc.earliestDate = event.occurredOn;
+  }
+  if (!acc.latestDate || event.occurredOn > acc.latestDate) {
+    acc.latestDate = event.occurredOn;
+  }
+}
+
 /**
  * Extracts several repositories into one payload.
  *
@@ -126,11 +155,13 @@ export function extract(
 
   const events: IngestActivityEventInput[] = [];
   const skippedPaths: string[] = [];
-  const technologies = new Set<string>();
-  const counterparties = new Set<string>();
+  const acc: ExtractAccumulator = {
+    technologies: new Set<string>(),
+    counterparties: new Set<string>(),
+    earliestDate: null,
+    latestDate: null,
+  };
   let repositories = 0;
-  let earliestDate: string | null = null;
-  let latestDate: string | null = null;
 
   for (const repoPath of repoPaths) {
     if (!isGitRepository(repoPath)) {
@@ -142,14 +173,7 @@ export function extract(
     const { events: repoEvents } = extractRepository(repoPath, options);
     for (const event of repoEvents) {
       events.push(event);
-      for (const tag of event.technologies ?? []) technologies.add(tag);
-      for (const fp of event.counterpartyFingerprints ?? []) counterparties.add(fp);
-      if (!earliestDate || event.occurredOn < earliestDate) {
-        earliestDate = event.occurredOn;
-      }
-      if (!latestDate || event.occurredOn > latestDate) {
-        latestDate = event.occurredOn;
-      }
+      foldEventStats(event, acc);
     }
   }
 
@@ -164,10 +188,10 @@ export function extract(
     stats: {
       repositories,
       commits: events.length,
-      earliestDate,
-      latestDate,
-      technologies: [...technologies].sort(),
-      counterparties: counterparties.size,
+      earliestDate: acc.earliestDate,
+      latestDate: acc.latestDate,
+      technologies: [...acc.technologies].sort(),
+      counterparties: acc.counterparties.size,
       skippedPaths,
     },
   };
