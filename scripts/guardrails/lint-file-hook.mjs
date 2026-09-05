@@ -46,7 +46,6 @@ const LINTABLE_WORKSPACES = [
   "apps/extractor",
   "apps/training",
   "packages/schemas",
-  "packages/ui",
 ];
 const LINTABLE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 const NOT_LINTABLE = /(^|\/)eslint(\.typed)?\.config\.(js|mjs)$/;

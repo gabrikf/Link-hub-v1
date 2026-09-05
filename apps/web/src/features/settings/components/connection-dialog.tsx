@@ -78,7 +78,7 @@ function FieldSelect({
   children,
   helperText,
   disabled,
-}: FieldSelectProps) {
+}: Readonly<FieldSelectProps>) {
   return (
     <div>
       <label
@@ -144,7 +144,7 @@ function ConnectionForm({
   roles,
   isSaving,
   onSubmit,
-}: ConnectionFormProps) {
+}: Readonly<ConnectionFormProps>) {
   const { t } = useTranslation();
   const isEditing = connection !== null;
 
@@ -197,7 +197,7 @@ function ConnectionForm({
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setNameError(null);
@@ -238,7 +238,12 @@ function ConnectionForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      onSubmit={(event) => {
+        void handleSubmit(event);
+      }}
+      className="space-y-4"
+    >
       <Input
         id={NAME_FIELD_ID}
         label={t("resumeImport.displayName")}
@@ -481,7 +486,7 @@ export function ConnectionDialog({
   onOpenChange,
   connection,
   onCreated,
-}: ConnectionDialogProps) {
+}: Readonly<ConnectionDialogProps>) {
   const { t } = useTranslation();
   const isEditing = connection !== null;
 

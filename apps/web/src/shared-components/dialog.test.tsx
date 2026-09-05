@@ -176,8 +176,7 @@ describe("Dialog close button pinning", () => {
    * non-scrolling row, so the scroll area — and therefore its scrollbar —
    * starts BELOW the button and the two can never share a pixel.
    */
-  const header = (): HTMLElement =>
-    screen.getByTestId("dialog-header") as HTMLElement;
+  const header = (): HTMLElement => screen.getByTestId("dialog-header");
 
   it("gives the close button its own row instead of floating it over the body", () => {
     render(
@@ -480,7 +479,9 @@ describe("Dialog regressions that survived the close-button restructure", () => 
   it("still exposes the description to Radix as the dialog's description", () => {
     // Moving it into the scroller must not cost the accessible description:
     // `aria-describedby` is what a screen reader reads after the title.
-    render(<Dialog open title="Titled" description="The accessible summary." />);
+    render(
+      <Dialog open title="Titled" description="The accessible summary." />,
+    );
 
     const dialog = screen.getByRole("dialog");
     const describedBy = dialog.getAttribute("aria-describedby");

@@ -50,30 +50,35 @@ docs/specs/[feature-name]/
 ## 2. Scope
 
 ### Included
+
 - [Capability 1]
 - [Capability 2]
 
 ### Explicitly Excluded
+
 - [What is NOT part of this delivery]
 - [Phase 2 / nice-to-have]
 
-**Not in scope by implication:** the repo's known, deliberate debt — `packages/ui` (dead
-scaffolding), the pre-existing eslint backlog, `apps/mcp` having no tests, the `pluguins/`
-typo directory. Do not touch any of it here.
+**Not in scope by implication:** the repo's known, deliberate debt — the pre-existing
+eslint backlog, `apps/mcp` having no tests, the `pluguins/` typo directory. Do not touch
+any of it here.
 
 ---
 
 ## 3. Functional Requirements
 
 ### FR-01: [Requirement name]
+
 **User story:** As a [role], I want [action], so that [benefit]
 
 **Acceptance criteria (EARS):**
+
 1. WHEN [condition] THEN the system SHALL [expected behaviour]
 2. WHILE [ongoing condition] the system SHALL [behaviour]
 3. IF [conditional state] THEN the system SHALL [response]
 
 **Concrete examples:**
+
 - Input: [data] → Output: [expected result]
 - Input: [edge case] → Output: [edge-case result]
 
@@ -83,47 +88,49 @@ typo directory. Do not touch any of it here.
 
 ## 4. Non-Functional Requirements
 
-| ID | Requirement | Metric |
-|----|-----------|---------|
-| NFR-01 | Screen usable within [N]s | manual timing / visual scenario run |
+| ID     | Requirement                                                    | Metric                               |
+| ------ | -------------------------------------------------------------- | ------------------------------------ |
+| NFR-01 | Screen usable within [N]s                                      | manual timing / visual scenario run  |
 | NFR-02 | Accessibility: keyboard reachable, focus rings per `DESIGN.md` | visual scenario + manual tab-through |
-| NFR-03 | Dark mode intact | visual scenario, both colour schemes |
-| NFR-04 | Every API response parsed through `@repo/schemas` | contract sensor green |
+| NFR-03 | Dark mode intact                                               | visual scenario, both colour schemes |
+| NFR-04 | Every API response parsed through `@repo/schemas`              | contract sensor green                |
 
 ---
 
 ## 5. Design and UI
 
 ### 5.1 Layout
+
 [Main layout description — grid, columns, regions]
 
 ### 5.2 Component Mapping
 
-| Element in the design | Component | Import | Notes |
-|--------------------|-----------|--------|-------|
-| Primary button | `Button` | `@/shared-components/button` | variant per `DESIGN.md` hierarchy |
-| Card surface | `SURFACE` | `@/shared-components/surface` | padding stays at the call site |
-| Nested panel | `SURFACE_INSET` | `@/shared-components/surface` | |
-| Empty placeholder | `SURFACE_EMPTY` | `@/shared-components/surface` | |
-| Modal | `Dialog` | `@/shared-components/dialog` | Radix-backed |
-| Text field | `Input` | `@/shared-components/input` | |
-| Icon | `Fi*` | `react-icons/fi` | Feather set only |
+| Element in the design | Component       | Import                        | Notes                             |
+| --------------------- | --------------- | ----------------------------- | --------------------------------- |
+| Primary button        | `Button`        | `@/shared-components/button`  | variant per `DESIGN.md` hierarchy |
+| Card surface          | `SURFACE`       | `@/shared-components/surface` | padding stays at the call site    |
+| Nested panel          | `SURFACE_INSET` | `@/shared-components/surface` |                                   |
+| Empty placeholder     | `SURFACE_EMPTY` | `@/shared-components/surface` |                                   |
+| Modal                 | `Dialog`        | `@/shared-components/dialog`  | Radix-backed                      |
+| Text field            | `Input`         | `@/shared-components/input`   |                                   |
+| Icon                  | `Fi*`           | `react-icons/fi`              | Feather set only                  |
 
 **Gaps:** [any element with no existing component — say whether it becomes a new shared
 primitive or stays feature-local, and why]
 
 ### 5.3 UI States
 
-| State | Behaviour |
-|--------|--------------|
+| State   | Behaviour                                             |
+| ------- | ----------------------------------------------------- |
 | Loading | `RoutePending` / `Skeleton` matching the final layout |
-| Empty | `SURFACE_EMPTY` placeholder + message + CTA |
-| Error | `RouteErrorState` with a retry affordance |
-| Filled | [the design's happy path] |
+| Empty   | `SURFACE_EMPTY` placeholder + message + CTA           |
+| Error   | `RouteErrorState` with a retry affordance             |
+| Filled  | [the design's happy path]                             |
 
 All four are required even when the design draws only one.
 
 ### 5.4 Visual Reference
+
 → See `design/README.md`.
 
 ---
@@ -131,27 +138,30 @@ All four are required even when the design draws only one.
 ## 6. Architecture and Data
 
 ### 6.1 Planned file structure
-
 ```
+
 apps/web/src/features/[feature-name]/
 ├── pages/
-│   └── [page-name].tsx
+│ └── [page-name].tsx
 ├── components/
-│   └── [component].tsx
+│ └── [component].tsx
 ├── hooks/
-│   └── use-[resource].ts       # TanStack Query
+│ └── use-[resource].ts # TanStack Query
 └── lib/
-    └── [helper].ts
+└── [helper].ts
 
 # If the feature touches the API:
+
 apps/api/src/core/use-case/[name]-use-case/
 ├── [name].use-case.ts
 └── [name].use-case.test.ts
 apps/api/src/infra/http/controllers/[module]/...
-apps/api/src/infra/di/container.ts        # MODIFY — register the new use case
+apps/api/src/infra/di/container.ts # MODIFY — register the new use case
 
 # Contract:
-packages/schemas/src/[module]/index.ts    # extend, or add if genuinely new
+
+packages/schemas/src/[module]/index.ts # extend, or add if genuinely new
+
 ```
 
 ### 6.2 API Contracts
@@ -172,8 +182,10 @@ exists.
 ### 6.3 State and Data Flow
 
 ```
+
 User action → feature hook → TanStack Query → API (localhost:3333) → zod parse → cache → render
-```
+
+````
 
 ### 6.4 Form Validation (zod)
 
@@ -181,7 +193,7 @@ User action → feature hook → TanStack Query → API (localhost:3333) → zod
 const [resource]FormSchema = z.object({
   // fields with validations...
 });
-```
+````
 
 The **field table** that this schema implies belongs in the form's task in `tasks.md`, not
 only here (see the tasks.md template below).
@@ -190,8 +202,8 @@ only here (see the tasks.md template below).
 
 ## 7. Navigation and Routing
 
-| Route | Component | Description | Public? |
-|------|-----------|-------------|---------|
+| Route     | Component       | Description | Public?                 |
+| --------- | --------------- | ----------- | ----------------------- |
 | `/[path]` | [PageComponent] | Main screen | session-gated \| public |
 
 **Registration:** `apps/web/src/router.tsx` — routing is **code-based**; add the route by hand,
@@ -207,12 +219,12 @@ CraftHub ships **three locales**. Every user-visible string goes through `t()`, 
 added to `pt-BR.json`, `en-US.json` and `es-ES.json` in the same commit. The `i18n` skill is a
 locale file.
 
-| Where | String | Note |
-|-------|--------|------|
-| Page title | "..." | |
-| Empty state | "..." | |
-| Error state | "..." | |
-| Submit button | "..." | |
+| Where         | String | Note |
+| ------------- | ------ | ---- |
+| Page title    | "..."  |      |
+| Empty state   | "..."  |      |
+| Error state   | "..."  |      |
+| Submit button | "..."  |      |
 
 Listing the copy here is what makes it reviewable now and extractable later.
 
@@ -221,6 +233,7 @@ Listing the copy here is what makes it reviewable now and extractable later.
 ## 9. Dependencies
 
 ### API
+
 - [ ] `GET /[resource]` — status: [live (G0 passed) | live but G0 BLOCKING | not built (mock)]
 - [ ] `POST /[resource]` — status: [...]
 
@@ -241,10 +254,12 @@ Listing the copy here is what makes it reviewable now and extractable later.
    `Status: validated`, replace the mock, and re-run the contract sensor
 
 ### Frontend
+
 - [ ] Shared component X — already exists
 - [ ] Shared component Y — must be created; used by [N] places, so it goes in `shared-components/`
 
 ### Infrastructure
+
 - [ ] Docker Postgres needed to test? (`bash db-manage.sh start`)
 - [ ] Funded `OPENAI_API_KEY` needed? (search/embedding suites)
 - [ ] Database migration required?
@@ -253,12 +268,13 @@ Listing the copy here is what makes it reviewable now and extractable later.
 
 ## 10. Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|-------|---------|-----------|
-| Endpoint not live | UI blocked | Inferred contract + mock + G0 probe when it ships |
-| Design supplied as text only | Misread UI | Recorded as a risk; visual gate per delivery |
-| Contract changes mid-flight | Rework | Delta table in `refs/api/`, re-run the contract sensor |
-```
+| Risk                         | Impact     | Mitigation                                             |
+| ---------------------------- | ---------- | ------------------------------------------------------ |
+| Endpoint not live            | UI blocked | Inferred contract + mock + G0 probe when it ships      |
+| Design supplied as text only | Misread UI | Recorded as a risk; visual gate per delivery           |
+| Contract changes mid-flight  | Rework     | Delta table in `refs/api/`, re-run the contract sensor |
+
+````
 
 ---
 
@@ -382,7 +398,7 @@ table row by row, per mode.
 | 4 | components | Low | Tasks 5-6 |
 | 5 | form components | Low | Task 6 |
 | 6 | tests | Low | Task 5 |
-```
+````
 
 ---
 
@@ -396,6 +412,7 @@ Record of decisions taken while writing the spec (interview + analysis).
 ---
 
 ## DEC-01: [Decision title]
+
 - **Context:** [why this decision was needed]
 - **Decision:** [what was decided]
 - **Rationale:** [why this option]
@@ -413,6 +430,7 @@ When reality contradicts a decision during implementation, it is **not edited aw
 re-stamped here, with a reason line, by `#spec-implement` (Phase 5.1):
 
 ## DEC-0N: [Title] — **SUPERSEDED**
+
 - **Superseded by:** [DEC-0M / the actual implementation]
 - **Reason:** [one line — what reality showed]
 ```
@@ -425,17 +443,18 @@ re-stamped here, with a reason line, by `#spec-implement` (Phase 5.1):
 # Design — [Feature Name]
 
 ## Source
+
 - **Tool:** Figma (MCP) / Claude / Figma Make / screenshot / text description
 - **Date:** [YYYY-MM-DD]
 - **Fidelity:** [full design / screenshot only / text only — text only is a RISK, see SPEC.md §10]
 
 ## Files
 
-| File | Description | State/Screen |
-|---------|-----------|-------------|
-| `main-view.html` | Main screen with the list | Filled |
-| `empty-state.png` | Empty state | Empty |
-| `form-modal.html` | Create modal | Clean form |
+| File              | Description               | State/Screen |
+| ----------------- | ------------------------- | ------------ |
+| `main-view.html`  | Main screen with the list | Filled       |
+| `empty-state.png` | Empty state               | Empty        |
+| `form-modal.html` | Create modal              | Clean form   |
 
 ## How to Read These
 

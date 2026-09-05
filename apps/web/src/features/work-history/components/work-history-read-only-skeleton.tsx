@@ -4,10 +4,10 @@ import {
   SkeletonText,
 } from "../../../shared-components/skeleton";
 
-type WorkHistoryReadOnlySkeletonProps = {
+type WorkHistoryReadOnlySkeletonProps = Readonly<{
   /** How many entry placeholders to render. */
   count?: number;
-};
+}>;
 
 /**
  * Entry-list placeholder for `WorkHistoryReadOnly`.

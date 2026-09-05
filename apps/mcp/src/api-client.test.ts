@@ -73,7 +73,10 @@ function lastFetchCall(): FetchCall {
   if (!call) throw new Error("fetch was never called");
   const [input, init] = call;
   if (typeof input !== "string") {
-    throw new Error(`expected a string URL, got ${String(input)}`);
+    // `Request` has no useful `toString`, so read the URL off whichever of the
+    // two remaining shapes this is rather than printing `[object Object]`.
+    const seen = input instanceof URL ? input.href : input.url;
+    throw new Error(`expected a string URL, got ${seen}`);
   }
   if (init === undefined) throw new Error("expected an init argument");
   return { url: input, init };

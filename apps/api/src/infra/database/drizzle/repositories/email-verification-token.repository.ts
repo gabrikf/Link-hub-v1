@@ -3,9 +3,9 @@ import { EmailVerificationTokenEntity } from "../../../../core/entity/email-veri
 import { IEmailVerificationTokenRepository } from "../../../../core/repositories/email-verification-token/email-verification-token-repository.js";
 import { db } from "../index.js";
 import { emailVerificationTokens } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
-type EmailVerificationTokenRow =
-  typeof emailVerificationTokens.$inferSelect;
+type EmailVerificationTokenRow = typeof emailVerificationTokens.$inferSelect;
 
 /** Rows out, entities in. Every read path goes through here. */
 function toEntity(
@@ -28,7 +28,7 @@ export class DrizzleEmailVerificationTokenRepository
   async create(
     token: EmailVerificationTokenEntity,
   ): Promise<EmailVerificationTokenEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(emailVerificationTokens)
       .values({
         id: token.id,
@@ -41,7 +41,9 @@ export class DrizzleEmailVerificationTokenRepository
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(
+      requireReturnedRow(insertedRows, "insert into emailVerificationTokens"),
+    );
   }
 
   async findByTokenHash(

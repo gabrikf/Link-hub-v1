@@ -43,6 +43,7 @@ import {
   type CandidateFeaturesInput,
 } from "@repo/schemas";
 import { server } from "../../../server.js";
+import { expectDefined } from "../../../../../test-support/expect-defined.js";
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -362,8 +363,9 @@ describe(
 
       // Scores should be in descending order
       for (let i = 1; i < body.candidates.length; i++) {
-        expect(body.candidates[i - 1]!.similarity).toBeGreaterThanOrEqual(
-          body.candidates[i]!.similarity,
+        expect(body.candidates[i - 1]?.similarity).toBeGreaterThanOrEqual(
+          expectDefined(body.candidates[i], `candidate ${String(i)}`)
+            .similarity,
         );
       }
 
@@ -824,9 +826,12 @@ describe(
 
       for (let i = 1; i < scores.length; i++) {
         expect(
-          scores[i - 1]!,
+          scores[i - 1],
           `Score at position ${i - 1} (${scores[i - 1]?.toFixed(4)}) should be ≥ position ${i} (${scores[i]?.toFixed(4)})`,
-        ).toBeGreaterThanOrEqual(scores[i]! - 0.00001); // tiny epsilon for float precision
+        ).toBeGreaterThanOrEqual(
+          // tiny epsilon for float precision
+          expectDefined(scores[i], `score at position ${String(i)}`) - 0.00001,
+        );
       }
     });
 

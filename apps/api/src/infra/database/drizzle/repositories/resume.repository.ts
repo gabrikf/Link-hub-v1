@@ -6,6 +6,7 @@ import {
 } from "../../../../core/repositories/resume/resume-repository.js";
 import { db } from "../index.js";
 import { resumes } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 export class DrizzleResumesRepository implements IResumesRepository {
   async findById(id: string): Promise<ResumeEntity | null> {
@@ -30,7 +31,7 @@ export class DrizzleResumesRepository implements IResumesRepository {
     const existing = await this.findByUserId(userId);
 
     if (!existing) {
-      const [created] = await db
+      const insertedRows = await db
         .insert(resumes)
         .values({
           userId,
@@ -49,10 +50,12 @@ export class DrizzleResumesRepository implements IResumesRepository {
         })
         .returning();
 
-      return this.toEntity(created);
+      return this.toEntity(
+        requireReturnedRow(insertedRows, "insert into resumes"),
+      );
     }
 
-    const [updated] = await db
+    const updatedRows = await db
       .update(resumes)
       .set({
         headlineTitle: data.headlineTitle,
@@ -72,7 +75,13 @@ export class DrizzleResumesRepository implements IResumesRepository {
       .where(eq(resumes.userId, userId))
       .returning();
 
-    return this.toEntity(updated);
+    // An UPDATE whose WHERE matches nothing returns an empty array: the row read
+    // by `findByUserId` above can be deleted between that read and this write.
+    // Before `noUncheckedIndexedAccess` this fell through to the mapper and blew
+    // up there as `Cannot read properties of undefined (reading 'id')`.
+    return this.toEntity(
+      requireReturnedRow(updatedRows, "update resumes by userId"),
+    );
   }
 
   private toEntity(data: typeof resumes.$inferSelect): ResumeEntity {

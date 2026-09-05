@@ -37,6 +37,18 @@ import { DeleteBlockUseCase } from "../../../../core/use-case/profile-layout/del
 import { UpdateBlockPositionsUseCase } from "../../../../core/use-case/profile-layout/update-block-positions-use-case/update-block-positions.use-case.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
 import { authGuard } from "../../middleware/auth-guard.js";
+import { toAsyncHook } from "../../to-async-hook.js";
+
+/**
+ * Fastify's typed `preHandler` property resolves to the callback-style hook
+ * signature (`(request, reply, done) => void`), never the promise-returning
+ * one — `preHandlerMetaHookHandler`'s `Return` generic always defaults to
+ * `void` at that property, regardless of how the guard function passed in is
+ * itself typed. Adapting an async guard to the callback form here keeps the
+ * guard itself a plain `async` function with no behaviour change: a
+ * rejection becomes `done(error)`, which Fastify routes to the same error
+ * handler an async hook's rejection would.
+ */
 
 export class ProfileLayoutController {
   static handle(server: FastifyInstance) {
@@ -45,7 +57,7 @@ export class ProfileLayoutController {
     app.get(
       "/me/layout",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Get profile layout",
@@ -57,7 +69,9 @@ export class ProfileLayoutController {
         },
       },
       async (
-        request: FastifyRequest<{ Querystring: { viewport?: ProfileViewport } }>,
+        request: FastifyRequest<{
+          Querystring: { viewport?: ProfileViewport };
+        }>,
         reply,
       ) => {
         const getLayoutUseCase = resolve<GetLayoutUseCase>(
@@ -83,7 +97,7 @@ export class ProfileLayoutController {
     app.patch(
       "/me/layout/tabs-enabled",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Enable or disable the tab strip for one viewport",
@@ -116,7 +130,7 @@ export class ProfileLayoutController {
     app.post(
       "/me/layout/tabs",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Create a tab",
@@ -148,7 +162,7 @@ export class ProfileLayoutController {
     app.patch(
       "/me/layout/tabs/reorder",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Reorder tabs",
@@ -181,7 +195,7 @@ export class ProfileLayoutController {
     app.patch(
       "/me/layout/tabs/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Rename a tab",
@@ -223,7 +237,7 @@ export class ProfileLayoutController {
     app.delete(
       "/me/layout/tabs/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Delete a tab",
@@ -257,7 +271,7 @@ export class ProfileLayoutController {
     app.post(
       "/me/layout/blocks",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Create a custom block",
@@ -290,7 +304,7 @@ export class ProfileLayoutController {
     app.patch(
       "/me/layout/blocks/positions",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Persist block positions",
@@ -327,7 +341,7 @@ export class ProfileLayoutController {
     app.patch(
       "/me/layout/blocks/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Update a block",
@@ -369,7 +383,7 @@ export class ProfileLayoutController {
     app.delete(
       "/me/layout/blocks/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile Layout"],
           summary: "Delete a custom block",

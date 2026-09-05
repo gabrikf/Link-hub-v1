@@ -30,57 +30,46 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # LINT — RECORDED BASELINE, NOT A GATE (yet)
+  # LINT — A REAL GATE
   # ---------------------------------------------------------------------------
   #
-  # SCOPE CHANGED 2026-09-04. `npm run lint` used to cover 238 of the repo's
-  # ~800 TypeScript files: apps/web and packages/ui were the only workspaces
-  # with a `lint` script. apps/api (476 files), apps/mcp, apps/extractor,
-  # apps/training and packages/schemas had no ESLint config at all.
+  # This job blocks. `npm run lint` must exit 0 across every workspace.
   #
-  # All seven workspaces are now wired to `@repo/eslint-config`, which adds
-  # `eslint-plugin-sonarjs` (SonarQube's own JS/TS analyzer rules, run locally)
-  # and `eslint-plugin-n`. The baseline below counts findings across all of
-  # them, so it is not comparable to the number that preceded it.
+  # HOW IT GOT HERE, because the history matters if it ever goes red again.
+  # Until 2026-09-04 `npm run lint` covered 238 of the repo's ~800 TypeScript
+  # files — apps/web and the (since deleted) packages/ui were the only
+  # workspaces with a `lint` script. All of them are now wired to
+  # `@repo/eslint-config`, which adds
+  # `eslint-plugin-sonarjs` and `eslint-plugin-n`. That rescoping surfaced 67
+  # errors, recorded as a non-blocking ratchet (`LINT_ERROR_BASELINE`) so the
+  # debt could be paid down without blocking the merge queue.
   #
-  # `continue-on-error: true` is deliberate and it is NOT a way of pretending
-  # the repo is clean.
+  # On 2026-09-05 the backlog was cleared: 67 -> 0, and the type-aware baseline
+  # in `scripts/guardrails/lint-baseline.json` went 555 -> 0 alongside it. The
+  # ratchet and `continue-on-error` were removed at that point, which is exactly
+  # what the previous version of this comment said to do at zero.
   #
-  # As of the commit that introduced this workflow, `npm run lint` reports
-  # 30 pre-existing eslint errors in `apps/web`, essentially all of them
-  # `react-hooks/set-state-in-effect` (new in eslint-plugin-react-hooks v7) and
-  # `react-refresh/only-export-components`, plus one `no-control-regex` and one
-  # unused `_params` argument. Clearing them means refactoring components that
-  # work today, which is a separate piece of work with its own review.
+  # Sixty-five of the 67 were real fixes. TWO are green by a deliberate,
+  # reviewed, config-level rule exception in `packages/eslint-config`, because
+  # they cannot be fixed by changing code:
+  #   - `sonarjs/redundant-type-aliases` on `TransactionContext`
+  #     (core/providers/unit-of-work/unit-of-work.ts). `unknown` is the only type
+  #     accepting both a real drizzle `PgTransaction` and `undefined` without a
+  #     cast; a branded opaque type was implemented and rejected by tsc with
+  #     TS2559 (weak-type check) and TS2345.
+  #   - `sonarjs/deprecation` on `settings/lib/use-clipboard.ts`.
+  #     `document.execCommand("copy")` IS the fallback for contexts without the
+  #     async Clipboard API, on the path that copies PATs. The only
+  #     non-deprecated API is the one it falls back FROM.
+  # Both are scoped to one file and one rule, carry their evidence in a comment,
+  # and were blast-radius checked. `docs/harness/known-debt.md` has the detail.
   #
-  # The three options were: (a) delete the lint check, (b) weaken the eslint
-  # config until it passes, (c) run it, publish the number, and forbid it from
-  # growing. This is (c). The eslint config is untouched. The count is printed
-  # in the job log AND in the PR job summary on every single run, and the
-  # ratchet step below fails the job the moment the count exceeds the baseline —
-  # the job just does not block the merge queue while the debt is being paid.
-  #
-  # WHEN THE COUNT REACHES 0: drop `continue-on-error` and the ratchet, and let
-  # `npm run lint` fail the job outright.
+  # `turbo run lint --continue` (the root `lint` script) runs every workspace
+  # rather than stopping at the first failure, so a red run reports everything
+  # that is wrong, not just the first workspace alphabetically.
   lint:
-    name: Lint (recorded baseline — non-blocking)
+    name: Lint
     runs-on: ubuntu-latest
-    continue-on-error: true
-
-    env:
-      # The number of eslint errors that existed when this workflow was written.
-      # This may only ever go DOWN. Lower it as violations are fixed.
-      # This number is NOT comparable to the one before 2026-09-04. It was 30,
-      # then 29, counting apps/web and packages/ui only — 238 of the repo's ~800
-      # TypeScript files. All seven workspaces are now linted, with sonarjs and
-      # the Node rules added, so the scope roughly quadrupled. 495 findings came
-      # out of that; 75 remain. It may still only ever go DOWN from here.
-      #
-      # The root script is `turbo run lint --continue` for this step's sake:
-      # without `--continue` turbo stops at the first failing workspace and the
-      # count below is silently partial — it read 1 instead of 73 the first time
-      # this ran with seven workspaces.
-      LINT_ERROR_BASELINE: "67"
 
     steps:
       - name: Checkout
@@ -95,57 +84,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The syntactic config does not need emitted types, but `packages/schemas`
+      # imports from the built output, so build first for the same reason
+      # check-types does.
+
+      # NOTE: `turbo run lint` has no `dependsOn` (see turbo.json), so nothing
+      # in the lint graph builds anything. This explicit step is what makes
+      # the built `@repo/schemas` types available on a fresh CI checkout.
+      - name: Build shared packages
+        run: npm run build:schemas
+
       - name: Run eslint
-        id: eslint
-        run: |
-          set -o pipefail
-          # `|| true` so the count below is always computed; the ratchet step is
-          # what decides pass/fail.
-          npm run lint 2>&1 | tee lint-output.txt || true
-
-      - name: Count violations and enforce the ratchet
-        run: |
-          # eslint's stylish formatter ends each workspace with a summary line
-          # like "✖ 30 problems (30 errors, 0 warnings)". Turborepo prefixes
-          # every line with "web:lint: ", so match anywhere on the line and sum
-          # across workspaces.
-          ERRORS=$(grep -oE '[0-9]+ errors?' lint-output.txt \
-            | grep -oE '^[0-9]+' \
-            | awk '{ total += $1 } END { print total + 0 }')
-
-          BASELINE="${LINT_ERROR_BASELINE}"
-
-          echo "================================================================"
-          echo " ESLINT BASELINE REPORT"
-          echo "----------------------------------------------------------------"
-          echo " current errors : ${ERRORS}"
-          echo " baseline       : ${BASELINE}"
-          echo "================================================================"
-
-          {
-            echo "### ESLint baseline"
-            echo ""
-            echo "| | |"
-            echo "|---|---|"
-            echo "| Current errors | \`${ERRORS}\` |"
-            echo "| Recorded baseline | \`${BASELINE}\` |"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$ERRORS" -gt "$BASELINE" ]; then
-            echo "::error::This PR adds $((ERRORS - BASELINE)) new eslint error(s) on top of the ${BASELINE} pre-existing ones. Fix the new violations."
-            echo "This PR **adds $((ERRORS - BASELINE)) new eslint error(s)** on top of the recorded baseline. Fix the new violations." >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-
-          if [ "$ERRORS" -lt "$BASELINE" ]; then
-            echo "::notice::Lint debt went down by $((BASELINE - ERRORS)). Lower LINT_ERROR_BASELINE in .github/workflows/ci.yml to ${ERRORS} to lock the improvement in."
-            echo "Lint debt went **down by $((BASELINE - ERRORS))**. Lower \`LINT_ERROR_BASELINE\` in \`.github/workflows/ci.yml\` to \`${ERRORS}\` to lock this in." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          echo "::warning::${ERRORS} pre-existing eslint errors remain (unchanged). These are technical debt and must be burned down; see the comment at the top of .github/workflows/ci.yml."
-          echo "${ERRORS} pre-existing eslint errors remain. This is recorded technical debt that must be burned down." >> "$GITHUB_STEP_SUMMARY"
+        run: npm run lint
 
   # ---------------------------------------------------------------------------
   # TYPE CHECK — a real gate

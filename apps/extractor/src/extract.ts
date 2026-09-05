@@ -69,7 +69,7 @@ function toEvent(
 
   const counterpartyFingerprints = [
     ...new Set(commit.coAuthorEmails.map(fingerprintCounterparty)),
-  ].sort();
+  ].sort((a, b) => a.localeCompare(b));
 
   return {
     externalDeliveryId: deliveryIdForCommit(repoFingerprint, commit.sha),
@@ -190,7 +190,7 @@ export function extract(
       commits: events.length,
       earliestDate: acc.earliestDate,
       latestDate: acc.latestDate,
-      technologies: [...acc.technologies].sort(),
+      technologies: [...acc.technologies].sort((a, b) => a.localeCompare(b)),
       counterparties: acc.counterparties.size,
       skippedPaths,
     },

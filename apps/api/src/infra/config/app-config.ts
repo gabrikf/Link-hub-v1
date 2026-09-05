@@ -14,6 +14,8 @@
  * and relocating them would be a refactor with no payoff.
  */
 
+import type { AiQuotaOperation } from "../../core/providers/ai-quota/ai-quota-provider.js";
+
 const DEFAULT_PORT = 3333;
 
 /** Origins allowed when WEB_APP_URL is unset — i.e. local development. */
@@ -157,7 +159,13 @@ export const rateLimitConfig = () => ({
   enabled: readBoolean("RATE_LIMIT_ENABLED", true),
 });
 
-export type AiQuotaOperation = "resume_parse" | "recruiter_search";
+/**
+ * Declared with the port in `core/providers/ai-quota/ai-quota-provider.js` —
+ * core must not take a name from infra — and re-exported here so the existing
+ * consumers of `app-config.js` keep their import untouched. Type-only in both
+ * directions: nothing crosses at runtime.
+ */
+export type { AiQuotaOperation };
 
 /**
  * Per-user, per-day caps on the two routes that spend OpenAI credits.

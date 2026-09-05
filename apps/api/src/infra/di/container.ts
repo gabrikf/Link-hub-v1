@@ -70,7 +70,7 @@ import { CryptoTokenProvider } from "../providers/crypto-token-provider.js";
 import { CryptoWebhookSecretProvider } from "../providers/crypto-webhook-secret-provider.js";
 import { OpenAiEmbeddingProvider } from "../providers/openai-embedding-provider.js";
 import { CachedEmbeddingProvider } from "../providers/cached-embedding-provider.js";
-import { DeterministicEmbeddingProvider } from "../providers/deterministic-embedding-provider.js";
+import { DeterministicEmbeddingProvider } from "../../core/providers/embedding/deterministic-embedding-provider.js";
 import { DeterministicRecruiterQueryConversionProvider } from "../providers/deterministic-recruiter-query-conversion-provider.js";
 import { OpenAiRecruiterQueryConversionProvider } from "../providers/openai-recruiter-query-conversion-provider.js";
 import { GoogleOAuthProvider } from "../providers/google-oauth-provider.js";

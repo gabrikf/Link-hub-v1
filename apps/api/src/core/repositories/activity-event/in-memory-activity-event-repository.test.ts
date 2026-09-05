@@ -163,7 +163,7 @@ describe("InMemoryActivityEventRepository — digest windows", () => {
     });
 
     expect(events).toHaveLength(1);
-    expect(events[0]!.occurredOn).toBe("2026-03-15");
+    expect(events[0]?.occurredOn).toBe("2026-03-15");
   });
 
   it("returns events in chronological order", async () => {
@@ -173,6 +173,6 @@ describe("InMemoryActivityEventRepository — digest windows", () => {
     });
 
     const dates = events.map((event) => event.occurredOn);
-    expect(dates).toEqual([...dates].sort());
+    expect(dates).toEqual([...dates].sort((a, b) => a.localeCompare(b)));
   });
 });

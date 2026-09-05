@@ -1,3 +1,4 @@
+import { UserEntity } from "../../../entity/user/user-entity.js";
 import {
   DuplicateResourceError,
   ResourceNotFoundError,
@@ -32,8 +33,87 @@ export interface IUpdateProfileInput {
   personaOther?: string | null;
 }
 
+/**
+ * Applies every optional field the caller actually sent, and only those.
+ *
+ * `undefined` means "leave it alone" and `null` means "clear it", which is why
+ * each field is tested with `typeof ... !== "undefined"` rather than for
+ * truthiness — a `null` that meant "clear" would otherwise be skipped.
+ */
+function applySentProfileFields(
+  user: UserEntity,
+  input: IUpdateProfileInput,
+): void {
+  if (typeof input.name === "string") {
+    user.name = input.name;
+  }
+
+  if (typeof input.description !== "undefined") {
+    user.updateDescription(input.description ?? null);
+  }
+
+  if (typeof input.userPhoto !== "undefined") {
+    user.updateAvatarUrl(input.userPhoto ?? null);
+  }
+
+  if (typeof input.backgroundImageUrl !== "undefined") {
+    user.updateBackgroundImageUrl(input.backgroundImageUrl ?? null);
+  }
+
+  if (typeof input.bannerImageUrl !== "undefined") {
+    user.updateBannerImageUrl(input.bannerImageUrl ?? null);
+  }
+
+  if (typeof input.themeAccent !== "undefined") {
+    user.updateThemeAccent(input.themeAccent ?? null);
+  }
+
+  if (typeof input.themePreset !== "undefined") {
+    user.updateThemePreset(input.themePreset ?? null);
+  }
+
+  if (typeof input.appearance !== "undefined") {
+    user.updateAppearance(input.appearance);
+  }
+
+  if (typeof input.openToWork !== "undefined") {
+    user.updateOpenToWork(input.openToWork);
+  }
+
+  if (typeof input.location !== "undefined") {
+    user.updateLocation(input.location ?? null);
+  }
+
+  if (typeof input.persona !== "undefined") {
+    user.updatePersona(input.persona ?? null);
+  }
+
+  if (typeof input.personaOther !== "undefined") {
+    user.updatePersonaOther(input.personaOther ?? null);
+  }
+}
+
 export class UpdateProfileUseCase {
   constructor(private usersRepository: IUsersRepository) {}
+
+  /**
+   * A rename must not collide with somebody else's login. Keeping the login
+   * unchanged is not a rename, so it never costs the extra lookup.
+   */
+  private async assertUsernameIsFree(
+    currentLogin: string,
+    username: string,
+  ): Promise<void> {
+    if (username === currentLogin) {
+      return;
+    }
+
+    const userWithSameLogin = await this.usersRepository.findByLogin(username);
+
+    if (userWithSameLogin) {
+      throw new DuplicateResourceError("User", "login", username);
+    }
+  }
 
   async execute(input: IUpdateProfileInput) {
     const user = await this.usersRepository.findById(input.userId);
@@ -42,65 +122,11 @@ export class UpdateProfileUseCase {
       throw new ResourceNotFoundError("User", input.userId);
     }
 
-    if (input.username !== user.login) {
-      const userWithSameLogin = await this.usersRepository.findByLogin(
-        input.username,
-      );
-
-      if (userWithSameLogin) {
-        throw new DuplicateResourceError("User", "login", input.username);
-      }
-    }
+    await this.assertUsernameIsFree(user.login, input.username);
 
     user.login = input.username;
 
-    if (typeof input.name === "string") {
-      user.name = input.name;
-    }
-
-    if (typeof input.description !== "undefined") {
-      user.updateDescription(input.description ?? null);
-    }
-
-    if (typeof input.userPhoto !== "undefined") {
-      user.updateAvatarUrl(input.userPhoto ?? null);
-    }
-
-    if (typeof input.backgroundImageUrl !== "undefined") {
-      user.updateBackgroundImageUrl(input.backgroundImageUrl ?? null);
-    }
-
-    if (typeof input.bannerImageUrl !== "undefined") {
-      user.updateBannerImageUrl(input.bannerImageUrl ?? null);
-    }
-
-    if (typeof input.themeAccent !== "undefined") {
-      user.updateThemeAccent(input.themeAccent ?? null);
-    }
-
-    if (typeof input.themePreset !== "undefined") {
-      user.updateThemePreset(input.themePreset ?? null);
-    }
-
-    if (typeof input.appearance !== "undefined") {
-      user.updateAppearance(input.appearance);
-    }
-
-    if (typeof input.openToWork !== "undefined") {
-      user.updateOpenToWork(input.openToWork);
-    }
-
-    if (typeof input.location !== "undefined") {
-      user.updateLocation(input.location ?? null);
-    }
-
-    if (typeof input.persona !== "undefined") {
-      user.updatePersona(input.persona ?? null);
-    }
-
-    if (typeof input.personaOther !== "undefined") {
-      user.updatePersonaOther(input.personaOther ?? null);
-    }
+    applySentProfileFields(user, input);
 
     /**
      * One invariant, enforced server-side rather than trusted from the client:

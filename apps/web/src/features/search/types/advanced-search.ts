@@ -161,7 +161,7 @@ export const advancedSearchFormSchema = z
       minYears > maxYears
     ) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: i18n.t("search.yearsRangeInvalid"),
         path: ["maxYearsExperience"],
       });
@@ -172,7 +172,7 @@ export const advancedSearchFormSchema = z
 
     if (value.minSalary && value.maxSalary && minSalary > maxSalary) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: i18n.t("search.salaryRangeInvalid"),
         path: ["maxSalary"],
       });

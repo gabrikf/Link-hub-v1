@@ -54,7 +54,7 @@ export const CUSTOM_BLOCK_KINDS = customBlockKindSchema.options;
  * ------------------------------------------------------------------ */
 
 /**
- * Strict http(s)-only URL. `z.string().url()` alone accepts `javascript:`,
+ * Strict http(s)-only URL. `z.url()` alone accepts `javascript:`,
  * `data:`, `vbscript:` schemes — which become stored-XSS when rendered into an
  * `<a href>` on the PUBLIC profile. Every user-supplied URL that reaches an href
  * or media src must use this.
@@ -62,12 +62,15 @@ export const CUSTOM_BLOCK_KINDS = customBlockKindSchema.options;
  * `httpUrlSchema` is the default. Pass `invalidUrlMessage` when the field is
  * bound to a form whose "this is not a URL" wording is already user-visible —
  * the scheme rejection keeps its own message either way.
+ *
+ * `.trim()` reads as if it ran after the URL check, but zod applies `overwrite`
+ * checks like it first, so a padded value is still trimmed before validation —
+ * the same order the previous `z.string().trim().url()` spelling had.
  */
 export const httpUrlSchemaWith = (invalidUrlMessage?: string) =>
   z
-    .string()
-    .trim()
     .url(invalidUrlMessage)
+    .trim()
     .refine((u) => /^https?:\/\//i.test(u), {
       message: "Only http(s) URLs are allowed",
     });

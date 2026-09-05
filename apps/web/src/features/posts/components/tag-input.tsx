@@ -2,14 +2,14 @@ import { useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { FiX } from "react-icons/fi";
 
-type TagInputProps = {
+type TagInputProps = Readonly<{
   id: string;
   label: string;
   value: string[];
   onChange: (tags: string[]) => void;
   placeholder?: string;
   max?: number;
-};
+}>;
 
 export function TagInput({
   id,
@@ -29,7 +29,9 @@ export function TagInput({
       setDraft("");
       return;
     }
-    if (!value.some((existing) => existing.toLowerCase() === tag.toLowerCase())) {
+    if (
+      !value.some((existing) => existing.toLowerCase() === tag.toLowerCase())
+    ) {
       onChange([...value, tag]);
     }
     setDraft("");
@@ -42,7 +44,11 @@ export function TagInput({
     if (event.key === "Enter" || event.key === ",") {
       event.preventDefault();
       commit(draft);
-    } else if (event.key === "Backspace" && draft.length === 0 && value.length > 0) {
+    } else if (
+      event.key === "Backspace" &&
+      draft.length === 0 &&
+      value.length > 0
+    ) {
       removeAt(value.length - 1);
     }
   };
@@ -76,7 +82,9 @@ export function TagInput({
           id={id}
           value={draft}
           placeholder={
-            value.length >= max ? t("posts.tagLimitReached") : effectivePlaceholder
+            value.length >= max
+              ? t("posts.tagLimitReached")
+              : effectivePlaceholder
           }
           disabled={value.length >= max}
           onChange={(event) => setDraft(event.target.value)}

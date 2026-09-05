@@ -58,6 +58,7 @@
     "OTEL_ESM_LOADER_HOOK",
     "OTEL_EXPORTER_OTLP_ENDPOINT",
     "OTEL_EXPORTER_OTLP_HEADERS",
+    "PATH",
     "QUERY_CONVERSION_MODEL",
     "REDIS_URL",
     "RESUME_EMBEDDING_WORKER_CONCURRENCY",
@@ -75,9 +76,11 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
+    // No `dependsOn`. Linting reads source, not build output, so a workspace's
+    // lint does not need its dependencies linted (or built) first. `^lint` was
+    // create-turbo's default and it serialised the graph for nothing: it made
+    // every app wait on `@repo/schemas#lint` before starting.
+    "lint": {},
     "check-types": {
       // `^build` as well as `^check-types`: `api` and `web` resolve
       // `@repo/schemas` through its published `dist/index.d.ts`, so on a fresh

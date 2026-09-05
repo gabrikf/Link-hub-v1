@@ -259,5 +259,7 @@ export function inferTechnologies(paths: readonly string[]): string[] {
     const tag = technologyForPath(path);
     if (tag) tags.add(tag);
   }
-  return [...tags].sort().slice(0, MAX_TECHNOLOGIES_PER_EVENT);
+  return [...tags]
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, MAX_TECHNOLOGIES_PER_EVENT);
 }

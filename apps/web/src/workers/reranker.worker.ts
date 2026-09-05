@@ -98,7 +98,7 @@ async function loadPreprocessingSingleton() {
       throw new Error("Failed to load preprocessing config");
     }
 
-    const json = await response.json();
+    const json: unknown = await response.json();
     loadedPreprocessing = preprocessingConfigSchema.parse(json);
   }
 
@@ -160,11 +160,7 @@ function withScores(
       ...candidate,
       aiScore: blendMatchScore({
         modelScore: modelScores[index] ?? 0,
-        coverageScore: computeAlignmentScore(
-          searchInput,
-          candidate,
-          requested,
-        ),
+        coverageScore: computeAlignmentScore(searchInput, candidate, requested),
       }),
     }))
     .sort((a, b) => b.aiScore - a.aiScore);
@@ -179,7 +175,9 @@ interface WeightedBucket {
 }
 
 function workStackTokens(candidate: RecruiterSearchResult): string[] {
-  return candidate.workExperiences.flatMap((experience) => experience.mainStack);
+  return candidate.workExperiences.flatMap(
+    (experience) => experience.mainStack,
+  );
 }
 
 function workTitleTokens(candidate: RecruiterSearchResult): string[] {
@@ -424,7 +422,10 @@ self.onmessage = async (event: MessageEvent<RerankRequestMessage>) => {
           message.payload.candidates,
           predictions,
           message.payload.searchInput,
-          { skills: preprocessing.knownSkills, titles: preprocessing.knownTitles },
+          {
+            skills: preprocessing.knownSkills,
+            titles: preprocessing.knownTitles,
+          },
         ),
       },
     };
@@ -437,7 +438,8 @@ self.onmessage = async (event: MessageEvent<RerankRequestMessage>) => {
         message:
           error instanceof Error ? error.message : "Unknown worker error",
         code:
-          error instanceof Error && error.name === "PreprocessingCompatibilityError"
+          error instanceof Error &&
+          error.name === "PreprocessingCompatibilityError"
             ? "PREPROCESSING_INCOMPATIBLE"
             : undefined,
       },

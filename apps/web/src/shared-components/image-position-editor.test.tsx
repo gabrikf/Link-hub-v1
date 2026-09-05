@@ -17,22 +17,24 @@ import { ImagePositionEditor } from "./image-position-editor";
 const FRAME = { width: 900, height: 300 };
 const NATURAL = { width: 1200, height: 1200 };
 
-const originalRect = HTMLElement.prototype.getBoundingClientRect;
-
 beforeEach(() => {
-  HTMLElement.prototype.getBoundingClientRect = function rect() {
-    return {
-      width: FRAME.width,
-      height: FRAME.height,
-      top: 0,
-      left: 0,
-      right: FRAME.width,
-      bottom: FRAME.height,
-      x: 0,
-      y: 0,
-      toJSON: () => ({}),
-    } as DOMRect;
-  };
+  // `vi.spyOn` rather than saving and reassigning the prototype method: holding
+  // the original in a variable is an unbound method reference, and `afterEach`
+  // restoring it by hand is the same thing `vi.restoreAllMocks` already does.
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    () =>
+      ({
+        width: FRAME.width,
+        height: FRAME.height,
+        top: 0,
+        left: 0,
+        right: FRAME.width,
+        bottom: FRAME.height,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect,
+  );
 
   // Pointer capture is how the drag survives the pointer leaving a 300px strip.
   // jsdom implements none of it.
@@ -53,7 +55,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  HTMLElement.prototype.getBoundingClientRect = originalRect;
+  vi.restoreAllMocks();
 });
 
 function renderEditor(
@@ -113,7 +115,9 @@ describe("ImagePositionEditor", () => {
       />,
     );
 
-    expect(screen.queryByTestId("image-position-frame")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("image-position-frame"),
+    ).not.toBeInTheDocument();
   });
 
   it("starts from the stored placement rather than from centre", () => {
@@ -228,7 +232,11 @@ describe("ImagePositionEditor", () => {
     // The banner is published at two shapes — 2.13:1 on a phone, 6.36:1 on a
     // desktop. Dragging in one and publishing in the other is how a face ends
     // up cropped out again, one step downstream of the original bug.
-    renderEditor({ aspect: 2.125, safeAreaAspect: 6.36, safeAreaLabel: "Always visible" });
+    renderEditor({
+      aspect: 2.125,
+      safeAreaAspect: 6.36,
+      safeAreaLabel: "Always visible",
+    });
 
     const band = screen.getByTestId("image-position-safe-area");
     const before = band.style.top;
@@ -237,9 +245,9 @@ describe("ImagePositionEditor", () => {
 
     drag(0, 60);
 
-    expect(
-      screen.getByTestId("image-position-safe-area").style.top,
-    ).not.toBe(before);
+    expect(screen.getByTestId("image-position-safe-area").style.top).not.toBe(
+      before,
+    );
   });
 
   it("draws no safe area when the caller names only one shape", () => {

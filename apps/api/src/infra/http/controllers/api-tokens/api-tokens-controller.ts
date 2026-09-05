@@ -14,6 +14,18 @@ import { commonErrorResponses } from "../../schemas/error-schemas.js";
 import { CreateApiTokenUseCase } from "../../../../core/use-case/api-tokens/create-api-token-use-case/create-api-token.use-case.js";
 import { ListApiTokensUseCase } from "../../../../core/use-case/api-tokens/list-api-tokens-use-case/list-api-tokens.use-case.js";
 import { RevokeApiTokenUseCase } from "../../../../core/use-case/api-tokens/revoke-api-token-use-case/revoke-api-token.use-case.js";
+import { toAsyncHook } from "../../to-async-hook.js";
+
+/**
+ * Fastify's typed `preHandler` property resolves to the callback-style hook
+ * signature (`(request, reply, done) => void`), never the promise-returning
+ * one — `preHandlerMetaHookHandler`'s `Return` generic always defaults to
+ * `void` at that property, regardless of how the guard function passed in is
+ * itself typed. Adapting an async guard to the callback form here keeps the
+ * guard itself a plain `async` function with no behaviour change: a
+ * rejection becomes `done(error)`, which Fastify routes to the same error
+ * handler an async hook's rejection would.
+ */
 
 export class ApiTokensController {
   static handle(server: FastifyInstance) {
@@ -22,7 +34,7 @@ export class ApiTokensController {
     app.get(
       "/me/tokens",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["API Tokens"],
           summary: "List current user personal access tokens",
@@ -46,7 +58,7 @@ export class ApiTokensController {
     app.post(
       "/me/tokens",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["API Tokens"],
           summary: "Create a personal access token",
@@ -62,10 +74,7 @@ export class ApiTokensController {
           },
         },
       },
-      async (
-        request: FastifyRequest<{ Body: CreateApiTokenInput }>,
-        reply,
-      ) => {
+      async (request: FastifyRequest<{ Body: CreateApiTokenInput }>, reply) => {
         const createApiTokenUseCase = resolve<CreateApiTokenUseCase>(
           TOKENS.CreateApiTokenUseCase,
         );
@@ -84,7 +93,7 @@ export class ApiTokensController {
     app.delete(
       "/me/tokens/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["API Tokens"],
           summary: "Revoke a personal access token",

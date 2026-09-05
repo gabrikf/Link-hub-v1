@@ -4,6 +4,7 @@ import {
   SYNTHETIC_STACKS,
   type TrainingBlueprint,
 } from "./blueprints.js";
+import { pickCyclic } from "./cyclic.js";
 import type {
   PostTrainingRow,
   ResumeTrainingRow,
@@ -139,7 +140,11 @@ export function computeWeightedTarget(
     ((candidate.salaryExpectationMin ?? 0) +
       (candidate.salaryExpectationMax ?? 0)) /
     2;
-  const salaryScore = proximityScore(salaryCenter, candidateSalaryCenter, 90000);
+  const salaryScore = proximityScore(
+    salaryCenter,
+    candidateSalaryCenter,
+    90000,
+  );
 
   const categoricalSignals = [
     candidate.seniorityLevel === blueprint.seniorityLevel ? 1 : 0,
@@ -251,7 +256,8 @@ function buildSyntheticPosts(
 
   const posts: PostTrainingRow[] = [];
   for (let index = 0; index < plan.count; index += 1) {
-    const focus = stack[index % Math.max(1, stack.length)] ?? blueprint.headline;
+    const focus =
+      stack[index % Math.max(1, stack.length)] ?? blueprint.headline;
     const tags = [...blueprint.postTags].slice(0, 2 + (index % 2));
     posts.push({
       title: `Shipping ${focus} in production`,
@@ -386,8 +392,8 @@ export function createSyntheticDataset(
   const rows: ResumeTrainingRow[] = [];
 
   for (let index = 0; index < count; index += 1) {
-    const blueprint = SYNTHETIC_STACKS[index % SYNTHETIC_STACKS.length]!;
-    const quality = QUALITY_DISTRIBUTION[index % QUALITY_DISTRIBUTION.length]!;
+    const blueprint = pickCyclic(SYNTHETIC_STACKS, index);
+    const quality = pickCyclic(QUALITY_DISTRIBUTION, index);
     rows.push(createCandidateFromBlueprint(blueprint, quality, index, now));
   }
 
@@ -412,8 +418,11 @@ export function createCrossBlueprintNegatives(
     // Pick a candidate blueprint from the "opposite" half of the stack to
     // maximise the chance of zero skill-title overlap.
     const candidateBlueprintIdx = (queryBlueprintIdx + halfN) % n;
-    const queryBlueprint = SYNTHETIC_STACKS[queryBlueprintIdx]!;
-    const candidateBlueprint = SYNTHETIC_STACKS[candidateBlueprintIdx]!;
+    const queryBlueprint = pickCyclic(SYNTHETIC_STACKS, queryBlueprintIdx);
+    const candidateBlueprint = pickCyclic(
+      SYNTHETIC_STACKS,
+      candidateBlueprintIdx,
+    );
 
     const years = randomInt(
       candidateBlueprint.minYears,

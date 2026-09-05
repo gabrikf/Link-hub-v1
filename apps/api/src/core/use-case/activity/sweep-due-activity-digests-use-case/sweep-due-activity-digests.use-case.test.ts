@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { GitConnectionEntity } from "../../../entity/git-connection/git-connection-entity.js";
 import { InMemoryActivityDigestQueue } from "../../../providers/queue/in-memory-activity-digest-queue.js";
 import { InMemoryGitConnectionRepository } from "../../../repositories/git-connection/in-memory-git-connection-repository.js";
-import { buildDigestKey, resolveDigestWindow } from "../shared/digest-window.js";
+import {
+  buildDigestKey,
+  resolveDigestWindow,
+} from "../shared/digest-window.js";
 import { SweepDueActivityDigestsUseCase } from "./sweep-due-activity-digests.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 const NOW = new Date("2026-08-14T09:00:00.000Z");
 
@@ -136,7 +140,10 @@ describe("SweepDueActivityDigestsUseCase", () => {
       // posts table, so a sweep that queues twice costs a no-op job, never a
       // duplicate post.
       expect(queue.jobs).toHaveLength(2);
-      expect(queue.jobs[0].digestKey).toBe(queue.jobs[1].digestKey);
+      const [firstJob, secondJob] = queue.jobs;
+      expect(expectDefined(firstJob, "the first queued job").digestKey).toBe(
+        expectDefined(secondJob, "the second queued job").digestKey,
+      );
     });
   });
 

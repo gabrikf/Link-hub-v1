@@ -65,7 +65,8 @@ describe("ResetPasswordUseCase", () => {
       PasswordResetTokenEntity.create({
         userId: overrides?.userId ?? user.id,
         tokenHash: tokenProvider.hash(rawToken),
-        expiresAt: overrides?.expiresAt ?? new Date(Date.now() + 20 * MINUTE_MS),
+        expiresAt:
+          overrides?.expiresAt ?? new Date(Date.now() + 20 * MINUTE_MS),
         consumedAt: overrides?.consumedAt ?? null,
       }),
     );
@@ -88,7 +89,7 @@ describe("ResetPasswordUseCase", () => {
     expect(stored?.password).toBe(`hashed_${NEW_PASSWORD}`);
     expect(stored?.password).not.toBe(NEW_PASSWORD);
 
-    expect(tokenRepository.getAll()[0].isConsumed()).toBe(true);
+    expect(tokenRepository.getAll()[0]?.isConsumed()).toBe(true);
   });
 
   it("revokes EVERY refresh token for the account", async () => {
@@ -133,7 +134,7 @@ describe("ResetPasswordUseCase", () => {
     await reset(await mintToken());
 
     expect(refreshTokenRepository.count()).toBe(1);
-    expect(refreshTokenRepository.getAll()[0].userId).toBe(other.id);
+    expect(refreshTokenRepository.getAll()[0]?.userId).toBe(other.id);
   });
 
   it("verifies an unverified address, because opening the link proved the mailbox", async () => {
@@ -190,9 +191,9 @@ describe("ResetPasswordUseCase", () => {
       expiresAt: new Date(Date.now() - MINUTE_MS),
     });
 
-    const unknownError = await reset(
-      tokenProvider.generateOpaqueToken(),
-    ).catch((error: unknown) => error);
+    const unknownError = await reset(tokenProvider.generateOpaqueToken()).catch(
+      (error: unknown) => error,
+    );
     const expiredError = await reset(expired).catch((error: unknown) => error);
 
     expect(unknownError).toBeInstanceOf(InvalidResetTokenError);
@@ -245,8 +246,6 @@ describe("ResetPasswordUseCase", () => {
       userId: "99999999-9999-9999-9999-999999999999",
     });
 
-    await expect(reset(orphan)).rejects.toBeInstanceOf(
-      InvalidResetTokenError,
-    );
+    await expect(reset(orphan)).rejects.toBeInstanceOf(InvalidResetTokenError);
   });
 });

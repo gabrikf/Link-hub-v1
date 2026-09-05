@@ -66,7 +66,7 @@ type WorkHistoryProps = {
  * they did and what they used. This is the part a recruiter reads — it used to
  * be three lines of `title · company — 6 stack items` with no dates at all.
  */
-function WorkHistory({ experiences }: WorkHistoryProps) {
+function WorkHistory({ experiences }: Readonly<WorkHistoryProps>) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -199,7 +199,7 @@ type ShippedWorkProps = {
  * the MCP server straight from the candidate's commit history, so they are the
  * closest thing here to "here is what this person actually built".
  */
-function ShippedWork({ evidence }: ShippedWorkProps) {
+function ShippedWork({ evidence }: Readonly<ShippedWorkProps>) {
   const { t } = useTranslation();
 
   if (evidence.length === 0) {
@@ -513,7 +513,7 @@ const CandidateCard = memo(function CandidateCard({
 });
 
 /** Placeholder shaped like a real result card, so nothing jumps on arrival. */
-function CandidateCardSkeleton({ index }: { index: number }) {
+function CandidateCardSkeleton({ index }: Readonly<{ index: number }>) {
   return (
     <div
       style={{ animationDelay: `${index * 0.07}s` }}
@@ -604,6 +604,39 @@ function describeSearchOutcome(
   return t("search.candidatesFound", { count: resultCount });
 }
 
+/**
+ * The visible label under the "Results" heading: what ordered this list, and
+ * how many are in it.
+ *
+ * A function rather than a four-deep nested ternary in the JSX — the two axes
+ * are "is a search running / has one ever run" and "is the on-device re-rank
+ * on", and reading them apart is the only way to see that the pre-search line
+ * describes what WILL happen while the post-search line describes what did.
+ */
+function describeRanking(
+  t: ReturnType<typeof useTranslation>["t"],
+  state: Readonly<{
+    isBusy: boolean;
+    hasSearched: boolean;
+    isAiMatchOn: boolean;
+    resultCount: number;
+  }>,
+): string {
+  if (state.isBusy) {
+    return t("search.rankingCandidates");
+  }
+
+  if (!state.hasSearched) {
+    return state.isAiMatchOn
+      ? t("search.rerankedOnDevice")
+      : t("search.rankedBySearchEngine");
+  }
+
+  return state.isAiMatchOn
+    ? t("search.rerankedCount", { count: state.resultCount })
+    : t("search.searchOrderCount", { count: state.resultCount });
+}
+
 export function SearchResults({
   results,
   isBusy,
@@ -614,7 +647,7 @@ export function SearchResults({
   onViewProfile = noopAction,
   onNotRelevant = noopAction,
   ref,
-}: SearchResultsProps) {
+}: Readonly<SearchResultsProps>) {
   const { t } = useTranslation();
   // A search in flight used to render nothing at all — no cards, no empty
   // state — so the page looked broken for the seconds the reranker takes.
@@ -639,15 +672,12 @@ export function SearchResults({
         {/* With AI Match off, "re-ranked locally" would describe work that
             never happened. */}
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {isBusy
-            ? t("search.rankingCandidates")
-            : hasSearched
-              ? isAiMatchOn
-                ? t("search.rerankedCount", { count: results.length })
-                : t("search.searchOrderCount", { count: results.length })
-              : isAiMatchOn
-                ? t("search.rerankedOnDevice")
-                : t("search.rankedBySearchEngine")}
+          {describeRanking(t, {
+            isBusy,
+            hasSearched,
+            isAiMatchOn,
+            resultCount: results.length,
+          })}
         </p>
       </header>
 

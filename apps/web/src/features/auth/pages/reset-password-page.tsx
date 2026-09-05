@@ -81,7 +81,7 @@ export function ResetPasswordPage() {
     mutationFn: resetPasswordRequest,
     onSuccess: () => {
       parkAuthNotice("auth.passwordUpdated");
-      navigate({ to: "/" });
+      void navigate({ to: "/" });
     },
   });
 
@@ -89,7 +89,9 @@ export function ResetPasswordPage() {
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
-  const goToForgotPassword = () => navigate({ to: "/forgot-password" });
+  const goToForgotPassword = () => {
+    void navigate({ to: "/forgot-password" });
+  };
 
   const isTokenRejected = isApiErrorCode(
     resetMutation.error,
@@ -124,7 +126,7 @@ export function ResetPasswordPage() {
           <Button
             type="button"
             variant="ghost"
-            onClick={() => navigate({ to: "/" })}
+            onClick={() => void navigate({ to: "/" })}
           >
             <FiArrowLeft className="h-4 w-4" aria-hidden="true" />
             {t("auth.backToLogin")}
@@ -147,16 +149,18 @@ export function ResetPasswordPage() {
 
       <form
         className="space-y-3"
-        onSubmit={handleSubmit(async (values) => {
-          try {
-            await resetMutation.mutateAsync({
-              token,
-              password: values.password,
-            });
-          } catch {
-            // Rendered below, or as the rejected-token screen above.
-          }
-        })}
+        onSubmit={(event) => {
+          void handleSubmit(async (values) => {
+            try {
+              await resetMutation.mutateAsync({
+                token,
+                password: values.password,
+              });
+            } catch {
+              // Rendered below, or as the rejected-token screen above.
+            }
+          })(event);
+        }}
       >
         <Input
           id="reset-password"
@@ -175,10 +179,7 @@ export function ResetPasswordPage() {
         />
 
         {resetMutation.error && (
-          <FeedbackMessage
-            message={resetMutation.error.message}
-            tone="error"
-          />
+          <FeedbackMessage message={resetMutation.error.message} tone="error" />
         )}
 
         <Button
@@ -194,7 +195,7 @@ export function ResetPasswordPage() {
       <Button
         type="button"
         variant="ghost"
-        onClick={() => navigate({ to: "/" })}
+        onClick={() => void navigate({ to: "/" })}
       >
         <FiArrowLeft className="h-4 w-4" aria-hidden="true" />
         {t("auth.backToLogin")}

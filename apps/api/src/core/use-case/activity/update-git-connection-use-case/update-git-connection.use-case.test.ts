@@ -96,9 +96,9 @@ describe("Git connection update / delete / list use cases", () => {
   });
 
   it("deletes the caller's own connection", async () => {
-    await expect(
-      remove.execute(OWNER_ID, connection.id),
-    ).resolves.toEqual({ success: true });
+    await expect(remove.execute(OWNER_ID, connection.id)).resolves.toEqual({
+      success: true,
+    });
 
     expect(await repository.findById(connection.id)).toBeNull();
   });
@@ -117,6 +117,6 @@ describe("Git connection update / delete / list use cases", () => {
     const result = await list.execute(OWNER_ID);
 
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe(connection.id);
+    expect(result[0]?.id).toBe(connection.id);
   });
 });

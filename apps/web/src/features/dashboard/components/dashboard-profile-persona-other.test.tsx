@@ -110,7 +110,7 @@ describe("DashboardProfileForm — a role the dropdown does not cover", () => {
     await user.click(saveButton());
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+    expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({
       persona: "other",
       personaOther: "Fisioterapeuta",
     });

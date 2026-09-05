@@ -144,13 +144,22 @@ function buildTermBody(term: string): string {
     else if (words.length > 0) gaps.push(part);
   });
 
-  if (words.length < 2) return escapeRegExp(term);
+  // The same test as `words.length < 2`, written so the first word carries a
+  // non-optional type into the loop below.
+  const [firstWord, ...remainingWords] = words;
+  if (firstWord === undefined || remainingWords.length === 0) {
+    return escapeRegExp(term);
+  }
 
   // The split already guarantees the words are letters and digits; escaping
   // them anyway keeps the pattern correct if that character class ever changes.
-  let body = escapeRegExp(words[0]);
-  for (let index = 1; index < words.length; index++) {
-    body += buildGapPattern(gaps[index - 1]) + escapeRegExp(words[index]);
+  let body = escapeRegExp(firstWord);
+  for (const [index, word] of remainingWords.entries()) {
+    // Exactly one gap sits between each adjacent pair of words, so `gaps[index]`
+    // is the gap that precedes `word`. `buildGapPattern("")` produces the same
+    // separator alternation a whitespace gap does, so the default cannot change
+    // a pattern that a real gap would have built.
+    body += buildGapPattern(gaps[index] ?? "") + escapeRegExp(word);
   }
 
   return body;

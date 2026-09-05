@@ -169,7 +169,7 @@ describe("buildSearchZeroResultDiagnostics", () => {
     });
 
     expect(result.topK).toBe(50);
-    expect(result.minSimilarity).toBe(0.1);
+    expect(result.minSimilarity).toBeCloseTo(0.1, 10);
     expect(result.embeddingModel).toBe("text-embedding-3-small");
     expect(result.embeddingVersion).toBe("1");
     expect(result.sources).toEqual(["posts"]);
@@ -194,7 +194,7 @@ describe("buildSearchZeroResultDiagnostics", () => {
       { ...context, sources: ["profile"], filterKeys: ["usernameContains"] },
     );
 
-    expect(Object.keys(result).sort()).toEqual([
+    expect(Object.keys(result).sort((a, b) => a.localeCompare(b))).toEqual([
       "counts",
       "embeddingModel",
       "embeddingVersion",

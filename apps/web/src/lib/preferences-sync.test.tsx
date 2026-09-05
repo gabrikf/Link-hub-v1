@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ThemePreference,
@@ -96,7 +102,7 @@ const renderSync = (
   );
 
 /** Clicking is what a real toggle does, so the save path is driven the same way. */
-function SaveProbe({ patch }: { patch: UpdateUserPreferencesInput }) {
+function SaveProbe({ patch }: Readonly<{ patch: UpdateUserPreferencesInput }>) {
   const savePreferences = useSavePreferences();
   return (
     <button type="button" onClick={() => savePreferences(patch)}>

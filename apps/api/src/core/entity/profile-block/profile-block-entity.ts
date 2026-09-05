@@ -14,7 +14,7 @@ export interface ProfileBlockEntityProps extends BaseEntityProps {
   gridH: number;
   isVisible?: boolean;
   pinnedAllTabs?: boolean;
-  config?: unknown | null;
+  config?: unknown;
 }
 
 export interface BlockPosition {
@@ -36,7 +36,7 @@ export class ProfileBlockEntity extends BaseEntity<ProfileBlockEntityProps> {
   public gridH: number;
   public isVisible: boolean;
   public pinnedAllTabs: boolean;
-  public config: unknown | null;
+  public config: unknown;
 
   constructor(props: ProfileBlockEntityProps) {
     super(props);
@@ -54,7 +54,7 @@ export class ProfileBlockEntity extends BaseEntity<ProfileBlockEntityProps> {
     this.config = props.config ?? null;
   }
 
-  updateConfig(config: unknown | null) {
+  updateConfig(config: unknown) {
     this.config = config ?? null;
     this.updateTimestamp();
   }

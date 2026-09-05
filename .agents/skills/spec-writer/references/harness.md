@@ -30,7 +30,7 @@ The idea: **feedforward** removes ambiguity before generation, **feedback** dete
 
 ## The harness.md template (generated per feature)
 
-```markdown
+````markdown
 # Harness — [Feature Name]
 
 > Continuous verification during implementation.
@@ -41,7 +41,9 @@ The idea: **feedforward** removes ambiguity before generation, **feedback** dete
 ## Feedforward — Guides Before Implementation
 
 ### FF-01: Mandatory Context
+
 Before starting any task, the agent MUST read:
+
 - [ ] `docs/specs/[feature]/SPEC.md` — the full spec
 - [ ] `docs/specs/[feature]/definitions.md` — entities, states, business rules
 - [ ] `docs/specs/[feature]/tasks.md` — ordered tasks
@@ -54,6 +56,7 @@ Before starting any task, the agent MUST read:
 ### FF-02: Implementation rules — non-negotiable
 
 **Types and data**
+
 1. Zero `any`. No exceptions. If the type is unknown, `unknown` plus narrowing.
 2. Every API response is parsed through a schema from `@repo/schemas` (or, until it is
    promoted, the schema in `contracts/`). A response that was never parsed is a response
@@ -63,56 +66,47 @@ Before starting any task, the agent MUST read:
 4. Build schemas first — `npm run build:schemas` — or `check-types` fails against a stale
    `dist/`. Everything types against the built output.
 
-**Errors and resilience**
-5. Every route renders inside the app error boundary
-   (`apps/web/src/shared-components/app-error-boundary.tsx`).
-6. Every `try/catch` either **handles** (surfaces to the user and reports) or **rethrows**.
-   `catch {}` is banned.
-7. An operation that can fail outside a boundary's reach (event handler, async handler,
-   `setTimeout`, floating promise) **needs** its own `try/catch`.
-8. Every data-backed screen renders all four states, using `RoutePending`, `RouteErrorState`,
-   `RouteNotFound` from `shared-components/route-states.tsx` and `skeleton.tsx`.
+**Errors and resilience** 5. Every route renders inside the app error boundary
+(`apps/web/src/shared-components/app-error-boundary.tsx`). 6. Every `try/catch` either **handles** (surfaces to the user and reports) or **rethrows**.
+`catch {}` is banned. 7. An operation that can fail outside a boundary's reach (event handler, async handler,
+`setTimeout`, floating promise) **needs** its own `try/catch`. 8. Every data-backed screen renders all four states, using `RoutePending`, `RouteErrorState`,
+`RouteNotFound` from `shared-components/route-states.tsx` and `skeleton.tsx`.
 
-**Quality**
-9. `node scripts/guardrails/lint-changed.mjs` passes — the ratchet fails on NEW findings only.
-   The repo carries a known backlog (~30 pre-existing eslint errors in `apps/web`,
-   no eslint history in `apps/api`). **Do not "fix" the backlog as a side quest** and do not
-   let the spec promise to.
-10. `npm run test:coverage` — per-package floors sit at the measured baseline and may only
-    go UP. Coverage is a flashlight, not a correctness gate: pair it with rule 2.
-11. Every business rule in `definitions.md` has a test.
-12. If `variants.md` exists, there is a table-driven test covering every row of it.
+**Quality** 9. `node scripts/guardrails/lint-changed.mjs` passes — the ratchet fails on NEW findings only.
+The repo carries a known backlog (~30 pre-existing eslint errors in `apps/web`,
+no eslint history in `apps/api`). **Do not "fix" the backlog as a side quest** and do not
+let the spec promise to. 10. `npm run test:coverage` — per-package floors sit at the measured baseline and may only
+go UP. Coverage is a flashlight, not a correctness gate: pair it with rule 2. 11. Every business rule in `definitions.md` has a test. 12. If `variants.md` exists, there is a table-driven test covering every row of it.
 
-**Project**
-13. `shared-components/` and the Radix primitives first; `DESIGN.md` tokens and the `SURFACE*`
-    constants from `surface.ts`; zero hardcoded hex.
-14. **i18n is shipped.** Every user-visible string goes through `t()`, and every new key is
-    added to all three locale files in the same commit. The `i18n` skill is the contract.
-15. State logic lives in the feature's hook, never inside JSX.
-16. `kebab-case` file names; English identifiers.
-17. Do not touch the known, deliberate debt: `packages/ui` (dead scaffolding),
-    `eslint-plugin-only-warn` in `packages/eslint-config`, the `pluguins/` typo directory,
-    `apps/mcp` having zero tests. None of these is in scope unless the spec says so.
+**Project** 13. `shared-components/` and the Radix primitives first; `DESIGN.md` tokens and the `SURFACE*`
+constants from `surface.ts`; zero hardcoded hex. 14. **i18n is shipped.** Every user-visible string goes through `t()`, and every new key is
+added to all three locale files in the same commit. The `i18n` skill is the contract. 15. State logic lives in the feature's hook, never inside JSX. 16. `kebab-case` file names; English identifiers. 17. Do not touch the known, deliberate debt: `eslint-plugin-only-warn` in
+`packages/eslint-config`, the `pluguins/` typo directory, `apps/mcp` having zero
+tests. None of these is in scope unless the spec says so.
 
 ### FF-03: Component Map (Design → Code)
-*(generated per feature — the mapping from SPEC.md §5.2)*
 
-| Visual element | Component | Import |
-|-----------------|-----------|--------|
-| [primary button] | `Button` | `@/shared-components/button` |
-| [card surface] | `SURFACE` | `@/shared-components/surface` |
-| [modal] | `Dialog` | `@/shared-components/dialog` |
-| *(complete per feature)* | | |
+_(generated per feature — the mapping from SPEC.md §5.2)_
+
+| Visual element           | Component | Import                        |
+| ------------------------ | --------- | ----------------------------- |
+| [primary button]         | `Button`  | `@/shared-components/button`  |
+| [card surface]           | `SURFACE` | `@/shared-components/surface` |
+| [modal]                  | `Dialog`  | `@/shared-components/dialog`  |
+| _(complete per feature)_ |           |                               |
 
 ### FF-04: Code Examples (few-shot)
-*(include 1-2 examples of similar code that already exists in the repo)*
+
+_(include 1-2 examples of similar code that already exists in the repo)_
 
 ```typescript
 // Example: an existing TanStack Query hook from a neighbouring feature,
 // pasted here as the pattern to follow.
 ```
+````
 
 ### FF-05: Scope Boundary
+
 **Implement ONLY what SPEC.md §2 "Included" lists.**
 Do not add features, abstractions, or defensive code beyond that scope.
 If something ought to exist but is not in the spec → stop and ask.
@@ -121,17 +115,17 @@ If something ought to exist but is not in the spec → stop and ask.
 
 What **not** to do, and why:
 
-| Anti-pattern | Why | Do this instead |
-|---|---|---|
-| Consuming an API response without parsing it | drift becomes a silent runtime bug instead of a parse error | `.parse()` through `@repo/schemas` |
-| A hand-written `interface` beside a zod schema | the two drift; the compiler cannot tell you | `z.infer<typeof schema>` |
-| `.optional()` where the API sends `null` | "key missing" and "value null" are different bugs | explicit `.nullable()` |
-| `catch (e) {}` | the error vanishes, the bug becomes a mystery | handle or rethrow |
-| `as any` to silence the compiler | lies to the only tool that checks you | type it properly, or `unknown` |
-| Hardcoded hex / one-off Tailwind surface strings | this is exactly how `surface.ts` was born — ~10 drifted forks reading as different materials | `SURFACE*` constants, `DESIGN.md` tokens |
-| Assuming a route exists because a request returned 200 | the Vite dev proxy answers with the SPA's `index.html` at 200 | the G0 probe against `http://localhost:3333` |
-| Testing against a hand-written fixture only | a fixture you invented agrees with the code you invented | capture a REAL payload |
-| Adding a schema that duplicates an existing `@repo/schemas` module | two contracts for one endpoint will drift | extend the existing module |
+| Anti-pattern                                                       | Why                                                                                          | Do this instead                              |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Consuming an API response without parsing it                       | drift becomes a silent runtime bug instead of a parse error                                  | `.parse()` through `@repo/schemas`           |
+| A hand-written `interface` beside a zod schema                     | the two drift; the compiler cannot tell you                                                  | `z.infer<typeof schema>`                     |
+| `.optional()` where the API sends `null`                           | "key missing" and "value null" are different bugs                                            | explicit `.nullable()`                       |
+| `catch (e) {}`                                                     | the error vanishes, the bug becomes a mystery                                                | handle or rethrow                            |
+| `as any` to silence the compiler                                   | lies to the only tool that checks you                                                        | type it properly, or `unknown`               |
+| Hardcoded hex / one-off Tailwind surface strings                   | this is exactly how `surface.ts` was born — ~10 drifted forks reading as different materials | `SURFACE*` constants, `DESIGN.md` tokens     |
+| Assuming a route exists because a request returned 200             | the Vite dev proxy answers with the SPA's `index.html` at 200                                | the G0 probe against `http://localhost:3333` |
+| Testing against a hand-written fixture only                        | a fixture you invented agrees with the code you invented                                     | capture a REAL payload                       |
+| Adding a schema that duplicates an existing `@repo/schemas` module | two contracts for one endpoint will drift                                                    | extend the existing module                   |
 
 ---
 
@@ -174,6 +168,7 @@ Plus the feature-specific sensors the spec generates:
   (field → schema key → payload path → tab/mode). A required field with no input in the mode
   that requires it is a **dead Save button by construction** — the form can never validate,
   and no amount of manual clicking will tell you which field is missing.
+
 - **Variant matrix** — a table-driven test over every row of `variants.md`, plus an explicit
   unknown-variant case.
 - **Blank-screen sensor** — a test that forces a `throw` inside the new screen and asserts the
@@ -203,6 +198,7 @@ One browser launch walks every state of the screen and fails on console errors, 
 exceptions, and 4xx/5xx that were not deliberately mocked.
 
 For each task that produces visible UI:
+
 1. Compare the output against the design in `design/`
 2. Check:
    - [ ] Layout/grid match
@@ -222,6 +218,7 @@ Locale parity is checked by `npm run i18n:check`. `node scripts/guardrails/i18n-
 exists but is a **no-op until locales exist** — running it proves nothing today.
 
 What to check instead:
+
 - [ ] Every user-visible string matches the copy listed in `definitions.md`
 - [ ] Every user-visible string goes through `t()`, with its key added to all three
       existing locale files — no fourth locale file, no hand-rolled translation helper
@@ -230,12 +227,12 @@ What to check instead:
 
 ### FB-04: Acceptance Criteria Verification (final)
 
-*(generated from SPEC.md §3)*
+_(generated from SPEC.md §3)_
 
-| ID | Criterion | How to verify | Status |
-|----|----------|----------------|--------|
-| AC-01 | [WHEN x THEN y] | [test / manual action] | ⬜ |
-| AC-02 | [WHEN x THEN y] | [test / manual action] | ⬜ |
+| ID    | Criterion       | How to verify          | Status |
+| ----- | --------------- | ---------------------- | ------ |
+| AC-01 | [WHEN x THEN y] | [test / manual action] | ⬜     |
+| AC-02 | [WHEN x THEN y] | [test / manual action] | ⬜     |
 
 ### FB-05: Final Quality Checklist
 
@@ -265,11 +262,11 @@ Before the feature counts as "done":
 
 When a feedback check fails:
 
-| Level | Description | Action |
-|-------|-----------|--------|
-| Blocker | check-types / test / lint-changed / G0 fails | Fix immediately, do not advance |
-| Major | UI does not match the design; a mode/tab unverified | Fix before the next task group |
-| Minor | Cosmetic (1-2px off) | Log it, fix before the final pass |
+| Level   | Description                                         | Action                            |
+| ------- | --------------------------------------------------- | --------------------------------- |
+| Blocker | check-types / test / lint-changed / G0 fails        | Fix immediately, do not advance   |
+| Major   | UI does not match the design; a mode/tab unverified | Fix before the next task group    |
+| Minor   | Cosmetic (1-2px off)                                | Log it, fix before the final pass |
 
 ---
 
@@ -284,6 +281,7 @@ After implementing ALL tasks, run a **final convergence pass**:
 5. Anything missing → write new tasks and implement them
 
 The feature is "done" only when every FB-05 check passes.
+
 ```
 
 ---
@@ -303,3 +301,4 @@ The feature is "done" only when every FB-05 check passes.
 10. **FB-05** is fixed plus feature-specific items
 
 The harness must be **specific enough** that an agent can verify each task automatically, with no ambiguity left to judgement.
+```

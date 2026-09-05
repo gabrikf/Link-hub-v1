@@ -50,11 +50,7 @@ export const createPostSchemaInput = z.object({
   body: z.string().min(1, "Body is required").max(20000),
   coverImageUrl: httpUrlSchema.nullable().optional(),
   images: z.array(httpUrlSchema).max(12).nullable().optional(),
-  tags: z
-    .array(z.string().trim().min(1).max(40))
-    .max(20)
-    .nullable()
-    .optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).nullable().optional(),
   status: postStatusSchema.default("published"),
   externalUrl: httpUrlSchema.nullable().optional(),
   metadata: postMetadataSchema.nullable().optional(),
@@ -77,11 +73,7 @@ export const updatePostSchemaInput = z.object({
   body: z.string().min(1).max(20000).optional(),
   coverImageUrl: httpUrlSchema.nullable().optional(),
   images: z.array(httpUrlSchema).max(12).nullable().optional(),
-  tags: z
-    .array(z.string().trim().min(1).max(40))
-    .max(20)
-    .nullable()
-    .optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).nullable().optional(),
   status: postStatusSchema.optional(),
   externalUrl: httpUrlSchema.nullable().optional(),
   metadata: postMetadataSchema.nullable().optional(),
@@ -111,7 +103,7 @@ export const listPostsQuerySchema = z.object({
 });
 
 export const postParamsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 export type Post = z.infer<typeof postSchema>;

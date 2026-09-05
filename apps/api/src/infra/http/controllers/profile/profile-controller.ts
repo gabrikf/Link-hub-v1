@@ -17,6 +17,7 @@ import { authGuard } from "../../middleware/auth-guard.js";
 import { IJwtProvider } from "../../../../core/providers/jwt/jwt-provider.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
 import { profilesPublishedTotal } from "../../../observability/metrics.js";
+import { toAsyncHook } from "../../to-async-hook.js";
 
 /**
  * The viewer's id when the request happens to carry a valid session, and
@@ -55,6 +56,17 @@ async function readOptionalViewerId(
     return undefined;
   }
 }
+
+/**
+ * Fastify's typed `preHandler` property resolves to the callback-style hook
+ * signature (`(request, reply, done) => void`), never the promise-returning
+ * one — `preHandlerMetaHookHandler`'s `Return` generic always defaults to
+ * `void` at that property, regardless of how the guard function passed in is
+ * itself typed. Adapting an async guard to the callback form here keeps the
+ * guard itself a plain `async` function with no behaviour change: a
+ * rejection becomes `done(error)`, which Fastify routes to the same error
+ * handler an async hook's rejection would.
+ */
 
 export class ProfileController {
   static handle(server: FastifyInstance) {
@@ -160,7 +172,7 @@ export class ProfileController {
     app.get(
       "/me",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile"],
           summary: "Get current user profile",
@@ -188,7 +200,7 @@ export class ProfileController {
     app.put(
       "/profile",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Profile"],
           summary: "Update current user profile",

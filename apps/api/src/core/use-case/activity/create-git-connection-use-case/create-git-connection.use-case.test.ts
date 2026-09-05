@@ -1,14 +1,12 @@
 import type { GitConnectionProvider } from "@repo/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 import { UserEntity } from "../../../entity/user/user-entity.js";
-import {
-  ConflictError,
-  ResourceNotFoundError,
-} from "../../../errors/index.js";
+import { ConflictError, ResourceNotFoundError } from "../../../errors/index.js";
 import { IWebhookSecretProvider } from "../../../providers/webhook-secret/webhook-secret-provider.js";
 import { InMemoryGitConnectionRepository } from "../../../repositories/git-connection/in-memory-git-connection-repository.js";
 import { InMemoryUsersRepository } from "../../../repositories/user/in-memory-users-repository.js";
 import { CreateGitConnectionUseCase } from "./create-git-connection.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 /** Deterministic stand-in: the assertions are about WHO gets a secret, not its entropy. */
 class StubWebhookSecretProvider implements IWebhookSecretProvider {
@@ -65,7 +63,10 @@ describe("CreateGitConnectionUseCase", () => {
     expect(result.webhookSecret).toBe("github-secret");
 
     // And never again: the read model has no field for it.
-    const [stored] = await gitConnectionRepository.findByUserId(user.id);
+    const [storedConnection] = await gitConnectionRepository.findByUserId(
+      user.id,
+    );
+    const stored = expectDefined(storedConnection, "the stored connection");
     expect(stored.webhookSecret).toBe("github-secret");
     expect(stored.toJSON()).not.toHaveProperty("webhookSecret");
     expect(JSON.stringify(stored.toJSON())).not.toContain("github-secret");
@@ -99,10 +100,14 @@ describe("CreateGitConnectionUseCase", () => {
   it("answers a duplicate (provider, kind) local source with 409, naming the existing one", async () => {
     // Mirrors `git_connections_user_provider_kind_unique` — hitting the index
     // itself would surface as a raw 500.
-    await sut.execute(input({ provider: "extractor", displayName: "First laptop" }));
+    await sut.execute(
+      input({ provider: "extractor", displayName: "First laptop" }),
+    );
 
     await expect(
-      sut.execute(input({ provider: "extractor", displayName: "Second laptop" })),
+      sut.execute(
+        input({ provider: "extractor", displayName: "Second laptop" }),
+      ),
     ).rejects.toMatchObject({
       statusCode: 409,
       message: expect.stringContaining("First laptop"),

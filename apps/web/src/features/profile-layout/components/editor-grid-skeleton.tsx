@@ -6,7 +6,7 @@ import { CanvasFrame } from "./canvas-frame";
 /** A block placeholder, in grid units — same shape as `blocksToRglLayout`. */
 export type SkeletonSpan = { w: number; h: number };
 
-type EditorGridSkeletonProps = {
+type EditorGridSkeletonProps = Readonly<{
   cols: number;
   /** Must match `EditorGrid`'s canvas clamp, or the zone jumps width on mount. */
   viewport?: ProfileViewport;
@@ -15,7 +15,7 @@ type EditorGridSkeletonProps = {
   /** Placeholder blocks, in grid units. */
   spans: SkeletonSpan[];
   label: string;
-};
+}>;
 
 /**
  * Stand-in for `EditorGrid` while the layout query is in flight.

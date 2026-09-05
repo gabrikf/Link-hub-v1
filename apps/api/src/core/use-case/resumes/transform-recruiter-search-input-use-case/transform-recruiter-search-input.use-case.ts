@@ -31,6 +31,88 @@ function clipTo(value: string, maxChars: number): string {
   return value.length <= maxChars ? value : value.slice(0, maxChars).trimEnd();
 }
 
+/**
+ * The degraded path, used when the LLM conversion fails: embed the recruiter's
+ * own words instead of nothing.
+ *
+ * It has to be clipped first — `attachmentText` alone accepts 100 000
+ * characters, and handing a whole job-description PDF to the embedding API is a
+ * hard 400 that surfaces to the recruiter as an uncaught 500 (defect F21).
+ * Better a slightly shorter query than no search at all.
+ */
+function buildFallbackSemanticQuery(
+  input: TransformRecruiterSearchInput,
+): string {
+  return clipTo(
+    [
+      input.query,
+      input.chatPrompt,
+      input.attachmentText
+        ? clipTo(
+            input.attachmentText,
+            RECRUITER_QUERY_FALLBACK_LIMITS.attachmentTextChars,
+          )
+        : undefined,
+      input.semanticSkills?.join(", "),
+      input.semanticTitles?.join(", "),
+    ]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .join("\n\n")
+      .trim(),
+    RECRUITER_QUERY_FALLBACK_LIMITS.totalChars,
+  );
+}
+
+/**
+ * Filter-only path: the recruiter typed nothing, so a compact semantic query is
+ * assembled from the structured signals instead — the vector search still needs
+ * meaningful input to embed.
+ */
+function buildFilterOnlySemanticQuery(
+  input: TransformRecruiterSearchInput,
+): string {
+  const wq = input.whereQuery ?? input.filters ?? {};
+  const parts: string[] = [];
+
+  if (input.semanticSkills?.length) {
+    parts.push(`Skills: ${input.semanticSkills.join(", ")}`);
+  }
+
+  if (input.semanticTitles?.length) {
+    parts.push(`Titles: ${input.semanticTitles.join(", ")}`);
+  }
+
+  if (wq.skills?.length) {
+    parts.push(`Required skills: ${wq.skills.join(", ")}`);
+  }
+
+  if (wq.titles?.length) {
+    parts.push(`Required titles: ${wq.titles.join(", ")}`);
+  }
+
+  if (wq.seniorityLevels?.length) {
+    parts.push(`Seniority: ${wq.seniorityLevels.join(", ")}`);
+  }
+
+  if (wq.workModels?.length) {
+    parts.push(`Work model: ${wq.workModels.join(", ")}`);
+  }
+
+  if (wq.contractTypes?.length) {
+    parts.push(`Contract: ${wq.contractTypes.join(", ")}`);
+  }
+
+  if (wq.locations?.length) {
+    parts.push(`Location: ${wq.locations.join(", ")}`);
+  }
+
+  if (wq.spokenLanguages?.length) {
+    parts.push(`Languages: ${wq.spokenLanguages.join(", ")}`);
+  }
+
+  return parts.join("\n");
+}
+
 export class TransformRecruiterSearchInputUseCase {
   constructor(
     private queryConversionProvider: IRecruiterQueryConversionProvider,
@@ -84,74 +166,10 @@ export class TransformRecruiterSearchInputUseCase {
           );
         semanticQuery = converted.semanticQuery.trim();
       } catch {
-        // Degraded path: the LLM is down, so the raw recruiter input is embedded
-        // directly. It has to be clipped first — `attachmentText` alone accepts
-        // 100 000 characters, and handing a whole job-description PDF to the
-        // embedding API is a hard 400 that surfaces to the recruiter as an
-        // uncaught 500 (defect F21). Better a slightly shorter query than no
-        // search at all.
-        semanticQuery = clipTo(
-          [
-            input.query,
-            input.chatPrompt,
-            input.attachmentText
-              ? clipTo(
-                  input.attachmentText,
-                  RECRUITER_QUERY_FALLBACK_LIMITS.attachmentTextChars,
-                )
-              : undefined,
-            input.semanticSkills?.join(", "),
-            input.semanticTitles?.join(", "),
-          ]
-            .filter((value): value is string => Boolean(value?.trim()))
-            .join("\n\n")
-            .trim(),
-          RECRUITER_QUERY_FALLBACK_LIMITS.totalChars,
-        );
+        semanticQuery = buildFallbackSemanticQuery(input);
       }
     } else {
-      // Filter-only path: build a compact semantic query from available signals
-      // so the vector search still has meaningful input to embed.
-      const wq = input.whereQuery ?? input.filters ?? {};
-      const parts: string[] = [];
-
-      if (input.semanticSkills?.length) {
-        parts.push(`Skills: ${input.semanticSkills.join(", ")}`);
-      }
-
-      if (input.semanticTitles?.length) {
-        parts.push(`Titles: ${input.semanticTitles.join(", ")}`);
-      }
-
-      if (wq.skills?.length) {
-        parts.push(`Required skills: ${wq.skills.join(", ")}`);
-      }
-
-      if (wq.titles?.length) {
-        parts.push(`Required titles: ${wq.titles.join(", ")}`);
-      }
-
-      if (wq.seniorityLevels?.length) {
-        parts.push(`Seniority: ${wq.seniorityLevels.join(", ")}`);
-      }
-
-      if (wq.workModels?.length) {
-        parts.push(`Work model: ${wq.workModels.join(", ")}`);
-      }
-
-      if (wq.contractTypes?.length) {
-        parts.push(`Contract: ${wq.contractTypes.join(", ")}`);
-      }
-
-      if (wq.locations?.length) {
-        parts.push(`Location: ${wq.locations.join(", ")}`);
-      }
-
-      if (wq.spokenLanguages?.length) {
-        parts.push(`Languages: ${wq.spokenLanguages.join(", ")}`);
-      }
-
-      semanticQuery = parts.join("\n");
+      semanticQuery = buildFilterOnlySemanticQuery(input);
     }
 
     if (!semanticQuery) {

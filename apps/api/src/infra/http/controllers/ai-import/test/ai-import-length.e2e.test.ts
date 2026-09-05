@@ -128,7 +128,7 @@ describe("AI import E2E — resume text length", () => {
     // Pins the boundary so the fix cannot be off by one.
     expect(response.statusCode).toBe(200);
     expect(parsingProvider.calls).toHaveLength(1);
-    expect(parsingProvider.calls[0].resumeText).toHaveLength(CAP);
+    expect(parsingProvider.calls[0]?.resumeText).toHaveLength(CAP);
   });
 
   it("still refuses a paste under the minimum, with its own message", async () => {

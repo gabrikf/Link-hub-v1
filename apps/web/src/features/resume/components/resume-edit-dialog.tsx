@@ -59,7 +59,7 @@ type ResumeFormValues = {
   titles: TitleRow[];
 };
 
-type ResumeEditDialogProps = {
+type ResumeEditDialogProps = Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
   resume: ResumeResponse | null;
@@ -73,7 +73,7 @@ type ResumeEditDialogProps = {
   onSaveTitlesBulk: (payload: BulkResumeTitlesInput) => Promise<void>;
   onCreateSkillCatalogItem: (name: string) => Promise<CatalogItem>;
   onCreateTitleCatalogItem: (name: string) => Promise<CatalogItem>;
-};
+}>;
 
 /*
  * These catalogues take `t` rather than closing over the i18next singleton.
@@ -83,7 +83,9 @@ type ResumeEditDialogProps = {
  * carried on the value react-hook-form already holds — stayed in the old
  * language until a full reload. Threading `t` through keeps both sides live.
  */
-const getBooleanOptions = (t: TFunction): BooleanOption[] => [
+// A fixed pair, not a list: the two entries are indexed directly below, and
+// the tuple is what makes those reads safe under `noUncheckedIndexedAccess`.
+const getBooleanOptions = (t: TFunction): [BooleanOption, BooleanOption] => [
   { value: "yes", label: t("common.yes") },
   { value: "no", label: t("common.no") },
 ];
@@ -517,7 +519,9 @@ export function ResumeEditDialog({
             <Button
               type="button"
               fullWidth={false}
-              onClick={handleSave}
+              onClick={() => {
+                void handleSave();
+              }}
               isLoading={isSavingAny}
               loadingLabel={t("common.saving")}
             >
@@ -642,7 +646,9 @@ export function ResumeEditDialog({
               isCreatable
               isMulti
               closeMenuOnSelect={false}
-              onCreateOption={handleCreateSkillOption}
+              onCreateOption={(inputValue) => {
+                void handleCreateSkillOption(inputValue);
+              }}
               helperText={t("resume.skillsHelp")}
             />
 
@@ -709,7 +715,9 @@ export function ResumeEditDialog({
               isCreatable
               isMulti
               closeMenuOnSelect={false}
-              onCreateOption={handleCreateTitleOption}
+              onCreateOption={(inputValue) => {
+                void handleCreateTitleOption(inputValue);
+              }}
               helperText={t("resume.titlesHelp")}
             />
 
@@ -772,7 +780,9 @@ export function ResumeEditDialog({
               type="button"
               variant="soft"
               fullWidth={false}
-              onClick={handleSaveAndClose}
+              onClick={() => {
+                void handleSaveAndClose();
+              }}
               isLoading={isSavingAny}
               loadingLabel={t("common.saving")}
             >
@@ -885,6 +895,9 @@ function isSameSkillRows(current: SkillRow[], next: SkillRow[]) {
 
   return current.every((row, index) => {
     const other = next[index];
+    if (!other) {
+      return false;
+    }
 
     return (
       row.skillId === other.skillId &&
@@ -901,6 +914,9 @@ function isSameTitleRows(current: TitleRow[], next: TitleRow[]) {
 
   return current.every((row, index) => {
     const other = next[index];
+    if (!other) {
+      return false;
+    }
 
     return (
       row.titleId === other.titleId &&

@@ -34,7 +34,9 @@ describe("ListApiTokensUseCase", () => {
 
     expect(result).toHaveLength(2);
     expect(result.every((t) => t.userId === "user-1")).toBe(true);
-    expect(result.map((t) => t.name).sort()).toEqual(["mine-a", "mine-b"]);
+    expect(
+      result.map((t) => t.name).sort((a, b) => a.localeCompare(b)),
+    ).toEqual(["mine-a", "mine-b"]);
   });
 
   it("returns an empty list when the user has no tokens", async () => {

@@ -7,7 +7,7 @@ import {
 
 // Input schema for creating a user
 export const createUserSchemaInput = z.object({
-  email: z.string().email("Invalid email format"),
+  email: z.email("Invalid email format"),
   /**
    * `login` is the public profile URL. Since `/:username` replaced
    * `/profile/:username`, a login that collides with an application route

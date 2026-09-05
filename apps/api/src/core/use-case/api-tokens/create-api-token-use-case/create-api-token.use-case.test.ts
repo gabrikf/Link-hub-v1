@@ -5,6 +5,7 @@ import { InMemoryApiTokenRepository } from "../../../repositories/api-token/in-m
 import { InMemoryUsersRepository } from "../../../repositories/user/in-memory-users-repository.js";
 import { CryptoTokenProvider } from "../../../../infra/providers/crypto-token-provider.js";
 import { CreateApiTokenUseCase } from "./create-api-token.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 describe("CreateApiTokenUseCase", () => {
   let apiTokenRepository: InMemoryApiTokenRepository;
@@ -49,7 +50,8 @@ describe("CreateApiTokenUseCase", () => {
     // The plaintext must never be persisted; only the sha256 hash is stored.
     expect(result).not.toHaveProperty("tokenHash");
 
-    const [stored] = apiTokenRepository.getAll();
+    const [storedToken] = apiTokenRepository.getAll();
+    const stored = expectDefined(storedToken, "the stored api token");
     expect(stored.tokenHash).toBe(tokenProvider.hash(result.token));
     expect(stored.tokenHash).not.toBe(result.token);
   });

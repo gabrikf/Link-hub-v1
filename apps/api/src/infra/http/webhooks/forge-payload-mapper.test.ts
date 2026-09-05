@@ -5,6 +5,7 @@ import {
   mapGitlabDelivery,
   toDateOnly,
 } from "./forge-payload-mapper.js";
+import { expectDefined } from "../../../test-support/expect-defined.js";
 
 const RECEIVED_AT = new Date("2026-08-14T09:00:00.000Z");
 
@@ -37,12 +38,13 @@ describe("mapGithubDelivery", () => {
   };
 
   it("maps a push to a commit event carrying the repo in the clear for hashing", () => {
-    const [event] = mapGithubDelivery(
+    const [mappedEvent] = mapGithubDelivery(
       "push",
       pushPayload,
       "octocat",
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped github event");
 
     expect(event.kind).toBe("commit");
     expect(event.repo).toBe("https://github.com/acme/rocket");
@@ -55,12 +57,13 @@ describe("mapGithubDelivery", () => {
       default_branch: pushPayload.repository.default_branch,
     };
 
-    const [event] = mapGithubDelivery(
+    const [mappedEvent] = mapGithubDelivery(
       "push",
       { ...pushPayload, repository: bareRepository },
       "octocat",
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped github event");
 
     expect(event.repo).toBe("https://github.com/acme/rocket");
   });
@@ -70,21 +73,26 @@ describe("mapGithubDelivery", () => {
     // hashed locally from `git@github.com:acme/rocket.git` must land on ONE
     // fingerprint. A bare "acme/rocket" would take the local-path branch of
     // `normalizeRepoIdentity` and resolve against process.cwd().
-    const [withUrl] = mapGithubDelivery(
+    const [mappedWithUrl] = mapGithubDelivery(
       "push",
       pushPayload,
       "octocat",
       RECEIVED_AT,
     );
+    const withUrl = expectDefined(mappedWithUrl, "the mapped github event");
     const bareRepository = {
       full_name: pushPayload.repository.full_name,
       default_branch: pushPayload.repository.default_branch,
     };
-    const [synthesized] = mapGithubDelivery(
+    const [mappedSynthesized] = mapGithubDelivery(
       "push",
       { ...pushPayload, repository: bareRepository },
       "octocat",
       RECEIVED_AT,
+    );
+    const synthesized = expectDefined(
+      mappedSynthesized,
+      "the mapped github event",
     );
 
     const expected = repoFingerprintInput("git@github.com:acme/rocket.git");
@@ -93,12 +101,13 @@ describe("mapGithubDelivery", () => {
   });
 
   it("derives occurredOn as a DATE, discarding the hour and the offset", () => {
-    const [event] = mapGithubDelivery(
+    const [mappedEvent] = mapGithubDelivery(
       "push",
       pushPayload,
       "octocat",
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped github event");
 
     expect(event.occurredOn).toBe("2026-08-13");
     expect(JSON.stringify(event)).not.toContain("23:41");
@@ -106,12 +115,13 @@ describe("mapGithubDelivery", () => {
   });
 
   it("keeps branch names, commit messages and file paths out of the mapped event", () => {
-    const [event] = mapGithubDelivery(
+    const [mappedEvent] = mapGithubDelivery(
       "push",
       pushPayload,
       "octocat",
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped github event");
 
     const serialized = JSON.stringify(event);
     expect(serialized).not.toContain("refs/heads/main");
@@ -121,24 +131,26 @@ describe("mapGithubDelivery", () => {
   });
 
   it("reports a non-default branch without naming it", () => {
-    const [event] = mapGithubDelivery(
+    const [mappedEvent] = mapGithubDelivery(
       "push",
       { ...pushPayload, ref: "refs/heads/feat/secret-codename" },
       "octocat",
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped github event");
 
     expect(event.payload).toHaveProperty("onDefaultBranch", false);
     expect(JSON.stringify(event)).not.toContain("secret-codename");
   });
 
   it("lists other commit authors as counterparties and excludes the owner", () => {
-    const [event] = mapGithubDelivery(
+    const [mappedEvent] = mapGithubDelivery(
       "push",
       pushPayload,
       "octocat",
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped github event");
 
     expect(event.counterparties).toEqual(["collaborator"]);
   });
@@ -167,12 +179,13 @@ describe("mapGithubDelivery", () => {
       },
     };
 
-    const [merged] = mapGithubDelivery(
+    const [mappedMerged] = mapGithubDelivery(
       "pull_request",
       base,
       "octocat",
       RECEIVED_AT,
     );
+    const merged = expectDefined(mappedMerged, "the mapped github event");
     expect(merged.kind).toBe("pull_request_merged");
     expect(merged.occurredOn).toBe("2026-08-12");
     expect(merged.counterparties).toEqual(["maintainer"]);
@@ -199,22 +212,24 @@ describe("mapGithubDelivery", () => {
       pull_request: { user: { login: "someone-else" } },
     };
 
-    const [given] = mapGithubDelivery(
+    const [mappedGiven] = mapGithubDelivery(
       "pull_request_review",
       payload,
       "octocat",
       RECEIVED_AT,
     );
+    const given = expectDefined(mappedGiven, "the mapped github event");
     expect(given.kind).toBe("review_submitted");
     expect(given.actorIsOwner).toBe(true);
     expect(given.counterparties).toEqual(["someone-else"]);
 
-    const [received] = mapGithubDelivery(
+    const [mappedReceived] = mapGithubDelivery(
       "pull_request_review",
       payload,
       "someone-else",
       RECEIVED_AT,
     );
+    const received = expectDefined(mappedReceived, "the mapped github event");
     expect(received.kind).toBe("review_received");
     expect(received.actorIsOwner).toBe(false);
     expect(received.counterparties).toEqual(["octocat"]);
@@ -257,7 +272,7 @@ describe("mapGitlabDelivery", () => {
   };
 
   it("prefers web_url so self-hosted instances keep their real host, and synthesizes gitlab.com otherwise", () => {
-    const [fromUrl] = mapGitlabDelivery(
+    const [mappedFromUrl] = mapGitlabDelivery(
       "Push Hook",
       {
         ...cappedPush,
@@ -269,13 +284,18 @@ describe("mapGitlabDelivery", () => {
       null,
       RECEIVED_AT,
     );
+    const fromUrl = expectDefined(mappedFromUrl, "the mapped gitlab event");
     expect(fromUrl.repo).toBe("https://gitlab.example.com/acme/rocket");
 
-    const [synthesized] = mapGitlabDelivery(
+    const [mappedSynthesized] = mapGitlabDelivery(
       "Push Hook",
       cappedPush,
       null,
       RECEIVED_AT,
+    );
+    const synthesized = expectDefined(
+      mappedSynthesized,
+      "the mapped gitlab event",
     );
     expect(synthesized.repo).toBe("https://gitlab.com/acme/rocket");
     // Parity with the extractor's clone-URL hashing for the same project.
@@ -285,12 +305,13 @@ describe("mapGitlabDelivery", () => {
   });
 
   it("uses total_commits_count, not the capped commits array", () => {
-    const [event] = mapGitlabDelivery(
+    const [mappedEvent] = mapGitlabDelivery(
       "Push Hook",
       cappedPush,
       null,
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped gitlab event");
 
     expect(event.payload).toHaveProperty("commitCount", 57);
     expect(event.payload).not.toHaveProperty("commitCount", 20);
@@ -305,18 +326,19 @@ describe("mapGitlabDelivery", () => {
       commits: cappedPush.commits,
     };
 
-    const [event] = mapGitlabDelivery(
+    const [mappedEvent] = mapGitlabDelivery(
       "Push Hook",
       withoutCount,
       null,
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped gitlab event");
 
     expect(event.payload).toHaveProperty("commitCount", 20);
   });
 
   it("takes counterparties from commit author EMAIL, since GitLab has no username there", () => {
-    const [event] = mapGitlabDelivery(
+    const [mappedEvent] = mapGitlabDelivery(
       "Push Hook",
       {
         ...cappedPush,
@@ -334,6 +356,7 @@ describe("mapGitlabDelivery", () => {
       null,
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped gitlab event");
 
     // The pusher's own address is not a counterparty; the other author is, and
     // it leaves here in the clear for the use case to fingerprint.
@@ -352,12 +375,13 @@ describe("mapGitlabDelivery", () => {
       },
     };
 
-    const [event] = mapGitlabDelivery(
+    const [mappedEvent] = mapGitlabDelivery(
       "Merge Request Hook",
       payload,
       "dev",
       RECEIVED_AT,
     );
+    const event = expectDefined(mappedEvent, "the mapped gitlab event");
     expect(event.kind).toBe("pull_request_merged");
     expect(event.occurredOn).toBe("2026-08-10");
     expect(JSON.stringify(event)).not.toContain("Internal rework");

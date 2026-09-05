@@ -473,9 +473,9 @@ function scoreYearsHint(
   queryText: string,
   totalYearsExperience: number | null,
 ): number {
-  const yearsHint = queryText
-    .toLowerCase()
-    .match(/(\d{1,2})\s*(?:\+\s*)?(years|year|yrs|ano|anos)/);
+  const yearsHint = /(\d{1,2})\s*(?:\+\s*)?(years|year|yrs|ano|anos)/.exec(
+    queryText.toLowerCase(),
+  );
 
   if (!yearsHint || totalYearsExperience === null) {
     return 0;

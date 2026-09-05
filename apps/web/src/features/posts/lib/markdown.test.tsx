@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Markdown, markdownExcerpt, markdownToHtml } from "./markdown";
+import { Markdown } from "../components/markdown";
+import { markdownExcerpt, markdownToHtml } from "./markdown";
 
 describe("markdownToHtml — XSS safety", () => {
   it("escapes a raw <script> tag so no live element is emitted", () => {
@@ -32,6 +33,38 @@ describe("markdownToHtml — XSS safety", () => {
     expect(html).toContain('rel="noreferrer"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain(">x</a>");
+  });
+
+  /**
+   * A link label stops at the next `[`, the way CommonMark reads it: the stray
+   * opening bracket stays prose. The old pattern let the label swallow it,
+   * which also made the scan quadratic in the length of a paragraph — a body
+   * may be 20 000 characters, and rendering happens on the public profile.
+   */
+  it("leaves a stray opening bracket as prose and links only the label", () => {
+    const html = markdownToHtml("TODO [check [docs](https://ok.com)");
+    expect(html).toContain("TODO [check ");
+    expect(html).toContain(">docs</a>");
+    expect(html).not.toContain(">check [docs</a>");
+  });
+
+  it("renders a link label containing a bracket pair as plain text", () => {
+    const html = markdownToHtml("[a[b]c](https://ok.com)");
+    expect(html).not.toContain("<a ");
+    expect(html).toContain("[a[b]c]");
+  });
+
+  /**
+   * Code spans are parked behind a placeholder while the inline passes run.
+   * The placeholder must be unforgeable, or a body could name a code span it
+   * does not own — `escapeHtml` rewrites every `&` to `&amp;` first, so the
+   * `&CODE0;` a user types can never come back out as one.
+   */
+  it("does not let a body forge the code-span placeholder", () => {
+    const html = markdownToHtml("&CODE0; and `real`");
+    expect(html).toContain("&amp;CODE0;");
+    expect(html).toMatch(/<code[^>]*>real<\/code>/);
+    expect(html).not.toContain("undefined");
   });
 
   it("does not execute or emit a script element when rendered via <Markdown>", () => {
@@ -160,7 +193,9 @@ describe("markdownToHtml — resume bullet glyphs", () => {
   });
 
   it("mixes a lead-in paragraph with a bullet list", () => {
-    const html = markdownToHtml("Payments lead.\n\n• Rebuilt the ledger\n• Halved chargebacks");
+    const html = markdownToHtml(
+      "Payments lead.\n\n• Rebuilt the ledger\n• Halved chargebacks",
+    );
 
     expect(html).toContain("<p>Payments lead.</p>");
     expect(html).toMatch(/<ul[^>]*>/);
@@ -171,9 +206,7 @@ describe("markdownToHtml — resume bullet glyphs", () => {
     const html = markdownToHtml("• one\n\nclosing thought");
 
     expect(html).toContain("</ul>");
-    expect(html.indexOf("</ul>")).toBeLessThan(
-      html.indexOf("closing thought"),
-    );
+    expect(html.indexOf("</ul>")).toBeLessThan(html.indexOf("closing thought"));
   });
 });
 

@@ -183,9 +183,8 @@ export function useDigestPreview(
 
 function useInvalidateConnections() {
   const queryClient = useQueryClient();
-  return () => {
+  return () =>
     queryClient.invalidateQueries({ queryKey: connectionQueryKeys.mine });
-  };
 }
 
 /**
@@ -202,8 +201,9 @@ async function patchMyConnections(
   const previous = queryClient.getQueryData<GitConnection[]>(
     connectionQueryKeys.mine,
   );
-  queryClient.setQueryData<GitConnection[]>(connectionQueryKeys.mine, (current) =>
-    current ? fn(current) : current,
+  queryClient.setQueryData<GitConnection[]>(
+    connectionQueryKeys.mine,
+    (current) => (current ? fn(current) : current),
   );
   return previous;
 }
@@ -225,7 +225,8 @@ function rollbackMyConnections(
 export function useCreateConnection() {
   const invalidate = useInvalidateConnections();
   return useMutation({
-    mutationFn: (payload: CreateGitConnectionInput) => createConnection(payload),
+    mutationFn: (payload: CreateGitConnectionInput) =>
+      createConnection(payload),
     onSuccess: invalidate,
   });
 }

@@ -26,11 +26,11 @@ import { EnforcementGrid, ExamplePostsGrid } from "./safety-explainers";
 import { SnippetBlock } from "./snippet-block";
 import { ToolTabs } from "./tool-tabs";
 
-type StepProps = {
+type StepProps = Readonly<{
   index: number;
   title: string;
   children: ReactNode;
-};
+}>;
 
 /** Numbered step wrapper so the whole panel reads as one ordered flow. */
 function Step({ index, title, children }: StepProps) {
@@ -79,10 +79,10 @@ const getCollectedFacts = (
   },
 ];
 
-type ConnectPanelProps = {
+type ConnectPanelProps = Readonly<{
   /** The most recently created plaintext token, if any, to pre-fill snippets. */
   token: string | null;
-};
+}>;
 
 export function ConnectPanel({ token }: ConnectPanelProps) {
   const { t } = useTranslation();

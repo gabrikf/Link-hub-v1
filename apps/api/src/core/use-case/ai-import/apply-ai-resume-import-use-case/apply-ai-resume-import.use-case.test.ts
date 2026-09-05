@@ -31,19 +31,32 @@ function countingProxy<T extends object>(
   counts: Map<string, number>,
 ): T {
   return new Proxy(target, {
-    get(obj, prop, receiver) {
-      const value = Reflect.get(obj, prop, receiver);
+    get(obj, prop, receiver): unknown {
+      const value: unknown = Reflect.get(obj, prop, receiver);
 
-      if (typeof value !== "function") {
-        return value;
-      }
-
-      return (...args: unknown[]) => {
-        counts.set(String(prop), (counts.get(String(prop)) ?? 0) + 1);
-        return (value as (...a: unknown[]) => unknown).apply(obj, args);
-      };
+      return typeof value === "function"
+        ? countedCall(value as CountableMethod, obj, String(prop), counts)
+        : value;
     },
   });
+}
+
+type CountableMethod = (...args: unknown[]) => unknown;
+
+/**
+ * Wraps one repository method so that every call bumps its counter, and
+ * otherwise forwards arguments, `this` and the return value untouched.
+ */
+function countedCall(
+  method: CountableMethod,
+  self: object,
+  name: string,
+  counts: Map<string, number>,
+): CountableMethod {
+  return (...args: unknown[]) => {
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+    return method.apply(self, args);
+  };
 }
 
 function makeSut() {
@@ -173,7 +186,7 @@ describe("ApplyAiResumeImportUseCase", () => {
 
     expect(react).toHaveLength(1);
     // The pre-existing catalog name wins; the import does not rewrite it.
-    expect(react[0].name).toBe("React");
+    expect(react[0]?.name).toBe("React");
   });
 
   it("skips skills the resume already has and continues the display order", async () => {

@@ -85,7 +85,7 @@ export const validationErrorResponseSchema = errorResponseSchema.extend({
  */
 export function commonErrorResponses(
   errorTypes: Array<keyof typeof errorSchemas>,
-): Record<number, z.ZodSchema> {
+): Record<number, z.ZodType> {
   const statusCodeMap = {
     badRequest: 400,
     unauthorized: 401,
@@ -96,7 +96,7 @@ export function commonErrorResponses(
     internalServerError: 500,
   };
 
-  const responses: Record<number, z.ZodSchema> = {};
+  const responses: Record<number, z.ZodType> = {};
 
   for (const errorType of errorTypes) {
     const statusCode = statusCodeMap[errorType];

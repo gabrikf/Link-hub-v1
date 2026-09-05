@@ -20,10 +20,11 @@ export class OAuthSignInUseCase {
   ) {}
 
   private createLoginFromEmail(email: string): string {
-    return email
-      .split("@")[0]
-      .replace(/[^a-zA-Z0-9_.-]/g, "")
-      .toLowerCase();
+    // `split` always yields at least one element, so the default never fires —
+    // it is how that is stated to the compiler without asserting it.
+    const [localPart = ""] = email.split("@");
+
+    return localPart.replace(/[^a-zA-Z0-9_.-]/g, "").toLowerCase();
   }
 
   /**

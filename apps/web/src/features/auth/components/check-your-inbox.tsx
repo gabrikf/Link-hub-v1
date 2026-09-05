@@ -6,8 +6,8 @@ import { ResendVerification } from "./resend-verification";
 
 type CheckYourInboxProps = {
   /** The address the account was created with — shown so a typo is visible. */
-  email: string;
-  onBackToSignIn: () => void;
+  readonly email: string;
+  readonly onBackToSignIn: () => void;
 };
 
 /**

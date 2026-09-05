@@ -17,8 +17,14 @@ import {
   FiYoutube,
 } from "react-icons/fi";
 
+export type ButtonIconOption = {
+  value: string;
+  labelKey: string;
+  Icon: IconType;
+};
+
 /** Curated react-icons/fi set offered for button blocks. */
-const BUTTON_ICON_DATA: { value: string; labelKey: string; Icon: IconType }[] = [
+const BUTTON_ICON_DATA: ButtonIconOption[] = [
   { value: "FiArrowRight", labelKey: "enum.icon.arrow", Icon: FiArrowRight },
   { value: "FiDownload", labelKey: "enum.icon.download", Icon: FiDownload },
   {
@@ -49,15 +55,23 @@ export function getButtonIconOptions(
   }));
 }
 
-const BUTTON_ICONS_BY_NAME = new Map(
-  BUTTON_ICON_DATA.map((option) => [option.value, option.Icon]),
+const BUTTON_ICON_OPTIONS_BY_VALUE = new Map<string, ButtonIconOption>(
+  BUTTON_ICON_DATA.map((option) => [option.value, option]),
 );
 
-export function getButtonIcon(name: string | null | undefined): IconType | undefined {
+/**
+ * Resolve a stored icon name to its curated option, exactly as
+ * `getLinkIconOption` does for link icons: the option is the module-level
+ * record itself, so callers render the component off it (`<option.Icon />`)
+ * instead of holding a bare component value in a local.
+ */
+export function getButtonIconOption(
+  name: string | null | undefined,
+): ButtonIconOption | undefined {
   if (!name) {
     return undefined;
   }
-  return BUTTON_ICONS_BY_NAME.get(name);
+  return BUTTON_ICON_OPTIONS_BY_VALUE.get(name);
 }
 
 /** Accent palette offered for button blocks (tailwind color tokens). */

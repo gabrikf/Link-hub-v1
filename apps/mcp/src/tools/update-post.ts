@@ -9,7 +9,7 @@ import type { CraftHubApiClient } from "../api-client.js";
 import { describePost, errorResult, runTool, textResult } from "./shared.js";
 
 const inputSchema = {
-  id: z.string().uuid().describe("The id of the post to update. Required."),
+  id: z.uuid().describe("The id of the post to update. Required."),
   title: z.string().min(1).optional().describe("New title."),
   body: z.string().min(1).optional().describe("New Markdown body."),
   coverImageUrl: httpUrlSchema.optional().describe("New cover image URL."),

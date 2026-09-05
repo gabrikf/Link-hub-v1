@@ -1,5 +1,3 @@
-import type { AiQuotaOperation } from "../../../infra/config/app-config.js";
-
 /**
  * Per-user, per-day budget for the two routes that spend OpenAI credits.
  *
@@ -7,11 +5,19 @@ import type { AiQuotaOperation } from "../../../infra/config/app-config.js";
  * only "this identity has already asked N times today" — so the concrete
  * implementation lives in `infra/providers` (Redis) and the `InMemory*` variant
  * next door stands in for it in tests.
- *
- * `AiQuotaOperation` is imported as a type from the config module because that
- * is where the operations and their limits are declared together; nothing at
- * runtime crosses the boundary.
  */
+
+/**
+ * The operations a quota is charged against.
+ *
+ * Declared HERE, beside the port that consumes it, rather than next to the
+ * limits in `infra/config/app-config.ts`. The vocabulary belongs to the
+ * interface: core names the operations, infra decides what each one costs.
+ * `app-config.ts` imports this and re-exports it, so its
+ * `satisfies Record<AiQuotaOperation, number>` still keeps the limits and the
+ * operations in lockstep — and no consumer had to move.
+ */
+export type AiQuotaOperation = "resume_parse" | "recruiter_search";
 
 export type AiQuotaConsumption = {
   allowed: boolean;

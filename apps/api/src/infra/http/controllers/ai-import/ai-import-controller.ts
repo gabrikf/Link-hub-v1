@@ -15,8 +15,10 @@ import { aiQuotaGuard } from "../../middleware/ai-quota-guard.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
 import { resumesSubmittedTotal } from "../../../observability/metrics.js";
 import { extractSearchAttachmentText } from "../../utils/extract-search-attachment-text.js";
+import { formFieldText } from "../../utils/form-field-text.js";
 import { ParseResumeUseCase } from "../../../../core/use-case/ai-import/parse-resume-use-case/parse-resume.use-case.js";
 import { ApplyAiResumeImportUseCase } from "../../../../core/use-case/ai-import/apply-ai-resume-import-use-case/apply-ai-resume-import.use-case.js";
+import { toAsyncHook } from "../../to-async-hook.js";
 
 const MIN_RESUME_TEXT_LENGTH = 20;
 
@@ -90,14 +92,16 @@ export class AiImportController {
         // reached the model and is not a submission.
         resumesSubmittedTotal.add(1);
 
-        reply.status(200).send({ parsed: parsedResumeDataSchema.parse(parsed) });
+        reply
+          .status(200)
+          .send({ parsed: parsedResumeDataSchema.parse(parsed) });
       },
     );
 
     app.post(
       "/me/resume/ai-import/apply",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["AI Import"],
           summary: "Apply a reviewed AI-extracted profile to the database",
@@ -117,10 +121,9 @@ export class AiImportController {
         request: FastifyRequest<{ Body: ApplyAiResumeImportInput }>,
         reply,
       ) => {
-        const applyAiResumeImportUseCase =
-          resolve<ApplyAiResumeImportUseCase>(
-            TOKENS.ApplyAiResumeImportUseCase,
-          );
+        const applyAiResumeImportUseCase = resolve<ApplyAiResumeImportUseCase>(
+          TOKENS.ApplyAiResumeImportUseCase,
+        );
 
         const result = await applyAiResumeImportUseCase.execute({
           userId: request.user!.id,
@@ -159,7 +162,7 @@ async function resolveResumeText(request: FastifyRequest): Promise<string> {
       }
 
       if (part.fieldname === "resumeText") {
-        fieldText = String(part.value ?? "");
+        fieldText = formFieldText(part.value) ?? "";
       }
     }
 

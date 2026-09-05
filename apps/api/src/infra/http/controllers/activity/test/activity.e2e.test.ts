@@ -18,6 +18,7 @@ import {
   buildTestApp,
   type TestAppHandles,
 } from "../../../test-support/build-test-app.js";
+import { expectDefined } from "../../../../../test-support/expect-defined.js";
 
 const JSON_HEADERS = { "content-type": "application/json" };
 
@@ -161,9 +162,12 @@ describe("Activity E2E — connections CRUD (JWT only)", () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    expect(list.json().map((row: { kind: string }) => row.kind).sort()).toEqual(
-      ["mixed", "personal", "work"],
-    );
+    expect(
+      list
+        .json()
+        .map((row: { kind: string }) => row.kind)
+        .sort(),
+    ).toEqual(["mixed", "personal", "work"]);
   });
 
   it("lists only the caller's own connections", async () => {
@@ -482,7 +486,8 @@ describe("Activity E2E — POST /me/activity", () => {
       }),
     });
 
-    const [stored] = ctx.activityEventRepository.items;
+    const [storedEvent] = ctx.activityEventRepository.items;
+    const stored = expectDefined(storedEvent, "the stored activity event");
     // The extractor's prefixed-and-normalized form, not a bare sha256 of the
     // clear value — parity is what keeps webhook and extractor events deduped.
     expect(stored.repoFingerprint).toBe(

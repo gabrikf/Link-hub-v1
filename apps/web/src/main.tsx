@@ -46,7 +46,11 @@ const Devtools = import.meta.env.DEV
   ? lazy(() => import("./shared-components/devtools"))
   : null;
 
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+// Vite types every `VITE_*` key through an `any` index signature, so this is
+// read as `unknown` and narrowed before it reaches `GoogleOAuthProvider`.
+const rawGoogleClientId: unknown = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const googleClientId =
+  typeof rawGoogleClientId === "string" ? rawGoogleClientId : undefined;
 
 /*
  * The router mounts INSIDE the gate on purpose. `router.tsx`'s `beforeLoad`

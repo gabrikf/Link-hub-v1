@@ -52,6 +52,9 @@ export function formatWorkMonth(
   }
 
   const year = match[1];
+  if (year === undefined) {
+    return null;
+  }
   const monthIndex = Number(match[2]) - 1;
   const monthKey = MONTH_KEYS[monthIndex];
   if (!monthKey) {

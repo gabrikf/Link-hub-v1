@@ -16,17 +16,10 @@ import {
   FOCUS_RING,
   SURFACE_INSET,
 } from "../../../../shared-components/surface";
-import {
-  mixedKindHelper,
-  mixedKindRule,
-} from "../../lib/connection-format";
+import { mixedKindHelper, mixedKindRule } from "../../lib/connection-format";
 import { DISCLOSURE_PANEL_ID } from "../disclosure-panel";
-import {
-  Segmented,
-  WizardFieldSelect,
-  type ForgeProvider,
-  type WizardSourceKey,
-} from "./wizard-shared";
+import { Segmented, WizardFieldSelect } from "./wizard-controls";
+import type { ForgeProvider, WizardSourceKey } from "./wizard-vocabulary";
 
 const cx = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
@@ -94,6 +87,197 @@ function getSourceCards(t: TFunction): SourceCardDef[] {
   ];
 }
 
+type SourceCardButtonProps = {
+  card: SourceCardDef;
+  isSelected: boolean;
+  onSelect: (key: WizardSourceKey) => void;
+};
+
+/**
+ * One selectable source card. Extracted from `SourceStep` so the step body
+ * stays readable: the badges alone carry most of its branching.
+ */
+function SourceCardButton({
+  card,
+  isSelected,
+  onSelect,
+}: Readonly<SourceCardButtonProps>) {
+  const { t } = useTranslation();
+  const Icon = card.icon;
+  return (
+    <button
+      type="button"
+      aria-pressed={isSelected}
+      onClick={() => onSelect(card.key)}
+      className={cx(
+        "flex flex-col gap-2 rounded-xl border p-3 text-left transition",
+        FOCUS_RING,
+        isSelected
+          ? "border-violet-500 bg-violet-50/60 dark:border-violet-500/70 dark:bg-violet-500/10"
+          : "border-zinc-200 bg-white hover:border-violet-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-violet-500/50",
+      )}
+    >
+      <span className="flex flex-wrap items-center gap-2">
+        <Icon
+          className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400"
+          aria-hidden="true"
+        />
+        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {card.title}
+        </span>
+        {card.recommended ? (
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BADGE.success}`}
+          >
+            {t("wizard.source.recommended")}
+          </span>
+        ) : null}
+        {/* The honest headline: only two of the four sources can put a
+            post on your profile without help from another one. */}
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            card.postsOnItsOwn ? BADGE.success : BADGE.neutral
+          }`}
+        >
+          {card.postsOnItsOwn
+            ? t("wizard.source.postsOnItsOwn")
+            : t("wizard.source.addsContext")}
+        </span>
+      </span>
+      <span className="text-xs text-zinc-600 dark:text-zinc-400">
+        {card.description}
+      </span>
+      <span className="text-xs text-zinc-500 dark:text-zinc-500">
+        {card.privacy}
+      </span>
+      {card.needsDevMachine ? (
+        // Phone users can walk the whole wizard; only the paste-into-
+        // a-config part needs the machine the tool runs on.
+        <span
+          className={`mt-auto inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE.neutral}`}
+        >
+          <FiMonitor className="h-3 w-3" aria-hidden="true" />
+          {t("wizard.source.needsDevMachine")}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+type SourceDetailsProps = {
+  kind: GitConnectionKind;
+  onKindChange: (kind: GitConnectionKind) => void;
+  workExperienceId: string | null;
+  onWorkExperienceChange: (id: string | null) => void;
+  roles: WorkExperienceResponse[];
+  displayName: string;
+  onDisplayNameChange: (value: string) => void;
+  displayNameError: string | null;
+};
+
+/**
+ * Kind, employer and display name for a source that does create a connection.
+ * Extracted from `SourceStep` so the step body reads as the four questions it
+ * asks rather than as one nest of conditionals.
+ */
+function SourceDetails({
+  kind,
+  onKindChange,
+  workExperienceId,
+  onWorkExperienceChange,
+  roles,
+  displayName,
+  onDisplayNameChange,
+  displayNameError,
+}: Readonly<SourceDetailsProps>) {
+  const { t } = useTranslation();
+  return (
+    <div className={`space-y-3 p-4 ${SURFACE_INSET}`}>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm text-zinc-700 dark:text-zinc-300">
+          {t("settings.connectionDialog.thisActivityIs")}
+        </span>
+        <Segmented
+          label={t("wizard.source.activityKind")}
+          value={kind}
+          options={[
+            { value: "personal", label: t("common.personal") },
+            { value: "work", label: t("common.work") },
+            { value: "mixed", label: t("common.both") },
+          ]}
+          onChange={(value) => onKindChange(value)}
+        />
+      </div>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        {mixedKindHelper()}
+      </p>
+
+      {kind !== "personal" ? (
+        <>
+          <WizardFieldSelect
+            id="wizard-work-experience"
+            label={t("settings.connectionDialog.employer")}
+            value={workExperienceId ?? NO_ROLE}
+            onChange={(value) =>
+              onWorkExperienceChange(value === NO_ROLE ? null : value)
+            }
+            helperText={
+              roles.length === 0
+                ? t("settings.connectionDialog.noRolesYet")
+                : t("settings.connectionDialog.roleInherits")
+            }
+          >
+            <option value={NO_ROLE}>
+              {t("settings.connectionDialog.notLinked")}
+            </option>
+            {roles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {t("settings.connectionDialog.roleOption", {
+                  companyName: role.companyName,
+                  title: role.title,
+                })}
+              </option>
+            ))}
+          </WizardFieldSelect>
+          {/* The anchor's text is part of the sentence, so it lives
+              inside the locale value as a `<policyLink>` slot rather than
+              being interpolated as an opaque blob whose position every
+              language would have to accept. Not named `link`: that is a
+              void element in the HTML parser Trans uses, and the anchor
+              would render empty. */}
+          <p className="text-xs text-zinc-600 dark:text-zinc-400">
+            <Trans
+              i18nKey="wizard.source.workInherits"
+              components={{
+                policyLink: (
+                  <a
+                    href={`#${DISCLOSURE_PANEL_ID}`}
+                    className={`font-medium text-violet-700 underline underline-offset-2 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200 ${FOCUS_RING} rounded`}
+                  />
+                ),
+              }}
+            />
+          </p>
+          {kind === "mixed" ? (
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">
+              {mixedKindRule()}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      <Input
+        id="wizard-display-name"
+        label={t("resumeImport.displayName")}
+        placeholder={t("wizard.source.namePlaceholder")}
+        value={displayName}
+        error={displayNameError ?? undefined}
+        onChange={(event) => onDisplayNameChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
 export type SourceStepProps = {
   sourceKey: WizardSourceKey | null;
   onSelectSource: (key: WizardSourceKey) => void;
@@ -122,7 +306,7 @@ export function SourceStep({
   displayName,
   onDisplayNameChange,
   displayNameError,
-}: SourceStepProps) {
+}: Readonly<SourceStepProps>) {
   const { t } = useTranslation();
   const sourceCards = getSourceCards(t);
   const selectedCard =
@@ -142,69 +326,14 @@ export function SourceStep({
         aria-label={t("wizard.source.label")}
         className="grid gap-3 sm:grid-cols-2"
       >
-        {sourceCards.map((card) => {
-          const Icon = card.icon;
-          const isSelected = card.key === sourceKey;
-          return (
-            <button
-              key={card.key}
-              type="button"
-              aria-pressed={isSelected}
-              onClick={() => onSelectSource(card.key)}
-              className={cx(
-                "flex flex-col gap-2 rounded-xl border p-3 text-left transition",
-                FOCUS_RING,
-                isSelected
-                  ? "border-violet-500 bg-violet-50/60 dark:border-violet-500/70 dark:bg-violet-500/10"
-                  : "border-zinc-200 bg-white hover:border-violet-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-violet-500/50",
-              )}
-            >
-              <span className="flex flex-wrap items-center gap-2">
-                <Icon
-                  className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400"
-                  aria-hidden="true"
-                />
-                <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {card.title}
-                </span>
-                {card.recommended ? (
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BADGE.success}`}
-                  >
-                    {t("wizard.source.recommended")}
-                  </span>
-                ) : null}
-                {/* The honest headline: only two of the four sources can put a
-                    post on your profile without help from another one. */}
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                    card.postsOnItsOwn ? BADGE.success : BADGE.neutral
-                  }`}
-                >
-                  {card.postsOnItsOwn
-                    ? t("wizard.source.postsOnItsOwn")
-                    : t("wizard.source.addsContext")}
-                </span>
-              </span>
-              <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                {card.description}
-              </span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-500">
-                {card.privacy}
-              </span>
-              {card.needsDevMachine ? (
-                // Phone users can walk the whole wizard; only the paste-into-
-                // a-config part needs the machine the tool runs on.
-                <span
-                  className={`mt-auto inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE.neutral}`}
-                >
-                  <FiMonitor className="h-3 w-3" aria-hidden="true" />
-                  {t("wizard.source.needsDevMachine")}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
+        {sourceCards.map((card) => (
+          <SourceCardButton
+            key={card.key}
+            card={card}
+            isSelected={card.key === sourceKey}
+            onSelect={onSelectSource}
+          />
+        ))}
       </div>
 
       {selectedCard && !selectedCard.postsOnItsOwn ? (
@@ -248,89 +377,16 @@ export function SourceStep({
           </p>
         </div>
       ) : sourceKey ? (
-        <div className={`space-y-3 p-4 ${SURFACE_INSET}`}>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm text-zinc-700 dark:text-zinc-300">
-              {t("settings.connectionDialog.thisActivityIs")}
-            </span>
-            <Segmented
-              label={t("wizard.source.activityKind")}
-              value={kind}
-              options={[
-                { value: "personal", label: t("common.personal") },
-                { value: "work", label: t("common.work") },
-                { value: "mixed", label: t("common.both") },
-              ]}
-              onChange={(value) => onKindChange(value)}
-            />
-          </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {mixedKindHelper()}
-          </p>
-
-          {kind !== "personal" ? (
-            <>
-              <WizardFieldSelect
-                id="wizard-work-experience"
-                label={t("settings.connectionDialog.employer")}
-                value={workExperienceId ?? NO_ROLE}
-                onChange={(value) =>
-                  onWorkExperienceChange(value === NO_ROLE ? null : value)
-                }
-                helperText={
-                  roles.length === 0
-                    ? t("settings.connectionDialog.noRolesYet")
-                    : t("settings.connectionDialog.roleInherits")
-                }
-              >
-                <option value={NO_ROLE}>
-                  {t("settings.connectionDialog.notLinked")}
-                </option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {t("settings.connectionDialog.roleOption", {
-                      companyName: role.companyName,
-                      title: role.title,
-                    })}
-                  </option>
-                ))}
-              </WizardFieldSelect>
-              {/* The anchor's text is part of the sentence, so it lives
-                  inside the locale value as a `<policyLink>` slot rather than
-                  being interpolated as an opaque blob whose position every
-                  language would have to accept. Not named `link`: that is a
-                  void element in the HTML parser Trans uses, and the anchor
-                  would render empty. */}
-              <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                <Trans
-                  i18nKey="wizard.source.workInherits"
-                  components={{
-                    policyLink: (
-                      <a
-                        href={`#${DISCLOSURE_PANEL_ID}`}
-                        className={`font-medium text-violet-700 underline underline-offset-2 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200 ${FOCUS_RING} rounded`}
-                      />
-                    ),
-                  }}
-                />
-              </p>
-              {kind === "mixed" ? (
-                <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                  {mixedKindRule()}
-                </p>
-              ) : null}
-            </>
-          ) : null}
-
-          <Input
-            id="wizard-display-name"
-            label={t("resumeImport.displayName")}
-            placeholder={t("wizard.source.namePlaceholder")}
-            value={displayName}
-            error={displayNameError ?? undefined}
-            onChange={(event) => onDisplayNameChange(event.target.value)}
-          />
-        </div>
+        <SourceDetails
+          kind={kind}
+          onKindChange={onKindChange}
+          workExperienceId={workExperienceId}
+          onWorkExperienceChange={onWorkExperienceChange}
+          roles={roles}
+          displayName={displayName}
+          onDisplayNameChange={onDisplayNameChange}
+          displayNameError={displayNameError}
+        />
       ) : null}
     </div>
   );

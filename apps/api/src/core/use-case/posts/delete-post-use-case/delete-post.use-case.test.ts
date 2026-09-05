@@ -73,13 +73,17 @@ describe("DeletePostUseCase — search freshness", () => {
 
   it("enqueues a re-embedding so search stops matching a deleted post", async () => {
     await resumesRepository.upsertByUserId("owner", { summary: "hi" });
-    const post = makePost({ userId: "owner", body: "gone", status: "published" });
+    const post = makePost({
+      userId: "owner",
+      body: "gone",
+      status: "published",
+    });
     await postsRepository.create(post);
 
     await sut.execute("owner", post.id);
 
     expect(queue.jobs).toHaveLength(1);
-    expect(queue.jobs[0].userId).toBe("owner");
+    expect(queue.jobs[0]?.userId).toBe("owner");
   });
 
   it("does not enqueue for a draft — it was never in the index", async () => {
@@ -93,7 +97,11 @@ describe("DeletePostUseCase — search freshness", () => {
   });
 
   it("is a no-op for a user with no resume row", async () => {
-    const post = makePost({ userId: "owner", body: "gone", status: "published" });
+    const post = makePost({
+      userId: "owner",
+      body: "gone",
+      status: "published",
+    });
     await postsRepository.create(post);
 
     await expect(sut.execute("owner", post.id)).resolves.toEqual({

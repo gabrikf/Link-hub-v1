@@ -5,8 +5,8 @@ import { SURFACE } from "../../../shared-components/surface";
 
 type AuthShellProps = {
   /** Optional lead line under the product name. Screens with their own heading omit it. */
-  description?: string;
-  children: ReactNode;
+  readonly description?: string;
+  readonly children: ReactNode;
 };
 
 /**

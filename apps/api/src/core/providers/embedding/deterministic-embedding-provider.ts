@@ -1,4 +1,4 @@
-import { IEmbeddingProvider } from "../../core/providers/embedding/embedding-provider.js";
+import { IEmbeddingProvider } from "./embedding-provider.js";
 
 /** Matches `vector(1536)` so a dev-mode vector is storable in Postgres. */
 const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
@@ -63,6 +63,15 @@ function tokenize(text: string): string[] {
  *
  * Bigrams are hashed alongside unigrams at half weight so word order carries
  * some signal — "senior engineer" and "engineer senior" should not be identical.
+ *
+ * **Why this lives in `src/core/providers/`.** It is not merely a test double:
+ * `src/infra/di/container.ts` registers it as the production fallback whenever
+ * `OPENAI_API_KEY` is absent. It still belongs beside its `IEmbeddingProvider`
+ * port because it is pure — integer hashing and string tokenisation, with no
+ * I/O, no SDK and no infra import — which is the same reason the in-memory
+ * providers next door sit in core. That purity is the condition, not an
+ * accident: an adapter here that grows a network call must move to
+ * `src/infra/providers/`.
  */
 export class DeterministicEmbeddingProvider implements IEmbeddingProvider {
   constructor(
@@ -78,11 +87,15 @@ export class DeterministicEmbeddingProvider implements IEmbeddingProvider {
     const vector = new Array<number>(this.dimensions).fill(0);
     const tokens = tokenize(text);
 
-    for (let index = 0; index < tokens.length; index += 1) {
-      this.addFeature(vector, tokens[index], 1);
+    for (const [index, token] of tokens.entries()) {
+      this.addFeature(vector, token, 1);
 
-      if (index + 1 < tokens.length) {
-        this.addFeature(vector, `${tokens[index]}_${tokens[index + 1]}`, 0.5);
+      // The bigram exists exactly when there is a next token — the same
+      // condition the old `index + 1 < tokens.length` expressed, now in a form
+      // that also gives the token a non-optional type.
+      const nextToken = tokens[index + 1];
+      if (nextToken !== undefined) {
+        this.addFeature(vector, `${token}_${nextToken}`, 0.5);
       }
     }
 
@@ -101,6 +114,9 @@ export class DeterministicEmbeddingProvider implements IEmbeddingProvider {
     // independent; reusing a bit of the same hash correlates them.
     const sign = fnv1a(`sign:${feature}`) % 2 === 0 ? 1 : -1;
 
-    vector[bucket] += sign * weight;
+    // `bucket` is a modulo of `this.dimensions` and the vector is built with
+    // that length, so the slot is there; reading it explicitly beats asserting
+    // that a caller never passes a shorter vector.
+    vector[bucket] = (vector[bucket] ?? 0) + sign * weight;
   }
 }

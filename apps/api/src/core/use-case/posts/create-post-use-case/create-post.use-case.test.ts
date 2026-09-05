@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { UserEntity } from "../../../entity/user/user-entity.js";
 import { WorkExperienceEntity } from "../../../entity/work-experience/work-experience-entity.js";
-import { BadRequestError, ResourceNotFoundError } from "../../../errors/index.js";
+import {
+  BadRequestError,
+  ResourceNotFoundError,
+} from "../../../errors/index.js";
 import { InMemoryResumeEmbeddingQueue } from "../../../providers/queue/in-memory-resume-embedding-queue.js";
 import { InMemoryResumesRepository } from "../../../repositories/resume/in-memory-resumes-repository.js";
 import { InMemoryWorkExperienceRepository } from "../../../repositories/work-experience/in-memory-work-experience-repository.js";
@@ -331,7 +334,7 @@ describe("CreatePostUseCase — disclosure policy enforcement", () => {
     await sut.execute({ userId: user.id, body: "Published work" });
 
     expect(queue.jobs).toHaveLength(1);
-    expect(queue.jobs[0].userId).toBe(user.id);
+    expect(queue.jobs[0]?.userId).toBe(user.id);
   });
 
   it("does not enqueue for a draft — a draft is not searchable yet", async () => {

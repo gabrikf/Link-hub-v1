@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../test-support/assert-defined";
 import { getCroppedImg } from "./crop-image";
 
 /**
@@ -95,9 +96,8 @@ beforeEach(() => {
     return element;
   }) as typeof document.createElement);
 
-  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
-    (() => contextFactory()) as HTMLCanvasElement["getContext"],
-  );
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation((() =>
+    contextFactory()) as HTMLCanvasElement["getContext"]);
 
   vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (
     this: HTMLCanvasElement,
@@ -119,8 +119,21 @@ afterEach(() => {
 const square = (size: number) => ({ x: 0, y: 0, width: size, height: size });
 
 /** Pass 1 renders the rotated source; pass 2 is the output we encode. */
-const rotatedCanvas = () => canvases[0];
-const outputCanvas = () => canvases[1];
+/**
+ * Both accessors assert rather than index blindly: a missing canvas means the
+ * `createElement` stub never fired, and saying so beats every downstream
+ * assertion failing on `undefined.width`.
+ */
+const rotatedCanvas = () => {
+  const canvas = canvases[0];
+  assertDefined(canvas, "the rotated (pass 1) canvas");
+  return canvas;
+};
+const outputCanvas = () => {
+  const canvas = canvases[1];
+  assertDefined(canvas, "the output (pass 2) canvas");
+  return canvas;
+};
 
 describe("getCroppedImg output sizing", () => {
   it("caps the output at 512 px on the longest edge", async () => {

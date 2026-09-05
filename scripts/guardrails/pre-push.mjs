@@ -21,14 +21,22 @@
  *    check-types fails with errors that point at consumers and say nothing
  *    about the real cause. This is the one step that is never skipped.
  *
- * 3. IT REFUSES TO HANG. Three api test files talk to a real Postgres and three
- *    need a funded OPENAI_API_KEY. Without docker running, the first group sits
- *    there for 60-90 seconds per file and then fails with a connection error —
- *    which is how a gate gets a reputation for being broken and starts getting
- *    bypassed. So: probe port 5432, probe the environment for a key, and SKIP
- *    what cannot run — loudly, by filename, with the command to run it properly.
- *    A narrowed run that announces what it narrowed is honest. A narrowed run
- *    that looks green is a lie, and the CI workflow makes the same promise.
+ * 3. IT REFUSES TO HANG. Some api test files talk to a real Postgres, Redis,
+ *    Mailpit or MinIO, and three need a funded OPENAI_API_KEY. Without docker
+ *    running, the first group sits there for 60-90 seconds per file and then
+ *    fails with a connection error — which is how a gate gets a reputation for
+ *    being broken and starts getting bypassed. So: probe each service, probe
+ *    the environment for a key, and SKIP what cannot run — loudly, by filename,
+ *    with the command to run it properly. A narrowed run that announces what it
+ *    narrowed is honest. A narrowed run that looks green is a lie, and the CI
+ *    workflow makes the same promise.
+ *
+ *    THE PROBES ASK ABOUT THE SERVICE, NOT THE PORT. 5432, 6379 and 9000 are
+ *    the defaults for Postgres, Redis and MinIO, so every other project on the
+ *    machine answers them; a probe that reports a stranger's server as ours
+ *    turns "not tested" into a red gate about somebody else's credentials. Each
+ *    probe therefore asks something only our instance can answer, and each says
+ *    in its own comment how strong that claim actually is.
  *
  * 4. LINT IS RATCHETED, NOT ENFORCED WHOLESALE. See lint-changed.mjs.
  *
@@ -57,7 +65,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { connect } from "node:net";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -69,13 +77,25 @@ const MAX_ATTEMPTS = 3;
 /**
  * api test files that open a real Postgres connection. Vitest paths, relative
  * to apps/api. Without docker these do not fail fast — they hang on connect.
+ *
+ * THE LIST IS DERIVABLE, so check it against the tree rather than trusting it:
+ * a file needs Postgres exactly when it imports the live Drizzle handle,
+ * `grep -rl 'from "./index.js"' src --include='*.test.ts'` in apps/api, plus
+ * `container-wiring.test.ts`, which reaches it through the DI container. Three
+ * of these were missing until 2026-09-05 — appearance, persona-other and
+ * open-to-work — so a gate run with Postgres genuinely down went red on THEM
+ * after correctly announcing it was skipping the other five. A skip list that
+ * is almost complete produces the same red gate as no skip list at all.
  */
 const NEEDS_POSTGRES = [
   "src/infra/di/container-wiring.test.ts",
   "src/infra/database/drizzle/search-indexes.e2e.test.ts",
+  "src/infra/database/drizzle/user-appearance-mapping.e2e.test.ts",
   "src/infra/database/drizzle/user-email-verified-mapping.e2e.test.ts",
+  "src/infra/database/drizzle/user-persona-other-mapping.e2e.test.ts",
   "src/infra/database/drizzle/user-preferences-constraints.e2e.test.ts",
   "src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts",
+  "src/infra/http/controllers/resume/test/search-open-to-work-default.e2e.test.ts",
 ];
 
 /**
@@ -107,6 +127,17 @@ const NEEDS_MAILPIT = [
  */
 const NEEDS_MINIO = [
   "src/infra/providers/s3-file-storage-provider.minio.e2e.test.ts",
+];
+
+/**
+ * api test files that open a real ioredis connection. Unlike the three lists
+ * above these do NOT self-skip, and with `maxRetriesPerRequest: null` they do
+ * not fail fast either: without a Redis they retry until vitest's 60-second
+ * timeout, twice. Named here so the gate skips them loudly instead.
+ */
+const NEEDS_REDIS = [
+  "src/infra/providers/bullmq-resume-embedding-queue.test.ts",
+  "src/infra/providers/bullmq-activity-digest-queue.test.ts",
 ];
 
 /**
@@ -196,14 +227,54 @@ function clearAttempts() {
 /* ───────────────────────────── infra probes ────────────────────────────── */
 
 /**
- * A TCP connect to 5432, not `docker compose ps`: what the tests actually need
- * is a reachable Postgres, and a developer running one outside compose (or
- * pointing DATABASE_URL somewhere else entirely) is a perfectly good answer
- * that `docker compose ps` would call "down".
+ * The connection strings the api tests will actually use.
+ *
+ * `apps/api/src/test-setup.ts` is `import "dotenv/config"` and vitest runs with
+ * cwd `apps/api`, so the file the tests read is `apps/api/.env` and a value
+ * already in `process.env` wins over it — dotenv never overrides. This mirrors
+ * that order exactly, because a probe that reads a DIFFERENT database URL than
+ * the tests do is back to answering a question nobody asked.
+ *
+ * Parsed with a regex rather than by importing dotenv: the gate must run before
+ * anything is installed or built, and this is two lines of the format.
+ *
+ * NOTHING HERE IS EVER PRINTED. The value is a password-bearing URL; it travels
+ * to the probe through the child's environment (never argv, which `ps` shows to
+ * every user on the box) and the child's output is discarded, not captured.
  */
-function postgresReachable(timeoutMs = 700) {
-  const port = Number(process.env.PGPORT ?? 5432);
-  const host = process.env.PGHOST ?? "127.0.0.1";
+function envValue(name) {
+  const fromProcess = process.env[name];
+  if (typeof fromProcess === "string" && fromProcess.trim()) return fromProcess;
+
+  const envFile = resolve(ROOT, "apps/api/.env");
+  if (!existsSync(envFile)) return null;
+
+  const match = readFileSync(envFile, "utf8").match(
+    new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*(.*)$`, "m"),
+  );
+  if (!match) return null;
+
+  const raw = match[1].trim().replace(/\s+#.*$/, "");
+  const unquoted = raw.replace(/^(['"])([\s\S]*)\1$/, "$2");
+  return unquoted.trim() || null;
+}
+
+/** `null` when the URL is missing or unparseable — never a thrown error. */
+function parseUrl(value) {
+  if (!value) return null;
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A raw TCP connect, the cheapest possible "is anything there". Kept as the
+ * FIRST half of the two service probes below: when the port is dead this
+ * answers in a millisecond and no heavier probe has to run at all.
+ */
+function portOpen(host, port, timeoutMs) {
   const result = spawnSync(
     process.execPath,
     [
@@ -219,29 +290,142 @@ function postgresReachable(timeoutMs = 700) {
   return result.status === 0;
 }
 
+/**
+ * Is THIS repo's Postgres on 5432 — not merely something.
+ *
+ * Same correction the MinIO probe got on 2026-09-04, for the same reason. A TCP
+ * connect proves a port is open, and 5432 is the Postgres default, so every
+ * other project on this machine answers it. When one does, the gate concludes
+ * Postgres is available and runs `container-wiring.test.ts` and the three e2e
+ * files against a stranger's server — which fails on authentication or on a
+ * relation that does not exist, and produces a red gate that has nothing to do
+ * with the change being pushed. "Not tested" turned into "broken" is a worse
+ * outcome than either.
+ *
+ * So: connect with the credentials the tests themselves use and ask two
+ * questions the port cannot answer — is this the database DATABASE_URL names,
+ * and does it carry our schema (`profile_blocks` is ours and nobody else's).
+ * A foreign Postgres fails the connect or answers with a different
+ * `current_database()`, and the gate correctly reports Postgres unavailable and
+ * says so by name in the TEST SCOPE NOTICE.
+ *
+ * A FALSE NEGATIVE HERE IS THE EXPENSIVE ONE — it silently drops four test
+ * files — so the probe degrades instead of failing. If DATABASE_URL is absent
+ * or unparseable, or the driver cannot be resolved, the answer is UNDECIDABLE
+ * (exit 3) and the result falls back to the old port-only answer. Only a
+ * decided "that is somebody else's database" reports unavailable.
+ */
+function postgresReachable(timeoutMs = 700) {
+  const databaseUrl = envValue("DATABASE_URL");
+  const parsed = parseUrl(databaseUrl);
+  const host = process.env.PGHOST ?? parsed?.hostname ?? "127.0.0.1";
+  const port = Number(process.env.PGPORT ?? parsed?.port ?? 5432);
+
+  if (!portOpen(host, port, timeoutMs)) return false;
+
+  // `decodeURIComponent`: a URL pathname is percent-encoded, a database name is
+  // not. Empty pathname means the URL named no database, which is undecidable.
+  const database = parsed?.pathname
+    ? decodeURIComponent(parsed.pathname.replace(/^\//, ""))
+    : "";
+
+  let driverPath;
+  try {
+    driverPath = createRequire(import.meta.url).resolve("postgres");
+  } catch {
+    return true; // undecidable: node_modules is not installed yet
+  }
+
+  if (!databaseUrl || !database) return true; // undecidable: nothing to compare
+
+  const result = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `const sql=require(${JSON.stringify(driverPath)})(process.env.__PROBE_URL,` +
+        `{max:1,connect_timeout:2,idle_timeout:1,prepare:false,onnotice(){}});` +
+        "sql`select current_database() as db, " +
+        "to_regclass('public.profile_blocks') is not null as ours`" +
+        `.then(rows=>rows[0]&&rows[0].db===process.env.__PROBE_DB&&rows[0].ours?0:1)` +
+        `.catch(()=>1)` +
+        `.then(code=>sql.end({timeout:0}).catch(()=>{}).then(()=>process.exit(code)));`,
+    ],
+    {
+      stdio: "ignore",
+      timeout: timeoutMs + 2000,
+      env: { ...process.env, __PROBE_URL: databaseUrl, __PROBE_DB: database },
+    },
+  );
+
+  // Killed by the timeout, or crashed before it could answer: undecidable.
+  if (result.status === null || result.error) return true;
+  return result.status === 0;
+}
+
 function hasOpenAiKey() {
   const key = process.env.OPENAI_API_KEY;
   return typeof key === "string" && key.trim().length > 0;
 }
 
 /**
- * A TCP connect to Mailpit's SMTP port, same shape as `postgresReachable()`:
- * what the test needs is a reachable relay, not a specific way of having
- * started one (`bash db-manage.sh admin`, a bare `docker compose ... up -d
- * mailpit`, or a developer's own Mailpit instance all count).
+ * A TCP connect to Mailpit's SMTP port: what the test needs is a reachable
+ * relay, not a specific way of having started one (`bash db-manage.sh admin`, a
+ * bare `docker compose ... up -d mailpit`, or a developer's own Mailpit
+ * instance all count).
+ *
+ * Deliberately still port-only, unlike Postgres, Redis and MinIO. 1025 is not a
+ * default anything — it is Mailpit's own choice of an unprivileged SMTP port —
+ * so "something is listening on 1025" is already a much narrower claim, and the
+ * test's failure mode against a foreign relay is a refused RCPT, not a
+ * misleading green. If that ever stops being true, this gets the same treatment
+ * as the other three.
  */
 function mailpitReachable(timeoutMs = 700) {
+  return portOpen("127.0.0.1", 1025, timeoutMs);
+}
+
+/**
+ * Is a REDIS on 6379 — not merely something.
+ *
+ * Third instance of the same correction. `bullmq-resume-embedding-queue.test.ts`
+ * and `bullmq-activity-digest-queue.test.ts` open a real ioredis connection with
+ * `maxRetriesPerRequest: null`, which means that against a port with nothing
+ * useful behind it they do not fail — they RETRY, until vitest's 60-second
+ * timeout, twice. That is precisely the hang design note 3 exists to prevent,
+ * and until now nothing probed for Redis at all.
+ *
+ * The identity question is weaker here than for Postgres or MinIO, and saying
+ * so is more useful than pretending otherwise: Redis has no per-project
+ * namespace to ask about, and both tests already name their queue
+ * `...-test-${process.pid}` and only ever obliterate that queue, so a foreign
+ * Redis cannot corrupt them and they cannot corrupt it. What a TCP connect
+ * genuinely cannot answer is whether the thing on 6379 is a Redis THESE TESTS
+ * CAN USE — so the probe speaks the protocol and requires `+PONG`. A different
+ * service answers with garbage or nothing; an instance that requires a password
+ * our REDIS_URL does not carry answers `-NOAUTH`, which is a correct "no",
+ * because the tests would fail against it too.
+ */
+function redisReachable(timeoutMs = 700) {
+  const parsed = parseUrl(envValue("REDIS_URL"));
+  const host = parsed?.hostname || "127.0.0.1";
+  const port = Number(parsed?.port || 6379);
+
   const result = spawnSync(
     process.execPath,
     [
       "-e",
-      `const s=require('net').connect(1025,'127.0.0.1');` +
+      `const s=require('net').connect(${port},${JSON.stringify(host)});` +
+        `let b='';const done=c=>{s.destroy();process.exit(c)};` +
         `s.setTimeout(${timeoutMs});` +
-        `s.on('connect',()=>{s.destroy();process.exit(0)});` +
-        `s.on('error',()=>process.exit(1));` +
-        `s.on('timeout',()=>{s.destroy();process.exit(1)});`,
+        // Inline command, not RESP: a Redis accepts both, and this way a
+        // half-written pipelined reply cannot be mistaken for a PONG.
+        `s.on('connect',()=>s.write('PING\\r\\n'));` +
+        `s.on('data',d=>{b+=d.toString('latin1');` +
+        `if(b.length>=7)done(b.startsWith('+PONG\\r\\n')?0:1)});` +
+        `s.on('error',()=>done(1));` +
+        `s.on('timeout',()=>done(1));`,
     ],
-    { encoding: "utf8", timeout: timeoutMs + 2000 },
+    { stdio: "ignore", timeout: timeoutMs + 2000 },
   );
   return result.status === 0;
 }
@@ -365,7 +549,9 @@ const TEST_SCOPE_GROUPS = [
     files: NEEDS_POSTGRES,
     available: () => postgresReachable(),
     reason:
-      "Postgres is not reachable on 5432 — start it with `bash db-manage.sh start`.",
+      "This repo's Postgres is not reachable on 5432 — start it with `bash " +
+      "db-manage.sh start`. (Another project's Postgres on 5432 does not " +
+      "count, and neither does ours without its migrations.)",
     covers: "the pgvector indexes and the DI container wiring",
   },
   {
@@ -392,6 +578,15 @@ const TEST_SCOPE_GROUPS = [
       "start` (or `docker compose -f docker-compose.dev.yml up -d minio " +
       "minio-setup`).",
     covers: "the real object-storage upload path",
+  },
+  {
+    files: NEEDS_REDIS,
+    available: () => redisReachable(),
+    reason:
+      "Redis is not answering PING on 6379 — start it with `bash " +
+      "db-manage.sh start` (or `docker compose -f docker-compose.dev.yml up " +
+      "-d redis`).",
+    covers: "the BullMQ deduplication window against a real Redis",
   },
 ];
 

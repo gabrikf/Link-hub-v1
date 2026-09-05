@@ -205,8 +205,8 @@ function distinct(values: string[]): string[] {
 
 /** Order-insensitive: neither caller promises a stable ordering of ids. */
 function sameSet(left: string[], right: string[]): boolean {
-  const a = [...new Set(left)].sort();
-  const b = [...new Set(right)].sort();
+  const a = [...new Set(left)].sort((x, y) => x.localeCompare(y));
+  const b = [...new Set(right)].sort((x, y) => x.localeCompare(y));
 
   return a.length === b.length && a.every((value, i) => value === b[i]);
 }

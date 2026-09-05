@@ -14,6 +14,7 @@ import {
   repoFingerprintInput,
 } from "../shared/repo-fingerprint.js";
 import { IngestActivityUseCase } from "./ingest-activity.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const STRANGER_ID = "22222222-2222-4222-8222-222222222222";
@@ -133,8 +134,11 @@ describe("IngestActivityUseCase", () => {
         events: [makeEvent({ repo: "acme/secret-project" })],
       });
 
-      const [stored] = activityEventRepository.items;
-      expect(stored.repoFingerprint).toBe(repoFingerprint("acme/secret-project"));
+      const [storedEvent] = activityEventRepository.items;
+      const stored = expectDefined(storedEvent, "the stored activity event");
+      expect(stored.repoFingerprint).toBe(
+        repoFingerprint("acme/secret-project"),
+      );
       expect(stored.repoFingerprint).toMatch(/^[0-9a-f]{64}$/);
 
       // Nothing anywhere in the persisted row may contain the repository name.
@@ -154,7 +158,8 @@ describe("IngestActivityUseCase", () => {
         ],
       });
 
-      const [stored] = activityEventRepository.items;
+      const [storedEvent] = activityEventRepository.items;
+      const stored = expectDefined(storedEvent, "the stored activity event");
       expect(stored.counterpartyFingerprints).toEqual([
         counterpartyFingerprint("reviewer-anna"),
         counterpartyFingerprint("reviewer-bo"),
@@ -176,12 +181,15 @@ describe("IngestActivityUseCase", () => {
           makeEvent({
             repo: undefined,
             repoFingerprint: fingerprint,
-            counterpartyFingerprints: [counterpartyFingerprint("reviewer-anna")],
+            counterpartyFingerprints: [
+              counterpartyFingerprint("reviewer-anna"),
+            ],
           }),
         ],
       });
 
-      const [stored] = activityEventRepository.items;
+      const [storedEvent] = activityEventRepository.items;
+      const stored = expectDefined(storedEvent, "the stored activity event");
       expect(stored.repoFingerprint).toBe(fingerprint);
       expect(stored.counterpartyFingerprints).toEqual([
         counterpartyFingerprint("reviewer-anna"),
@@ -217,7 +225,12 @@ describe("IngestActivityUseCase", () => {
         ],
       });
 
-      const [fromWebhook, fromExtractor] = activityEventRepository.items;
+      const [webhookEvent, extractorEvent] = activityEventRepository.items;
+      const fromWebhook = expectDefined(webhookEvent, "the webhook event");
+      const fromExtractor = expectDefined(
+        extractorEvent,
+        "the extractor event",
+      );
       expect(fromWebhook.repoFingerprint).toBe(fromExtractor.repoFingerprint);
     });
 
@@ -231,7 +244,9 @@ describe("IngestActivityUseCase", () => {
             repo: "acme/secret-project",
             repoFingerprint: repoFingerprint("acme/secret-project"),
             counterparties: ["reviewer-anna"],
-            counterpartyFingerprints: [counterpartyFingerprint("reviewer-anna")],
+            counterpartyFingerprints: [
+              counterpartyFingerprint("reviewer-anna"),
+            ],
           }),
         ],
       });
@@ -268,7 +283,9 @@ describe("IngestActivityUseCase", () => {
           events: [
             makeEvent({
               counterparties: ["reviewer-anna"],
-              counterpartyFingerprints: [counterpartyFingerprint("reviewer-bo")],
+              counterpartyFingerprints: [
+                counterpartyFingerprint("reviewer-bo"),
+              ],
             }),
           ],
         }),
@@ -376,7 +393,8 @@ describe("IngestActivityUseCase", () => {
       events: [makeEvent()],
     });
 
-    const [stored] = activityEventRepository.items;
+    const [storedEvent] = activityEventRepository.items;
+    const stored = expectDefined(storedEvent, "the stored activity event");
     expect(stored.userId).toBe(OWNER_ID);
     expect(stored.connectionId).toBe(connection.id);
     expect(stored.source).toBe("hook");

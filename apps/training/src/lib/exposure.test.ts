@@ -8,6 +8,7 @@ import {
   inversePropensityWeight,
   rankPropensity,
 } from "./exposure.js";
+import { expectDefined } from "./expect-defined.js";
 import { resolveLabel } from "./labels.js";
 import type { ResumeTrainingRow } from "./training-types.js";
 
@@ -50,7 +51,10 @@ describe("rankPropensity", () => {
   });
 
   it("uses the documented power law", () => {
-    expect(rankPropensity(4)).toBeCloseTo(Math.pow(0.25, POSITION_BIAS_ETA), 10);
+    expect(rankPropensity(4)).toBeCloseTo(
+      Math.pow(0.25, POSITION_BIAS_ETA),
+      10,
+    );
   });
 });
 
@@ -60,9 +64,9 @@ describe("inversePropensityWeight", () => {
     // clicks — the feedback loop where the reranker slowly agrees with itself.
     expect(inversePropensityWeight({ displayedRank: 1 })).toBe(1);
     expect(inversePropensityWeight({ displayedRank: 20 })).toBeGreaterThan(1);
-    expect(
-      inversePropensityWeight({ displayedRank: 20 }),
-    ).toBeLessThanOrEqual(1 / MIN_PROPENSITY);
+    expect(inversePropensityWeight({ displayedRank: 20 })).toBeLessThanOrEqual(
+      1 / MIN_PROPENSITY,
+    );
   });
 
   it("falls back to 1 when nothing about exposure was logged", () => {
@@ -142,8 +146,9 @@ describe("deriveSkipAboveNegatives", () => {
     const negatives = deriveSkipAboveNegatives(rows);
 
     expect(negatives).toHaveLength(1);
-    expect(negatives[0]!.resumeId).toBe("skipped#skip-above");
-    expect(resolveLabel(negatives[0]!)).toBe(0);
+    const negative = expectDefined(negatives[0], "the derived skip-above row");
+    expect(negative.resumeId).toBe("skipped#skip-above");
+    expect(resolveLabel(negative)).toBe(0);
   });
 
   it("overrules the skipped row's own weak positive", () => {
@@ -164,9 +169,10 @@ describe("deriveSkipAboveNegatives", () => {
 
     // The row's raw score would give label 0.175; the recruiter looked and then
     // chose someone nine places lower, so the forced label wins.
-    expect(negatives[0]!.interactionScore).toBe(0.35);
-    expect(negatives[0]!.forcedLabel).toBe(0);
-    expect(resolveLabel(negatives[0]!)).toBe(0);
+    const negative = expectDefined(negatives[0], "the derived skip-above row");
+    expect(negative.interactionScore).toBeCloseTo(0.35, 10);
+    expect(negative.forcedLabel).toBe(0);
+    expect(resolveLabel(negative)).toBe(0);
   });
 
   it("produces nothing below the deepest engagement", () => {

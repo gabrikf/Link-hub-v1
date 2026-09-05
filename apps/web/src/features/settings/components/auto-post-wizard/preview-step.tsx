@@ -2,7 +2,7 @@ import type { DigestPreview, Post } from "@repo/schemas";
 import { useTranslation } from "react-i18next";
 import { FiFileText, FiInbox, FiLoader } from "react-icons/fi";
 import { SURFACE_INSET } from "../../../../shared-components/surface";
-import { Markdown } from "../../../posts/lib/markdown";
+import { Markdown } from "../../../posts/components/markdown";
 
 /**
  * A REAL post, or an honest explanation of why there is none yet. Never a
@@ -12,10 +12,10 @@ import { Markdown } from "../../../posts/lib/markdown";
 export function PreviewPostCard({
   post,
   caption,
-}: {
+}: Readonly<{
   post: { title: string | null; body: string; tags: string[] | null };
   caption?: string;
-}) {
+}>) {
   const { t } = useTranslation();
   const resolvedCaption = caption ?? t("wizard.preview.fixedTemplate");
   return (
@@ -50,10 +50,10 @@ export function PreviewPostCard({
 function EmptyPanel({
   title,
   children,
-}: {
+}: Readonly<{
   title: string;
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
       <p className="flex items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
@@ -74,11 +74,11 @@ export function ConnectionPreviewBody({
   preview,
   isLoading,
   isError,
-}: {
+}: Readonly<{
   preview: DigestPreview | undefined;
   isLoading: boolean;
   isError: boolean;
-}) {
+}>) {
   const { t } = useTranslation();
 
   if (isLoading) {
@@ -146,9 +146,9 @@ export function ConnectionPreviewBody({
 
 export function McpPreviewBody({
   detectedPost,
-}: {
+}: Readonly<{
   detectedPost: Post | null;
-}) {
+}>) {
   const { t } = useTranslation();
 
   if (detectedPost) {

@@ -9,6 +9,7 @@ import {
   readS3StorageConfigFromEnv,
   resolveFileStorageConfig,
 } from "./s3-file-storage-provider.js";
+import { expectDefined } from "../../test-support/expect-defined.js";
 
 function makeConfig() {
   return {
@@ -36,7 +37,10 @@ describe("S3FileStorageProvider", () => {
     expect(result.url).toBe("https://cdn.example.com/uploads/user-1/abc.png");
     expect(send).toHaveBeenCalledTimes(1);
 
-    const command = send.mock.calls[0]![0] as PutObjectCommand;
+    const command = expectDefined(
+      send.mock.calls[0]?.[0],
+      "the first argument of the single send() call",
+    );
     expect(command).toBeInstanceOf(PutObjectCommand);
     expect(command.input).toMatchObject({
       Bucket: "media",

@@ -34,7 +34,9 @@ export class GoogleOAuthProvider implements IGoogleOAuthProvider {
     return {
       googleId: payload.sub,
       email: payload.email,
-      name: payload.name || payload.email.split("@")[0],
+      // `split` always yields a first element for a non-empty email; falling
+      // back to the whole address states that without asserting it.
+      name: payload.name || payload.email.split("@")[0] || payload.email,
       avatarUrl: payload.picture || null,
       emailVerified: payload.email_verified === true,
     };
@@ -69,7 +71,8 @@ export class GoogleOAuthProvider implements IGoogleOAuthProvider {
     return {
       googleId: userInfo.sub,
       email: userInfo.email,
-      name: userInfo.name || userInfo.email.split("@")[0],
+      // Same reasoning as `verifyIdToken` above.
+      name: userInfo.name || userInfo.email.split("@")[0] || userInfo.email,
       avatarUrl: userInfo.picture || null,
       emailVerified: userInfo.email_verified === true,
     };

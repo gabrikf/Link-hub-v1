@@ -4,8 +4,8 @@ import type { AuthTab } from "../types/auth-tab";
 import { Button } from "../../../shared-components/button";
 
 type AuthTabsProps = {
-  activeTab: AuthTab;
-  onTabChange: (tab: AuthTab) => void;
+  readonly activeTab: AuthTab;
+  readonly onTabChange: (tab: AuthTab) => void;
 };
 
 export function AuthTabs({ activeTab, onTabChange }: AuthTabsProps) {

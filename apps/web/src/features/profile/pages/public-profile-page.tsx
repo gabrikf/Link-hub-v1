@@ -2,7 +2,7 @@ import type { ProfileBlock } from "@repo/schemas";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import axios from "axios";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import {
   fetchPublicProfile,
@@ -12,6 +12,7 @@ import {
 import { reportError, reportHandled } from "../../../lib/report-error";
 import {
   MOBILE_VIEWPORT_QUERY,
+  mediaQueryStore,
   pickViewport,
   resolveViewportLayout,
 } from "../../profile-layout/grid-utils";
@@ -25,24 +26,23 @@ import {
 } from "../components/profile-theme";
 import { PublicProfileSkeleton } from "../components/public-profile-skeleton";
 
+/** Module scope, so `useSyncExternalStore` sees stable references. */
+const NARROW_SCREEN_STORE = mediaQueryStore(MOBILE_VIEWPORT_QUERY);
+
 export function PublicProfilePage() {
   const { t } = useTranslation();
   const { username } = useParams({ from: "/$username" });
 
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined"
-      ? window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
-      : false,
+  // `useSyncExternalStore` rather than `useState` + `useEffect`: the media
+  // query IS an external store, so React reads it during render and there is
+  // no first-paint frame rendered against a stale desktop guess and then
+  // corrected. Same store the layout studio subscribes to, so "the layout my
+  // phone shows" and "the layout the studio opens" cannot drift apart.
+  const isMobile = useSyncExternalStore(
+    NARROW_SCREEN_STORE.subscribe,
+    NARROW_SCREEN_STORE.getSnapshot,
+    NARROW_SCREEN_STORE.getServerSnapshot,
   );
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(MOBILE_VIEWPORT_QUERY);
-    const handleChange = (event: MediaQueryListEvent) =>
-      setIsMobile(event.matches);
-    setIsMobile(mediaQuery.matches);
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
 
   const profileQuery = useQuery({
     queryKey: ["public-profile", username],
@@ -123,7 +123,9 @@ export function PublicProfilePage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => profileQuery.refetch()}
+            onClick={() => {
+              void profileQuery.refetch();
+            }}
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
             {t("common.retry")}

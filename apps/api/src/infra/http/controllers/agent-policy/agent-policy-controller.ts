@@ -14,6 +14,7 @@ import { commonErrorResponses } from "../../schemas/error-schemas.js";
 import { GetAgentPolicyUseCase } from "../../../../core/use-case/agent-policy/get-agent-policy-use-case/get-agent-policy.use-case.js";
 import { UpdateAgentPolicyUseCase } from "../../../../core/use-case/agent-policy/update-agent-policy-use-case/update-agent-policy.use-case.js";
 import { GetWorkContextUseCase } from "../../../../core/use-case/agent-policy/get-work-context-use-case/get-work-context.use-case.js";
+import { toAsyncHook } from "../../to-async-hook.js";
 
 /**
  * Response shape of `GET /me/work-context` — the redacted view of work history.
@@ -44,6 +45,17 @@ const workContextSchema = z.object({
   roles: z.array(workContextRoleSchema),
 });
 
+/**
+ * Fastify's typed `preHandler` property resolves to the callback-style hook
+ * signature (`(request, reply, done) => void`), never the promise-returning
+ * one — `preHandlerMetaHookHandler`'s `Return` generic always defaults to
+ * `void` at that property, regardless of how the guard function passed in is
+ * itself typed. Adapting an async guard to the callback form here keeps the
+ * guard itself a plain `async` function with no behaviour change: a
+ * rejection becomes `done(error)`, which Fastify routes to the same error
+ * handler an async hook's rejection would.
+ */
+
 export class AgentPolicyController {
   static handle(server: FastifyInstance) {
     const app = server.withTypeProvider<ZodTypeProvider>();
@@ -53,7 +65,7 @@ export class AgentPolicyController {
       {
         // Readable by an agent so it can tell the user what it may and may not
         // say — but see the PATCH below: reading is not permission to change.
-        preHandler: apiAccessGuard("profile:read"),
+        preHandler: toAsyncHook(apiAccessGuard("profile:read")),
         schema: {
           tags: ["Agent Policy"],
           summary: "Get the disclosure policy in force for the current user",
@@ -84,7 +96,7 @@ export class AgentPolicyController {
       {
         // `authGuard`, NOT `apiAccessGuard`: a PAT must never be able to widen
         // the policy that constrains it. Only the human, in a real session.
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Agent Policy"],
           summary: "Update the disclosure policy (human sessions only)",
@@ -121,7 +133,7 @@ export class AgentPolicyController {
     app.get(
       "/me/work-context",
       {
-        preHandler: apiAccessGuard("profile:read"),
+        preHandler: toAsyncHook(apiAccessGuard("profile:read")),
         schema: {
           tags: ["Agent Policy"],
           summary:

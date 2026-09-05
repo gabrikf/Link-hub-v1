@@ -4,7 +4,7 @@ import type { CraftHubApiClient } from "../api-client.js";
 import { errorResult, runTool, textResult } from "./shared.js";
 
 const inputSchema = {
-  id: z.string().uuid().describe("The id of the post to delete. Required."),
+  id: z.uuid().describe("The id of the post to delete. Required."),
 };
 
 /** `delete_post` — permanently delete a post by id. */

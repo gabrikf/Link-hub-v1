@@ -207,7 +207,8 @@ describe("multiple author emails", () => {
     setConfig(personalRepo, "user.email", "me@personal.dev");
 
     const authors = resolveAuthors([], undefined, [workRepo, personalRepo]);
-    expect(authors.sort()).toEqual(["me@personal.dev", "me@work.example"]);
+    const sortedAuthors = [...authors].sort((a, b) => a.localeCompare(b));
+    expect(sortedAuthors).toEqual(["me@personal.dev", "me@work.example"]);
   });
 
   it("prefers explicit flags over discovery", () => {

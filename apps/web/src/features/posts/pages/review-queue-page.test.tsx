@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../../../test-support/assert-defined";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -132,6 +133,7 @@ describe("ReviewQueuePage", () => {
     render(<ReviewQueuePage />);
 
     const [item] = screen.getAllByRole("listitem");
+    assertDefined(item, "the first review-queue item");
 
     expect(item).toHaveTextContent(
       "Generated from your commit activity in crafthub-v.1",
@@ -167,6 +169,7 @@ describe("ReviewQueuePage", () => {
     render(<ReviewQueuePage />);
 
     const [item] = screen.getAllByRole("listitem");
+    assertDefined(item, "the first review-queue item");
     await user.click(within(item).getByRole("button", { name: /add link/i }));
 
     const field = within(item).getByLabelText("Link URL");
@@ -185,6 +188,7 @@ describe("ReviewQueuePage", () => {
     render(<ReviewQueuePage />);
 
     const [item] = screen.getAllByRole("listitem");
+    assertDefined(item, "the first review-queue item");
     await user.click(within(item).getByRole("button", { name: /add link/i }));
     await user.type(within(item).getByLabelText("Link URL"), "not-a-url");
     await user.click(within(item).getByRole("button", { name: /save/i }));
@@ -200,6 +204,7 @@ describe("ReviewQueuePage", () => {
     render(<ReviewQueuePage />);
 
     const [item] = screen.getAllByRole("listitem");
+    assertDefined(item, "the first review-queue item");
     await user.click(
       within(item).getByRole("button", { name: /approve & publish/i }),
     );
@@ -216,6 +221,7 @@ describe("ReviewQueuePage", () => {
     render(<ReviewQueuePage />);
 
     const [item] = screen.getAllByRole("listitem");
+    assertDefined(item, "the first review-queue item");
     await user.click(within(item).getByRole("button", { name: /delete/i }));
 
     // The click alone must not destroy anything.

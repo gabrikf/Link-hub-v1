@@ -1,9 +1,5 @@
 import type { ResumeResponse } from "@repo/schemas";
-import {
-  BADGE,
-  FOCUS_RING,
-  SURFACE,
-} from "../../../shared-components/surface";
+import { BADGE, FOCUS_RING, SURFACE } from "../../../shared-components/surface";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -69,32 +65,8 @@ export function ResumeReadOnlyCard({
   action,
   emptyMessage,
   surfaceClassName = SURFACE,
-}: ResumeReadOnlyCardProps) {
+}: Readonly<ResumeReadOnlyCardProps>) {
   const { t } = useTranslation();
-
-  const seniorityLabels: Record<string, string> = {
-    intern: t("enum.seniority.intern"),
-    junior: t("enum.seniority.junior"),
-    mid: t("enum.seniority.mid"),
-    senior: t("enum.seniority.senior"),
-    staff: t("enum.seniority.staff"),
-    principal: t("enum.seniority.principal"),
-  };
-
-  const workModelLabels: Record<string, string> = {
-    remote: t("enum.workModel.remote"),
-    hybrid: t("enum.workModel.hybrid"),
-    "on-site": t("enum.workModel.on-site"),
-  };
-
-  const contractLabels: Record<string, string> = {
-    clt: t("enum.contractType.clt"),
-    pj: t("enum.contractType.pj"),
-    freelance: t("enum.contractType.freelance"),
-    contract: t("enum.contractType.contract"),
-    "full-time": t("enum.contractType.full-time"),
-    "part-time": t("enum.contractType.part-time"),
-  };
 
   const resolvedTitle = title ?? t("common.resume");
   const resolvedSubtitle = subtitle ?? t("resume.readOnlyOverview");
@@ -132,110 +104,149 @@ export function ResumeReadOnlyCard({
           {resolvedEmptyMessage}
         </div>
       ) : (
-        <div className="mt-4 space-y-4">
-          <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40">
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              {resume.headlineTitle || t("resume.headlineNotSet")}
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-              {resume.summary || t("resume.noSummary")}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <MetaPill icon={<FiMapPin className="h-3.5 w-3.5" />}>
-              {resume.location || t("resume.locationNotSet")}
-            </MetaPill>
-            <MetaPill icon={<FiAward className="h-3.5 w-3.5" />}>
-              {resume.seniorityLevel
-                ? seniorityLabels[resume.seniorityLevel] ||
-                  resume.seniorityLevel
-                : t("resume.seniorityNotSet")}
-            </MetaPill>
-            <MetaPill icon={<FiCompass className="h-3.5 w-3.5" />}>
-              {resume.workModel
-                ? workModelLabels[resume.workModel] || resume.workModel
-                : t("resume.workModelNotSet")}
-            </MetaPill>
-            <MetaPill icon={<FiBriefcase className="h-3.5 w-3.5" />}>
-              {resume.contractType
-                ? contractLabels[resume.contractType] || resume.contractType
-                : t("resume.contractTypeNotSet")}
-            </MetaPill>
-            <MetaPill icon={<FiStar className="h-3.5 w-3.5" />}>
-              {resume.totalYearsExperience !== null
-                ? t("resume.yearsExperience", {
-                    count: resume.totalYearsExperience,
-                  })
-                : t("resume.experienceNotSet")}
-            </MetaPill>
-            <MetaPill icon={<FiUserCheck className="h-3.5 w-3.5" />}>
-              {resume.openToRelocation
-                ? t("common.openToRelocation")
-                : t("resume.notOpenToRelocation")}
-            </MetaPill>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <MetaPill icon={<FiDollarSign className="h-3.5 w-3.5" />}>
-              {resume.salaryExpectationMin !== null &&
-              resume.salaryExpectationMax !== null
-                ? `${formatCurrency(resume.salaryExpectationMin)} - ${formatCurrency(resume.salaryExpectationMax)}`
-                : t("resume.salaryNotSet")}
-            </MetaPill>
-            <MetaPill icon={<FiMessageCircle className="h-3.5 w-3.5" />}>
-              {resume.noticePeriod || t("resume.noticePeriodNotSet")}
-            </MetaPill>
-          </div>
-
-          <SectionLabel label={t("common.titles")} />
-          {resume.titles.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {resume.titles.map((item) => (
-                <span
-                  key={item.id}
-                  className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-200"
-                >
-                  {item.titleName}
-                  {item.isPrimary ? t("resume.primaryMarker") : ""}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t("resume.noTitlesAdded")}
-            </p>
-          )}
-
-          <SectionLabel label={t("common.skills")} />
-          {resume.skills.length > 0 ? (
-            <SkillChips skills={resume.skills} />
-          ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t("resume.noSkillsAdded")}
-            </p>
-          )}
-
-          <SectionLabel label={t("common.languages")} />
-          {resume.spokenLanguages.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {resume.spokenLanguages.map((language) => (
-                <span
-                  key={language}
-                  className="rounded-full border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                >
-                  {language}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t("resume.noLanguagesAdded")}
-            </p>
-          )}
-        </div>
+        <ResumeDetails resume={resume} />
       )}
     </section>
+  );
+}
+
+/**
+ * The filled state: the headline card, the two meta-pill grids and the
+ * titles / skills / languages chip sections.
+ *
+ * Split out of `ResumeReadOnlyCard` so the card itself is only the shell and
+ * its four states, and the enum label maps live next to the pills that read
+ * them.
+ */
+function ResumeDetails({ resume }: Readonly<{ resume: ResumeView }>) {
+  const { t } = useTranslation();
+
+  const seniorityLabels: Record<string, string> = {
+    intern: t("enum.seniority.intern"),
+    junior: t("enum.seniority.junior"),
+    mid: t("enum.seniority.mid"),
+    senior: t("enum.seniority.senior"),
+    staff: t("enum.seniority.staff"),
+    principal: t("enum.seniority.principal"),
+  };
+
+  const workModelLabels: Record<string, string> = {
+    remote: t("enum.workModel.remote"),
+    hybrid: t("enum.workModel.hybrid"),
+    "on-site": t("enum.workModel.on-site"),
+  };
+
+  const contractLabels: Record<string, string> = {
+    clt: t("enum.contractType.clt"),
+    pj: t("enum.contractType.pj"),
+    freelance: t("enum.contractType.freelance"),
+    contract: t("enum.contractType.contract"),
+    "full-time": t("enum.contractType.full-time"),
+    "part-time": t("enum.contractType.part-time"),
+  };
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40">
+        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {resume.headlineTitle || t("resume.headlineNotSet")}
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+          {resume.summary || t("resume.noSummary")}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <MetaPill icon={<FiMapPin className="h-3.5 w-3.5" />}>
+          {resume.location || t("resume.locationNotSet")}
+        </MetaPill>
+        <MetaPill icon={<FiAward className="h-3.5 w-3.5" />}>
+          {resume.seniorityLevel
+            ? seniorityLabels[resume.seniorityLevel] || resume.seniorityLevel
+            : t("resume.seniorityNotSet")}
+        </MetaPill>
+        <MetaPill icon={<FiCompass className="h-3.5 w-3.5" />}>
+          {resume.workModel
+            ? workModelLabels[resume.workModel] || resume.workModel
+            : t("resume.workModelNotSet")}
+        </MetaPill>
+        <MetaPill icon={<FiBriefcase className="h-3.5 w-3.5" />}>
+          {resume.contractType
+            ? contractLabels[resume.contractType] || resume.contractType
+            : t("resume.contractTypeNotSet")}
+        </MetaPill>
+        <MetaPill icon={<FiStar className="h-3.5 w-3.5" />}>
+          {resume.totalYearsExperience !== null
+            ? t("resume.yearsExperience", {
+                count: resume.totalYearsExperience,
+              })
+            : t("resume.experienceNotSet")}
+        </MetaPill>
+        <MetaPill icon={<FiUserCheck className="h-3.5 w-3.5" />}>
+          {resume.openToRelocation
+            ? t("common.openToRelocation")
+            : t("resume.notOpenToRelocation")}
+        </MetaPill>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <MetaPill icon={<FiDollarSign className="h-3.5 w-3.5" />}>
+          {resume.salaryExpectationMin !== null &&
+          resume.salaryExpectationMax !== null
+            ? `${formatCurrency(resume.salaryExpectationMin)} - ${formatCurrency(resume.salaryExpectationMax)}`
+            : t("resume.salaryNotSet")}
+        </MetaPill>
+        <MetaPill icon={<FiMessageCircle className="h-3.5 w-3.5" />}>
+          {resume.noticePeriod || t("resume.noticePeriodNotSet")}
+        </MetaPill>
+      </div>
+
+      <SectionLabel label={t("common.titles")} />
+      {resume.titles.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {resume.titles.map((item) => (
+            <span
+              key={item.id}
+              className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-200"
+            >
+              {item.titleName}
+              {item.isPrimary ? t("resume.primaryMarker") : ""}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          {t("resume.noTitlesAdded")}
+        </p>
+      )}
+
+      <SectionLabel label={t("common.skills")} />
+      {resume.skills.length > 0 ? (
+        <SkillChips skills={resume.skills} />
+      ) : (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          {t("resume.noSkillsAdded")}
+        </p>
+      )}
+
+      <SectionLabel label={t("common.languages")} />
+      {resume.spokenLanguages.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {resume.spokenLanguages.map((language) => (
+            <span
+              key={language}
+              className="rounded-full border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+            >
+              {language}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          {t("resume.noLanguagesAdded")}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -255,7 +266,7 @@ type SkillChipsProps = {
   skills: ResumeView["skills"];
 };
 
-function SkillChips({ skills }: SkillChipsProps) {
+function SkillChips({ skills }: Readonly<SkillChipsProps>) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -318,7 +329,7 @@ type MetaPillProps = {
   children: ReactNode;
 };
 
-function MetaPill({ icon, children }: MetaPillProps) {
+function MetaPill({ icon, children }: Readonly<MetaPillProps>) {
   return (
     <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
       <span className="text-zinc-500 dark:text-zinc-400">{icon}</span>
@@ -327,7 +338,7 @@ function MetaPill({ icon, children }: MetaPillProps) {
   );
 }
 
-function SectionLabel({ label }: { label: string }) {
+function SectionLabel({ label }: Readonly<{ label: string }>) {
   return (
     <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
       {label}

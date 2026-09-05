@@ -5,8 +5,10 @@ const embedder = new DeterministicEmbeddingProvider(256);
 
 function cosine(a: number[], b: number[]): number {
   let dot = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    dot += a[index] * b[index];
+  for (const [index, left] of a.entries()) {
+    // Callers pass vectors of equal length; the default states that without
+    // asserting it away.
+    dot += left * (b[index] ?? 0);
   }
   return dot;
 }

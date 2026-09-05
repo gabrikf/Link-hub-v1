@@ -8,6 +8,7 @@ import {
   searchTestEmbedder,
   seedCorpus,
 } from "./search-corpus.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 /**
  * Metamorphic tests: properties that must hold between *pairs* of searches.
@@ -174,8 +175,12 @@ describe("recruiter search — metamorphic properties", () => {
   it("keeps ties in a stable, documented order", async () => {
     // Three candidates with literally the same document: only the id can
     // separate them, and it must do so the same way every time.
+    const tiedTemplate = expectDefined(
+      SEARCH_CORPUS[0],
+      "the first corpus candidate",
+    );
     const tied = ["tie-c", "tie-a", "tie-b"].map((id) => ({
-      ...SEARCH_CORPUS[0],
+      ...tiedTemplate,
       id,
       name: id,
       username: id,

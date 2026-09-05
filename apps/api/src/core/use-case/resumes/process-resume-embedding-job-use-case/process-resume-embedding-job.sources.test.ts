@@ -11,6 +11,7 @@ import { InMemoryResumeSkillRepository } from "../../../repositories/resume-skil
 import { InMemoryResumeTitleRepository } from "../../../repositories/resume-title/in-memory-resume-title-repository.js";
 import { InMemoryWorkExperienceRepository } from "../../../repositories/work-experience/in-memory-work-experience-repository.js";
 import { ProcessResumeEmbeddingJobUseCase } from "./process-resume-embedding-job.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 class CountingEmbeddingProvider implements IEmbeddingProvider {
   public readonly texts: string[] = [];
@@ -126,11 +127,9 @@ describe("ProcessResumeEmbeddingJobUseCase — per-source vectors", () => {
 
     const sections = await sectionRepository.findByUserId("user-1");
 
-    expect(sections.map((item) => item.source).sort()).toEqual([
-      "posts",
-      "profile",
-      "work",
-    ]);
+    expect(
+      sections.map((item) => item.source).sort((a, b) => a.localeCompare(b)),
+    ).toEqual(["posts", "profile", "work"]);
     expect(
       await resumeEmbeddingsRepository.findByResumeId(resume.id),
     ).not.toBeNull();
@@ -204,10 +203,11 @@ describe("ProcessResumeEmbeddingJobUseCase — per-source vectors", () => {
     const resume = await seedFullCandidate();
     await run(resume.id);
 
-    const [post] = await postRepository.listPublishedByUserId("user-1", {
+    const [firstPost] = await postRepository.listPublishedByUserId("user-1", {
       limit: 10,
       offset: 0,
     });
+    const post = expectDefined(firstPost, "the published post");
     await postRepository.delete(post.id);
 
     await run(resume.id);
@@ -216,10 +216,9 @@ describe("ProcessResumeEmbeddingJobUseCase — per-source vectors", () => {
 
     // A stale `posts` vector would keep answering posts-scoped searches for
     // work the candidate has removed.
-    expect(sections.map((item) => item.source).sort()).toEqual([
-      "profile",
-      "work",
-    ]);
+    expect(
+      sections.map((item) => item.source).sort((a, b) => a.localeCompare(b)),
+    ).toEqual(["profile", "work"]);
   });
 
   it("only embeds published posts", async () => {

@@ -169,18 +169,18 @@ export function DashboardPage() {
     const currentUsername = meQuery.data?.username;
 
     if (currentUsername) {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["public-profile", currentUsername],
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["public-resume", currentUsername],
       });
 
       return;
     }
 
-    queryClient.invalidateQueries({ queryKey: ["public-profile"] });
-    queryClient.invalidateQueries({ queryKey: ["public-resume"] });
+    void queryClient.invalidateQueries({ queryKey: ["public-profile"] });
+    void queryClient.invalidateQueries({ queryKey: ["public-resume"] });
   };
 
   /**
@@ -206,7 +206,7 @@ export function DashboardPage() {
   const createLinkMutation = useMutation({
     mutationFn: createLink,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["links"] });
+      void queryClient.invalidateQueries({ queryKey: ["links"] });
       invalidatePublicProfileCache();
       resetLinkForm();
     },
@@ -226,7 +226,7 @@ export function DashboardPage() {
       };
     }) => updateLink(linkId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["links"] });
+      void queryClient.invalidateQueries({ queryKey: ["links"] });
       invalidatePublicProfileCache();
       resetLinkForm();
     },
@@ -235,7 +235,7 @@ export function DashboardPage() {
   const deleteLinkMutation = useMutation({
     mutationFn: deleteLink,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["links"] });
+      void queryClient.invalidateQueries({ queryKey: ["links"] });
       invalidatePublicProfileCache();
     },
   });
@@ -244,7 +244,7 @@ export function DashboardPage() {
     mutationFn: ({ linkId, isPublic }: { linkId: string; isPublic: boolean }) =>
       toggleLinkVisibility(linkId, { isPublic }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["links"] });
+      void queryClient.invalidateQueries({ queryKey: ["links"] });
       invalidatePublicProfileCache();
     },
   });
@@ -252,7 +252,7 @@ export function DashboardPage() {
   const reorderLinksMutation = useMutation({
     mutationFn: reorderLinks,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["links"] });
+      void queryClient.invalidateQueries({ queryKey: ["links"] });
       invalidatePublicProfileCache();
     },
   });
@@ -270,7 +270,7 @@ export function DashboardPage() {
        * OLD handle on purpose: that is the cache entry that just went stale.
        */
       syncUserInfo(updated);
-      queryClient.invalidateQueries({ queryKey: ["me"] });
+      void queryClient.invalidateQueries({ queryKey: ["me"] });
       invalidatePublicProfileCache();
     },
   });
@@ -278,7 +278,7 @@ export function DashboardPage() {
   const upsertResumeMutation = useMutation({
     mutationFn: upsertResume,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resume"] });
+      void queryClient.invalidateQueries({ queryKey: ["resume"] });
       invalidatePublicProfileCache();
     },
   });
@@ -286,21 +286,25 @@ export function DashboardPage() {
   const createSkillCatalogMutation = useMutation({
     mutationFn: createSkillCatalogItem,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resume-catalog-skills"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["resume-catalog-skills"],
+      });
     },
   });
 
   const createTitleCatalogMutation = useMutation({
     mutationFn: createTitleCatalogItem,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resume-catalog-titles"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["resume-catalog-titles"],
+      });
     },
   });
 
   const saveResumeSkillsBulkMutation = useMutation({
     mutationFn: saveResumeSkillsBulk,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resume"] });
+      void queryClient.invalidateQueries({ queryKey: ["resume"] });
       invalidatePublicProfileCache();
     },
   });
@@ -308,7 +312,7 @@ export function DashboardPage() {
   const saveResumeTitlesBulkMutation = useMutation({
     mutationFn: saveResumeTitlesBulk,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resume"] });
+      void queryClient.invalidateQueries({ queryKey: ["resume"] });
       invalidatePublicProfileCache();
     },
   });
@@ -415,7 +419,7 @@ export function DashboardPage() {
   // message — so they just clicked Create again. The mutation's own `isError`
   // drives the message below; this only stops the unhandled rejection.
   const handleSubmitLink = async (data: LinkFormValues) => {
-    const icon = (data.iconOption?.value || null) as LinkIcon | null;
+    const icon = data.iconOption?.value || null;
 
     try {
       if (data.editingLinkId) {
@@ -738,9 +742,11 @@ export function DashboardPage() {
           currentProfileName={meQuery.data?.name ?? ""}
           currentProfileDescription={meQuery.data?.description ?? null}
           onApplied={() => {
-            queryClient.invalidateQueries({ queryKey: ["resume"] });
-            queryClient.invalidateQueries({ queryKey: ["work-experiences"] });
-            queryClient.invalidateQueries({ queryKey: ["me"] });
+            void queryClient.invalidateQueries({ queryKey: ["resume"] });
+            void queryClient.invalidateQueries({
+              queryKey: ["work-experiences"],
+            });
+            void queryClient.invalidateQueries({ queryKey: ["me"] });
             invalidatePublicProfileCache();
           }}
         />

@@ -75,4 +75,30 @@ export const config = [
     ],
     rules: { "no-restricted-imports": "off" },
   },
+  {
+    /**
+     * RULE EXCEPTION — `sonarjs/deprecation`, one rule, one file.
+     *
+     * `use-clipboard.ts` copies personal access tokens. It calls
+     * `navigator.clipboard.writeText` first; `document.execCommand("copy")` is
+     * the `catch` branch three lines below it, reached only where the async
+     * Clipboard API is absent or refused — a non-secure origin, an
+     * `document.hasFocus()`-less context, a browser that denies the permission.
+     * The deprecated call IS the fallback, and it is the only fallback that
+     * exists: the sole non-deprecated clipboard API is `navigator.clipboard`,
+     * which is already the primary path. "Fixing" the finding means deleting a
+     * working fallback and silently failing to copy a token the user asked for.
+     *
+     * So this is not deferred work — there is nothing to migrate to. Revisit
+     * only when the repo's browser support matrix drops every context where
+     * `navigator.clipboard` is unavailable, at which point the whole `catch`
+     * branch goes, not just the deprecated call.
+     *
+     * Scoped to the one rule on the one path: `sonarjs/deprecation` keeps
+     * firing on every other file in `apps/web`, and every other rule keeps
+     * firing on this one.
+     */
+    files: ["src/features/settings/lib/use-clipboard.ts"],
+    rules: { "sonarjs/deprecation": "off" },
+  },
 ];

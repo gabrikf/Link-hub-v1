@@ -1,9 +1,9 @@
 /**
  * Search-index maintenance commands.
  *
- *   npx tsx src/core/use-case/resumes/maintenance/backfill-search-index.ts status
- *   npx tsx src/core/use-case/resumes/maintenance/backfill-search-index.ts open-to-work
- *   npx tsx src/core/use-case/resumes/maintenance/backfill-search-index.ts reembed [--dry-run]
+ *   npx tsx src/infra/database/drizzle/maintenance/backfill-search-index.ts status
+ *   npx tsx src/infra/database/drizzle/maintenance/backfill-search-index.ts open-to-work
+ *   npx tsx src/infra/database/drizzle/maintenance/backfill-search-index.ts reembed [--dry-run]
  *
  * Two things need a one-off pass whenever the search contract changes, and both
  * are silent failures if nobody runs them:
@@ -25,17 +25,13 @@
 
 import "dotenv/config";
 import { and, eq, isNotNull, ne, or, sql } from "drizzle-orm";
-import { db } from "../../../../infra/database/drizzle/index.js";
-import {
-  resumeEmbeddings,
-  resumes,
-  users,
-} from "../../../../infra/database/drizzle/schema.js";
-import { BullMqResumeEmbeddingQueue } from "../../../../infra/providers/bullmq-resume-embedding-queue.js";
+import { db } from "../index.js";
+import { resumeEmbeddings, resumes, users } from "../schema.js";
+import { BullMqResumeEmbeddingQueue } from "../../../providers/bullmq-resume-embedding-queue.js";
 import {
   resolveEmbeddingModel,
   resolveEmbeddingVersion,
-} from "../shared/embedding-config.js";
+} from "../../../../core/use-case/resumes/shared/embedding-config.js";
 
 async function reportStatus(): Promise<void> {
   const model = resolveEmbeddingModel();

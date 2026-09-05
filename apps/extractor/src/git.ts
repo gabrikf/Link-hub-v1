@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 
+import { GIT_BINARY } from "./git-binary.js";
+
 /**
  * The only place this package shells out to `git`.
  *
@@ -10,6 +12,10 @@ import { spawnSync } from "node:child_process";
  * `spawnSync` with an argument array — never a shell string — so a repository
  * path containing spaces, quotes or `$(…)` is an argument and not something the
  * shell gets an opinion about.
+ *
+ * The binary itself is the absolute path resolved once by `./git-binary.js`,
+ * not the bare name — see that module for why the `PATH` search happens there
+ * instead of on every spawn.
  */
 
 export class GitError extends Error {
@@ -24,15 +30,8 @@ const RECORD = "\x1e";
 const FIELD = "\x1f";
 const GROUP = "\x1d";
 
-/**
- * Spawned by bare name so it resolves through `PATH`, same as typing `git` at
- * a shell — the standard, expected way to invoke it for a tool like this one.
- * Hoisted to a named const per the repo's os-command-from-path convention.
- */
-const GIT_BIN = "git";
-
 function git(repoPath: string, args: readonly string[]): string {
-  const result = spawnSync(GIT_BIN, ["-C", repoPath, ...args], {
+  const result = spawnSync(GIT_BINARY, ["-C", repoPath, ...args], {
     encoding: "utf8",
     // A decade of history in a large monorepo is comfortably megabytes of
     // path listings; the default 1 MB buffer would silently truncate it.

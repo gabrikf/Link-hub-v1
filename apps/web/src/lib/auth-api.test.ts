@@ -1,5 +1,6 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../test-support/assert-defined";
 
 /**
  * These tests drive the *real* axios instance created inside `auth-api`, with
@@ -69,12 +70,15 @@ describe("fetchWithTokens", () => {
     const { fetchWithTokens } = await loadApi();
 
     const formData = new FormData();
-    formData.append("file", new File(["binary"], "avatar.png", { type: "image/png" }));
+    formData.append(
+      "file",
+      new File(["binary"], "avatar.png", { type: "image/png" }),
+    );
 
     await fetchWithTokens("/me/uploads", { method: "POST", data: formData });
 
     const [request] = captured;
-    expect(request).toBeDefined();
+    assertDefined(request, "the captured request");
 
     // Regression: `AxiosHeaders.delete("Content-Type")` did not override the
     // client's `application/json` default. axios then took the
@@ -93,6 +97,7 @@ describe("fetchWithTokens", () => {
     await fetchWithTokens("/links", { method: "POST", data: { title: "hi" } });
 
     const [request] = captured;
+    assertDefined(request, "the captured request");
     expect(request.contentType).toMatch(/application\/json/);
     expect(request.data).toBe(JSON.stringify({ title: "hi" }));
   });
@@ -119,7 +124,10 @@ describe("fetchWithTokens", () => {
     setAuthTokens({ accessToken: "access-123", refreshToken: "refresh-456" });
 
     const formData = new FormData();
-    formData.append("file", new File(["binary"], "a.png", { type: "image/png" }));
+    formData.append(
+      "file",
+      new File(["binary"], "a.png", { type: "image/png" }),
+    );
     await fetchWithTokens("/me/uploads", { method: "POST", data: formData });
 
     expect(captured[0]?.headers).toMatchObject({
@@ -230,6 +238,7 @@ describe("uploadImage", () => {
     expect(url).toBe("https://cdn.example.com/uploads/u1/abc.png");
 
     const [request] = captured;
+    assertDefined(request, "the captured request");
     expect(request.url).toBe("/me/uploads");
     expect(request.method).toBe("post");
     expect(request.data).toBeInstanceOf(FormData);

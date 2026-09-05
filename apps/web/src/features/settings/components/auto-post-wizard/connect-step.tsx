@@ -24,30 +24,27 @@ import {
   REPOS_DISCOVERY_COMMAND,
   reposDiscoveryNote,
 } from "../../lib/connection-format";
+import type { StashedConnection } from "../../lib/connection-stash";
 import { resolveApiUrl } from "../../lib/mcp-config";
 import { buildTabs, TOKEN_PLACEHOLDER } from "../../lib/mcp-tool-tabs";
-import {
-  NewConnectionSetup,
-  type StashedConnection,
-} from "../new-connection-setup";
+import { NewConnectionSetup } from "../new-connection-setup";
 import { SnippetBlock } from "../snippet-block";
 import { ToolTabs } from "../tool-tabs";
 import { WizardTokenBlock } from "./wizard-token-block";
-import type { WizardSourceKey } from "./wizard-shared";
+import type { WizardSourceKey } from "./wizard-vocabulary";
 
-/** Scopes per source. MCP posts; hook/extractor only append activity. */
-export const ACTIVITY_SCOPES = ["activity:write"] as const;
-export const MCP_SCOPES = [
-  "posts:read",
-  "posts:write",
-  "profile:read",
-] as const;
+/**
+ * Scopes per source. MCP posts; hook/extractor only append activity.
+ * Module-private: nothing outside this step mints a token.
+ */
+const ACTIVITY_SCOPES = ["activity:write"] as const;
+const MCP_SCOPES = ["posts:read", "posts:write", "profile:read"] as const;
 
 function NumberedFlow({
   steps,
-}: {
+}: Readonly<{
   steps: Array<{ label: string; body: React.ReactNode }>;
-}) {
+}>) {
   return (
     <ol className="space-y-3">
       {steps.map((step, index) => (
@@ -73,7 +70,9 @@ function NumberedFlow({
  * directory. That last fallback works, which is exactly why this is easy to
  * miss: a week spent across four projects silently posts as one.
  */
-function ReposCoverageBlock({ variant }: { variant: "mcp" | "extractor" }) {
+function ReposCoverageBlock({
+  variant,
+}: Readonly<{ variant: "mcp" | "extractor" }>) {
   const { t } = useTranslation();
   const isMcp = variant === "mcp";
   return (
@@ -139,7 +138,7 @@ export function ConnectStep({
   tokenNameHint,
   toolKey = null,
   onToolKeyChange,
-}: ConnectStepProps) {
+}: Readonly<ConnectStepProps>) {
   const { t } = useTranslation();
   const apiUrl = useMemo(() => resolveApiUrl(), []);
   const plaintextToken = token?.token ?? null;

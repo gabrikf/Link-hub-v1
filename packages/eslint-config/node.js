@@ -144,11 +144,50 @@ export const config = [
       // and its dependents are already closed — never mid-request.
       "**/infra/http/server.ts",
       // `npx tsx .../backfill-search-index.ts <command>` — a standalone
-      // search-index maintenance CLI (status/open-to-work/reembed). It lives
-      // under `src/core/use-case/**` for proximity to the search code it
-      // maintains, not because it is imported at runtime.
+      // search-index maintenance CLI (status/open-to-work/reembed). Moved on
+      // 2026-09-05 from `src/core/use-case/resumes/maintenance/` to
+      // `src/infra/database/drizzle/maintenance/`, where it sits beside the
+      // other drizzle CLIs listed above. It had been in `core/` for proximity
+      // to the search code it maintains, which cost four `no-restricted-imports`
+      // violations; it has no importers and a `process.exit` entry point, so it
+      // was a script, not a use case missing a repository interface.
       "**/maintenance/backfill-search-index.ts",
     ],
     rules: { "n/no-process-exit": "off" },
+  },
+  {
+    /**
+     * RULE EXCEPTION — `sonarjs/redundant-type-aliases`, one rule, one file.
+     *
+     * `export type TransactionContext = unknown;` is the NAMED OPAQUE HANDLE
+     * for the single value that crosses the core/infra boundary: a use-case
+     * receives one from `IUnitOfWork.runInTransaction` and threads it through
+     * repository calls without ever being allowed to look inside it.
+     *
+     * WHY `unknown` AND NOT SOMETHING NARROWER. It is the only type that
+     * accepts BOTH a real drizzle `PgTransaction` (from
+     * `src/infra/database/drizzle/drizzle-unit-of-work.ts`) and `undefined`
+     * (the no-transaction path) without a cast at the call site. Widening it to
+     * a union of the two would drag `drizzle-orm` into `src/core/`, which the
+     * layer rule above forbids for good reason.
+     *
+     * WHY NOT A BRANDED OPAQUE TYPE. It was implemented and rejected by tsc,
+     * not by taste: TS2559 at `drizzle-unit-of-work.ts:17` — the weak-type
+     * check, because a brand is by definition a property the real
+     * `PgTransaction` object does not have — and TS2345 at
+     * `in-memory-unit-of-work.ts:15`. Compilation wins over a lint rule.
+     *
+     * WHY NOT JUST INLINE `unknown`. 28 type positions across the 8 files that
+     * import it (`grep -rn ': TransactionContext' apps/api/src`). Inlining
+     * discards the name and the JSDoc above it, which is the only thing telling
+     * a reader that the opaque value is a transaction handle rather than an
+     * un-parsed payload — the exact thing this repo uses `unknown` for
+     * everywhere else.
+     *
+     * Scoped to the one path. The rule stays ON for every other file in every
+     * Node workspace, including the rest of `src/core/providers/`.
+     */
+    files: ["src/core/providers/unit-of-work/unit-of-work.ts"],
+    rules: { "sonarjs/redundant-type-aliases": "off" },
   },
 ];

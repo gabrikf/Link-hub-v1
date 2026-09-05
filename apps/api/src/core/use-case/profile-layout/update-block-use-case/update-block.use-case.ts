@@ -50,7 +50,7 @@ export class UpdateBlockUseCase {
     }
 
     // Validate the config once against the (shared) block kind.
-    let configData: unknown | undefined;
+    let configData: unknown;
     if (input.config !== undefined) {
       if (!CUSTOM_BLOCK_KINDS.includes(block.kind as CustomBlockKind)) {
         throw new BadRequestError("This block kind does not accept a config");
@@ -110,7 +110,7 @@ export class UpdateBlockUseCase {
   private applyRowUpdate(
     row: ProfileBlockEntity,
     blockId: string,
-    configData: unknown | undefined,
+    configData: unknown,
     input: UpdateBlockInput,
     tabChange: TabChange,
   ): void {

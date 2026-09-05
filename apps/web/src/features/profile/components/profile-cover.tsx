@@ -9,7 +9,7 @@ import {
   type Persona,
 } from "./profile-theme";
 
-type ProfileCoverProps = {
+type ProfileCoverProps = Readonly<{
   bannerImageUrl: string | null;
   /**
    * Which part of the banner to keep in frame.
@@ -51,7 +51,7 @@ type ProfileCoverProps = {
   share?: { url: string; name: string };
   /** Tighter sizing for the in-dashboard preview. */
   compact?: boolean;
-};
+}>;
 
 /**
  * Cover strip at the top of the profile card: the banner image (or an accent

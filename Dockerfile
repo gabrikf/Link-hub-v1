@@ -53,7 +53,6 @@ COPY apps/web/package.json          apps/web/
 COPY packages/eslint-config/package.json    packages/eslint-config/
 COPY packages/schemas/package.json          packages/schemas/
 COPY packages/typescript-config/package.json packages/typescript-config/
-COPY packages/ui/package.json               packages/ui/
 
 # --workspace filtering is what keeps this sane: an unfiltered `npm ci` installs
 # 1294 packages (react, @tensorflow/tfjs, vite, the whole front end). Filtered to
@@ -115,7 +114,6 @@ COPY apps/web/package.json          apps/web/
 COPY packages/eslint-config/package.json    packages/eslint-config/
 COPY packages/schemas/package.json          packages/schemas/
 COPY packages/typescript-config/package.json packages/typescript-config/
-COPY packages/ui/package.json               packages/ui/
 
 # THE @repo/schemas WORKSPACE-SYMLINK PROBLEM, AND HOW IT IS SOLVED HERE.
 #

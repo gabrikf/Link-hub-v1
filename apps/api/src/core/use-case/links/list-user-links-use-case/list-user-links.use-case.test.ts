@@ -44,8 +44,8 @@ describe("ListUserLinksUseCase", () => {
     const result = await sut.execute("user-1");
 
     expect(result).toHaveLength(2);
-    expect(result[0].id).toBe(userLinkB.id);
-    expect(result[1].id).toBe(userLinkA.id);
+    expect(result[0]?.id).toBe(userLinkB.id);
+    expect(result[1]?.id).toBe(userLinkA.id);
   });
 
   it("returns an empty list when user has no links", async () => {

@@ -27,6 +27,7 @@ import { aiQuotaGuard } from "../../middleware/ai-quota-guard.js";
 import { commonErrorResponses } from "../../schemas/error-schemas.js";
 import { searchesTotal } from "../../../observability/metrics.js";
 import { extractSearchAttachmentText } from "../../utils/extract-search-attachment-text.js";
+import { formFieldText } from "../../utils/form-field-text.js";
 import { GetMyResumeUseCase } from "../../../../core/use-case/resumes/get-my-resume-use-case/get-my-resume.use-case.js";
 import { UpsertMyResumeUseCase } from "../../../../core/use-case/resumes/upsert-my-resume-use-case/upsert-my-resume.use-case.js";
 import { ListSkillsCatalogUseCase } from "../../../../core/use-case/resumes/list-skills-catalog-use-case/list-skills-catalog.use-case.js";
@@ -40,6 +41,7 @@ import { SaveResumeSkillsBulkUseCase } from "../../../../core/use-case/resumes/s
 import { SaveResumeTitlesBulkUseCase } from "../../../../core/use-case/resumes/save-resume-titles-bulk-use-case/save-resume-titles-bulk.use-case.js";
 import { TransformRecruiterSearchInputUseCase } from "../../../../core/use-case/resumes/transform-recruiter-search-input-use-case/transform-recruiter-search-input.use-case.js";
 import { RevealCandidateContactUseCase } from "../../../../core/use-case/resumes/reveal-candidate-contact-use-case/reveal-candidate-contact.use-case.js";
+import { toAsyncHook } from "../../to-async-hook.js";
 
 // NOTE: the search response schema is imported from @repo/schemas, not
 // redeclared here. A local copy used to shadow it, and because Fastify
@@ -56,7 +58,12 @@ function parseStringArrayField(raw?: unknown): string[] | undefined {
     return raw.filter((item): item is string => typeof item === "string");
   }
 
-  const asString = String(raw).trim();
+  const text = formFieldText(raw);
+  if (text === null) {
+    return undefined;
+  }
+
+  const asString = text.trim();
   if (!asString) {
     return undefined;
   }
@@ -88,7 +95,12 @@ function parseObjectField(raw?: unknown): Record<string, unknown> | undefined {
     return raw as Record<string, unknown>;
   }
 
-  const asString = String(raw).trim();
+  const text = formFieldText(raw);
+  if (text === null) {
+    return undefined;
+  }
+
+  const asString = text.trim();
   if (!asString) {
     return undefined;
   }
@@ -114,7 +126,12 @@ function parseTopK(raw?: unknown): number | undefined {
     return raw;
   }
 
-  const parsed = Number(String(raw));
+  const text = formFieldText(raw);
+  if (text === null) {
+    return undefined;
+  }
+
+  const parsed = Number(text);
   if (!Number.isInteger(parsed)) {
     return undefined;
   }
@@ -164,7 +181,7 @@ export class ResumeController {
     app.get(
       "/me/resume",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Get current user resume",
@@ -192,7 +209,7 @@ export class ResumeController {
     app.put(
       "/me/resume",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Create or update current user resume",
@@ -262,7 +279,7 @@ export class ResumeController {
     app.get(
       "/resume/catalog/skills",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "List default and custom skills",
@@ -286,7 +303,7 @@ export class ResumeController {
     app.post(
       "/resume/catalog/skills",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Create custom skill",
@@ -327,7 +344,7 @@ export class ResumeController {
     app.post(
       "/resume/skills",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Add skill to current resume",
@@ -370,7 +387,7 @@ export class ResumeController {
     app.put(
       "/resume/skills/bulk",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Replace all skills in current resume",
@@ -414,7 +431,7 @@ export class ResumeController {
     app.get(
       "/resume/catalog/titles",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "List default and custom titles",
@@ -438,7 +455,7 @@ export class ResumeController {
     app.post(
       "/resume/catalog/titles",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Create custom title",
@@ -479,7 +496,7 @@ export class ResumeController {
     app.post(
       "/resume/titles",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Add title to current resume",
@@ -522,7 +539,7 @@ export class ResumeController {
     app.put(
       "/resume/titles/bulk",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Replace all titles in current resume",
@@ -651,7 +668,7 @@ export class ResumeController {
               continue;
             }
 
-            fields[part.fieldname] = String(part.value ?? "");
+            fields[part.fieldname] = formFieldText(part.value) ?? "";
           }
 
           rawBody = {
@@ -702,7 +719,7 @@ export class ResumeController {
     app.post(
       "/resumes/:resumeId/contact",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Resume"],
           summary: "Reveal one candidate's contact details",

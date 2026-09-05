@@ -2,14 +2,14 @@ import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiCpu } from "react-icons/fi";
 import { FOCUS_RING, SURFACE_INSET } from "../../../shared-components/surface";
 
-type AiMatchToggleProps = {
+type AiMatchToggleProps = Readonly<{
   isOn: boolean;
   /** True while nothing is stored and the device is the one deciding. */
   isDeviceDecision: boolean;
   /** True when the primary input is a finger — a phone or a tablet. */
   isTouchFirst: boolean;
   onChange: (next: boolean) => void;
-};
+}>;
 
 const LABEL_ID = "ai-match-toggle-label";
 const WARNING_ID = "ai-match-toggle-warning";
@@ -46,7 +46,9 @@ export function AiMatchToggle({
             className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400"
             aria-hidden="true"
           />
-          <span className="min-w-0 break-words">{t("search.aiMatchLabel")}</span>
+          <span className="min-w-0 break-words">
+            {t("search.aiMatchLabel")}
+          </span>
         </span>
 
         <span className="inline-flex shrink-0 items-center gap-2">

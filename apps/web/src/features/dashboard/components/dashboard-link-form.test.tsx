@@ -17,8 +17,8 @@ function Harness({
   onSubmit,
   isSubmitting = false,
 }: {
-  onSubmit: (values: LinkFormValues) => Promise<void> | void;
-  isSubmitting?: boolean;
+  readonly onSubmit: (values: LinkFormValues) => Promise<void> | void;
+  readonly isSubmitting?: boolean;
 }) {
   const {
     register,

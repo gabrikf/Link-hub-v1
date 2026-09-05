@@ -1,4 +1,8 @@
-import type { ApiToken, CreateApiTokenOutput, GitConnection } from "@repo/schemas";
+import type {
+  ApiToken,
+  CreateApiTokenOutput,
+  GitConnection,
+} from "@repo/schemas";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,10 +18,7 @@ import { getAuthTokens } from "../../../lib/auth-tokens";
 import { useMyTokens, useRevokeToken } from "../../../lib/token-queries";
 import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
-import {
-  LoadingLabel,
-  Skeleton,
-} from "../../../shared-components/skeleton";
+import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
 import {
   BADGE,
   FOCUS_RING,
@@ -43,7 +44,7 @@ import {
 // sessionStorage is the right lifetime.
 import { readStashedToken, stashToken } from "../lib/token-stash";
 
-function StatusBadge({ token }: { token: ApiToken }) {
+function StatusBadge({ token }: Readonly<{ token: ApiToken }>) {
   const { t } = useTranslation();
   const status = getTokenStatus(token);
   // Shared `BADGE` tones — these were a third private definition of
@@ -72,11 +73,11 @@ function TokenRow({
   token,
   onRevoke,
   isRevoking,
-}: {
+}: Readonly<{
   token: ApiToken;
   onRevoke: (id: string) => void;
   isRevoking: boolean;
-}) {
+}>) {
   const { t } = useTranslation();
   const isInactive = Boolean(token.revokedAt);
   return (
@@ -212,6 +213,220 @@ function TokenListSkeleton() {
   );
 }
 
+/**
+ * The dashed placeholder shown when no ACTIVE token exists.
+ *
+ * It has two readings, and the distinction is the point: "no tokens yet" would
+ * be a lie a user can disprove when they created several and revoked them all.
+ */
+function TokenEmptyState({
+  hasRevokedTokens,
+  onCreate,
+}: Readonly<{ hasRevokedTokens: boolean; onCreate: () => void }>) {
+  const { t } = useTranslation();
+  return (
+    <div className={`anim-fade-up p-10 text-center ${SURFACE_EMPTY}`}>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        {hasRevokedTokens
+          ? t("settings.token.allRevoked")
+          : t("settings.token.empty")}
+      </p>
+      <Button
+        type="button"
+        variant="soft"
+        fullWidth={false}
+        className="mt-4 rounded-full"
+        onClick={onCreate}
+      >
+        <FiPlus className="h-4 w-4" aria-hidden="true" />
+        {hasRevokedTokens
+          ? t("settings.token.createArticle")
+          : t("settings.token.createFirst")}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * The token list. `revokingId` is the id of the row whose revoke is in flight,
+ * or undefined — passing the mutation's own `isPending` down instead would spin
+ * every Revoke button on the page at once.
+ */
+function TokenList({
+  tokens,
+  onRevoke,
+  revokingId,
+}: Readonly<{
+  tokens: readonly ApiToken[];
+  onRevoke: (id: string) => void;
+  revokingId: string | undefined;
+}>) {
+  return (
+    <ul className="space-y-3">
+      {tokens.map((token) => (
+        <TokenRow
+          key={token.id}
+          token={token}
+          onRevoke={onRevoke}
+          isRevoking={token.id === revokingId}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/** Shows/hides the revoked tokens, and says how many are hidden. */
+function ShowRevokedToggle({
+  revokedCount,
+  showRevoked,
+  onToggle,
+}: Readonly<{
+  revokedCount: number;
+  showRevoked: boolean;
+  onToggle: () => void;
+}>) {
+  const { t } = useTranslation();
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      fullWidth={false}
+      onClick={onToggle}
+    >
+      {showRevoked
+        ? t("settings.token.hideRevoked")
+        : t("settings.token.showRevoked", { count: revokedCount })}
+    </Button>
+  );
+}
+
+/**
+ * What the token list looks like once the query has resolved: which of the
+ * empty state, the rows and the revoked-tokens toggle are on screen.
+ *
+ * Owns `showRevoked` because nothing outside it reads that, and takes the full
+ * token list rather than pre-split arrays so the active/revoked split lives
+ * next to the toggle that depends on it.
+ */
+function LoadedTokenList({
+  tokens,
+  onCreate,
+  onRevoke,
+  revokingId,
+}: Readonly<{
+  tokens: readonly ApiToken[];
+  onCreate: () => void;
+  onRevoke: (id: string) => void;
+  revokingId: string | undefined;
+}>) {
+  /** Revoked tokens are history, not inventory — opt in to seeing them. */
+  const [showRevoked, setShowRevoked] = useState(false);
+
+  const activeTokens = tokens.filter((token) => !token.revokedAt);
+  const revokedTokens = tokens.filter((token) => Boolean(token.revokedAt));
+  const visibleTokens = showRevoked
+    ? [...activeTokens, ...revokedTokens]
+    : activeTokens;
+
+  return (
+    <>
+      {activeTokens.length === 0 ? (
+        <TokenEmptyState
+          hasRevokedTokens={revokedTokens.length > 0}
+          onCreate={onCreate}
+        />
+      ) : null}
+
+      {visibleTokens.length > 0 ? (
+        <TokenList
+          tokens={visibleTokens}
+          onRevoke={onRevoke}
+          revokingId={revokingId}
+        />
+      ) : null}
+
+      {revokedTokens.length > 0 ? (
+        <ShowRevokedToggle
+          revokedCount={revokedTokens.length}
+          showRevoked={showRevoked}
+          onToggle={() => setShowRevoked((value) => !value)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Personal access tokens: the section header, the query behind the list, and
+ * the four states it can be in.
+ *
+ * Owns its own query and revoke mutation because nothing outside this section
+ * reads either. `onCreate` is the one thing it cannot own — the create dialog
+ * is a sibling of the collapsed `<details>` this section lives inside, and its
+ * result (a plaintext token) is consumed by the connect snippets further up.
+ */
+function TokenSection({
+  hasSession,
+  onCreate,
+}: Readonly<{ hasSession: boolean; onCreate: () => void }>) {
+  const { t } = useTranslation();
+  const tokensQuery = useMyTokens(hasSession);
+  const revokeToken = useRevokeToken();
+
+  const handleRevoke = (id: string) => {
+    revokeToken.mutate(id);
+  };
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <FiKey
+            className="h-4 w-4 text-zinc-500 dark:text-zinc-400"
+            aria-hidden="true"
+          />
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            {t("settings.token.sectionTitle")}
+          </h2>
+        </div>
+        {/* Moved off the page header: the wizard mints the token each
+            flow needs inline, so creating one by hand is the exception,
+            and it belongs next to the list it lands in. */}
+        <Button
+          type="button"
+          variant="soft"
+          size="sm"
+          fullWidth={false}
+          className="rounded-full"
+          onClick={onCreate}
+        >
+          <FiPlus className="h-4 w-4" aria-hidden="true" />
+          {t("settings.token.create")}
+        </Button>
+      </div>
+
+      {tokensQuery.isLoading ? (
+        <TokenListSkeleton />
+      ) : tokensQuery.isError ? (
+        <p className="text-sm text-red-600 dark:text-red-400">
+          {t("settings.token.loadFailed")}
+        </p>
+      ) : (
+        <LoadedTokenList
+          tokens={tokensQuery.data ?? []}
+          onCreate={onCreate}
+          onRevoke={handleRevoke}
+          // Scoped to the row actually being revoked. `isPending` alone is
+          // mutation-wide, so it used to freeze (and would now spin) every
+          // Revoke button on the page at once.
+          revokingId={revokeToken.isPending ? revokeToken.variables : undefined}
+        />
+      )}
+    </section>
+  );
+}
+
 /** Scroll/anchor target for the collapsed advanced area. */
 export const ADVANCED_SETTINGS_ID = "advanced-settings";
 
@@ -234,9 +449,6 @@ export function SettingsPage() {
   const [lastCreated, setLastCreated] = useState<CreateApiTokenOutput | null>(
     readStashedToken,
   );
-  /** Revoked tokens are history, not inventory — opt in to seeing them. */
-  const [showRevoked, setShowRevoked] = useState(false);
-
   const handleTokenCreated = (token: CreateApiTokenOutput) => {
     setLastCreated(token);
     stashToken(token);
@@ -252,20 +464,6 @@ export function SettingsPage() {
   // Same reason, for the links the panels point at each other with: the
   // disclosure panel now sits inside the collapsed advanced area.
   useEffect(() => listenForAnchorClicks(), []);
-
-  const tokensQuery = useMyTokens(hasSession);
-  const revokeToken = useRevokeToken();
-
-  const tokens = tokensQuery.data ?? [];
-  const activeTokens = tokens.filter((token) => !token.revokedAt);
-  const revokedTokens = tokens.filter((token) => Boolean(token.revokedAt));
-  const visibleTokens = showRevoked
-    ? [...activeTokens, ...revokedTokens]
-    : activeTokens;
-
-  const handleRevoke = (id: string) => {
-    revokeToken.mutate(id);
-  };
 
   const openWizard = () => {
     setWizardResume(null);
@@ -410,106 +608,10 @@ export function SettingsPage() {
 
           <DisclosurePanel enabled={hasSession} />
 
-          <section className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <FiKey
-                  className="h-4 w-4 text-zinc-500 dark:text-zinc-400"
-                  aria-hidden="true"
-                />
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  {t("settings.token.sectionTitle")}
-                </h2>
-              </div>
-              {/* Moved off the page header: the wizard mints the token each
-                  flow needs inline, so creating one by hand is the exception,
-                  and it belongs next to the list it lands in. */}
-              <Button
-                type="button"
-                variant="soft"
-                size="sm"
-                fullWidth={false}
-                className="rounded-full"
-                onClick={() => setDialogOpen(true)}
-              >
-                <FiPlus className="h-4 w-4" aria-hidden="true" />
-                {t("settings.token.create")}
-              </Button>
-            </div>
-
-            {tokensQuery.isLoading ? (
-              <TokenListSkeleton />
-            ) : tokensQuery.isError ? (
-              <p className="text-sm text-red-600 dark:text-red-400">
-                {t("settings.token.loadFailed")}
-              </p>
-            ) : (
-              <>
-                {activeTokens.length === 0 ? (
-                  <div
-                    className={`anim-fade-up p-10 text-center ${SURFACE_EMPTY}`}
-                  >
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                      {revokedTokens.length > 0
-                        ? // Saying "no tokens yet" here would be a lie the
-                          // user can disprove — they created every one of
-                          // these and revoked them.
-                          t("settings.token.allRevoked")
-                        : t("settings.token.empty")}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="soft"
-                      fullWidth={false}
-                      className="mt-4 rounded-full"
-                      onClick={() => setDialogOpen(true)}
-                    >
-                      <FiPlus className="h-4 w-4" aria-hidden="true" />
-                      {revokedTokens.length > 0
-                        ? t("settings.token.createArticle")
-                        : t("settings.token.createFirst")}
-                    </Button>
-                  </div>
-                ) : null}
-
-                {visibleTokens.length > 0 ? (
-                  <ul className="space-y-3">
-                    {visibleTokens.map((token) => (
-                      <TokenRow
-                        key={token.id}
-                        token={token}
-                        onRevoke={handleRevoke}
-                        // Scoped to the row actually being revoked.
-                        // `isPending` alone is mutation-wide, so it used to
-                        // freeze (and would now spin) every Revoke button on
-                        // the page at once.
-                        isRevoking={
-                          revokeToken.isPending &&
-                          revokeToken.variables === token.id
-                        }
-                      />
-                    ))}
-                  </ul>
-                ) : null}
-
-                {revokedTokens.length > 0 ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    fullWidth={false}
-                    onClick={() => setShowRevoked((value) => !value)}
-                  >
-                    {showRevoked
-                      ? t("settings.token.hideRevoked")
-                      : t("settings.token.showRevoked", {
-                          count: revokedTokens.length,
-                        })}
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </section>
+          <TokenSection
+            hasSession={hasSession}
+            onCreate={() => setDialogOpen(true)}
+          />
         </div>
       </details>
 

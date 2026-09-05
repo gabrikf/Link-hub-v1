@@ -58,7 +58,7 @@ export function seedDefaultLayout(userId: string): SeededLayout {
     const blocks = DEFAULT_BUILTIN_BLOCKS.map((def, index) =>
       ProfileBlockEntity.create({
         userId,
-        groupId: blockGroupIds[index]!,
+        groupId: blockGroupIds[index],
         viewport,
         tabId: def.pinnedAllTabs ? null : tab.id,
         kind: def.kind,

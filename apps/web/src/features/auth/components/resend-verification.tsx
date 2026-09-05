@@ -31,7 +31,7 @@ type ResendVerificationProps = {
    * Passed as a `defaultValue`, so a caller whose address can change should
    * remount this with `key={email}`.
    */
-  email?: string;
+  readonly email?: string;
 };
 
 export function ResendVerification({ email }: ResendVerificationProps) {
@@ -76,15 +76,17 @@ export function ResendVerification({ email }: ResendVerificationProps) {
   return (
     <form
       className="space-y-2"
-      onSubmit={handleSubmit(async (values) => {
-        try {
-          await resendMutation.mutateAsync(values);
-        } catch {
-          // Rendered below from `resendMutation.error`. react-hook-form
-          // re-throws whatever the submit handler rejects with, and an escaped
-          // rejection is reported to Sentry as an unhandled one.
-        }
-      })}
+      onSubmit={(e) => {
+        void handleSubmit(async (values) => {
+          try {
+            await resendMutation.mutateAsync(values);
+          } catch {
+            // Rendered below from `resendMutation.error`. react-hook-form
+            // re-throws whatever the submit handler rejects with, and an escaped
+            // rejection is reported to Sentry as an unhandled one.
+          }
+        })(e);
+      }}
     >
       {!email && (
         <Input
@@ -116,7 +118,10 @@ export function ResendVerification({ email }: ResendVerificationProps) {
         message that read differently per outcome would hand that back.
       */}
       {resendMutation.isSuccess && (
-        <FeedbackMessage message={t("auth.verificationResent")} tone="success" />
+        <FeedbackMessage
+          message={t("auth.verificationResent")}
+          tone="success"
+        />
       )}
 
       {resendMutation.error && (

@@ -2,7 +2,7 @@
 
 What happens between finding and closing. The loop is governed: the runner judges the **size of the fix before touching code**, fixes only what is safely inside bounds, and escalates the rest with options — because an agent that patches the product mid-QA to clear its own findings is optimizing the dashboard, not the product.
 
-Fidelity boundary first (per the persona-fidelity guardrails, routed at Step 3 of the SKILL): fixes never happen *inside* a session. A session ends, findings exist, then the governor runs.
+Fidelity boundary first (per the persona-fidelity guardrails, routed at Step 3 of the SKILL): fixes never happen _inside_ a session. A session ends, findings exist, then the governor runs.
 
 ## Contents
 
@@ -28,8 +28,8 @@ Anything failing one test → **Decisions for a Human**. When a fix grows beyond
 
 **Three additional hard stops, specific to this product:**
 
-- **Any change to what the disclosure policy permits is a human decision, always.** Fixing *enforcement* (a filter that missed a casing variant, a redaction applied at paint instead of at storage) is inside bounds. Changing the *levels*, the defaults, or what a level means is a product decision even when the current behavior is obviously wrong.
-- **Never touch the deliberate debt.** The 30 pre-existing eslint errors in `apps/web`, the missing eslint history in `apps/api`, the zero tests in `apps/mcp`, dead `packages/ui`, `eslint-plugin-only-warn` in `packages/eslint-config`, the stray `pluguins/` directory. Not on the way past, not "while I'm here".
+- **Any change to what the disclosure policy permits is a human decision, always.** Fixing _enforcement_ (a filter that missed a casing variant, a redaction applied at paint instead of at storage) is inside bounds. Changing the _levels_, the defaults, or what a level means is a product decision even when the current behavior is obviously wrong.
+- **Never touch the deliberate debt.** The 30 pre-existing eslint errors in `apps/web`, the missing eslint history in `apps/api`, the zero tests in `apps/mcp`, `eslint-plugin-only-warn` in `packages/eslint-config`, the stray `pluguins/` directory. Not on the way past, not "while I'm here".
 - **`packages/schemas` is the contract package.** A change there ripples to api, web, mcp, extractor and training, and everything must be rebuilt (`npm run build:schemas`) before it type-checks. That is by definition not small.
 
 ## Auto-fix requirements
@@ -45,14 +45,14 @@ Tests in this repo are **vitest** everywhere (`describe/it/expect` imported from
 
 ## Where the test goes, and what it is made of
 
-| Subject | Where the test goes |
-|---|---|
-| A web component or hook | Beside it in the feature: `apps/web/src/features/<feature>/...`, vitest + `@testing-library/react` + jsdom |
-| A shared web primitive | Beside it in `apps/web/src/shared-components/` |
-| A pure API use case | `apps/api/src/core/use-case/<name>-use-case/<name>.use-case.test.ts` |
-| An API route / controller | Through `apps/api/src/infra/http/test-support/build-test-app.ts` — in-memory repositories + `server.inject`, no socket, no database |
-| A shared contract | `packages/schemas` — the strongest sensor in this repo |
-| A walked flow worth pinning | `scripts/visual/scenarios/<name>.scenario.mjs` |
+| Subject                     | Where the test goes                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| A web component or hook     | Beside it in the feature: `apps/web/src/features/<feature>/...`, vitest + `@testing-library/react` + jsdom                          |
+| A shared web primitive      | Beside it in `apps/web/src/shared-components/`                                                                                      |
+| A pure API use case         | `apps/api/src/core/use-case/<name>-use-case/<name>.use-case.test.ts`                                                                |
+| An API route / controller   | Through `apps/api/src/infra/http/test-support/build-test-app.ts` — in-memory repositories + `server.inject`, no socket, no database |
+| A shared contract           | `packages/schemas` — the strongest sensor in this repo                                                                              |
+| A walked flow worth pinning | `scripts/visual/scenarios/<name>.scenario.mjs`                                                                                      |
 
 **The contract test is the sensor that pays.** Every API response an agent claims to have shipped should be asserted by `.parse()`ing a **real captured payload** through its `@repo/schemas` zod schema. Drift then surfaces as a parse failure or a type error rather than a silent runtime bug at 2am. Capture the payload from the running dev API — never hand-write the fixture from memory of what the shape should be.
 
@@ -76,6 +76,7 @@ Escalations are findings with a recommendation, recorded in the report's **Decis
 
 ```markdown
 ### <finding title> (bug id / paper cut)
+
 - What's broken: <user-side description, evidence path>
 - Why not auto-fixed: <which governor bound it fails>
 - Options:
@@ -94,7 +95,7 @@ Sharp paper cuts (the persona would complain or hesitate to return) enter the go
 
 After any fix:
 
-1. Re-walk the impacted journey **from scratch, in persona** — a fresh session (fresh state, real entry), not a resumed browser. The Recovering User persona is often the right walker: it tests the fix *and* the recovery experience. After a disclosure leak it is the only honest walker.
+1. Re-walk the impacted journey **from scratch, in persona** — a fresh session (fresh state, real entry), not a resumed browser. The Recovering User persona is often the right walker: it tests the fix _and_ the recovery experience. After a disclosure leak it is the only honest walker.
 2. Re-walk **in both themes** whenever the fix touched anything rendered.
 3. Re-walk **adjacent journeys** — the ones sharing components or use cases with the change. A fix that breaks the neighbor is a regression the matrix must catch now, not next cycle.
 4. On pass: bug → `fixed` (then `verified` once confirmed under the original persona), matrix row → `Fixed`, tracker row per the schema (`fix_status: fixed`, `retest_status: pass`, `fix_commits` updated).
@@ -126,7 +127,7 @@ node scripts/visual/run.mjs scripts/visual/scenarios/<name>.scenario.mjs
 
 `lint-changed` fails on **new** findings, not on the 30-error backlog — a red lint result after a fix means the fix introduced it. Coverage floors sit at the measured baseline and may only go up; coverage is a flashlight, not a correctness gate, so pair it with the contract test rather than chasing the number.
 
-(The gate was green at Step 1 — this run catches what *this run's fixes* changed.)
+(The gate was green at Step 1 — this run catches what _this run's fixes_ changed.)
 
 ## Anti-patterns
 
@@ -137,6 +138,6 @@ node scripts/visual/run.mjs scripts/visual/scenarios/<name>.scenario.mjs
 - **Hand-written contract fixtures** — a fixture invented from memory of the shape asserts your memory, not the API. Capture a real payload.
 - **Silencing the signal** — `as any`, `eslint-disable`, an empty `catch`, a `setTimeout` that "fixes" the race. Load `no-workarounds`.
 - **Scope-creep fixes** — "while I'm here" refactors ride along and widen blast radius. One logical fix per commit. This includes the known debt: leave it alone.
-- **Deciding product questions** — picking a behavior a designer might pick differently, to clear a row. Escalate with options. Disclosure *semantics* are always in this bucket.
+- **Deciding product questions** — picking a behavior a designer might pick differently, to clear a row. Escalate with options. Disclosure _semantics_ are always in this bucket.
 - **Retesting only the fixed journey, in only one theme** — the neighbors and the other theme are where governed fixes still bite.
 - **Silently requeueing blocked items** — `Blocked (human decision)` and `Blocked (needs human verify)` are terminal for the run; they wait for a person, visibly.

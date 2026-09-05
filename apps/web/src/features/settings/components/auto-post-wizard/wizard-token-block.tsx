@@ -23,13 +23,13 @@ export function WizardTokenBlock({
   defaultName,
   token,
   onCreated,
-}: {
+}: Readonly<{
   scopes: ApiTokenScope[];
   defaultName: string;
   /** Lifted state: the wizard remembers the token across step changes. */
   token: CreateApiTokenOutput | null;
   onCreated: (token: CreateApiTokenOutput) => void;
-}) {
+}>) {
   const { t } = useTranslation();
   const createToken = useCreateToken();
   const [name, setName] = useState(defaultName);
@@ -109,7 +109,9 @@ export function WizardTokenBlock({
           className="shrink-0"
           isLoading={createToken.isPending}
           loadingLabel={t("common.creating")}
-          onClick={handleCreate}
+          onClick={() => {
+            void handleCreate();
+          }}
         >
           {t("settings.token.create")}
         </Button>

@@ -1,4 +1,7 @@
-import { useState, type FormEvent } from "react";
+// `SubmitEvent`, not the deprecated `FormEvent`: @types/react 19.2 marks
+// `FormEvent`/`FormEventHandler` deprecated ("FormEvent doesn't actually
+// exist") and types `<form onSubmit>` as `SubmitEventHandler`.
+import { useState, type SubmitEvent } from "react";
 import type {
   CreateWorkExperienceInput,
   WorkExperienceResponse,
@@ -83,7 +86,7 @@ export function WorkExperienceForm({
   submitLabel,
   onSubmit,
   onCancel,
-}: WorkExperienceFormProps) {
+}: Readonly<WorkExperienceFormProps>) {
   const { t } = useTranslation();
   const [state, setState] = useState<FormState>(() =>
     buildInitialState(initialValue),
@@ -101,7 +104,7 @@ export function WorkExperienceForm({
     setState((previous) => ({ ...previous, [key]: value }));
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
@@ -146,7 +149,9 @@ export function WorkExperienceForm({
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={(event) => {
+        void handleSubmit(event);
+      }}
       className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40"
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -34,6 +34,7 @@ import type {
   ParsedResume,
   ResumeParsingInput,
 } from "../../../../../core/providers/resume-parsing/resume-parsing-provider.js";
+import { expectDefined } from "../../../../../test-support/expect-defined.js";
 
 const JSON_HEADERS = { "content-type": "application/json" };
 
@@ -147,7 +148,10 @@ describe("AI import E2E — bullets and line structure", () => {
     expect(response.statusCode).toBe(200);
     expect(parsingProvider.calls).toHaveLength(1);
 
-    const sent = parsingProvider.calls[0].resumeText;
+    const sent = expectDefined(
+      parsingProvider.calls[0],
+      "the single parsing-provider call",
+    ).resumeText;
     // The whole point: the model cannot preserve bullet structure it was never
     // shown. A single glued line here is the bug.
     expect(sent).toContain("\n");
@@ -162,7 +166,10 @@ describe("AI import E2E — bullets and line structure", () => {
       parsed: { workExperiences: Array<{ description: string }> };
     }>();
 
-    const description = body.parsed.workExperiences[0].description;
+    const description = expectDefined(
+      body.parsed.workExperiences[0],
+      "the first parsed work experience",
+    ).description;
     expect(description).toBe(BULLETED_DESCRIPTION);
     expect(description.split("\n")).toHaveLength(3);
   });
@@ -177,7 +184,7 @@ describe("AI import E2E — bullets and line structure", () => {
       parsed: { workExperiences: Array<{ description: string }> };
     }>();
 
-    expect(body.parsed.workExperiences[0].description).toBe(
+    expect(body.parsed.workExperiences[0]?.description).toBe(
       "Payments team lead.\n\n- Rebuilt the ledger\n- Halved chargebacks",
     );
   });

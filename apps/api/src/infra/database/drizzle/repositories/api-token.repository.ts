@@ -3,6 +3,7 @@ import { ApiTokenEntity } from "../../../../core/entity/api-token/api-token-enti
 import { IApiTokenRepository } from "../../../../core/repositories/api-token/api-token-repository.js";
 import { db } from "../index.js";
 import { apiTokens } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 type ApiTokenRow = typeof apiTokens.$inferSelect;
 
@@ -25,7 +26,7 @@ function toEntity(row: ApiTokenRow): ApiTokenEntity {
 
 export class DrizzleApiTokenRepository implements IApiTokenRepository {
   async create(apiToken: ApiTokenEntity): Promise<ApiTokenEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(apiTokens)
       .values({
         id: apiToken.id,
@@ -41,7 +42,7 @@ export class DrizzleApiTokenRepository implements IApiTokenRepository {
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(requireReturnedRow(insertedRows, "insert into apiTokens"));
   }
 
   async findByTokenHash(tokenHash: string): Promise<ApiTokenEntity | null> {
@@ -58,10 +59,7 @@ export class DrizzleApiTokenRepository implements IApiTokenRepository {
   }
 
   async findById(id: string): Promise<ApiTokenEntity | null> {
-    const [row] = await db
-      .select()
-      .from(apiTokens)
-      .where(eq(apiTokens.id, id));
+    const [row] = await db.select().from(apiTokens).where(eq(apiTokens.id, id));
 
     if (!row) {
       return null;

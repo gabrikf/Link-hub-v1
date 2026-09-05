@@ -88,6 +88,7 @@ npx vitest related <changed-file> --run
 **If `build:schemas` is skipped:** `check-types` fails on a fresh tree against a stale `dist/`, for reasons unrelated to your code. Always build first.
 
 **If `check-types` fails:**
+
 1. Read the full error
 2. Decide whether it is in the new code or a cascade into existing code
 3. New code → fix the type/interface
@@ -96,12 +97,14 @@ npx vitest related <changed-file> --run
 **If `lint-changed.mjs` fails:** it is a NEW finding in your diff — fix the code, never disable the rule. The repo's pre-existing backlog (~30 eslint errors in `apps/web`, no eslint history in `apps/api`) is deliberately excluded and is **not yours to fix here**.
 
 **If a test fails:**
+
 1. Identify which one
 2. Is it a new test (yours)? → fix the test or the implementation
 3. Is it an existing test? → your change broke something → revert and rethink
 4. NEVER modify an existing test that is not yours without explicit permission
 
 **Beware the slow suites.** These do not fail fast when their infrastructure is missing — they hang for 60-90s:
+
 - Need docker Postgres/pgvector (`bash db-manage.sh start`):
   `apps/api/src/infra/di/container-wiring.test.ts`,
   `apps/api/src/infra/database/drizzle/search-indexes.e2e.test.ts`,
@@ -126,15 +129,21 @@ import realPayload from "../../docs/specs/[feature]/contracts/fixtures/get-block
 
 describe("GET /profile-blocks contract", () => {
   it("parses the real captured payload", () => {
-    expect(() => profileBlockSchema.array().parse(realPayload.full)).not.toThrow();
+    expect(() =>
+      profileBlockSchema.array().parse(realPayload.full),
+    ).not.toThrow();
   });
 
   it("accepts the empty case", () => {
-    expect(() => profileBlockSchema.array().parse(realPayload.empty)).not.toThrow();
+    expect(() =>
+      profileBlockSchema.array().parse(realPayload.empty),
+    ).not.toThrow();
   });
 
   it("reports drift instead of crashing on the missing-field case", () => {
-    const result = profileBlockSchema.array().safeParse(realPayload.missingField);
+    const result = profileBlockSchema
+      .array()
+      .safeParse(realPayload.missingField);
     expect(result.success).toBe(false);
   });
 });
@@ -186,11 +195,11 @@ A required field with no input in the mode that requires it is a **dead Save but
 4. **Report the matrix** as `variant × (parse | render | submit)`:
 
 ```markdown
-| Variant | parse | render | submit |
-|---|---|---|---|
-| links | pass | pass | pass |
-| video | pass | pass | n/a |
-| unknown | pass | pass ("unsupported block type") | n/a |
+| Variant | parse | render                          | submit |
+| ------- | ----- | ------------------------------- | ------ |
+| links   | pass  | pass                            | pass   |
+| video   | pass  | pass                            | n/a    |
+| unknown | pass  | pass ("unsupported block type") | n/a    |
 ```
 
 Enumerate the variants **from the zod enum** in `packages/schemas/src/`, not from memory. **Refuse the delivery** if an affected variant was not covered.
@@ -258,6 +267,7 @@ Checklist against the design:
 Run `npm run i18n:check`. Parity proves the same key set exists in all three locales with no empty values; the raw-string half proves the string became a key at all. Both run in the gate.
 
 Check instead:
+
 - Every user-visible string matches the copy table in `definitions.md`
 - Every user-visible string goes through `t()`, and every new key is in all three locale files
 - No leftover placeholder or lorem text
@@ -323,11 +333,11 @@ After convergence, check each AC in SPEC.md against the implementation.
 ```markdown
 ## Acceptance Criteria — Verification
 
-| ID | Criterion | File(s) | Test | Status |
-|----|----------|-----------|-------|--------|
-| AC-01 | WHEN the user saves THEN the block persists | block-form.tsx:45 | block-form.test.tsx:23 | pass |
-| AC-02 | WHEN the list is empty THEN the empty state shows | block-list.tsx:78 | block-list.test.tsx:45 | pass |
-| AC-03 | IF the visitor is anonymous THEN edit controls are hidden | block-list.tsx:12 | — | no test |
+| ID    | Criterion                                                 | File(s)           | Test                   | Status  |
+| ----- | --------------------------------------------------------- | ----------------- | ---------------------- | ------- |
+| AC-01 | WHEN the user saves THEN the block persists               | block-form.tsx:45 | block-form.test.tsx:23 | pass    |
+| AC-02 | WHEN the list is empty THEN the empty state shows         | block-list.tsx:78 | block-list.test.tsx:45 | pass    |
+| AC-03 | IF the visitor is anonymous THEN edit controls are hidden | block-list.tsx:12 | —                      | no test |
 ```
 
 ---
@@ -377,18 +387,21 @@ The full procedure behind SKILL.md §4.3.1. Runs whenever the feature changed an
 If the implementation reaches a dead end:
 
 ### Per task:
+
 ```bash
 git revert HEAD              # undo the last committed task
 git reset --soft HEAD~1      # or soft-reset to redo it
 ```
 
 ### Full rollback:
+
 ```bash
 git checkout main
 git branch -D feat/feature-name
 ```
 
 ### Partial (keep the foundation, redo the UI):
+
 ```bash
 git log --oneline            # find the foundation commit
 git reset --soft <foundation-sha>
@@ -400,32 +413,32 @@ Whatever you roll back, record why in `IMPLEMENTATION-STATUS.md` and re-stamp th
 
 ## "Done" Criteria by Task Type
 
-| Type | Done criterion |
-|------|-----------------|
-| **Schema/contract** | `build:schemas` + `check-types` pass; the contract test parses the REAL captured payload |
-| **Query hook** | Returns typed data off `z.infer`; the response is parsed; loading and error paths work |
-| **Page component** | Renders all four states; the route is registered in `router.tsx` and reachable; visual scenario green |
-| **Subcomponent** | Renders from the parsed real fixture; every variant row covered |
-| **Form** | Submit works; validation shows inline errors; **every required field in the field table has a mounted input in every applicable mode** |
-| **API use case** | Unit-tested in isolation (core is framework-free); registered in `container.ts`; the route answers real JSON |
-| **Tests** | `npx vitest related --run` green; `test:coverage` no package below its floor |
-| **Integration** | The end-to-end flow works, and the write landed (postgres-mcp correlation-id check) |
+| Type                | Done criterion                                                                                                                         |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Schema/contract** | `build:schemas` + `check-types` pass; the contract test parses the REAL captured payload                                               |
+| **Query hook**      | Returns typed data off `z.infer`; the response is parsed; loading and error paths work                                                 |
+| **Page component**  | Renders all four states; the route is registered in `router.tsx` and reachable; visual scenario green                                  |
+| **Subcomponent**    | Renders from the parsed real fixture; every variant row covered                                                                        |
+| **Form**            | Submit works; validation shows inline errors; **every required field in the field table has a mounted input in every applicable mode** |
+| **API use case**    | Unit-tested in isolation (core is framework-free); registered in `container.ts`; the route answers real JSON                           |
+| **Tests**           | `npx vitest related --run` green; `test:coverage` no package below its floor                                                           |
+| **Integration**     | The end-to-end flow works, and the write landed (postgres-mcp correlation-id check)                                                    |
 
 ---
 
 ## Escalation — When to Stop and Ask
 
-| Situation | Action |
-|----------|-------|
-| G0 fails on an endpoint the spec says is live | **Stop.** Report which demand failed on which registration; propose INFERRED + mock, or a route correction |
-| Ambiguous design (two readings possible) | Ask the dev, with both options |
-| A primitive in `shared-components/` cannot do what the design asks | Report the limitation, propose an alternative |
-| The API returns a shape different from the spec | Report the discrepancy, propose the delta table, do not silently adapt the schema |
-| An existing test fails because of your change | Explain what it tests and propose the adjustment |
-| >3 fix cycles without resolution | Stop, explain the root cause, propose a different approach |
-| A task needs a file outside the feature's scope | List the files and ask for approval |
-| The spec contradicts itself | Point at the contradiction and ask which reading wins |
-| A fix would require touching the known debt (`packages/ui`, the eslint backlog, `apps/mcp` tests) | Stop and ask — it is deliberately out of scope |
+| Situation                                                                          | Action                                                                                                     |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| G0 fails on an endpoint the spec says is live                                      | **Stop.** Report which demand failed on which registration; propose INFERRED + mock, or a route correction |
+| Ambiguous design (two readings possible)                                           | Ask the dev, with both options                                                                             |
+| A primitive in `shared-components/` cannot do what the design asks                 | Report the limitation, propose an alternative                                                              |
+| The API returns a shape different from the spec                                    | Report the discrepancy, propose the delta table, do not silently adapt the schema                          |
+| An existing test fails because of your change                                      | Explain what it tests and propose the adjustment                                                           |
+| >3 fix cycles without resolution                                                   | Stop, explain the root cause, propose a different approach                                                 |
+| A task needs a file outside the feature's scope                                    | List the files and ask for approval                                                                        |
+| The spec contradicts itself                                                        | Point at the contradiction and ask which reading wins                                                      |
+| A fix would require touching the known debt (the eslint backlog, `apps/mcp` tests) | Stop and ask — it is deliberately out of scope                                                             |
 
 ---
 
@@ -436,20 +449,20 @@ At the end of the implementation, self-assess:
 ```markdown
 ## Quality Report
 
-| Metric | Target | Actual | Status |
-|---------|--------|--------|--------|
-| check-types errors | 0 | [N] | |
-| Test failures | 0 | [N] | |
-| NEW lint findings | 0 | [N] | |
-| Coverage vs ratchet floor | at or above | [per package] | |
-| G0 endpoints probed | all claimed-live | [N/M] | |
-| Contract sensors on REAL payloads | 1 per endpoint | [N] | |
-| Modes/tabs with a schema ⟷ UI sensor | all applicable | [N/M] | |
-| Required fields with a mounted input | 100% | [N]% | |
-| Variant matrix rows covered | 100% | [N]% | |
-| `any` usage | 0 | [N] | |
-| Acceptance criteria met | 100% | [N]% | |
-| Visual: screens × states with no open diff | 100% | [N]% | |
+| Metric                                     | Target           | Actual        | Status |
+| ------------------------------------------ | ---------------- | ------------- | ------ |
+| check-types errors                         | 0                | [N]           |        |
+| Test failures                              | 0                | [N]           |        |
+| NEW lint findings                          | 0                | [N]           |        |
+| Coverage vs ratchet floor                  | at or above      | [per package] |        |
+| G0 endpoints probed                        | all claimed-live | [N/M]         |        |
+| Contract sensors on REAL payloads          | 1 per endpoint   | [N]           |        |
+| Modes/tabs with a schema ⟷ UI sensor       | all applicable   | [N/M]         |        |
+| Required fields with a mounted input       | 100%             | [N]%          |        |
+| Variant matrix rows covered                | 100%             | [N]%          |        |
+| `any` usage                                | 0                | [N]           |        |
+| Acceptance criteria met                    | 100%             | [N]%          |        |
+| Visual: screens × states with no open diff | 100%             | [N]%          |        |
 ```
 
 This report goes into the final message to the dev (SKILL.md Phase 5.2).

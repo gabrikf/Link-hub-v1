@@ -264,7 +264,7 @@ export const recruiterSearchFiltersSchema = z
       value.minYearsExperience > value.maxYearsExperience
     ) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Min years must be lower or equal to max years",
         path: ["maxYearsExperience"],
       });
@@ -276,7 +276,7 @@ export const recruiterSearchFiltersSchema = z
       value.minSalary > value.maxSalary
     ) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Min salary must be lower or equal to max salary",
         path: ["maxSalary"],
       });
@@ -332,7 +332,7 @@ export const recruiterSearchInputSchema = z
 
     if (!hasSemanticInput && !hasFilterInput) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Provide search text, file, or at least one filter to search",
         path: ["chatPrompt"],
       });
@@ -427,7 +427,7 @@ export const recruiterSearchResultSchema = z.object({
    * `POST /resumes/:resumeId/contact`, which is per-candidate, deliberate, and
    * recorded as a `CONTACT_CLICK` interaction.
    */
-  email: z.string().email().nullable(),
+  email: z.email().nullable(),
   headlineTitle: z.string().nullable(),
   summary: z.string().nullable(),
   totalYearsExperience: z.number().int().min(0).nullable(),
@@ -464,7 +464,7 @@ export const recruiterSearchResponseSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const revealCandidateContactParamsSchema = z.object({
-  resumeId: z.string().uuid(),
+  resumeId: z.uuid(),
 });
 
 /**
@@ -491,7 +491,7 @@ export const candidateContactSchema = z.object({
   userId: z.string(),
   name: z.string(),
   username: z.string(),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 export type ResumeResponse = z.infer<typeof resumeSchema>;

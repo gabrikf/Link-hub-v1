@@ -51,8 +51,8 @@ describe("RefreshSessionUseCase", () => {
     // Exactly one row: the presented token is gone, its replacement is stored.
     const stored = refreshTokenRepository.getAll();
     expect(stored).toHaveLength(1);
-    expect(stored[0].token).toBe(result.refreshToken);
-    expect(stored[0].userId).toBe(USER_ID);
+    expect(stored[0]?.token).toBe(result.refreshToken);
+    expect(stored[0]?.userId).toBe(USER_ID);
   });
 
   it("refuses a REUSED refresh token", async () => {
@@ -95,6 +95,6 @@ describe("RefreshSessionUseCase", () => {
 
     // Nothing new was minted, and the dead row was not silently revived.
     expect(refreshTokenRepository.getAll()).toHaveLength(1);
-    expect(refreshTokenRepository.getAll()[0].token).toBe("token-old");
+    expect(refreshTokenRepository.getAll()[0]?.token).toBe("token-old");
   });
 });

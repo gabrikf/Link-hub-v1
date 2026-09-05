@@ -72,7 +72,7 @@ describe("GetPublicProfileUseCase", () => {
     expect(result.description).toBe("Open profile");
     expect(result.userPhoto).toBe("https://example.com/public.png");
     expect(result.links).toHaveLength(1);
-    expect(result.links[0].id).toBe(publicLink.id);
+    expect(result.links[0]?.id).toBe(publicLink.id);
   });
 
   /*
@@ -136,9 +136,9 @@ describe("GetPublicProfileUseCase", () => {
     await sut.execute("public-user");
 
     // Anonymous visitors must not create rows in the owner's account.
-    expect(await tabsRepository.findByUserAndViewport(user.id, "pc")).toHaveLength(
-      0,
-    );
+    expect(
+      await tabsRepository.findByUserAndViewport(user.id, "pc"),
+    ).toHaveLength(0);
     expect(
       await blocksRepository.findByUserAndViewport(user.id, "pc"),
     ).toHaveLength(0);

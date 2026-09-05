@@ -1,9 +1,9 @@
 type FeedbackTone = "error" | "success";
 
-type FeedbackMessageProps = {
+type FeedbackMessageProps = Readonly<{
   message: string;
   tone: FeedbackTone;
-};
+}>;
 
 const toneClasses: Record<FeedbackTone, string> = {
   error:

@@ -14,8 +14,9 @@ rendered page **during** implementation, not after the PR.
 **Core rule: never report a UI task as done from code alone. Look at it.**
 
 The web app is `apps/web` — React 19 + Vite + TanStack Router (code-based, `apps/web/src/router.tsx`)
-+ TanStack Query + Tailwind v4. What "looks right" means is defined by **`DESIGN.md` at the repo
-root**. Read it before you decide a screenshot is acceptable.
+
+- TanStack Query + Tailwind v4. What "looks right" means is defined by **`DESIGN.md` at the repo
+  root**. Read it before you decide a screenshot is acceptable.
 
 ---
 
@@ -67,7 +68,7 @@ need the exact signature of a helper.
 ### `requiresAuth` — declare it, per scenario
 
 ```js
-export const requiresAuth = true;   // default is false
+export const requiresAuth = true; // default is false
 ```
 
 Unlike a fully gated corporate app, **crafthub has genuinely public pages**. `/$username`
@@ -179,11 +180,11 @@ complete.
 way to reach empty/error/loading without touching real data:
 
 ```js
-await mock('**/profiles/**', { body: { blocks: [] } });   // empty
-await mock('**/profiles/**', { status: 500 });            // error
-await mock('**/search**', { body: knownPayload });        // a known payload
-await mock('**/search**', { delay: Infinity });           // loading — never answers
-await unmock();                                           // back to real data
+await mock("**/profiles/**", { body: { blocks: [] } }); // empty
+await mock("**/profiles/**", { status: 500 }); // error
+await mock("**/search**", { body: knownPayload }); // a known payload
+await mock("**/search**", { delay: Infinity }); // loading — never answers
+await unmock(); // back to real data
 ```
 
 `delay: Infinity` is how the **loading** state is captured: the request stays open, so the route sits
@@ -201,7 +202,7 @@ thing you asserted is evidence of nothing. **Scroll the subject into view before
 
 ```js
 await retry.scrollIntoViewIfNeeded();
-await shot('error');
+await shot("error");
 ```
 
 This is a real failure mode, not a hypothetical — see `references/capture-and-compare-checklists.md`
@@ -242,14 +243,14 @@ For a "must not change" check, diff the accessibility trees instead of squinting
 them from inside the scenario:
 
 ```js
-import { writeFileSync } from 'node:fs';
-writeFileSync('.visual/before.yml', await page.locator('body').ariaSnapshot());
+import { writeFileSync } from "node:fs";
+writeFileSync(".visual/before.yml", await page.locator("body").ariaSnapshot());
 ```
 
 Run the scenario before your change and after it, then `diff` the two files.
 
-Then report **each difference as a concrete line**: *"the section title is 24px in the design and
-renders 16px"*, never *"close enough"*. If there is no difference, say so explicitly.
+Then report **each difference as a concrete line**: _"the section title is 24px in the design and
+renders 16px"_, never _"close enough"_. If there is no difference, say so explicitly.
 
 ### 2.5 CONSOLE + NETWORK gate — automatic, and still part of "done"
 
@@ -308,28 +309,29 @@ not check the thing most likely to be broken.
 
 ### How the app decides the theme
 
-`apps/web/src/lib/theme.ts`:
+`apps/web/src/lib/theme.ts` reads `localStorage["crafthub-theme"]` (falling back to
+`prefers-color-scheme`) and `applyTheme()` toggles `.dark` on `document.documentElement` and sets
+`style.colorScheme`. **That is the FIRST PAINT and nothing more:** for a SIGNED-IN account
+`app-boot.ts` then fetches `GET /preferences` and applies the DATABASE's value over the local
+mirror. The database is the source of truth; localStorage is a cache of it — which is why a theme
+helper has to do two things, not one.
 
-- `initializeTheme()` reads `localStorage["crafthub-theme"]` and falls back to
-  `prefers-color-scheme`.
-- `applyTheme()` toggles the `.dark` class on `document.documentElement` and sets
-  `style.colorScheme`.
-
-So there are two honest ways to reach dark mode, and one dishonest one.
-
-**Preferred — set the stored preference and reload.** Deterministic, and it runs the app's own
-initialization path:
+**Use the runner's `setTheme(theme)`.** It seeds the mirror AND rewrites the `/preferences` response
+so both halves of the bootstrap agree, and it then **refuses to return until the requested theme is
+what is actually painted** — checked after a settle window, because boot applies the server value
+_after_ `load`. Navigate before the first call (on `about:blank` the `localStorage` write throws):
 
 ```js
-async function setTheme(page, theme) {
-  await page.evaluate((value) => window.localStorage.setItem('crafthub-theme', value), theme);
-  await page.reload();
-}
+await goto("/dashboard");
+await setTheme("dark"); // throws if dark is not what paints
+await shot("dashboard-dark");
 ```
 
-**Also valid — emulate the OS preference** for a first-visit user with nothing stored, with
-`page.emulateMedia({ colorScheme: 'dark' })` then a reload — the exact snippet is in
-`references/dark-mode-detail.md`.
+**If it throws, read the message** — it names what is painted, the computed background and the usual
+cause. A dark check that silently captured light mode does not fail; it PASSES while proving
+nothing. `references/dark-mode-detail.md` has the two ways to get there, the seed-only sibling
+`seedStoredTheme` (no claim about what paints), and the also-valid
+`page.emulateMedia({ colorScheme: 'dark' })` for an anonymous first visit.
 
 **Not valid — forcing the class yourself.** `document.documentElement.classList.add('dark')` skips
 `applyTheme`, leaves `colorScheme` wrong, and would still "work" if theme initialization were
@@ -339,7 +341,7 @@ completely broken. Patching the app to make a screenshot look right is banned (�
 
 An element whose computed background is **identical in both themes** usually has no `dark:` variant
 — a heuristic, not a proof, since some elements are intentionally theme-independent. The runnable
-detection snippet (compare `getComputedStyle(...).backgroundColor` before/after `setTheme`) and the
+detection snippet (compare `getComputedStyle(...).backgroundColor` between themes) and the
 full checklist to run down before calling a dark screenshot done (text contrast, borders, icons,
 translucent surfaces, focus rings, charts, Radix overlays) are both in
 `references/dark-mode-detail.md` — read it whenever a dark screenshot looks suspicious or before
@@ -475,24 +477,24 @@ If the browser cannot run (no Chromium, no display, offline):
 
 ## Quick reference
 
-| Item | Value |
-|---|---|
-| Default driver | **scenario script** — `npm run visual:run -- scripts/visual/scenarios/<file>` |
-| Reference scenario | `scripts/visual/scenarios/public-profile.scenario.mjs` |
-| Runner | `node scripts/visual/run.mjs <scenario.mjs> [--headed]` |
-| Session | `node scripts/visual/session.mjs login\|check\|setup` · `npm run visual:login` · `npm run visual:check` |
-| Config | `.playwright/cli.config.json` |
-| Web app | [http://localhost:5173](http://localhost:5173) (`npm run dev:web`; `VISUAL_APP_URL` overrides) |
-| API | [http://localhost:3333](http://localhost:3333) (`npm run dev:api`; Swagger at `/docs`) |
-| Infra | `bash db-manage.sh start` · seed with `bash db-manage.sh seed-all` |
-| Routes | `/` · `/dashboard` · `/dashboard/search` · `/dashboard/layout` · `/dashboard/posts` · `/dashboard/posts/review` · `/dashboard/settings` · `/$username` (public) |
-| Seed profile | `/seed-react-frontend-003` |
-| Baseline viewport | 1440 × 900 (also verify 1024 × 768) |
-| Themes | light **and** dark, every check — `localStorage["crafthub-theme"]`, `.dark` on `<html>` |
-| Evidence folder | `.visual/` — gitignored |
-| Auth session | `.playwright/auth.json` — gitignored |
-| Design authority | `DESIGN.md` (repo root) |
-| Scenario exports | `export default async function(ctx)` · `export const requiresAuth = false` |
-| Scenario helpers | `page` `context` `browser` `appUrl` `goto` `shot` `mock` `unmock` `assert` `resize` `newUserPage` `log` `collectors` |
-| Force a state | `mock(glob, { body })` · `{ status: 500 }` · `{ delay: Infinity }` · `unmock()` |
-| Graduate to | vitest + `@testing-library/react`, or a `@repo/schemas` parse of a real payload |
+| Item               | Value                                                                                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default driver     | **scenario script** — `npm run visual:run -- scripts/visual/scenarios/<file>`                                                                                   |
+| Reference scenario | `scripts/visual/scenarios/public-profile.scenario.mjs`                                                                                                          |
+| Runner             | `node scripts/visual/run.mjs <scenario.mjs> [--headed]`                                                                                                         |
+| Session            | `node scripts/visual/session.mjs login\|check\|setup` · `npm run visual:login` · `npm run visual:check`                                                         |
+| Config             | `.playwright/cli.config.json`                                                                                                                                   |
+| Web app            | [http://localhost:5173](http://localhost:5173) (`npm run dev:web`; `VISUAL_APP_URL` overrides)                                                                  |
+| API                | [http://localhost:3333](http://localhost:3333) (`npm run dev:api`; Swagger at `/docs`)                                                                          |
+| Infra              | `bash db-manage.sh start` · seed with `bash db-manage.sh seed-all`                                                                                              |
+| Routes             | `/` · `/dashboard` · `/dashboard/search` · `/dashboard/layout` · `/dashboard/posts` · `/dashboard/posts/review` · `/dashboard/settings` · `/$username` (public) |
+| Seed profile       | `/seed-react-frontend-003`                                                                                                                                      |
+| Baseline viewport  | 1440 × 900 (also verify 1024 × 768)                                                                                                                             |
+| Themes             | light **and** dark, every check — `localStorage["crafthub-theme"]`, `.dark` on `<html>`                                                                         |
+| Evidence folder    | `.visual/` — gitignored                                                                                                                                         |
+| Auth session       | `.playwright/auth.json` — gitignored                                                                                                                            |
+| Design authority   | `DESIGN.md` (repo root)                                                                                                                                         |
+| Scenario exports   | `export default async function(ctx)` · `export const requiresAuth = false`                                                                                      |
+| Scenario helpers   | `page` `context` `browser` `appUrl` `goto` `shot` `mock` `unmock` `assert` `resize` `newUserPage` `log` `collectors`                                            |
+| Force a state      | `mock(glob, { body })` · `{ status: 500 }` · `{ delay: Infinity }` · `unmock()`                                                                                 |
+| Graduate to        | vitest + `@testing-library/react`, or a `@repo/schemas` parse of a real payload                                                                                 |

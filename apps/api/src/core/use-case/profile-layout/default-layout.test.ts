@@ -10,6 +10,7 @@ import {
   seedDefaultLayout,
   VIEWPORTS,
 } from "./seed-default-layout.js";
+import { expectDefined } from "../../../test-support/expect-defined.js";
 
 /**
  * What a BRAND-NEW profile starts as, and — just as important — what it does
@@ -131,7 +132,9 @@ describe("the default layout a new profile starts with", () => {
       await tabsRepository.create(existing.tab);
       // One block only, deliberately unlike the default set, so a re-seed
       // would be impossible to miss.
-      await blocksRepository.create(existing.blocks[0]!);
+      await blocksRepository.create(
+        expectDefined(existing.blocks[0], "the seeded default block"),
+      );
 
       const before = await blocksRepository.findByUserAndViewport(
         "old-user",

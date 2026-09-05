@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 import { FiCheck, FiShare2 } from "react-icons/fi";
 import { reportError, reportHandled } from "../../../lib/report-error";
 
-type ProfileShareButtonProps = {
+type ProfileShareButtonProps = Readonly<{
   url: string;
   name: string;
   className?: string;
-};
+}>;
 
 /**
  * Share control for the public profile. Prefers the native share sheet when
@@ -75,7 +75,9 @@ export function ProfileShareButton({
   return (
     <button
       type="button"
-      onClick={handleShare}
+      onClick={() => {
+        void handleShare();
+      }}
       aria-label={t("profile.shareThisProfile")}
       className={[
         // `bg-black/60`, not the `black/35` this used to carry: the control

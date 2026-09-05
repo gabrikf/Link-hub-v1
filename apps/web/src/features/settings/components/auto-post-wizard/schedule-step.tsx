@@ -8,7 +8,7 @@ import {
   SURFACE_INSET,
 } from "../../../../shared-components/surface";
 import { SnippetBlock, type Snippet } from "../snippet-block";
-import { Segmented } from "./wizard-shared";
+import { Segmented } from "./wizard-controls";
 
 /**
  * The cadences the wizard offers. `off` is a settings-row decision, not a
@@ -36,7 +36,7 @@ export function ScheduleStepBody({
   showAgentSummaryToggle,
   includeAgentSummary,
   onIncludeAgentSummaryChange,
-}: {
+}: Readonly<{
   cadence: WizardCadence;
   onCadenceChange: (cadence: WizardCadence) => void;
   autoPostEnabled: boolean;
@@ -45,7 +45,7 @@ export function ScheduleStepBody({
   showAgentSummaryToggle: boolean;
   includeAgentSummary: boolean;
   onIncludeAgentSummaryChange: (enabled: boolean) => void;
-}) {
+}>) {
   const { t } = useTranslation();
   const cadenceHints = getCadenceHints(t);
   return (
@@ -152,8 +152,10 @@ function getGuidanceOptions(
  * Connect-step tab → guidance. The generic tab lands on Codex (first of its
  * trio) and the picker takes it from there; no tab chosen defaults to Claude
  * Code, the tool with the strongest scheduling story.
+ *
+ * Module-private: the mapping is only ever applied by `McpScheduleBody` below.
  */
-export function guidanceKeyForToolTab(tabKey: string | null): McpGuidanceKey {
+function guidanceKeyForToolTab(tabKey: string | null): McpGuidanceKey {
   switch (tabKey) {
     case "claude-desktop":
       return "claude-desktop";
@@ -324,7 +326,7 @@ function buildGuidance(
   }
 }
 
-function GuidancePathBlock({ path }: { path: GuidancePath }) {
+function GuidancePathBlock({ path }: Readonly<{ path: GuidancePath }>) {
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
@@ -350,12 +352,12 @@ export function McpScheduleBody({
   cadence,
   onCadenceChange,
   toolKey,
-}: {
+}: Readonly<{
   cadence: WizardCadence;
   onCadenceChange: (cadence: WizardCadence) => void;
   /** Connect-step tab, threaded through the wizard; null if never picked. */
   toolKey: string | null;
-}) {
+}>) {
   const { t } = useTranslation();
   const cadenceHints = getCadenceHints(t);
   // Local: nothing downstream needs the switch, and remounting the step

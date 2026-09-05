@@ -18,10 +18,10 @@ import type { BootResult } from "../lib/app-boot";
 export function BootGate({
   boot,
   children,
-}: {
+}: Readonly<{
   boot: Promise<BootResult>;
   children: ReactNode;
-}) {
+}>) {
   use(boot);
   return <>{children}</>;
 }

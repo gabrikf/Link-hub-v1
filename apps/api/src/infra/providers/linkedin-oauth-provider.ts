@@ -104,7 +104,7 @@ export class LinkedInOAuthProvider implements ILinkedInOAuthProvider {
       linkedInUser.name ||
       (nameParts.length > 0
         ? nameParts.join(" ")
-        : linkedInUser.email.split("@")[0]);
+        : linkedInUser.email.split("@")[0] || linkedInUser.email);
 
     return {
       linkedInId: linkedInUser.sub,

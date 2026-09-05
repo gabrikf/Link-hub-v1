@@ -34,6 +34,7 @@ import {
 } from "../../../../../core/use-case/resumes/shared/embedding-config.js";
 import { RecruiterSearchFilters } from "../../../../../core/repositories/resume-search/resume-search-repository.js";
 import { server } from "../../../server.js";
+import { expectDefined } from "../../../../../test-support/expect-defined.js";
 
 const PREFIX = `sbt${Date.now().toString(36)}`;
 const EMBEDDING_DIMENSIONS = 1536;
@@ -67,8 +68,9 @@ function randomUnitVector(random: () => number): number[] {
 
 function cosine(a: number[], b: number[]): number {
   let dot = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    dot += a[index] * b[index];
+  for (const [index, left] of a.entries()) {
+    // Same length by construction; the default states that without asserting it.
+    dot += left * (b[index] ?? 0);
   }
   return dot;
 }
@@ -79,7 +81,7 @@ async function insertCandidate(
 ): Promise<SeededRow> {
   const login = `${PREFIX}-${index}`;
 
-  const [user] = await db
+  const [insertedUser] = await db
     .insert(users)
     .values({
       name: `Boundary ${index}`,
@@ -90,7 +92,9 @@ async function insertCandidate(
     })
     .returning({ id: users.id });
 
-  const [resume] = await db
+  const user = expectDefined(insertedUser, "the inserted user row");
+
+  const [insertedResume] = await db
     .insert(resumes)
     .values({
       userId: user.id,
@@ -103,6 +107,8 @@ async function insertCandidate(
       spokenLanguages: overrides.location === "São Paulo" ? ["Português"] : [],
     })
     .returning({ id: resumes.id });
+
+  const resume = expectDefined(insertedResume, "the inserted resume row");
 
   await db.insert(resumeEmbeddings).values({
     resumeId: resume.id,

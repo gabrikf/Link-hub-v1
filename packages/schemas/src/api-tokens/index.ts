@@ -57,7 +57,7 @@ export const createApiTokenSchemaOutput = apiTokenSchema.extend({
 });
 
 export const apiTokenParamsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 export type ApiToken = z.infer<typeof apiTokenSchema>;

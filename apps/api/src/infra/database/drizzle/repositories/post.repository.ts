@@ -10,6 +10,7 @@ import {
 } from "../../../../core/repositories/post/post-repository.js";
 import { db } from "../index.js";
 import { posts } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 type PostRow = typeof posts.$inferSelect;
 
@@ -35,7 +36,7 @@ function toEntity(row: PostRow): PostEntity {
 
 export class DrizzlePostsRepository implements IPostRepository {
   async create(post: PostEntity): Promise<PostEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(posts)
       .values({
         id: post.id,
@@ -56,7 +57,7 @@ export class DrizzlePostsRepository implements IPostRepository {
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(requireReturnedRow(insertedRows, "insert into posts"));
   }
 
   async findById(id: string): Promise<PostEntity | null> {

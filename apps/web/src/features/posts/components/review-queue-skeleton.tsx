@@ -57,10 +57,10 @@ function ReviewQueueCardSkeleton() {
   );
 }
 
-type ReviewQueueSkeletonProps = {
+type ReviewQueueSkeletonProps = Readonly<{
   /** How many placeholder cards to render. */
   count?: number;
-};
+}>;
 
 export function ReviewQueueSkeleton({ count = 2 }: ReviewQueueSkeletonProps) {
   const { t } = useTranslation();

@@ -3,6 +3,7 @@ import { TitleCatalogEntity } from "../../../../core/entity/title-catalog/title-
 import { ITitleCatalogRepository } from "../../../../core/repositories/title-catalog/title-catalog-repository.js";
 import { db } from "../index.js";
 import { titlesCatalog } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 export class DrizzleTitleCatalogRepository implements ITitleCatalogRepository {
   async findById(id: string): Promise<TitleCatalogEntity | null> {
@@ -61,7 +62,7 @@ export class DrizzleTitleCatalogRepository implements ITitleCatalogRepository {
     isDefault: boolean;
     createdByUserId: string | null;
   }): Promise<TitleCatalogEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(titlesCatalog)
       .values({
         name: input.name,
@@ -71,7 +72,9 @@ export class DrizzleTitleCatalogRepository implements ITitleCatalogRepository {
       })
       .returning();
 
-    return this.toEntity(created);
+    return this.toEntity(
+      requireReturnedRow(insertedRows, "insert into titlesCatalog"),
+    );
   }
 
   async createMany(

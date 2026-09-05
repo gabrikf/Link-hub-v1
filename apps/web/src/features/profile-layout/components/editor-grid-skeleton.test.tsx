@@ -25,15 +25,15 @@ describe("EditorGridSkeleton", () => {
     const items = placeholders(container);
     expect(items).toHaveLength(2);
 
-    const grid = items[0].parentElement;
+    const grid = items[0]?.parentElement;
     expect(grid?.style.gridTemplateColumns).toBe("repeat(12, minmax(0, 1fr))");
     expect(grid?.style.gridAutoRows).toBe("40px");
     expect(grid?.style.gap).toBe("12px");
 
-    expect(items[0].style.gridColumn).toBe("span 12");
-    expect(items[0].style.gridRow).toBe("span 4");
-    expect(items[1].style.gridColumn).toBe("span 6");
-    expect(items[1].style.gridRow).toBe("span 2");
+    expect(items[0]?.style.gridColumn).toBe("span 12");
+    expect(items[0]?.style.gridRow).toBe("span 4");
+    expect(items[1]?.style.gridColumn).toBe("span 6");
+    expect(items[1]?.style.gridRow).toBe("span 2");
   });
 
   it("clamps a span to the column count so the mobile grid never overflows", () => {
@@ -45,12 +45,16 @@ describe("EditorGridSkeleton", () => {
       />,
     );
 
-    expect(placeholders(container)[0].style.gridColumn).toBe("span 4");
+    expect(placeholders(container)[0]?.style.gridColumn).toBe("span 4");
   });
 
   it("announces the loading region for screen readers", () => {
     render(
-      <EditorGridSkeleton cols={12} spans={[{ w: 12, h: 4 }]} label="Loading blocks" />,
+      <EditorGridSkeleton
+        cols={12}
+        spans={[{ w: 12, h: 4 }]}
+        label="Loading blocks"
+      />,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading blocks");

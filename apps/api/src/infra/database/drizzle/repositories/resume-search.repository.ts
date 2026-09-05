@@ -3,7 +3,7 @@ import {
   RECRUITER_SEARCH_EVIDENCE_LIMITS,
   type SearchSource,
 } from "@repo/schemas";
-import { and, eq, inArray, SQL, sql } from "drizzle-orm";
+import { and, eq, inArray, SQL, sql, type SQLWrapper } from "drizzle-orm";
 import {
   CandidateContactRecord,
   IResumeSearchRepository,
@@ -132,7 +132,7 @@ function toPgVectorParam(embedding: number[]): string {
  * to run as a recheck over the ANN candidate set. If they ever need to drive the
  * scan, the fix is an expression index carrying this exact expression.
  */
-function foldedColumn(column: SQL | SQL.Aliased | unknown): SQL {
+function foldedColumn(column: SQLWrapper): SQL {
   return sql`regexp_replace(normalize(lower(${column}), NFD), '[̀-ͯ]', '', 'g')`;
 }
 
@@ -157,10 +157,7 @@ function normalizeTerms(values: string[]): string[] {
  *    the element type, but `foldedColumn` wraps it in `regexp_replace(...)`, and
  *    an expression gives the planner nothing to infer from.
  */
-function foldedInAny(
-  column: SQL | SQL.Aliased | unknown,
-  wanted: string[],
-): SQL {
+function foldedInAny(column: SQLWrapper, wanted: string[]): SQL {
   return sql`${foldedColumn(column)} = ANY(${sql.param(wanted)}::text[])`;
 }
 
@@ -190,6 +187,14 @@ function supportsIterativeScan(version: string | null): boolean {
   const [major, minor] = version
     .split(".")
     .map((part) => Number.parseInt(part, 10));
+
+  // A version string with fewer than two dot-separated parts leaves one of these
+  // undefined. `Number.isFinite` takes `unknown` and returns a plain boolean, so
+  // it rejects that case at runtime without narrowing the type — hence the
+  // explicit check first.
+  if (major === undefined || minor === undefined) {
+    return false;
+  }
 
   if (!Number.isFinite(major) || !Number.isFinite(minor)) {
     return false;
@@ -610,8 +615,24 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
   }
 
   private buildFilters(input: SearchResumesByEmbeddingInput): SQL[] {
-    const filters: SQL[] = [];
     const { filters: where } = input;
+
+    return [
+      ...this.enumFacetFilters(where),
+      ...this.foldedFacetFilters(where),
+      ...this.rangeAndFlagFilters(where),
+      ...this.catalogTermFilters(where),
+      ...this.salaryOverlapFilters(where),
+      ...this.freeTextFilters(where),
+    ];
+  }
+
+  /**
+   * Enum facets. The values come from a fixed list on both sides, so these are
+   * exact `IN (...)` matches with no folding to do.
+   */
+  private enumFacetFilters(where: RecruiterSearchFilters): SQL[] {
+    const filters: SQL[] = [];
 
     if (where.contractTypes?.length) {
       filters.push(inArray(resumes.contractType, where.contractTypes));
@@ -625,7 +646,17 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
       filters.push(inArray(resumes.workModel, where.workModels));
     }
 
-    // Accent- and case-insensitive on both sides — see `foldedColumn` (F8).
+    return filters;
+  }
+
+  /**
+   * Facets the candidate types as free text but the recruiter picks from a
+   * list, so both sides are folded before they are compared. An empty set of
+   * normalised terms adds no filter at all — see `foldedColumn` (F8).
+   */
+  private foldedFacetFilters(where: RecruiterSearchFilters): SQL[] {
+    const filters: SQL[] = [];
+
     if (where.locations?.length) {
       const wanted = normalizeTerms(where.locations);
       if (wanted.length > 0) {
@@ -655,6 +686,17 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
       }
     }
 
+    return filters;
+  }
+
+  /**
+   * The scalar bounds: one boolean flag and the experience range. `undefined`
+   * means the recruiter did not state the bound, which is not the same as
+   * stating `false` or `0`.
+   */
+  private rangeAndFlagFilters(where: RecruiterSearchFilters): SQL[] {
+    const filters: SQL[] = [];
+
     if (where.openToRelocation !== undefined) {
       filters.push(
         sql`${resumes.openToRelocation} = ${where.openToRelocation}`,
@@ -672,6 +714,17 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
         sql`${resumes.totalYearsExperience} <= ${where.maxYearsExperience}`,
       );
     }
+
+    return filters;
+  }
+
+  /**
+   * Skill and title terms, each matched as a folded substring against the
+   * shared catalog. A term that normalises to nothing is skipped rather than
+   * turned into a `LIKE '%%'` that matches everybody.
+   */
+  private catalogTermFilters(where: RecruiterSearchFilters): SQL[] {
+    const filters: SQL[] = [];
 
     if (where.skills?.length) {
       for (const skillTerm of where.skills) {
@@ -711,6 +764,12 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
       }
     }
 
+    return filters;
+  }
+
+  private salaryOverlapFilters(where: RecruiterSearchFilters): SQL[] {
+    const filters: SQL[] = [];
+
     /**
      * Salary is a RANGE OVERLAP, and an unstated bound means "unbounded".
      *
@@ -734,6 +793,16 @@ export class DrizzleResumeSearchRepository implements IResumeSearchRepository {
         sql`(${resumes.salaryExpectationMin} IS NULL OR ${resumes.salaryExpectationMin} <= ${where.maxSalary})`,
       );
     }
+
+    return filters;
+  }
+
+  /**
+   * The recruiter's own free text, over the candidate's name, username and
+   * profile prose. Folded on both sides for the same reason as the facets.
+   */
+  private freeTextFilters(where: RecruiterSearchFilters): SQL[] {
+    const filters: SQL[] = [];
 
     if (where.nameContains) {
       const nameLikePattern = `%${normalizeSearchText(where.nameContains)}%`;
@@ -903,7 +972,7 @@ function activeFilterKeys(filters: RecruiterSearchFilters): string[] {
       return true;
     })
     .map(([key]) => key)
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
 }
 
 /**

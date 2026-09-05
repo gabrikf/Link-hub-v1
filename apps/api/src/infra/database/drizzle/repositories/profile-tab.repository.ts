@@ -6,6 +6,7 @@ import { TransactionContext } from "../../../../core/providers/unit-of-work/unit
 import { db } from "../index.js";
 import { resolveExecutor } from "../executor.js";
 import { profileTabs } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 type ProfileTabRow = typeof profileTabs.$inferSelect;
 
@@ -31,10 +32,7 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
       .select()
       .from(profileTabs)
       .where(
-        and(
-          eq(profileTabs.userId, userId),
-          eq(profileTabs.viewport, viewport),
-        ),
+        and(eq(profileTabs.userId, userId), eq(profileTabs.viewport, viewport)),
       )
       .orderBy(asc(profileTabs.order), asc(profileTabs.createdAt));
 
@@ -57,7 +55,7 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
     tab: ProfileTabEntity,
     tx?: TransactionContext,
   ): Promise<ProfileTabEntity> {
-    const [created] = await resolveExecutor(tx)
+    const insertedRows = await resolveExecutor(tx)
       .insert(profileTabs)
       .values({
         id: tab.id,
@@ -70,7 +68,9 @@ export class DrizzleProfileTabsRepository implements IProfileTabsRepository {
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(
+      requireReturnedRow(insertedRows, "insert into profileTabs"),
+    );
   }
 
   async rename(id: string, title: string): Promise<ProfileTabEntity> {

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../../../test-support/assert-defined";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -97,12 +98,17 @@ describe("F3 — the contact button no longer reads a listing email", () => {
       />,
     );
 
-    await user.click(
-      screen.getAllByRole("button", { name: /Reveal Email/i })[1]!,
-    );
+    const revealButtons = screen.getAllByRole("button", {
+      name: /Reveal Email/i,
+    });
+    const secondReveal = revealButtons[1];
+    assertDefined(secondReveal, "the second 'Reveal Email' button");
+    await user.click(secondReveal);
 
     expect(onCopyEmail).toHaveBeenCalledTimes(1);
-    const [candidate, index] = onCopyEmail.mock.calls[0]!;
+    const [firstCopyCall] = onCopyEmail.mock.calls;
+    assertDefined(firstCopyCall, "the first onCopyEmail call");
+    const [candidate, index] = firstCopyCall;
     expect(candidate.resumeId).toBe("second");
     // 0-based index; the page turns it into a 1-based rank for the audit row.
     expect(index).toBe(1);
@@ -145,7 +151,7 @@ describe("F20-web — the negative signal has an affordance", () => {
     await user.click(button);
 
     expect(onNotRelevant).toHaveBeenCalledTimes(1);
-    expect(onNotRelevant.mock.calls[0]![0].resumeId).toBe("resume-1");
+    expect(onNotRelevant.mock.calls[0]?.[0].resumeId).toBe("resume-1");
 
     // Disabled afterwards, so one opinion cannot become five rows.
     const marked = screen.getByRole("button", { name: /Marked not relevant/i });
@@ -171,7 +177,7 @@ describe("F20-web — the negative signal has an affordance", () => {
     await user.click(screen.getByRole("link", { name: /Ada Lovelace/ }));
 
     expect(onViewProfile).toHaveBeenCalledTimes(1);
-    expect(onViewProfile.mock.calls[0]![1]).toBe(0);
+    expect(onViewProfile.mock.calls[0]?.[1]).toBe(0);
   });
 });
 

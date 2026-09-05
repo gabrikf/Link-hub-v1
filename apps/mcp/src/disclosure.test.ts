@@ -181,7 +181,7 @@ describe("loadDisclosureContext — happy path", () => {
         }),
       ).client,
     ).then((context) => {
-      expect(Object.keys(context).sort()).toEqual([
+      expect(Object.keys(context).sort((a, b) => a.localeCompare(b))).toEqual([
         "blockedTerms",
         "degraded",
         "info",

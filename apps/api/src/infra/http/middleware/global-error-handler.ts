@@ -129,7 +129,7 @@ function resolveFastifyStatusError(
   let errorCode: string | undefined;
   // Clean up generic Fastify error messages
   if (errorMessage.includes("FST_ERR_")) {
-    errorCode = errorMessage.match(/FST_ERR_[A-Z_]+/)?.[0];
+    errorCode = /FST_ERR_[A-Z_]+/.exec(errorMessage)?.[0];
     errorMessage = message.replace(/FST_ERR_[A-Z_]+: /, "");
   }
   return { statusCode, errorMessage, errorCode };

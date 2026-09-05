@@ -2,21 +2,14 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
 import {
-  DEFAULT_BUILTIN_BLOCKS,
   GRID_COLUMNS,
-  type ButtonBlockConfig,
   type CreateBlockInput,
   type CustomBlockKind,
   type FullProfileLayout,
-  type ImageBlockConfig,
-  type PostsBlockConfig,
   type ProfileBlock,
   type ProfileTab,
   type ProfileViewport,
-  type TextBlockConfig,
-  type VideoBlockConfig,
 } from "@repo/schemas";
-import * as Switch from "@radix-ui/react-switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useEffect,
@@ -29,17 +22,12 @@ import { Trans, useTranslation } from "react-i18next";
 import {
   FiAlertCircle,
   FiCheck,
-  FiChevronLeft,
-  FiChevronRight,
-  FiEdit2,
   FiEye,
   FiInfo,
   FiLoader,
   FiMonitor,
-  FiPlus,
   FiRefreshCw,
   FiSmartphone,
-  FiTrash2,
 } from "react-icons/fi";
 import {
   createBlock,
@@ -64,22 +52,16 @@ import { useUserInfoStore } from "../../../lib/user-info-store";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { Input } from "../../../shared-components/input";
-import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
-import {
-  FOCUS_RING,
-  SURFACE,
-  SURFACE_INSET,
-} from "../../../shared-components/surface";
-import { PublicProfilePreview } from "../../profile/components/public-profile-preview";
+import { SURFACE } from "../../../shared-components/surface";
 import { getCustomBlockMeta } from "../block-meta";
-import { ButtonBlockDialog } from "../components/button-block-dialog";
-import { EditorGrid } from "../components/editor-grid";
-import { EditorGridSkeleton } from "../components/editor-grid-skeleton";
+import {
+  CustomBlockDialogs,
+  type CustomBlockConfig,
+} from "../components/custom-block-dialogs";
 import { GridBlockCard } from "../components/grid-block-card";
-import { ImageBlockDialog } from "../components/image-block-dialog";
-import { PostsBlockDialog } from "../components/posts-block-dialog";
-import { TextBlockDialog } from "../components/text-block-dialog";
-import { VideoBlockDialog } from "../components/video-block-dialog";
+import { LivePreviewDialog } from "../components/live-preview-dialog";
+import { PinnedZoneSection } from "../components/pinned-zone-section";
+import { TabManagerSection } from "../components/tab-manager-section";
 import {
   blocksForTab,
   blocksToRglLayout,
@@ -92,17 +74,9 @@ import {
   moveBlockBy,
   pickViewport,
   pinnedBlocks,
-  PROFILE_CANVAS_WIDTH,
   resizeBlockBy,
   type GridLayoutItem,
 } from "../grid-utils";
-
-type CustomConfig =
-  | TextBlockConfig
-  | VideoBlockConfig
-  | ImageBlockConfig
-  | ButtonBlockConfig
-  | PostsBlockConfig;
 
 const CUSTOM_KINDS = ["text", "video", "image", "button", "posts"] as const;
 
@@ -116,46 +90,12 @@ const CUSTOM_KINDS = ["text", "video", "image", "button", "posts"] as const;
 type BlockZone = "pinned" | "tabs";
 
 /**
- * Wired with `aria-describedby` rather than a hover tooltip. The explanation is
- * the whole point of the switch — it names the content-visibility consequence —
- * and a hover affordance is invisible on touch and to a keyboard user.
- */
-const TABS_ENABLED_HINT_ID = "layout-tabs-enabled-hint";
-
-/**
  * The sentence explaining why the PC layout button is disabled on a narrow
  * screen. `aria-describedby` rather than a `title`: a disabled button is not
  * hoverable on touch and its tooltip is never announced, so the only honest
  * form is visible text the button points at.
  */
 const PC_LAYOUT_UNAVAILABLE_ID = "layout-pc-unavailable-hint";
-
-/**
- * Placeholder geometry for the two editor zones while the layout loads.
- *
- * DERIVED from `DEFAULT_BUILTIN_BLOCKS` — the arrangement every profile starts
- * from — because the real one is precisely what the request is fetching. It was
- * a hand-copy of those spans, which silently stopped mirroring anything the day
- * the default moved `links` into the always-visible zone.
- */
-const skeletonSpans = (cols: number, pinned: boolean) =>
-  DEFAULT_BUILTIN_BLOCKS.filter(
-    (builtin) => builtin.pinnedAllTabs === pinned,
-  ).map((builtin) => ({ w: cols, h: builtin.gridH }));
-
-const PINNED_SKELETON_SPANS = (cols: number) => skeletonSpans(cols, true);
-const TAB_SKELETON_SPANS = (cols: number) => skeletonSpans(cols, false);
-
-/** Pill widths for the tab-manager placeholder row. */
-const TAB_PILL_SKELETON_WIDTHS = [132, 118];
-
-/**
- * The tab pill's inline icon buttons. They were bare 14px glyphs with no box —
- * fine under a mouse, unhittable with a thumb — so below `sm` they get the WCAG
- * 2.5.8 44px target and shrink back to the compact size on a wide screen.
- */
-const TAB_ICON_BUTTON =
-  "inline-flex h-11 w-11 items-center justify-center rounded-full text-zinc-400 hover:text-zinc-700 sm:h-6 sm:w-6 dark:hover:text-zinc-200";
 
 /**
  * The studio used to refuse to open below `lg` at all: "open this on a larger
@@ -180,6 +120,67 @@ const COARSE_POINTER_STORE = mediaQueryStore(COARSE_POINTER_QUERY);
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+/** The slice of a mutation's state the editor's save indicator reads. */
+type LayoutMutationState = {
+  isError: boolean;
+  isPending: boolean;
+  isSuccess: boolean;
+};
+
+/**
+ * One status line for the whole editor. Failure wins over everything, then
+ * anything still in flight, then anything that has landed. `positionSaveState`
+ * is the debounced position writer, which is not a mutation and so carries its
+ * own copy of the same four states.
+ */
+function resolveSaveStatus(
+  mutations: LayoutMutationState[],
+  positionSaveState: SaveStatus,
+): SaveStatus {
+  if (
+    positionSaveState === "error" ||
+    mutations.some((mutation) => mutation.isError)
+  ) {
+    return "error";
+  }
+  if (
+    positionSaveState === "saving" ||
+    mutations.some((mutation) => mutation.isPending)
+  ) {
+    return "saving";
+  }
+  if (
+    positionSaveState === "saved" ||
+    mutations.some((mutation) => mutation.isSuccess)
+  ) {
+    return "saved";
+  }
+  return "idle";
+}
+
+/**
+ * Copy the react-grid-layout geometry in `items` onto the blocks it names,
+ * leaving every other block untouched. Module level so the optimistic patch
+ * inside `persistPositions` stays one callback deep.
+ */
+function applyGeometryToBlocks(
+  blocks: ProfileBlock[],
+  items: GridLayoutItem[],
+): ProfileBlock[] {
+  return blocks.map((block) => {
+    const item = items.find((entry) => entry.i === block.id);
+    return item
+      ? {
+          ...block,
+          gridX: item.x,
+          gridY: item.y,
+          gridW: item.w,
+          gridH: item.h,
+        }
+      : block;
+  });
+}
+
 /**
  * Persistent autosave indicator.
  *
@@ -195,10 +196,10 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 function SaveIndicator({
   status,
   onRetry,
-}: {
+}: Readonly<{
   status: SaveStatus;
   onRetry: () => void;
-}) {
+}>) {
   const { t } = useTranslation();
 
   if (status === "error") {
@@ -260,10 +261,10 @@ function SaveIndicator({
 function LayoutLoadFailed({
   onRetry,
   isRetrying,
-}: {
+}: Readonly<{
   onRetry: () => void;
   isRetrying: boolean;
-}) {
+}>) {
   const { t } = useTranslation();
 
   return (
@@ -476,19 +477,26 @@ export function ProfileLayoutPage() {
     enabled: hasSession,
   });
 
+  /*
+   * Fire-and-forget on purpose, hence the `void`s. These are wired to mutation
+   * `onSettled`, which AWAITS whatever it is handed: returning the invalidation
+   * promise would hold every mutation in its pending state until the refetches
+   * came back, which is a behaviour change, not a lint fix. `invalidateQueries`
+   * reports failures through query state rather than by rejecting.
+   */
   const invalidatePublicProfileCache = () => {
     const username = meQuery.data?.username;
     if (username) {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["public-profile", username],
       });
       return;
     }
-    queryClient.invalidateQueries({ queryKey: ["public-profile"] });
+    void queryClient.invalidateQueries({ queryKey: ["public-profile"] });
   };
 
   const invalidateLayout = () => {
-    queryClient.invalidateQueries({ queryKey: ["layout"] });
+    void queryClient.invalidateQueries({ queryKey: ["layout"] });
     invalidatePublicProfileCache();
   };
 
@@ -597,8 +605,13 @@ export function ProfileLayoutPage() {
         // Mirrors the server: the deleted tab's blocks are NOT dropped — their
         // content is shared with the other viewport's rows — they fall back to
         // this viewport's first remaining tab.
-        const fallbackTabId =
-          [...remaining].sort((a, b) => a.order - b.order)[0]?.id ?? null;
+        // `noUncheckedIndexedAccess` types the index read as possibly
+        // undefined, which is exactly the runtime case of the last tab being
+        // deleted — so `?? null` here is a real branch, not a formality.
+        const sortedRemaining = [...remaining].sort(
+          (a, b) => a.order - b.order,
+        );
+        const fallbackTabId = sortedRemaining[0]?.id ?? null;
 
         return {
           ...current,
@@ -731,18 +744,7 @@ export function ProfileLayoutPage() {
     // runs for every call regardless of the (per-zone) network debounce below.
     patchLayout(viewport, (current) => ({
       ...current,
-      blocks: current.blocks.map((block) => {
-        const item = items.find((entry) => entry.i === block.id);
-        return item
-          ? {
-              ...block,
-              gridX: item.x,
-              gridY: item.y,
-              gridW: item.w,
-              gridH: item.h,
-            }
-          : block;
-      }),
+      blocks: applyGeometryToBlocks(current.blocks, items),
     }));
 
     // Debounce the network write PER viewport+zone: a pending save for this
@@ -805,19 +807,7 @@ export function ProfileLayoutPage() {
     deleteBlockMutation,
   ];
 
-  const saveStatus: SaveStatus = layoutMutations.some(
-    (mutation) => mutation.isError,
-  )
-    ? "error"
-    : positionSaveState === "error"
-      ? "error"
-      : layoutMutations.some((mutation) => mutation.isPending) ||
-          positionSaveState === "saving"
-        ? "saving"
-        : positionSaveState === "saved" ||
-            layoutMutations.some((mutation) => mutation.isSuccess)
-          ? "saved"
-          : "idle";
+  const saveStatus = resolveSaveStatus(layoutMutations, positionSaveState);
 
   const handleRetrySave = () => {
     const retry = retrySaveRef.current;
@@ -871,7 +861,15 @@ export function ProfileLayoutPage() {
     if (target < 0 || target >= ids.length) {
       return;
     }
-    [ids[index], ids[target]] = [ids[target], ids[index]];
+    const movedId = ids[index];
+    const displacedId = ids[target];
+    // `index` is -1 when the tab is not in the list; the bounds check above
+    // lets that through for direction 1, so both ends are checked here.
+    if (movedId === undefined || displacedId === undefined) {
+      return;
+    }
+    ids[index] = displacedId;
+    ids[target] = movedId;
     reorderTabsMutation.mutate(ids);
   };
 
@@ -886,6 +884,36 @@ export function ProfileLayoutPage() {
     setRenameTarget(null);
   };
 
+  /*
+   * Both add rows are two doors into ONE flow, so they share one piece of
+   * state: opening either menu closes the other, and the zone frozen in
+   * `handleAddCustomBlock` is what decides the new block's `tabId`.
+   */
+  const toggleAddMenu = (zone: BlockZone) => {
+    setAddMenuZone((current) => (current === zone ? null : zone));
+  };
+
+  /** Dismissing ANY of the five block editors clears both dialog sources. */
+  const handleBlockDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      setAddKind(null);
+      setEditingBlock(null);
+    }
+  };
+
+  const handlePreviewOpenChange = (open: boolean) => {
+    setPreviewOpen(open);
+    if (!open) {
+      // One frame later, not now: the focus scope is still TRAPPED at
+      // this point and pulls focus straight back into the dialog, so a
+      // synchronous `focus()` here is silently undone. By the next frame
+      // the content has unmounted and the trap is gone. See
+      // `previewTriggerRef` for why Radix does not do this itself.
+      const trigger = previewTriggerRef.current;
+      requestAnimationFrame(() => trigger?.focus());
+    }
+  };
+
   const handleAddCustomBlock = (kind: CustomBlockKind) => {
     // Freeze the zone the open menu belongs to before closing it: the create
     // payload is only built when the block dialog is submitted, which can be
@@ -897,7 +925,7 @@ export function ProfileLayoutPage() {
 
   const submitCustomBlock = async (
     kind: CustomBlockKind,
-    config: CustomConfig,
+    config: CustomBlockConfig,
   ) => {
     if (editingBlock) {
       await updateBlockMutation.mutateAsync({
@@ -1071,7 +1099,7 @@ export function ProfileLayoutPage() {
       <LayoutLoadFailed
         isRetrying={layoutQuery.isFetching}
         onRetry={() => {
-          layoutQuery.refetch();
+          void layoutQuery.refetch();
         }}
       />
     );
@@ -1095,33 +1123,30 @@ export function ProfileLayoutPage() {
           separate sentence under the bar.
         */}
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
-            {/* `Trans`, not `t`: the emphasis belongs on the viewport word,
+          {/* `Trans`, not `t`: the emphasis belongs on the viewport word,
                 and which word that is sits in a different place in each of the
                 three languages. The `<strong>` slot in the locale value maps
                 onto the span below, so word order stays the translator's call
                 and the styling stays ours. */}
-            <span>
-              <Trans
-                i18nKey="layout.editingViewport"
-                values={{
-                  viewportLabel:
-                    viewport === "pc"
-                      ? t("layout.viewport.desktopLower")
-                      : t("layout.viewport.mobileLower"),
-                }}
-                components={{
-                  strong: (
-                    <span className="font-semibold text-zinc-700 dark:text-zinc-200" />
-                  ),
-                }}
-              />
-            </span>
-            <span
-              aria-hidden="true"
-              className="text-zinc-300 dark:text-zinc-700"
-            >
-              •
-            </span>
+          <span>
+            <Trans
+              i18nKey="layout.editingViewport"
+              values={{
+                viewportLabel:
+                  viewport === "pc"
+                    ? t("layout.viewport.desktopLower")
+                    : t("layout.viewport.mobileLower"),
+              }}
+              components={{
+                strong: (
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-200" />
+                ),
+              }}
+            />
+          </span>
+          <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-700">
+            •
+          </span>
           <SaveIndicator status={saveStatus} onRetry={handleRetrySave} />
         </p>
 
@@ -1250,449 +1275,69 @@ export function ProfileLayoutPage() {
           </p>
         )}
 
-        {/* Pinned zone */}
-        <section className="anim-fade-up space-y-3 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-500/30 dark:bg-violet-500/5">
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              {t("layout.alwaysVisibleSection")}
-            </h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t("layout.pinnedHelp")}
-            </p>
-          </div>
-          {isLayoutLoading ? (
-            <EditorGridSkeleton
-              cols={cols}
-              viewport={viewport}
-              spans={PINNED_SKELETON_SPANS(cols)}
-              label={t("layout.loadingPinned")}
-            />
-          ) : (
-            <EditorGrid
-              blocks={pinned}
-              cols={cols}
-              viewport={viewport}
-              isTouch={isTouch}
-              onChange={(items) => persistPositions(items, "pinned")}
-              renderCard={renderCard}
-              emptyMessage={t("layout.noPinnedBlocks")}
-            />
-          )}
+        <PinnedZoneSection
+          blocks={pinned}
+          cols={cols}
+          viewport={viewport}
+          isTouch={isTouch}
+          isLayoutLoading={isLayoutLoading}
+          onPositionsChange={(items) => persistPositions(items, "pinned")}
+          renderCard={renderCard}
+          isAddMenuOpen={addMenuZone === "pinned"}
+          onToggleAddMenu={() => toggleAddMenu("pinned")}
+          addMenuRef={addPinnedMenuRef}
+          addBlockMenu={addBlockMenu}
+        />
 
-          {/*
-            The button that fills THIS zone lives in it. Both add buttons used
-            to sit together in the tab manager, so neither one said which grid
-            it filled — the reported confusion. It is offered with tabs on and
-            off alike: the always-visible zone is the one section that is
-            always published.
-          */}
-          <div
-            ref={addPinnedMenuRef}
-            className="relative flex flex-wrap items-center gap-2 border-t border-violet-200 pt-3 dark:border-violet-500/30"
-          >
-            <Button
-              type="button"
-              variant="outline"
-              fullWidth={false}
-              size="sm"
-              className="min-h-11 rounded-full sm:min-h-0"
-              disabled={isLayoutLoading}
-              aria-expanded={addMenuZone === "pinned"}
-              onClick={() =>
-                setAddMenuZone((zone) =>
-                  zone === "pinned" ? null : "pinned",
-                )
-              }
-            >
-              <FiPlus className="h-4 w-4" aria-hidden="true" />
-              {t("layout.addToAlwaysVisible")}
-            </Button>
-
-            {addMenuZone === "pinned" ? addBlockMenu : null}
-          </div>
-        </section>
-
-        {/* Tab manager */}
-        <section className={`anim-fade-up space-y-3 p-4 ${SURFACE}`}>
-          {/*
-            The switch lives HERE, directly above the tab strip it governs,
-            rather than with the other profile fields in the dashboard modal.
-            This is the only screen where the tabs are visible, so it is the
-            only place the switch is discoverable and its effect legible: flip
-            it and the strip below disappears under your cursor.
-          */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              {/* A `p`, not an `h2`: this names the control, not the whole
-                  section below it, and an `h2` here would mislabel the tab
-                  manager in the document outline. */}
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                {t("layout.tabsEnabled")}
-              </p>
-              <p
-                id={TABS_ENABLED_HINT_ID}
-                className="text-xs text-zinc-500 dark:text-zinc-400"
-              >
-                {t("layout.tabsEnabledHelp")}
-              </p>
-            </div>
-            <Switch.Root
-              checked={tabsEnabled}
-              // Until the layout lands, `tabsEnabled` is the default
-              // fallback's, not this profile's — flipping it would write a
-              // value the user never saw.
-              disabled={isLayoutLoading}
-              onCheckedChange={(checked) =>
-                setTabsEnabledMutation.mutate(checked)
-              }
-              aria-label={t("layout.toggleTabs")}
-              aria-describedby={TABS_ENABLED_HINT_ID}
-              className={[
-                "relative h-6 w-11 shrink-0 cursor-pointer rounded-full bg-zinc-300 transition disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-700",
-                "data-[state=checked]:bg-violet-600 dark:data-[state=checked]:bg-violet-500",
-                // 44x24 is a wide-enough target and a short one. The halo
-                // brings the tappable height to 44 without touching the
-                // design — see the same trick on the block card's switch.
-                "before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-[''] sm:before:hidden",
-                FOCUS_RING,
-              ].join(" ")}
-            >
-              <Switch.Thumb className="block h-5 w-5 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform duration-150 data-[state=checked]:translate-x-5 dark:bg-zinc-100" />
-            </Switch.Root>
-          </div>
-
-          {tabsEnabled ? null : (
-            <div className={`${SURFACE_INSET} space-y-1.5 p-3`}>
-              <p className="flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                <FiInfo
-                  className="mt-px h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
-                  aria-hidden="true"
-                />
-                {t("layout.tabsOffNotice")}
-              </p>
-              {/*
-                The consequence, counted. Turning tabs off does not delete a
-                thing, but it does take every block on a later tab off the
-                public page, and "some of your blocks" is not something a user
-                can act on. i18next `count` picks the plural form — a ternary
-                between two strings would be wrong in languages with more
-                than two.
-              */}
-              {hiddenBlockCount > 0 ? (
-                <p className="flex items-start gap-2 text-xs font-medium text-amber-700 dark:text-amber-300">
-                  <FiAlertCircle
-                    className="mt-px h-3.5 w-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                  {t("layout.tabsHiddenBlocks", { count: hiddenBlockCount })}
-                </p>
-              ) : null}
-            </div>
-          )}
-
-          {tabsEnabled ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {isLayoutLoading ? (
-                <>
-                  <LoadingLabel>{t("layout.loadingTabs")}</LoadingLabel>
-                  {TAB_PILL_SKELETON_WIDTHS.map((width) => (
-                    <Skeleton
-                      key={width}
-                      shape="circle"
-                      width={width}
-                      height={34}
-                    />
-                  ))}
-                </>
-              ) : null}
-
-              {visibleTabs.map((tab, index) => {
-                const isActive = activeTab?.id === tab.id;
-                return (
-                  <div
-                    key={tab.id}
-                    className={[
-                      "inline-flex items-center gap-1 rounded-full border px-2 py-1 transition",
-                      isActive
-                        ? "border-violet-500 bg-violet-50 dark:border-violet-500/60 dark:bg-violet-500/10"
-                        : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
-                    ].join(" ")}
-                  >
-                    <button
-                      type="button"
-                      aria-label={t("layout.moveTabLeft", {
-                        tabTitle: tab.title,
-                      })}
-                      disabled={index === 0}
-                      onClick={() => moveTab(tab.id, -1)}
-                      className={`${TAB_ICON_BUTTON} disabled:opacity-30`}
-                    >
-                      <FiChevronLeft className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTabId(tab.id)}
-                      className={[
-                        "min-h-11 min-w-11 px-1 text-sm font-medium sm:min-h-0 sm:min-w-0",
-                        isActive
-                          ? "text-violet-700 dark:text-violet-200"
-                          : "text-zinc-600 dark:text-zinc-300",
-                      ].join(" ")}
-                    >
-                      {tab.title}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={t("layout.renameTabNamed", {
-                        tabTitle: tab.title,
-                      })}
-                      onClick={() => {
-                        setRenameTarget(tab);
-                        setRenameValue(tab.title);
-                      }}
-                      className={TAB_ICON_BUTTON}
-                    >
-                      <FiEdit2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                    {/*
-                    Unguarded before, and it sits 3px from the rename pencil:
-                    one mis-click destroyed a tab and dumped its blocks into
-                    another one. Every other destructive action in the app
-                    confirms first.
-                  */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      fullWidth={false}
-                      aria-label={t("layout.deleteTabNamed", {
-                        tabTitle: tab.title,
-                      })}
-                      disabled={orderedTabs.length <= 1}
-                      shouldHaveConfirmation
-                      confirmationTitle={t("layout.deleteTabTitle", {
-                        tabTitle: tab.title,
-                      })}
-                      confirmationDescription={t("layout.deleteTabBody")}
-                      onClick={() => handleDeleteTab(tab.id)}
-                      className="h-6 w-6 min-h-11 min-w-11 p-0 text-zinc-400 hover:text-red-600 sm:min-h-0 sm:min-w-0 dark:hover:text-red-400"
-                    >
-                      <FiTrash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Button>
-                    <button
-                      type="button"
-                      aria-label={t("layout.moveTabRight", {
-                        tabTitle: tab.title,
-                      })}
-                      disabled={index === orderedTabs.length - 1}
-                      onClick={() => moveTab(tab.id, 1)}
-                      className={`${TAB_ICON_BUTTON} disabled:opacity-30`}
-                    >
-                      <FiChevronRight
-                        className="h-4 w-4"
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </div>
-                );
-              })}
-
-              <Button
-                type="button"
-                variant="soft"
-                size="sm"
-                fullWidth={false}
-                className="min-h-11 rounded-full sm:min-h-0"
-                // Until the layout lands, `activeTab` is a placeholder id from
-                // the default fallback — creating against it would fail.
-                disabled={isLayoutLoading}
-                onClick={handleAddTab}
-              >
-                <FiPlus className="h-4 w-4" aria-hidden="true" />
-                {t("layout.addTab")}
-              </Button>
-            </div>
-          ) : null}
-
-          {/*
-            Add block menu — and the active tab's grid. With tabs off NEITHER
-            is rendered: the published page is the always-visible zone alone,
-            so an editable tab grid here would be a section the visitor never
-            sees, and a button filing blocks into it a trap rather than a
-            shortcut. Nothing is written to achieve that — flip the switch
-            back and every block returns exactly where it was.
-          */}
-          {tabsEnabled ? (
-            <>
-              <div
-                ref={addTabsMenuRef}
-                className="relative flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800"
-              >
-                {/*
-                  Not `primary` — the page's one primary is the toolbar's, and
-                  this is a peer of the always-visible button that now sits in
-                  its own section, not a choice with a default.
-                */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  fullWidth={false}
-                  size="sm"
-                  className="min-h-11 rounded-full sm:min-h-0"
-                  disabled={isLayoutLoading}
-                  aria-expanded={addMenuZone === "tabs"}
-                  onClick={() =>
-                    setAddMenuZone((zone) => (zone === "tabs" ? null : "tabs"))
-                  }
-                >
-                  <FiPlus className="h-4 w-4" aria-hidden="true" />
-                  {t("layout.addToTabs")}
-                </Button>
-
-                {addMenuZone === "tabs" ? addBlockMenu : null}
-              </div>
-
-              {isLayoutLoading ? (
-                <EditorGridSkeleton
-                  cols={cols}
-                  viewport={viewport}
-                  spans={TAB_SKELETON_SPANS(cols)}
-                  label={t("layout.loadingBlocks")}
-                />
-              ) : (
-                <EditorGrid
-                  blocks={tabBlocks}
-                  cols={cols}
-                  viewport={viewport}
-                  isTouch={isTouch}
-                  onChange={(items) =>
-                    persistPositions(items, `tab:${activeTab?.id ?? "none"}`)
-                  }
-                  renderCard={renderCard}
-                  emptyMessage={t("layout.tabEmpty")}
-                />
-              )}
-            </>
-          ) : null}
-        </section>
+        <TabManagerSection
+          tabsEnabled={tabsEnabled}
+          onTabsEnabledChange={(checked) =>
+            setTabsEnabledMutation.mutate(checked)
+          }
+          hiddenBlockCount={hiddenBlockCount}
+          visibleTabs={visibleTabs}
+          activeTabId={activeTab?.id ?? null}
+          tabCount={orderedTabs.length}
+          onSelectTab={(tabId) => setActiveTabId(tabId)}
+          onRenameTab={(tab) => {
+            setRenameTarget(tab);
+            setRenameValue(tab.title);
+          }}
+          onDeleteTab={handleDeleteTab}
+          onMoveTab={moveTab}
+          onAddTab={handleAddTab}
+          blocks={tabBlocks}
+          cols={cols}
+          viewport={viewport}
+          isTouch={isTouch}
+          isLayoutLoading={isLayoutLoading}
+          onPositionsChange={(items) =>
+            persistPositions(items, `tab:${activeTab?.id ?? "none"}`)
+          }
+          renderCard={renderCard}
+          isAddMenuOpen={addMenuZone === "tabs"}
+          onToggleAddMenu={() => toggleAddMenu("tabs")}
+          addMenuRef={addTabsMenuRef}
+          addBlockMenu={addBlockMenu}
+        />
       </div>
 
-      {/* Live preview modal */}
-      <Dialog
+      <LivePreviewDialog
         open={previewOpen}
-        onOpenChange={(open) => {
-          setPreviewOpen(open);
-          if (!open) {
-            // One frame later, not now: the focus scope is still TRAPPED at
-            // this point and pulls focus straight back into the dialog, so a
-            // synchronous `focus()` here is silently undone. By the next frame
-            // the content has unmounted and the trap is gone. See
-            // `previewTriggerRef` for why Radix does not do this itself.
-            const trigger = previewTriggerRef.current;
-            requestAnimationFrame(() => trigger?.focus());
-          }
-        }}
-        title={t("common.livePreview")}
-        contentClassName="w-[96vw] max-w-6xl"
-      >
-        <div className="space-y-4">
-          {/*
-            The device switch exists only where both devices are previewable.
-            On a narrow screen there is one preview — the phone one — and a
-            switch offering a 1024px desktop render inside a 320px modal was
-            offering an unreadable thing. The sentence replaces it rather than
-            leaving a blank row, so the missing switch is explained, not just
-            gone.
-          */}
-          {canEditPcLayout ? (
-            <div className="flex justify-center">
-              <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
-                {(
-                  [
-                    {
-                      value: "pc",
-                      label: t("layout.viewport.desktop"),
-                      Icon: FiMonitor,
-                    },
-                    {
-                      value: "mobile",
-                      label: t("layout.viewport.mobile"),
-                      Icon: FiSmartphone,
-                    },
-                  ] as const
-                ).map((option) => {
-                  const isActive = previewDevice === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={isActive}
-                      onClick={() => setSelectedPreviewDevice(option.value)}
-                      className={[
-                        "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition",
-                        isActive
-                          ? "bg-white text-violet-700 shadow-sm dark:bg-zinc-900 dark:text-violet-200"
-                          : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200",
-                      ].join(" ")}
-                    >
-                      <option.Icon className="h-4 w-4" aria-hidden="true" />
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <p className="flex items-start justify-center gap-2 text-center text-xs text-zinc-600 dark:text-zinc-300">
-              <FiSmartphone
-                className="mt-px h-3.5 w-3.5 shrink-0 text-violet-600 dark:text-violet-300"
-                aria-hidden="true"
-              />
-              {t("layout.previewMobileOnly")}
-            </p>
-          )}
-
-          {/*
-            A PLAIN BLOCK, not `flex justify-center overflow-x-auto`.
-            The phone mock is 410px wide (a 390px screen plus its bezel) and
-            asks for `max-width: 100%`. As a centred FLEX ITEM that clamp
-            resolved against the item's own max-content width, so at 375px the
-            mock stayed 410px inside a 320px modal body and bled 17px off the
-            left and 25px off the right — clipped by the dialog's
-            `overflow-hidden`, and unreachable by the scrollbar because
-            `justify-center` puts overflow on BOTH sides where only the right
-            half can be scrolled to. That is the lateral cropping in the bug
-            report. As a block child the clamp resolves against the modal body
-            and the mock simply shrinks to fit.
-          */}
-          <div className="w-full">
-            <PublicProfilePreview
-              layout={
-                full ? full[previewDevice] : buildDefaultLayout(previewDevice)
-              }
-              viewport={previewDevice}
-              // Both modes are framed: the dialog is already titled "Live
-              // preview", so the component's own inline badge would be the
-              // same words twice. The desktop number is the canvas the pc
-              // layout is designed on, so the preview is that wide and no
-              // wider — the modal is 1150px and no layout uses the extra.
-              frameWidth={
-                previewDevice === "mobile" ? 390 : PROFILE_CANVAS_WIDTH.pc
-              }
-              profile={profileView}
-              links={linksQuery.data ?? []}
-              resume={resumeQuery.data ?? null}
-              workExperiences={workExperiencesQuery.data ?? []}
-              resumeLoading={resumeQuery.isLoading}
-              workLoading={workExperiencesQuery.isLoading}
-              linksLoading={linksQuery.isLoading}
-              // The modal previews whichever device its own toggle names, so
-              // it reads THAT viewport's flag — not the one being edited.
-              tabsEnabled={full ? full[previewDevice].tabsEnabled : tabsEnabled}
-            />
-          </div>
-        </div>
-      </Dialog>
+        onOpenChange={handlePreviewOpenChange}
+        canPreviewPc={canEditPcLayout}
+        device={previewDevice}
+        onDeviceChange={setSelectedPreviewDevice}
+        full={full}
+        fallbackTabsEnabled={tabsEnabled}
+        profile={profileView}
+        links={linksQuery.data ?? []}
+        resume={resumeQuery.data ?? null}
+        workExperiences={workExperiencesQuery.data ?? []}
+        resumeLoading={resumeQuery.isLoading}
+        workLoading={workExperiencesQuery.isLoading}
+        linksLoading={linksQuery.isLoading}
+      />
 
       {/* Rename tab dialog */}
       <Dialog
@@ -1745,96 +1390,14 @@ export function ProfileLayoutPage() {
         </form>
       </Dialog>
 
-      {/* Custom block dialogs */}
-      <TextBlockDialog
-        open={dialogKind === "text"}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAddKind(null);
-            setEditingBlock(null);
-          }
-        }}
-        initialConfig={
-          dialogBlock?.kind === "text"
-            ? (dialogBlock.config as TextBlockConfig)
-            : null
-        }
+      <CustomBlockDialogs
+        openKind={dialogKind}
+        block={dialogBlock}
         isSubmitting={
           createBlockMutation.isPending || updateBlockMutation.isPending
         }
-        onSubmit={(config) => submitCustomBlock("text", config)}
-      />
-      <VideoBlockDialog
-        open={dialogKind === "video"}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAddKind(null);
-            setEditingBlock(null);
-          }
-        }}
-        initialConfig={
-          dialogBlock?.kind === "video"
-            ? (dialogBlock.config as VideoBlockConfig)
-            : null
-        }
-        isSubmitting={
-          createBlockMutation.isPending || updateBlockMutation.isPending
-        }
-        onSubmit={(config) => submitCustomBlock("video", config)}
-      />
-      <ImageBlockDialog
-        open={dialogKind === "image"}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAddKind(null);
-            setEditingBlock(null);
-          }
-        }}
-        initialConfig={
-          dialogBlock?.kind === "image"
-            ? (dialogBlock.config as ImageBlockConfig)
-            : null
-        }
-        isSubmitting={
-          createBlockMutation.isPending || updateBlockMutation.isPending
-        }
-        onSubmit={(config) => submitCustomBlock("image", config)}
-      />
-      <ButtonBlockDialog
-        open={dialogKind === "button"}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAddKind(null);
-            setEditingBlock(null);
-          }
-        }}
-        initialConfig={
-          dialogBlock?.kind === "button"
-            ? (dialogBlock.config as ButtonBlockConfig)
-            : null
-        }
-        isSubmitting={
-          createBlockMutation.isPending || updateBlockMutation.isPending
-        }
-        onSubmit={(config) => submitCustomBlock("button", config)}
-      />
-      <PostsBlockDialog
-        open={dialogKind === "posts"}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAddKind(null);
-            setEditingBlock(null);
-          }
-        }}
-        initialConfig={
-          dialogBlock?.kind === "posts"
-            ? (dialogBlock.config as PostsBlockConfig)
-            : null
-        }
-        isSubmitting={
-          createBlockMutation.isPending || updateBlockMutation.isPending
-        }
-        onSubmit={(config) => submitCustomBlock("posts", config)}
+        onOpenChange={handleBlockDialogOpenChange}
+        onSubmit={submitCustomBlock}
       />
     </main>
   );

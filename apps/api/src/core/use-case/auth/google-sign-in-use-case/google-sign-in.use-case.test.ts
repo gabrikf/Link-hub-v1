@@ -10,12 +10,16 @@ import {
   GoogleUserInfo,
   IGoogleOAuthProvider,
 } from "../../../providers/oauth/google-oauth-provider.js";
-import { IGoogleSignInUseCaseInput } from "../../types.js";
+import {
+  IGoogleSignInUseCaseInput,
+  IOAuthSignInUseCaseInput,
+} from "../../types.js";
 import { UserEntity } from "../../../entity/user/user-entity.js";
 import {
   InvalidCredentialsError,
   UnauthorizedError,
 } from "../../../errors/index.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 class InMemoryGoogleOAuthProvider implements IGoogleOAuthProvider {
   private userInfo: GoogleUserInfo | null = null;
@@ -46,6 +50,42 @@ class InMemoryGoogleOAuthProvider implements IGoogleOAuthProvider {
   }
 }
 
+/**
+ * Stands in for the container's pass-through validator, but actually checks the
+ * shape. `GoogleSignInUseCase` builds this object itself from an already
+ * verified Google profile, so a field that fails here is a real regression in
+ * that mapping rather than a malformed fixture.
+ */
+function validateOAuthInput(input: unknown): IOAuthSignInUseCaseInput {
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "provider" in input &&
+    typeof input.provider === "string" &&
+    "providerAccountId" in input &&
+    typeof input.providerAccountId === "string" &&
+    "email" in input &&
+    typeof input.email === "string" &&
+    "name" in input &&
+    typeof input.name === "string" &&
+    "avatarUrl" in input &&
+    (input.avatarUrl === null || typeof input.avatarUrl === "string") &&
+    "emailVerified" in input &&
+    typeof input.emailVerified === "boolean"
+  ) {
+    return {
+      provider: input.provider,
+      providerAccountId: input.providerAccountId,
+      email: input.email,
+      name: input.name,
+      avatarUrl: input.avatarUrl,
+      emailVerified: input.emailVerified,
+    };
+  }
+
+  throw new TypeError("OAuth sign-in input did not match the expected shape");
+}
+
 const mockValidator = vi.fn();
 
 describe("GoogleSignInUseCase", () => {
@@ -73,7 +113,7 @@ describe("GoogleSignInUseCase", () => {
       refreshTokenRepository,
       hashProvider,
       jwtProvider,
-      (input) => input as any,
+      validateOAuthInput,
     );
 
     useCase = new GoogleSignInUseCase(
@@ -197,7 +237,10 @@ describe("GoogleSignInUseCase", () => {
     const refreshTokens = refreshTokenRepository.getAll();
     expect(refreshTokens).toHaveLength(1);
 
-    const expiresAt = refreshTokens[0].expiresAt;
+    const expiresAt = expectDefined(
+      refreshTokens[0],
+      "the issued refresh token",
+    ).expiresAt;
     const expected = new Date(before);
     expected.setDate(expected.getDate() + 7);
 

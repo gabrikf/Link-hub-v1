@@ -6,6 +6,7 @@ import {
   BullMqResumeEmbeddingQueue,
   RESUME_EMBEDDING_DEBOUNCE_MS,
 } from "./bullmq-resume-embedding-queue.js";
+import { expectDefined } from "../../test-support/expect-defined.js";
 
 /**
  * Regression cover for a silent data-staleness bug.
@@ -127,7 +128,11 @@ describe("BullMqResumeEmbeddingQueue", () => {
 
     await sleep(320);
 
-    const promotable = await inspector.getJobs(["waiting", "delayed", "active"]);
+    const promotable = await inspector.getJobs([
+      "waiting",
+      "delayed",
+      "active",
+    ]);
     expect(promotable).toHaveLength(1);
   });
 
@@ -146,7 +151,12 @@ describe("BullMqResumeEmbeddingQueue", () => {
 
     await queue.enqueue(payload("resume-5"));
 
-    const [job] = await inspector.getJobs(["waiting", "delayed", "active"]);
+    const [queuedJob] = await inspector.getJobs([
+      "waiting",
+      "delayed",
+      "active",
+    ]);
+    const job = expectDefined(queuedJob, "the enqueued embedding job");
 
     // A job id derived from the resume is the bug. BullMQ assigns its own
     // monotonic id when none is supplied.

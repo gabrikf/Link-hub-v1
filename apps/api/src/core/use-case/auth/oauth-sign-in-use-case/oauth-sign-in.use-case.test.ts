@@ -175,7 +175,6 @@ describe("OAuthSignInUseCase", () => {
     expect(refreshTokenRepository.count()).toBe(0);
   });
 
-
   describe("email verification", () => {
     it("marks a brand-new OAuth account verified at creation", async () => {
       vi.mocked(mockValidator).mockReturnValue(validInput);
@@ -186,7 +185,7 @@ describe("OAuthSignInUseCase", () => {
       // use case refuses an unconfirmed one), so asking the user to prove it a
       // second time by email would be theatre.
       expect(result.user.emailVerified).toBe(true);
-      expect(usersRepository.getAll()[0].emailVerifiedAt).toBeInstanceOf(Date);
+      expect(usersRepository.getAll()[0]?.emailVerifiedAt).toBeInstanceOf(Date);
     });
 
     it("rescues an UNVERIFIED password account that signs in with the same address", async () => {
@@ -212,7 +211,7 @@ describe("OAuthSignInUseCase", () => {
       expect(result.isNewUser).toBe(false);
       expect(result.user.id).toBe(passwordUser.id);
       expect(result.user.emailVerified).toBe(true);
-      expect(usersRepository.getAll()[0].emailVerifiedAt).toBeInstanceOf(Date);
+      expect(usersRepository.getAll()[0]?.emailVerifiedAt).toBeInstanceOf(Date);
       // Still one account — the link did not create a second one.
       expect(usersRepository.count()).toBe(1);
     });
@@ -244,7 +243,7 @@ describe("OAuthSignInUseCase", () => {
 
       // Otherwise "when was this address proved" silently degrades into
       // "when did they last sign in".
-      expect(usersRepository.getAll()[0].emailVerifiedAt).toEqual(verifiedAt);
+      expect(usersRepository.getAll()[0]?.emailVerifiedAt).toEqual(verifiedAt);
     });
   });
 });

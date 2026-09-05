@@ -80,8 +80,16 @@ function toError(error: unknown): Error {
   }
 }
 
+/**
+ * Vite types every `VITE_*` key through an `any` index signature, so each one
+ * is read as `unknown` and narrowed before it reaches Sentry's config.
+ */
+function readEnvString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 export function initErrorReporting(): void {
-  const dsn = import.meta.env.VITE_SENTRY_DSN;
+  const dsn = readEnvString(import.meta.env.VITE_SENTRY_DSN);
 
   if (!dsn || enabled) {
     return;
@@ -89,8 +97,10 @@ export function initErrorReporting(): void {
 
   Sentry.init({
     dsn,
-    environment: import.meta.env.VITE_SENTRY_ENVIRONMENT ?? import.meta.env.MODE,
-    release: import.meta.env.VITE_SENTRY_RELEASE,
+    environment:
+      readEnvString(import.meta.env.VITE_SENTRY_ENVIRONMENT) ??
+      import.meta.env.MODE,
+    release: readEnvString(import.meta.env.VITE_SENTRY_RELEASE),
     // Errors only. Performance tracing on a free tier gets sampled into
     // uselessness and the API side is already traced by OpenTelemetry.
     tracesSampleRate: 0,

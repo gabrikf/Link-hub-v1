@@ -1,4 +1,4 @@
-import { DeterministicEmbeddingProvider } from "../../../../infra/providers/deterministic-embedding-provider.js";
+import { DeterministicEmbeddingProvider } from "../../../providers/embedding/deterministic-embedding-provider.js";
 import { InMemoryResumeSearchRepository } from "../../../repositories/resume-search/in-memory-resume-search-repository.js";
 
 /**
@@ -105,7 +105,8 @@ export const SEARCH_CORPUS: CorpusCandidate[] = [
       "experience: full stack developer react node.js express mongodb " +
       "summary: javascript developer working across react components and node.js express services",
     sources: {
-      profile: "skill: javascript react node.js mongodb title: full stack developer",
+      profile:
+        "skill: javascript react node.js mongodb title: full stack developer",
       work: "experience: full stack developer react node.js express mongodb",
     },
   }),
@@ -135,9 +136,11 @@ export const SEARCH_CORPUS: CorpusCandidate[] = [
       "experience: backend engineer designing node.js services on postgresql and redis " +
       "summary: builds node.js rest apis, database schemas and caching layers",
     sources: {
-      profile: "skill: node.js postgresql redis typescript title: backend engineer",
+      profile:
+        "skill: node.js postgresql redis typescript title: backend engineer",
       work: "experience: backend engineer node.js postgresql redis apis",
-      posts: "post: scaling postgresql connection pools post_tags: postgresql node.js",
+      posts:
+        "post: scaling postgresql connection pools post_tags: postgresql node.js",
     },
   }),
 
@@ -153,7 +156,8 @@ export const SEARCH_CORPUS: CorpusCandidate[] = [
       "experience: ios engineer shipping swift and swiftui applications to the app store " +
       "summary: native ios development with swift, swiftui and combine",
     sources: {
-      profile: "skill: swift swiftui ios xcode title: ios engineer mobile engineer",
+      profile:
+        "skill: swift swiftui ios xcode title: ios engineer mobile engineer",
       work: "experience: ios engineer swift swiftui app store releases",
     },
   }),
@@ -183,7 +187,8 @@ export const SEARCH_CORPUS: CorpusCandidate[] = [
       "experience: mobile engineer shipping react native applications to ios and android " +
       "summary: cross platform mobile development with react native and typescript",
     sources: {
-      profile: "skill: react native typescript ios android title: mobile engineer",
+      profile:
+        "skill: react native typescript ios android title: mobile engineer",
       work: "experience: mobile engineer react native ios android",
     },
   }),
@@ -202,7 +207,8 @@ export const SEARCH_CORPUS: CorpusCandidate[] = [
     sources: {
       profile: "skill: python spark airflow sql title: data engineer",
       work: "experience: data engineer spark airflow warehouse pipelines",
-      posts: "post: partitioning strategies for spark jobs post_tags: spark python",
+      posts:
+        "post: partitioning strategies for spark jobs post_tags: spark python",
     },
   }),
   candidate("data-2", {
@@ -233,7 +239,8 @@ export const SEARCH_CORPUS: CorpusCandidate[] = [
       "experience: machine learning engineer training transformer models in pytorch " +
       "summary: trains and serves deep learning models, embeddings and ranking systems",
     sources: {
-      profile: "skill: python pytorch mlops transformers title: machine learning engineer",
+      profile:
+        "skill: python pytorch mlops transformers title: machine learning engineer",
       work: "experience: machine learning engineer pytorch transformers ranking",
       posts:
         "post: serving transformer embeddings behind a low latency api post_tags: pytorch mlops",
@@ -250,7 +257,8 @@ export const SEARCH_CORPUS: CorpusCandidate[] = [
       "experience: computer vision engineer training convolutional models in tensorflow " +
       "summary: image classification, detection and segmentation with tensorflow and opencv",
     sources: {
-      profile: "skill: python tensorflow opencv title: computer vision engineer",
+      profile:
+        "skill: python tensorflow opencv title: computer vision engineer",
       work: "experience: computer vision engineer tensorflow opencv detection",
     },
   }),
@@ -267,9 +275,11 @@ export const SEARCH_CORPUS: CorpusCandidate[] = [
       "experience: site reliability engineer operating kubernetes clusters provisioned with terraform on aws " +
       "summary: infrastructure as code, kubernetes operations, observability and incident response",
     sources: {
-      profile: "skill: kubernetes terraform aws go title: site reliability engineer",
+      profile:
+        "skill: kubernetes terraform aws go title: site reliability engineer",
       work: "experience: site reliability engineer kubernetes terraform aws observability",
-      posts: "post: zero downtime kubernetes upgrades post_tags: kubernetes terraform",
+      posts:
+        "post: zero downtime kubernetes upgrades post_tags: kubernetes terraform",
     },
   }),
   candidate("devops-2", {

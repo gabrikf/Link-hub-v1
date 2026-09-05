@@ -12,9 +12,11 @@ export const CONNECT_PANEL_ID = "connect-your-ai-tools";
  * resolves to localhost because that is where the page is being served from.
  */
 export function resolveApiUrl(): string {
-  const configured = import.meta.env.VITE_API_URL;
+  // Vite types every `VITE_*` key through an `any` index signature, so this is
+  // `unknown` plus a runtime narrowing rather than a trusted string.
+  const configured: unknown = import.meta.env.VITE_API_URL;
 
-  if (configured && configured.length > 0) {
+  if (typeof configured === "string" && configured.length > 0) {
     return configured;
   }
 

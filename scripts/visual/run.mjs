@@ -75,6 +75,63 @@ const NAVIGATION_TIMEOUT = 15_000;
 /** Safety margin for a login redirect to land after `load`. See `assertLiveSession`. */
 const SESSION_PROBE_MARGIN = 400;
 
+/* ──────────────────────────────── theme ────────────────────────────────── */
+
+/** `apps/web/src/lib/theme.ts`. A preference (`light`/`dark`/`system`). */
+const THEME_STORAGE_KEY = "crafthub-theme";
+
+/** The endpoint `app-boot.ts` reads the signed-in account's preferences from. */
+const PREFERENCES_ROUTE = "**/preferences";
+
+/** How long `setTheme` waits for boot to finish painting before it complains. */
+const THEME_SETTLE_MS = 4_000;
+
+/**
+ * And how long it then keeps watching. `app-boot` applies the account's stored
+ * preference AFTER `load`, so a check that fires the instant `.dark` appears
+ * can pass and be wrong 200ms later — which is the exact shape of the bug this
+ * assertion exists to catch.
+ */
+const THEME_HOLD_MS = 400;
+
+/**
+ * Reads what is ACTUALLY painted, plus what the preference should resolve to.
+ *
+ * `"system"` is resolved in the page rather than by the runner, because the OS
+ * preference the browser reports (possibly emulated by `emulateMedia`) is the
+ * only one that counts.
+ */
+const paintedThemeProbe = (preference) => {
+  const root = document.documentElement;
+  const expected =
+    preference === "system"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
+      : preference;
+  return {
+    expected,
+    painted: root.classList.contains("dark") ? "dark" : "light",
+    colorScheme: root.style.colorScheme,
+    background: window.getComputedStyle(document.body).backgroundColor,
+  };
+};
+
+/**
+ * `**` spans path separators, `*` does not — Playwright's URL glob semantics,
+ * reimplemented because `mock()` records its patterns as strings and the
+ * `/preferences` rewriter has to know whether one of them already owns this
+ * request.
+ */
+function globToRegExp(pattern) {
+  // One pass, with `**` first in the alternation, so a `**` is never re-read as
+  // two single `*`s.
+  const source = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*|\*/g, (star) => (star === "**" ? ".*" : "[^/]*"));
+  return new RegExp(`^${source}$`);
+}
+
 /* ────────────────────────────── origins ────────────────────────────────── */
 
 function originOrHostGlob(originOrHost) {
@@ -101,7 +158,9 @@ async function interceptOrigins(context, rawNetwork = {}) {
   if (network.allowedOrigins?.length) {
     await context.route("**", (route) => route.abort("blockedbyclient"));
     for (const origin of network.allowedOrigins) {
-      await context.route(originOrHostGlob(origin), (route) => route.continue());
+      await context.route(originOrHostGlob(origin), (route) =>
+        route.continue(),
+      );
     }
   }
   for (const origin of network.blockedOrigins || []) {
@@ -176,7 +235,9 @@ function createCollectors(blockedOrigins) {
         expected.push(`${where}console: ${text}`);
         return;
       }
-      (type === "error" ? consoleErrors : consoleWarnings).push(`${where}${text}`);
+      (type === "error" ? consoleErrors : consoleWarnings).push(
+        `${where}${text}`,
+      );
     });
 
     // An UNCAUGHT exception is never excused by a failing mock. A 500 the screen
@@ -201,7 +262,14 @@ function createCollectors(blockedOrigins) {
     });
   }
 
-  return { attach, gate, consoleErrors, consoleWarnings, badRequests, expected };
+  return {
+    attach,
+    gate,
+    consoleErrors,
+    consoleWarnings,
+    badRequests,
+    expected,
+  };
 }
 
 /* ─────────────────────────── scenario context ──────────────────────────── */
@@ -254,16 +322,25 @@ function createScenarioContext({
         status,
         contentType: contentType ?? (isObject ? "application/json" : undefined),
         headers,
-        body: body === undefined ? undefined : isObject ? JSON.stringify(body) : body,
+        body:
+          body === undefined
+            ? undefined
+            : isObject
+              ? JSON.stringify(body)
+              : body,
       });
     };
     await context.route(pattern, handler);
-    mocks.push({ pattern, handler, deliberatelyFailing });
+    // `body` is recorded, not only closed over, so the `/preferences` rewriter
+    // can re-theme a scenario's own preferences mock instead of replacing it.
+    mocks.push({ pattern, handler, deliberatelyFailing, body });
     return handler;
   }
 
   async function unmock(pattern) {
-    const doomed = pattern ? mocks.filter((m) => m.pattern === pattern) : [...mocks];
+    const doomed = pattern
+      ? mocks.filter((m) => m.pattern === pattern)
+      : [...mocks];
     for (const { pattern: p, handler, deliberatelyFailing } of doomed) {
       await context.unroute(p, handler);
       if (deliberatelyFailing) collectors.gate.failing -= 1;
@@ -304,19 +381,182 @@ function createScenarioContext({
   }
 
   /**
-   * Sets the stored theme preference and reloads.
+   * Writes the local theme mirror and reloads. NO CLAIM about what paints.
+   *
+   * This is the seed-only half of what `setTheme` used to be, split out because
+   * exactly one caller wants it: `app-boot.scenario.mjs` leaves a STALE mirror
+   * on purpose and then asserts the database wins over it. For that scenario a
+   * page that ignores the seed is the pass, so it must not go anywhere near
+   * `setTheme`'s assertion.
+   *
+   * For "make the page dark and prove it", use `setTheme`.
+   */
+  async function seedStoredTheme(preference, target = page) {
+    // `addInitScript` accumulates and runs in registration order, so a later
+    // call overwrites an earlier one's value on the next navigation.
+    await target.addInitScript(
+      ([key, value]) => window.localStorage.setItem(key, value),
+      [THEME_STORAGE_KEY, preference],
+    );
+    await target.reload({ waitUntil: "load" });
+  }
+
+  /**
+   * The theme `setTheme` is currently holding the app to, or `null` before any
+   * scenario has asked. Read by the `/preferences` rewriter below.
+   */
+  let heldTheme = null;
+  let rewriterHandler = null;
+
+  /** The scenario's own mock for this URL, if it registered one. Last wins. */
+  const scenarioMockFor = (url) =>
+    [...mocks]
+      .reverse()
+      .find(
+        (entry) =>
+          typeof entry.pattern === "string" &&
+          globToRegExp(entry.pattern).test(url),
+      ) ?? null;
+
+  const rethemed = (base) => ({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ...base, theme: heldTheme }),
+  });
+
+  const carriesTheme = (value) =>
+    Boolean(value) && typeof value === "object" && "theme" in value;
+
+  /**
+   * Makes `GET /preferences` answer with the theme `setTheme` asked for.
+   *
+   * THIS IS THE HALF THAT WAS MISSING, and the reason a dark capture of a
+   * signed-in screen used to come back light. `localStorage` seeds the FIRST
+   * PAINT and nothing more: for an authenticated account `app-boot.ts` then
+   * fetches `/preferences`, calls `applyThemePreference` with the SERVER value
+   * and re-persists it over the seed. The seed lost every time, silently, with
+   * `.dark` on `<html>` for just long enough to look convincing.
+   *
+   * Rewriting the response drives the same `applyThemePreference` bootstrap the
+   * app itself runs — it is not a patch to the app and not a forced class. It
+   * is the same route the reporting agent found by hand, made the default.
+   *
+   * Three deliberate ways it declines to act, so it composes with the rest of
+   * the runner instead of fighting it:
+   *   - `heldTheme === null` — no scenario asked; the endpoint is untouched.
+   *   - a non-GET — the theme TOGGLE's `PATCH` must reach the API, or
+   *     `dialog-chrome`'s "click the real control" check stops meaning anything.
+   *   - the scenario has its own mock here that is NOT a preferences body (a
+   *     500, a `delay: Infinity`) — that mock is the point of the capture, so
+   *     it is left alone. A mock that IS a preferences body is re-themed in
+   *     place, which keeps `search-mobile-audit`'s pinned language intact.
+   */
+  async function installPreferencesRewriter() {
+    // Re-registered on every `setTheme`, so it is always the MOST RECENT
+    // handler for this URL. Playwright runs the last-registered matching route
+    // first, and a scenario that (re-)mocks `/preferences` after a `setTheme`
+    // would otherwise silently take the theme straight back.
+    if (rewriterHandler) {
+      await context.unroute(PREFERENCES_ROUTE, rewriterHandler);
+    }
+
+    rewriterHandler = async (route) => {
+      const request = route.request();
+      if (heldTheme === null || request.method() !== "GET") {
+        return route.fallback();
+      }
+
+      const scenarioMock = scenarioMockFor(request.url());
+      if (scenarioMock) {
+        return carriesTheme(scenarioMock.body)
+          ? route.fulfill(rethemed(scenarioMock.body))
+          : route.fallback();
+      }
+
+      let upstream = null;
+      try {
+        upstream = await route.fetch();
+      } catch {
+        // The API is down or blocked. Nothing to re-theme; let the app see it.
+      }
+      if (!upstream) return route.fallback();
+
+      let base = null;
+      try {
+        base = await upstream.json();
+      } catch {
+        // Not JSON — a 401 HTML page, say. Passed through unchanged below.
+      }
+      return upstream.ok() && carriesTheme(base)
+        ? route.fulfill(rethemed(base))
+        : route.fulfill({ response: upstream });
+    };
+
+    await context.route(PREFERENCES_ROUTE, rewriterHandler);
+  }
+
+  /**
+   * Refuses to return until the requested theme is what is actually painted.
+   *
+   * A HELPER THAT QUIETLY RETURNS THE WRONG THEME IS WORSE THAN ONE THAT
+   * REFUSES: a dark-mode check that silently captured light mode does not fail,
+   * it PASSES while proving nothing, and every `dark:` variant it was supposed
+   * to cover stays unverified. So this throws, with the numbers.
+   *
+   * Note what is asserted: the class `applyTheme` sets, plus a settle window,
+   * plus the body's COMPUTED background in the error, so the report is evidence
+   * rather than the runner's own expectation restated.
+   */
+  async function assertThemeIsPainted(target, preference) {
+    const deadline = Date.now() + THEME_SETTLE_MS;
+    let state = await target.evaluate(paintedThemeProbe, preference);
+    while (state.painted !== state.expected && Date.now() < deadline) {
+      await target.waitForTimeout(100);
+      state = await target.evaluate(paintedThemeProbe, preference);
+    }
+
+    // The settle window. Reaching the right theme once is not the same as
+    // holding it: boot applies the account's preference after `load`, which is
+    // exactly how a dark page used to flip back between check and screenshot.
+    await target.waitForTimeout(THEME_HOLD_MS);
+    state = await target.evaluate(paintedThemeProbe, preference);
+    if (state.painted === state.expected) return state;
+
+    throw new Error(
+      [
+        `setTheme(${JSON.stringify(preference)}) did not take: the page is ` +
+          `painted ${state.painted}, not ${state.expected}.`,
+        `  documentElement.colorScheme  ${state.colorScheme || "(unset)"}`,
+        `  computed body background     ${state.background}`,
+        "",
+        "  The theme did not survive boot. On a SIGNED-IN screen the stored",
+        "  preference is the database, not localStorage: app-boot.ts fetches",
+        "  GET /preferences and applies it over the seed. setTheme already",
+        "  rewrites that response — so if you are here, something else is",
+        "  answering it. Check whether this scenario mocks **/preferences",
+        "  itself; a mock whose body has no `theme` key is left alone on",
+        "  purpose. Give that mock a `theme`, or drop it.",
+        "",
+        "  Driving the theme through the real UI toggle instead? Do not mix it",
+        "  with setTheme — see dialog-chrome.scenario.mjs.",
+      ].join("\n"),
+    );
+  }
+
+  /**
+   * Puts the app in `theme` and PROVES it, for anonymous and signed-in alike.
    *
    * Deliberately NOT `documentElement.classList.add('dark')`: forcing the class
    * bypasses `applyTheme` in apps/web/src/lib/theme.ts, so a broken theme
-   * bootstrap would still screenshot as a perfectly good dark page. Going
-   * through localStorage exercises the real path.
+   * bootstrap would still screenshot as a perfectly good dark page. Both halves
+   * here go through the app's own code — the mirror it reads at first paint,
+   * and the preferences response it reads a moment later.
    */
   async function setTheme(theme, target = page) {
-    await target.addInitScript(
-      ([key, value]) => window.localStorage.setItem(key, value),
-      ["crafthub-theme", theme],
-    );
-    await target.reload({ waitUntil: "load" });
+    heldTheme = theme;
+    await installPreferencesRewriter();
+    await seedStoredTheme(theme, target);
+    return assertThemeIsPainted(target, theme);
   }
 
   /** Extra context+page for logged-out / second-user checks. Closed with the run. */
@@ -339,6 +579,7 @@ function createScenarioContext({
       assert,
       resize,
       setTheme,
+      seedStoredTheme,
       newUserPage,
       log,
       collectors,
@@ -417,10 +658,17 @@ function printSummary({
   detail("Console warnings", consoleWarnings);
   detail("Bad requests", badRequests);
   detail("Expected (a failing mock was active — not a defect)", expected);
-  if (failed.length) detail("Failed assertions", failed.map((a) => a.label));
+  if (failed.length)
+    detail(
+      "Failed assertions",
+      failed.map((a) => a.label),
+    );
 
   const ok =
-    !crash && failed.length === 0 && consoleErrors.length === 0 && badRequests.length === 0;
+    !crash &&
+    failed.length === 0 &&
+    consoleErrors.length === 0 &&
+    badRequests.length === 0;
 
   console.log(
     `\n── visual-check · ${scenarioName} ${"─".repeat(Math.max(0, 42 - scenarioName.length))}`,
@@ -432,7 +680,9 @@ function printSummary({
     `  console      ${consoleErrors.length} errors, ${consoleWarnings.length} warnings`,
   );
   console.log(`  network      ${badRequests.length} bad requests`);
-  console.log(`  expected     ${expected.length} (from deliberate 4xx/5xx mocks)`);
+  console.log(
+    `  expected     ${expected.length} (from deliberate 4xx/5xx mocks)`,
+  );
   console.log(
     `  screenshots  ${screenshots.length} → ${outputDir.replace(`${ROOT}/`, "")}/${scenarioName}-*.png`,
   );
@@ -451,7 +701,9 @@ async function main() {
   const target = argv.find((arg) => !arg.startsWith("--"));
 
   if (!target) {
-    console.error("Usage: node scripts/visual/run.mjs <scenario.mjs> [--headed]");
+    console.error(
+      "Usage: node scripts/visual/run.mjs <scenario.mjs> [--headed]",
+    );
     return 64;
   }
 
@@ -470,7 +722,8 @@ async function main() {
   const outputDir = resolve(ROOT, config.outputDir || ".visual");
   mkdirSync(outputDir, { recursive: true });
 
-  if (config.testIdAttribute) selectors.setTestIdAttribute(config.testIdAttribute);
+  if (config.testIdAttribute)
+    selectors.setTestIdAttribute(config.testIdAttribute);
 
   const module = await import(pathToFileURL(scenarioPath).href);
   const run = module.default ?? module.run;
@@ -522,7 +775,10 @@ async function main() {
     collectors.attach(page);
 
     const newContext = async (overrides = {}) => {
-      const extra = await browser.newContext({ ...contextOptions, ...overrides });
+      const extra = await browser.newContext({
+        ...contextOptions,
+        ...overrides,
+      });
       extra.setDefaultTimeout(ACTION_TIMEOUT);
       extra.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
       await interceptOrigins(extra, config.network);

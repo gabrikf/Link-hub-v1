@@ -9,6 +9,7 @@ import { TransactionContext } from "../../../../core/providers/unit-of-work/unit
 import { db } from "../index.js";
 import { resolveExecutor } from "../executor.js";
 import { profileBlocks } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 type ProfileBlockRow = typeof profileBlocks.$inferSelect;
 
@@ -92,7 +93,7 @@ export class DrizzleProfileBlocksRepository
     block: ProfileBlockEntity,
     tx?: TransactionContext,
   ): Promise<ProfileBlockEntity> {
-    const [created] = await resolveExecutor(tx)
+    const insertedRows = await resolveExecutor(tx)
       .insert(profileBlocks)
       .values({
         id: block.id,
@@ -113,7 +114,9 @@ export class DrizzleProfileBlocksRepository
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(
+      requireReturnedRow(insertedRows, "insert into profileBlocks"),
+    );
   }
 
   async update(

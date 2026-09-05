@@ -3,6 +3,7 @@ import { ResumeSkillEntity } from "../../../../core/entity/resume-skill/resume-s
 import { IResumeSkillRepository } from "../../../../core/repositories/resume-skill/resume-skill-repository.js";
 import { db } from "../index.js";
 import { resumeSkills, skillsCatalog } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 export class DrizzleResumeSkillRepository implements IResumeSkillRepository {
   async listByResumeId(resumeId: string): Promise<ResumeSkillEntity[]> {
@@ -106,7 +107,7 @@ export class DrizzleResumeSkillRepository implements IResumeSkillRepository {
     yearsExperience: number | null;
     displayOrder: number;
   }): Promise<ResumeSkillEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(resumeSkills)
       .values({
         resumeId: input.resumeId,
@@ -115,6 +116,11 @@ export class DrizzleResumeSkillRepository implements IResumeSkillRepository {
         displayOrder: input.displayOrder,
       })
       .returning();
+
+    const created = requireReturnedRow(
+      insertedRows,
+      "insert into resumeSkills",
+    );
 
     const [joined] = await db
       .select({

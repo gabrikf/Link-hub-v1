@@ -115,7 +115,7 @@ export const createGitConnectionSchemaInput = z.object({
   displayName: z.string().trim().min(1, "Display name is required").max(80),
   externalAccountId: z.string().trim().min(1).max(200).nullable().optional(),
   /** Only meaningful for `kind: "work"`; it is what the disclosure level is inherited through. */
-  workExperienceId: z.string().uuid().nullable().optional(),
+  workExperienceId: z.uuid().nullable().optional(),
   disclosureLevelOverride: agentDisclosureLevelSchema.nullable().optional(),
   autoPostEnabled: z.boolean().default(false),
   cadence: digestCadenceSchema.default(DEFAULT_DIGEST_CADENCE),
@@ -130,7 +130,7 @@ export const createGitConnectionSchemaInput = z.object({
 export const updateGitConnectionSchemaInput = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
   kind: gitConnectionKindSchema.optional(),
-  workExperienceId: z.string().uuid().nullable().optional(),
+  workExperienceId: z.uuid().nullable().optional(),
   disclosureLevelOverride: agentDisclosureLevelSchema.nullable().optional(),
   autoPostEnabled: z.boolean().optional(),
   cadence: digestCadenceSchema.optional(),
@@ -172,9 +172,15 @@ export const ingestActivityEventSchemaInput = z.object({
   technologies: z.array(technologyTagSchema).max(30).default([]),
   actorIsOwner: z.boolean().default(true),
   /** Clear third-party ids, hashed on arrival and never stored as given. */
-  counterparties: z.array(z.string().trim().min(1).max(200)).max(200).optional(),
+  counterparties: z
+    .array(z.string().trim().min(1).max(200))
+    .max(200)
+    .optional(),
   /** Pre-hashed third-party ids, for callers that hash locally. */
-  counterpartyFingerprints: z.array(activityFingerprintSchema).max(200).optional(),
+  counterpartyFingerprints: z
+    .array(activityFingerprintSchema)
+    .max(200)
+    .optional(),
   payload: activityPayloadSchema.nullable().optional(),
 });
 
@@ -183,7 +189,7 @@ export const ingestActivityEventSchemaInput = z.object({
  * worth at once, so both post a list; a single event is a list of one.
  */
 export const ingestActivitySchemaInput = z.object({
-  connectionId: z.string().uuid(),
+  connectionId: z.uuid(),
   source: activitySourceSchema,
   events: z.array(ingestActivityEventSchemaInput).min(1).max(500),
 });
@@ -216,7 +222,7 @@ export const ingestActivityResultSchema = z.object({
 });
 
 export const gitConnectionParamsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 /**

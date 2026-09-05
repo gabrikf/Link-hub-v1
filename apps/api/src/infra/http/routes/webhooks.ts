@@ -22,6 +22,7 @@ import {
   verifyGitlabPlaintextToken,
   verifyGitlabSignature,
 } from "../webhooks/webhook-signature.js";
+import { toAsyncHook } from "../to-async-hook.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -92,16 +93,25 @@ export async function webhooksRoutes(server: FastifyInstance) {
 
   server.post(
     "/webhooks/github/:connectionId",
-    { preValidation: verifyGithubDelivery },
+    { preValidation: toAsyncHook(verifyGithubDelivery) },
     handleGithubDelivery,
   );
 
   server.post(
     "/webhooks/gitlab/:connectionId",
-    { preValidation: verifyGitlabDelivery },
+    { preValidation: toAsyncHook(verifyGitlabDelivery) },
     handleGitlabDelivery,
   );
 }
+
+/**
+ * `preValidation` on a route-options object is typed against Fastify's
+ * callback-style hook signature — `(request, reply, done) => void` — not the
+ * async one, so an `async` guard assigned there is a Promise-returning
+ * function where a void return is expected. Bridging it through `done` keeps
+ * the guard itself as a plain `async` function (readable, and testable on its
+ * own) while handing Fastify the shape it actually resolves for this option.
+ */
 
 /**
  * Verification runs in `preValidation`, NOT `preHandler`.
@@ -115,7 +125,7 @@ export async function webhooksRoutes(server: FastifyInstance) {
 async function verifyGithubDelivery(
   request: FastifyRequest,
   _reply: FastifyReply,
-) {
+): Promise<void> {
   const connection = await loadConnection(request, "github");
   const rawBody = requireRawBody(request);
 
@@ -143,7 +153,7 @@ async function verifyGithubDelivery(
 async function verifyGitlabDelivery(
   request: FastifyRequest,
   _reply: FastifyReply,
-) {
+): Promise<void> {
   const connection = await loadConnection(request, "gitlab");
   const rawBody = requireRawBody(request);
   const secret = connection.webhookSecret!;

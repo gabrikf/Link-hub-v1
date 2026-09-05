@@ -62,7 +62,9 @@ export function PublicProfileSkeleton() {
  * and the URL line. Shared with `profile-blocks.tsx`, which renders it in place
  * of the (misleading) "No public links yet" copy while links are still loading.
  */
-export function ProfileLinksSkeleton({ count = 3 }: { count?: number }) {
+export function ProfileLinksSkeleton({
+  count = 3,
+}: Readonly<{ count?: number }>) {
   return (
     <>
       {Array.from({ length: count }, (_, index) => (

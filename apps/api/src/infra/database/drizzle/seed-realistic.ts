@@ -1191,8 +1191,15 @@ function hashSeed(input: string): number {
 }
 
 function pickOne<T>(items: readonly T[], seed: string): T {
-  const index = hashSeed(seed) % items.length;
-  return items[index]!;
+  const item = items[hashSeed(seed) % items.length];
+
+  // Only an empty `items` can land here. Throwing names the empty table; the
+  // alternative was a silent `undefined` seeded into a row.
+  if (item === undefined) {
+    throw new Error(`pickOne: nothing to pick from for seed '${seed}'`);
+  }
+
+  return item;
 }
 
 function pickManyUnique<T>(
@@ -1210,7 +1217,13 @@ function pickManyUnique<T>(
 
   while (selected.size < amount) {
     const index = hashSeed(`${seed}-${salt}`) % uniqueItems.length;
-    selected.add(uniqueItems[index]!);
+    const item = uniqueItems[index];
+
+    if (item === undefined) {
+      throw new Error(`pickManyUnique: nothing at index ${String(index)}`);
+    }
+
+    selected.add(item);
     salt += 1;
   }
 
@@ -1229,9 +1242,12 @@ function buildCandidateSeeds(count: number): CandidateSeed[] {
   const signatures = new Set<string>();
 
   for (let index = 0; index < count; index += 1) {
-    const blueprint =
-      CANDIDATE_BLUEPRINTS[index % CANDIDATE_BLUEPRINTS.length]!;
+    const blueprint = CANDIDATE_BLUEPRINTS[index % CANDIDATE_BLUEPRINTS.length];
     const sequence = index + 1;
+
+    if (!blueprint) {
+      throw new Error("CANDIDATE_BLUEPRINTS is empty; nothing to seed from");
+    }
 
     let attempt = 0;
     while (true) {
@@ -1290,7 +1306,8 @@ function buildCandidateSeeds(count: number): CandidateSeed[] {
       );
       const titles = [...new Set([primaryTitle, ...secondaryTitles])];
 
-      const signature = `${blueprint.slug}|${skills.sort().join("|")}|${titles.join("|")}`;
+      skills.sort((a, b) => a.localeCompare(b));
+      const signature = `${blueprint.slug}|${skills.join("|")}|${titles.join("|")}`;
       if (signatures.has(signature)) {
         attempt += 1;
         continue;
@@ -1348,7 +1365,9 @@ class DeterministicEmbeddingProvider implements IEmbeddingProvider {
     for (let index = 0; index < normalized.length; index += 1) {
       const code = normalized.charCodeAt(index);
       const bucket = index % size;
-      vector[bucket] += (code % 89) / 89;
+
+      // `bucket` is a modulo of the vector's own length, so the slot exists.
+      vector[bucket] = (vector[bucket] ?? 0) + (code % 89) / 89;
     }
 
     let sumSquares = 0;
