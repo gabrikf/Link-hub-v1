@@ -254,9 +254,7 @@ npx vitest related <changed-file> --run     # only the suites touching what you 
 **Visual verification (mandatory when the task produces UI) — per delivery, script-first:**
 
 1. Keep **one scenario for the feature** at `scripts/visual/scenarios/[feature].scenario.mjs` and add this task's states to it: loading, empty, error, filled, each variant, each mode/tab from `variants.md`, modal/drawer open, and both colour schemes if the surface constants are involved
-2. Run it in one command:
-   `node scripts/visual/run.mjs scripts/visual/scenarios/[feature].scenario.mjs`
-   (one browser launch, one authed session, every state in sequence)
+2. Run it in one command — one browser launch, one authed session, every state in sequence: `node scripts/visual/run.mjs scripts/visual/scenarios/[feature].scenario.mjs`
 3. Compare each screenshot against the design in `design/` and the FB-02 checklist — layout, spacing, typography, colour tokens, components, states, focus rings, dark mode
 4. Read the console + network gate the run prints: zero React errors/warnings, zero unexpected 4xx/5xx, no request loops
 5. List each difference concretely ("title is 24px in the design, renders at 16px"), fix the cause, and **re-run the scenario** until the list is empty
@@ -271,7 +269,7 @@ git add [the task's files]
 git commit -m "[type]: [description]"
 ```
 
-Conventional Commits, in **English** (the whole repo is English) — commit type by task (schema, hook, UI, form, tests) is tabulated in [references/execution-strategy.md](references/execution-strategy.md). Let the pre-push/Stop-hook gate run — `node scripts/guardrails/pre-push.mjs` is the same script husky runs. **There is no sanctioned `--no-verify`**, not even for a failure that looks unrelated: hand a red gate to the `guardrails-repair` skill, which covers the environmental causes that most often masquerade as unrelated.
+Conventional Commits, in **English** (the whole repo is English) — commit type by task (schema, hook, UI, form, tests) is tabulated in [references/execution-strategy.md](references/execution-strategy.md). Let the pre-push/Stop-hook gate run — `node scripts/guardrails/pre-push.mjs` is the same script husky runs. **There is no sanctioned `--no-verify`**: a red gate goes to the `guardrails-repair` skill, which covers the environmental causes that most often look unrelated.
 
 #### 3.5: Next task
 
