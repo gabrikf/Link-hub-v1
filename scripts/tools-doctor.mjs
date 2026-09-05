@@ -2,12 +2,10 @@
 /**
  * tools:doctor — is this machine set up to run the workflow skills?
  *
- * Every check prints `OK <name>` or `FIX <name>: <exact command>`. It never
- * prints a secret value, only whether a variable is set. It **always exits 0**,
- * so it stays something you run casually rather than a gate you learn to skip.
- *
- * The fixes it names are collected in one place:
- * docs/harness/agent-harness.md, under "Set up once".
+ * Prints `OK <name>` or `FIX <name>: <exact command>`, never a secret value —
+ * only whether a variable is set. **Always exits 0**, so it stays something you
+ * run casually rather than a gate you learn to skip. The fixes it names are
+ * collected in docs/harness/agent-harness.md, under "Set up once".
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -40,16 +38,15 @@ const npm = tryRun("npm", ["--version"]);
 if (npm.ok) ok("npm", `v${npm.out.trim()}`);
 else fix("npm", "install npm (it ships with Node)");
 
-if (existsSync(join(ROOT, "node_modules"))) ok("node_modules", "installed");
-else fix("node_modules", "npm ci");
-
-const schemasDist = join(ROOT, "packages/schemas/dist");
-if (existsSync(schemasDist)) ok("@repo/schemas", "built");
-else fix("@repo/schemas", "npm run build:schemas");
-
-for (const hook of ["pre-commit", "pre-push"]) {
-  if (existsSync(join(ROOT, ".husky", hook))) ok(`husky ${hook}`, "installed");
-  else fix(`husky ${hook}`, "npm run prepare");
+/** [label, path relative to ROOT, the command that fixes it] */
+for (const [label, rel, command] of [
+  ["node_modules", "node_modules", "npm ci"],
+  ["@repo/schemas", "packages/schemas/dist", "npm run build:schemas"],
+  ["husky pre-commit", ".husky/pre-commit", "npm run prepare"],
+  ["husky pre-push", ".husky/pre-push", "npm run prepare"],
+]) {
+  if (existsSync(join(ROOT, rel))) ok(label, "installed");
+  else fix(label, command);
 }
 
 if (!onPath("gh")) fix("gh", "install the GitHub CLI, then: gh auth login");
@@ -63,8 +60,7 @@ else if (tryRun("coderabbit", ["auth", "status"]).ok)
 else fix("coderabbit", "coderabbit auth login");
 
 // By name only: whether it is set, never what it is.
-const named = ["LINEAR_API_KEY", "CODERABBIT_API_KEY", "OPENAI_API_KEY"];
-for (const name of named) {
+for (const name of ["LINEAR_API_KEY", "CODERABBIT_API_KEY", "OPENAI_API_KEY"]) {
   if (process.env[name]) ok(name, "set");
   else skip(name, "not set — the steps that need it will say so and skip");
 }
@@ -86,10 +82,8 @@ if (existsSync(mcpPath)) {
   }
 } else skip(".mcp.json", "absent");
 
-if (process.platform === "win32" && !onPath("bash")) {
-  skip("db services", "db-manage.sh needs bash — use Git Bash or WSL");
-} else if (!onPath("bash")) {
-  skip("db services", "bash not found; run db-manage.sh yourself");
+if (!onPath("bash")) {
+  skip("db services", "db-manage.sh needs bash — on Windows, Git Bash or WSL");
 } else if (tryRun("bash", [join(ROOT, "db-manage.sh"), "status"]).ok) {
   ok("db services", "db-manage.sh status answered");
 } else {

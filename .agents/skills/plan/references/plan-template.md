@@ -48,14 +48,14 @@ section that stops scope creep in the implement session.
 
 ## The rules that make it usable
 
-- **The checkboxes are the ledger.** `implement` ticks them in this file as it
-  goes, because a session can compact and the file cannot.
+- **The checkboxes are the ledger.** `implement` ticks them here as it goes: a
+  session can compact and the file cannot.
 - **Automated boxes name a command.** "Tests pass" is not a box; the command that
   runs them is.
 - **Manual boxes name a route.** Which URL, how to get there, which seeded
   account (`npm run db:seed:all`), and what a human should see.
-- **No placeholders.** Not "TBD", not "add appropriate error handling", not
-  "update the relevant tests". An unknown is an `[ASSUMPTION]` the user can veto.
+- **No placeholders** — not "TBD", not "add appropriate error handling". An
+  unknown is an `[ASSUMPTION]` the user can veto.
 - **Cite rules, do not copy them.** `AGENTS.md`, `apps/api/AGENTS.md`,
   `apps/web/AGENTS.md`, `DESIGN.md`, `packages/schemas/AGENTS.md` already say it.
 - **Size it to the diff.** Three files or fewer → about twenty lines.

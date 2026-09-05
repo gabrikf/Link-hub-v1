@@ -18,45 +18,31 @@ Why it matters: <one line — what changes downstream depending on the answer.>
 Reply with the number, or say yes to take the recommendation.
 ```
 
-- Two to five options, **mutually exclusive**. If two options could both be true,
-  they are one question badly split.
-- Every option names its consequence. An option list without consequences makes
-  the user guess what they are choosing.
-- The recommendation is always there, and always has a reason. "Whichever you
-  prefer" wastes the turn.
+Two to five options, **mutually exclusive** — if two could both be true, it is
+one question badly split. Every option names its consequence, or the user is
+guessing what they choose. The recommendation is always present and always has a
+reason; "whichever you prefer" wastes the turn.
 
 ## What to ask about
 
-Ask only where a different answer produces **materially different code**:
-
-- a boundary shape that would land in `@repo/schemas`;
-- where the state lives, or where the work runs;
-- what happens in the error and empty cases;
-- the scope edge — is X in or out;
-- an existing behaviour the change might break.
+Only where a different answer produces **materially different code**: a boundary
+shape that would land in `@repo/schemas`; where state lives or work runs; the
+error and empty cases; the scope edge; an existing behaviour this might break.
 
 ## What never to ask
 
-- Anything the repo already answers. Read `AGENTS.md` and the nested files first;
-  asking which test runner to use, when the rule says vitest, spends a turn to
-  learn nothing.
-- Anything with a conventional default and no real trade-off. Pick it, name it in
-  one line, and move on.
-- "Is this plan good?" The `plan-reviewer` subagent answers that, with evidence.
+- Anything the repo already answers. Read `AGENTS.md` and the nested files first —
+  asking which test runner to use, when the rule says vitest, learns nothing.
+- Anything with a conventional default and no real trade-off. Pick it, name it,
+  move on.
+- "Is this plan good?" `plan-reviewer` answers that, with evidence.
 
 ## When to stop
 
-Stop at whichever comes first:
+Whichever comes first: the critical ambiguity is gone, the user says they are
+done, or five have been asked. Everything still unknown becomes an
+`[ASSUMPTION]` line the user can veto — **never** a sixth question.
 
-- the critical ambiguity is gone;
-- the user says they are done;
-- five questions have been asked.
-
-Everything still unknown becomes an `[ASSUMPTION]` line in the plan — a claim the
-user can read and veto — **never** a sixth question.
-
-## Under `--all-default`
-
-Show each question with its recommended answer already taken, and keep going. The
-user still sees what was decided on their behalf; they just are not stopped for
-it.
+Under `--all-default`, show each question with its recommended answer already
+taken and keep going: the user sees what was decided for them, just is not
+stopped for it.

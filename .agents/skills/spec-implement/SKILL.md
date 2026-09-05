@@ -8,6 +8,7 @@ description: "Use when IMPLEMENTING a CraftHub spec produced by the spec-writer 
 This skill **implements** a spec produced by `#spec-writer`. The goal: read the spec plus its harness, plan the most efficient execution strategy (speed and safety), execute task by task with continuous verification, and deliver code ready for a pull request.
 
 **Principles:**
+
 - **The spec is the source of truth** — implement exactly what is specified, nothing more
 - **The harness is the guardrail** — verify after every task, never advance on a failure
 - **Pixel-perfect** — UI faithful to the design, expressed in Tailwind 4 and the `DESIGN.md` language
@@ -25,6 +26,7 @@ If the user types `--all-default` at any point, ask:
 > Are you sure you want to enter all-default mode?
 
 If confirmed, keep it until the end. In this mode:
+
 - **Ask no questions** — run every phase automatically.
 - Always take the documented default; where there is none, take the most efficient option.
 - Report every step (action + decision) without waiting for a reply.
@@ -39,6 +41,7 @@ If confirmed, keep it until the end. In this mode:
 Ask (if not supplied):
 
 > Which spec should I implement?
+>
 > - **1** — list the specs available under `docs/specs/`
 > - Or give the path: `docs/specs/[feature-name]/`
 
@@ -87,6 +90,7 @@ Analyse the tasks and choose the **execution strategy**. See [references/executi
 #### 1.1: Dependency analysis
 
 Read `tasks.md` and identify:
+
 - **Root tasks** — no dependencies (can start immediately, after G0)
 - **Sequential tasks** — depend on earlier ones
 - **Parallelisable tasks** — independent of each other (disjoint files)
@@ -150,6 +154,7 @@ Freeze the real response body as the fixture in `contracts/fixtures/` once it pa
 **Pass** requires all four: 2xx status, `content-type: application/json`, a body that parses as JSON, and a body the schema in `contracts/` accepts.
 
 **On failure, BLOCK.** Do not start any dependent UI task. Report which of the four demands failed and on which registration, then either:
+
 - the route is genuinely not live → flip that contract to `Provenance: INFERRED / Status: PENDING`, drive the hook from the mock, and add the validation task; or
 - the route is live on the other registration → correct the spec's §6.2 table and proceed.
 
@@ -202,6 +207,7 @@ For each task, run the cycle:
 #### 3.2: Implement
 
 Implement strictly according to:
+
 - **`AGENTS.md`** (root, plus the per-workspace files) — structure, naming, conventions
 - **The component map** — `shared-components/` and the Radix primitives first
 - **`DESIGN.md`** — violet/zinc palette, `SURFACE*` constants, button hierarchy, focus rings. Zero hardcoded hex.
@@ -209,6 +215,7 @@ Implement strictly according to:
 - **Context7** — consult it for external libraries (TanStack Query/Router, zod, react-hook-form, Drizzle, Fastify) to use current APIs
 
 **Implementation rules:**
+
 - One file at a time — write it complete, not partial
 - Types first — always type before use; `z.infer`, never a parallel hand-written interface
 - Hooks separated — logic never inside JSX
@@ -216,7 +223,7 @@ Implement strictly according to:
 - Typed props — an exported type per component
 - **Every user-visible string goes through `t()`**, with the key added to all three locale files in `apps/web/src/i18n/locales/` in the same commit. The copy table in `definitions.md` is what those keys say in `en-US`. Search the locale files for the TEXT before adding a key. The `i18n` skill is the contract.
 - **Mock flow** — where the spec marks an endpoint as not live, drive the hook from a local mock (an MSW handler or a typed stub in the feature's `lib/`), seeded from the "full" fixture. Check what neighbouring features already do before introducing a new mocking mechanism. Never silently skip an unready endpoint — mock it so the UI works end to end.
-- **Never edit `packages/schemas/src/**` or `apps/*/src/**` outside the files the task names.** If a task needs a file it does not list, stop and say so.
+- **Never edit `packages/schemas/src/**`or`apps/\*/src/**` outside the files the task names.** If a task needs a file it does not list, stop and say so.
 - Do not touch the known, deliberate debt — it is listed in `docs/harness/known-debt.md`, and fixing an item is its own task with its own review.
 
 #### 3.3: Verify (after every task)
@@ -231,6 +238,7 @@ npx vitest related <changed-file> --run     # only the suites touching what you 
 ```
 
 **On failure:**
+
 1. Identify the error
 2. Fix it (without changing scope)
 3. Re-verify
@@ -263,7 +271,7 @@ git add [the task's files]
 git commit -m "[type]: [description]"
 ```
 
-Conventional Commits, in **English** (the whole repo is English) — commit type by task (schema, hook, UI, form, tests) is tabulated in [references/execution-strategy.md](references/execution-strategy.md). Let the pre-push/Stop-hook gate run — `node scripts/guardrails/pre-push.mjs` is the same script husky runs. `--no-verify` only when the hook fails for something **demonstrably unrelated** to the task (and say so in chat); never as a default.
+Conventional Commits, in **English** (the whole repo is English) — commit type by task (schema, hook, UI, form, tests) is tabulated in [references/execution-strategy.md](references/execution-strategy.md). Let the pre-push/Stop-hook gate run — `node scripts/guardrails/pre-push.mjs` is the same script husky runs. **There is no sanctioned `--no-verify`**, not even for a failure that looks unrelated: hand a red gate to the `guardrails-repair` skill, which covers the environmental causes that most often masquerade as unrelated.
 
 #### 3.5: Next task
 
@@ -326,6 +334,7 @@ If the feature changed anything in `apps/web/src/shared-components/`, `apps/web/
 Run `npm run i18n:check` — parity (same key set in all three locales, no empty values) and raw strings (no visible text outside `t()`, every key resolves in `en-US.json`). Both are sub-second and both run in the gate.
 
 Check as well:
+
 - Every `en-US` value matches the copy table in `definitions.md`
 - Keys are named by meaning, not by location, and every new key exists in all three files
 - No leftover placeholder or lorem text
@@ -438,6 +447,7 @@ If the design needs something the primitives cannot do → build a reusable comp
 The design often shows the **whole application shell** — top bar, nav, layout wrapper, and other components that **already exist**.
 
 **Do not touch existing components.** Implement only what is new:
+
 - Design shows the top bar (`top-bar-nav.tsx`) → it already exists, ignore it
 - Design shows the dashboard layout wrapper → already exists, ignore it
 - Design shows avatar/button/input primitives → already in `shared-components/`, reuse, do not restyle

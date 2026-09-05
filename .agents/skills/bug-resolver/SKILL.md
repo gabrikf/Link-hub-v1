@@ -28,6 +28,8 @@ description if there is no ticket at all.
 
 ## 2. Read the issue
 
+**No ticket at all → skip to phase 3.** Everything below needs an issue to read.
+
 Description, **every** comment, attachments, linked issues, and the links.
 Collect the links; do not open them yet. A comment three weeks old naming the
 commit that caused it is the cheapest fix you will ever find.
@@ -102,9 +104,13 @@ npm run guardrails
 
 Red → `guardrails-repair`. Never `--no-verify`.
 
-Green → comment the **root cause** on the Linear issue: what was wrong, why it
-happened, what now prevents it. Discovery-first, per the reference. No Linear MCP
-→ print the comment for the user to paste, and say that is what you did.
+Green → record the **root cause**: what was wrong, why it happened, what now
+prevents it.
+
+- An issue and a Linear MCP → comment it there, discovery-first per the reference.
+- An issue but no MCP → print the comment for the user to paste, and say so.
+- **No issue at all** → it goes in the commit body and the PR description. The
+  root cause is written down either way; only the destination changes.
 
 ## 9. Hand off
 

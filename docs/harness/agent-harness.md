@@ -53,6 +53,15 @@ purpose**: prettier pads table columns to the widest cell, which cost that file
 not content — delete it and reformat, and the budget check fails with nothing
 having been added.
 
+**This reverses the call in `f9ace8f`**, which hit the same wall and chose to
+trim content and keep the formatting. That was right at the time: the trim was
+600 bytes and the content was nearly redundant. The workflow router needed
+another ~730, and paying for it in rules rather than whitespace was the worse
+trade. Both readings agree the budget is right to count alignment bytes — Codex's
+32 KiB cap does not care whether a byte is content or padding. They disagree only
+on which to spend. If you would rather have aligned tables, the way back is to
+delete the directives and cut ~720 bytes of rules, not to raise the budget.
+
 `.agents/` holds the real content because it is the tool-neutral name; the
 per-tool directories are aliases so that no tool needs a second copy that can
 drift.

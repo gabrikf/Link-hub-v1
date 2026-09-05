@@ -89,11 +89,23 @@ a `.skip`, never a widened schema.
 
 ## 5. The audit — not optional
 
-Write the diff to a file (`git diff > <path>`), then dispatch the `dod-auditor`
-subagent with: the plan's Definition of Done, that diff file, and your hand-off
-report **explicitly labelled as unverified claims**.
+Write the diff to a file, then dispatch the `dod-auditor` subagent with: the
+plan's Definition of Done, that diff file, and your hand-off report **explicitly
+labelled as unverified claims**.
+
+```bash
+git add -A && git diff --cached > <path>
+```
+
+**Stage first.** A plain `git diff` shows neither staged nor untracked files, so
+every file the task _created_ — the red test above all — would be missing from
+the one artefact the auditor judges Stage 2 on.
 
 `--all-default` does not skip this. Nothing skips this.
+
+**Codex and Kiro have no subagent concept.** There, run `.agents/agents/dod-auditor.md`
+as a fresh session against the same three inputs. The audit still happens; only
+the dispatch differs.
 
 Fix findings, re-run, at most **three rounds**. Still blocking after three →
 escalate to the user with the open findings listed. Do not quietly ship past one.

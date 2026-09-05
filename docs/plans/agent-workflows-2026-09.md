@@ -92,6 +92,21 @@ House rules for everything written here: **English** under `.agents/` (the agent
 | 12  | `scripts/guardrails/harness-check.mjs`                                                                                                                     | edit: add `.agents/agents/*.md` + `.agents/references/*.md` as surfaces, plus a self-test case | +≤30                      |
 | 13  | `scripts/tools-doctor.mjs` **(new)** + `tools:doctor` in root `package.json` — flat file, not a new one-file `scripts/tools/` dir beside the existing four | new                                                                                            | ≤120                      |
 
+**Budgets as shipped (2026-09-04).** Twelve of seventeen files landed inside
+budget. Five did not, and the numbers above are left as planned rather than
+rewritten to match, so the gap stays visible:
+
+| Deliverable                                      | Budget    | Shipped  | Why                                                                                                                                   |
+| ------------------------------------------------ | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 6 `plan/references/{interview,plan-template}.md` | ≤40 / ≤60 | 48 / 61  | trimmed once; the remaining lines are the question shape and the six-section template, both of which the skill reads literally        |
+| 8 `dod-auditor.md` / `plan-reviewer.md`          | ≤60 / ≤50 | 64 / 59  | trimmed twice; the discrimination-check contract and the evidence-or-zero rule are the content, and cutting further would cost a rule |
+| 13 `scripts/tools-doctor.mjs`                    | ≤120      | 130      | thirteen checks plus the report; the alternative was dropping a check                                                                 |
+| 11 `docs/harness/agent-harness.md`               | +≤35      | +61      | §5.7 asks for a layout block, a subagent section AND a "Set up once" table; three sections do not fit in 35 lines                     |
+| 12 `scripts/guardrails/harness-check.mjs`        | +≤30      | +110/−14 | ~58 lines functional; the rest is prettier reflow the `pre-commit` hook forces on anyone who stages this already-unformatted file     |
+
+The two budgets a sensor actually enforces — root `AGENTS.md` ≤120 lines and
+≤6144 bytes, every `SKILL.md` ≤500 — are met, at 113 / 6016.
+
 ## 5. Specifications
 
 **5.1 `.agents/references/linear-github.md`.** Sections: **GitHub** — org/repo resolved at runtime from `git remote -v`; base default `main` (the only branch CI gates); the `gh` table (`auth status`, `pr create --base --title --body-file`, `pr view --json url,number`, `pr edit`, `pr list --head <branch>`); PR/branch/issue URL shapes. **Linear** — team key, workspace, workflow **state names read from the API/MCP, never hardcoded** (a Linear team defines its own states; there is no Jira-style fixed transition id), label taxonomy, issue-key regex, branch naming = Linear's own "copy git branch name" `<username>/<key>-<slug>`. **PR ↔ Linear linking** — with the Linear GitHub integration on, `Closes LIN-123` in the PR body links and transitions the issue; off, the `linear` step comments instead (STOP-1c decides). Then **`--all-default`** (§10.3), the **no-MCP fallback** sentence, the **`$ARGUMENTS` fallback** (§10.4), and the **portable git table** (`git branch --show-current`; `git status --porcelain`; upstream via `git rev-parse --abbrev-ref --symbolic-full-name "@{u}"` **before** `git log --oneline "@{u}..HEAD"`).

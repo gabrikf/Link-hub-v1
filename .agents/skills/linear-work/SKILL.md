@@ -39,14 +39,26 @@ cycle = the active one, state type not completed and not cancelled. The exact
 argument names differ between server builds; read them from the listing rather
 than from this sentence.
 
+**Widen before you report nothing.** Both halves of that default are optional
+features of a Linear workspace, and a team that does not use them is not a team
+with no work. An empty result is only an answer once you have widened:
+
+1. No cycles on the team, or the current cycle is empty → drop the cycle filter
+   and list the team's issues that are not completed or cancelled.
+2. Nothing assigned to the viewer → drop the assignee filter too. Plenty of teams
+   never assign; the issues are still theirs to pick up.
+3. Still empty after both → _now_ say the team has no open issues, and stop.
+
+Say which filters you dropped and why. "No issues in your cycle" on a board with
+thirty open tickets is the most confidently wrong thing this skill can say.
+
 An argument overrides the default:
 
 - an issue key (`[A-Z][A-Z0-9]+-\d+`) → skip the list, go straight to the card;
 - `label:<name>` → filter by that label, after reading the team's real labels;
 - anything else → treat it as a raw filter and say what you interpreted.
 
-Render the list compactly — key, title, state, priority — and ask which one.
-Empty list is an answer: say the cycle has nothing assigned, and stop.
+Render the list compactly — key, title, state, label — and ask which one.
 
 ## 3. The card
 
@@ -57,12 +69,17 @@ routing — the route depends on what the card says.
 
 **Read the route; do not ask for it.** The issue's label or type decides:
 
-| The issue is…                      | Route                                                       |
-| ---------------------------------- | ----------------------------------------------------------- |
-| labelled bug / defect / regression | `bug-resolver`, with the key as its argument                |
-| anything else, and non-trivial     | `plan` first, then `implement` on the file it writes        |
-| anything else, and small           | `implement` directly, or `plan` if the scope is unclear     |
-| large, multi-screen, with a design | `spec-writer`, then `spec-implement` — the heavyweight lane |
+| The issue is…                         | Route                                                       |
+| ------------------------------------- | ----------------------------------------------------------- |
+| labelled bug / defect / regression    | `bug-resolver`, with the key as its argument                |
+| labelled discovery / spike / research | `plan` — the answer is a plan, not a diff                   |
+| anything else, and non-trivial        | `plan` first, then `implement` on the file it writes        |
+| anything else, and small              | `implement` directly, or `plan` if the scope is unclear     |
+| large, multi-screen, with a design    | `spec-writer`, then `spec-implement` — the heavyweight lane |
+
+Match on the label's **meaning**, not an exact string: read the team's real
+labels first and map them onto the rows above. A label this table does not
+anticipate falls through to "anything else".
 
 Then offer, as a menu:
 

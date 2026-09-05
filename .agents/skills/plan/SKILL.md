@@ -67,6 +67,9 @@ Offer to run the `plan-reviewer` subagent before the user approves. It reads the
 plan and the files it names, and reports what it would have to guess. Accepting
 is the default; declining is fine, and is recorded in one line.
 
+In a tool with no subagent concept (Codex, Kiro), run `.agents/agents/plan-reviewer.md`
+as a fresh session instead.
+
 ## 5. Stop
 
 Print the path, and the exact line to continue with:

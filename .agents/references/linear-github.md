@@ -20,7 +20,7 @@ body and run the gate locally instead.
 | Need                 | Command                                                    |
 | -------------------- | ---------------------------------------------------------- |
 | is `gh` usable       | `gh auth status`                                           |
-| is a PR already open | `gh pr list --head <branch>`                               |
+| is a PR already open | `gh pr list --head <branch> --json number,url,state`       |
 | open one             | `gh pr create --base <target> --title <t> --body-file <f>` |
 | update the open one  | `gh pr edit <n> --title <t> --body-file <f>`               |
 | confirm it landed    | `gh pr view --json url,number`                             |
