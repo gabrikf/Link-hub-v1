@@ -31,7 +31,7 @@
  * for it, say so in the PR.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync } from "node:fs";
 import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -59,12 +59,18 @@ function main() {
   /**
    * `--diff-filter=ACMR` drops deletions: a file staged for deletion still
    * appears in `--name-only`, and formatting a path that is gone is a crash.
+   *
+   * Symlinks are dropped too. `.claude/agents/*.md` are per-file links into
+   * `.agents/agents/`, and prettier refuses an explicitly named symlink with an
+   * `[error]` line while still exiting 0 — a hook that prints errors and passes
+   * is a hook people stop reading. The link's target is formatted on its own.
    */
   const staged = git(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((file) => existsSync(resolve(ROOT, file)));
+    .filter((file) => existsSync(resolve(ROOT, file)))
+    .filter((file) => !lstatSync(resolve(ROOT, file)).isSymbolicLink());
 
   if (staged.length === 0) {
     console.log("pre-commit: nothing staged.");
