@@ -337,15 +337,12 @@ nothing. `references/dark-mode-detail.md` has the two ways to get there, the see
 `applyTheme`, leaves `colorScheme` wrong, and would still "work" if theme initialization were
 completely broken. Patching the app to make a screenshot look right is banned (§8).
 
-### The missing-`dark:` heuristic and the screenshot checklist
+### The missing-`dark:` heuristic
 
 An element whose computed background is **identical in both themes** usually has no `dark:` variant
-— a heuristic, not a proof, since some elements are intentionally theme-independent. The runnable
-detection snippet (compare `getComputedStyle(...).backgroundColor` between themes) and the
-full checklist to run down before calling a dark screenshot done (text contrast, borders, icons,
-translucent surfaces, focus rings, charts, Radix overlays) are both in
-`references/dark-mode-detail.md` — read it whenever a dark screenshot looks suspicious or before
-signing off on a dark-mode capture.
+— a heuristic, not a proof. The runnable detector and the full sign-off checklist (text contrast,
+borders, icons, translucent surfaces, focus rings, charts, Radix overlays) are in
+`references/dark-mode-detail.md`. Read it before signing off on any dark capture.
 
 ---
 
