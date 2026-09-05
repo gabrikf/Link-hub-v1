@@ -26,16 +26,32 @@ packages/schemas/AGENTS.md   the contract   + packages/schemas/CLAUDE.md -> …
 DESIGN.md                    the visual contract
 docs/mcp-servers.md          MCP server setup and safety
 docs/harness/                this file, known debt, the eval log, the ledger
+.github/pull_request_template.md   the PR body a human gets; the same sections
+                             commit-push-pr writes from its own template
 
 .agents/skills/<name>/       the real skills (SKILL.md + references/)
+.agents/agents/<name>.md     read-only subagent contracts
+.agents/references/          shared reference cited by several skills
 .agents/settings.json        the real settings and hooks
 .claude/skills   -> ../.agents/skills
+.claude/agents/<name>.md -> ../../.agents/agents/<name>.md   (per file)
 .claude/settings.json -> ../.agents/settings.json
 .kiro/skills     -> ../.agents/skills
 ```
 
 **Edit the target, never the link.** Paths written as `.claude/skills/...`
 elsewhere in the docs still resolve, through the symlink.
+
+`.agents/agents/` and `.agents/references/` are **not** symlinked as
+directories — skills cite them by repo-relative path, which every tool resolves.
+Only the subagent files get per-file links, because Claude Code expects
+`.claude/agents/<name>.md` to be a file.
+
+The tables in the root `AGENTS.md` carry `<!-- prettier-ignore -->` **on
+purpose**: prettier pads table columns to the widest cell, which cost that file
+900 bytes of whitespace against a 6 KB budget. The directive removes padding,
+not content — delete it and reformat, and the budget check fails with nothing
+having been added.
 
 `.agents/` holds the real content because it is the tool-neutral name; the
 per-tool directories are aliases so that no tool needs a second copy that can
@@ -214,6 +230,51 @@ these findings.
 - Keep the behaviour-changing contract in `SKILL.md` and move the bulk to
   `references/`. Do not replace a rule with a pointer into the code tree — that
   swaps the source of truth for a path that will move.
+
+---
+
+## Adding a subagent
+
+```
+.agents/agents/<kebab-name>.md          the contract
+.claude/agents/<kebab-name>.md -> ../../.agents/agents/<kebab-name>.md
+```
+
+Frontmatter: `name`, `description`, `tools` and `model: inherit`. **Listing
+`tools` is what makes it read-only** — omit the field and the subagent inherits
+`Edit` and `Write`, which is exactly wrong for an auditor. `Read, Glob, Grep,
+Bash` is the read-only set.
+
+Who reads them: **Claude Code** reads `.claude/agents/`. **Cursor** would read
+`.cursor/agents/`, not wired here. **Codex and Kiro have no subagent concept at
+all** — there, the audit is a fresh session pointed at the same contract file.
+Do not invent a symlink for a tool that would not read it.
+
+Two exist: `dod-auditor` (verifies a change against its plan's Definition of
+Done, including a mutation-based discrimination check) and `plan-reviewer`
+(reads a plan as a first-time implementer and reports what it would guess at).
+
+---
+
+## Set up once
+
+Per machine, not per task. `npm run tools:doctor` checks every line below and
+prints the exact command for whatever is missing — it always exits 0, so it is
+safe to run casually.
+
+| What                    | Set it up                                                            | Verify                            |
+| ----------------------- | -------------------------------------------------------------------- | --------------------------------- |
+| dependencies + contract | `npm ci && npm run build:schemas`                                    | `npm run check-types`             |
+| husky hooks             | `npm run prepare`                                                    | `.husky/pre-commit` exists        |
+| GitHub CLI              | `gh auth login`                                                      | `gh auth status`                  |
+| CodeRabbit CLI          | `coderabbit auth login`                                              | `coderabbit auth status`          |
+| Linear                  | connect the Linear MCP server; its key is read from `LINEAR_API_KEY` | the server answers a tool listing |
+| local services          | `bash db-manage.sh start` (Windows: Git Bash or WSL)                 | `bash db-manage.sh status`        |
+
+It reports environment variables **by name only** — whether each is set, never
+its value — and checks that ports 3333 and 5173 are free, because a port owned
+by another project answers every probe and makes hours of testing describe
+somebody else's code.
 
 ---
 

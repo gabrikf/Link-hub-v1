@@ -61,26 +61,44 @@ run that announces what it narrowed is honest. Do not silence it.
 
 ## MCP servers
 
-| Server            | Use it for                                              | The rule that matters                                                                        |
-| ----------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **context7**      | library docs, before writing against any dependency     | this repo runs recent majors a model gets wrong from memory                                  |
-| **postgres**      | proving a write landed, by a correlation id you control | read-only, local dev database only; "it returned 201" is not evidence                        |
-| **postgres-prod** | the one production id you are investigating             | never browse a user table — every row you select leaves the building inside a context window |
-| **grafana**       | evidence about the deployed app                         | read and query first; writing changes what on-call sees                                      |
+<!-- prettier-ignore -->
+| Server | Use it for | The rule that matters |
+| --- | --- | --- |
+| **context7** | library docs, before writing against any dependency | this repo runs recent majors a model gets wrong from memory |
+| **postgres** | proving a write landed, by a correlation id you control | read-only, local dev database only; "it returned 201" is not evidence |
+| **postgres-prod** | the one production id you are investigating | never browse a user table — every row you select leaves the building inside a context window |
+| **grafana** | evidence about the deployed app | read and query first; writing changes what on-call sees |
 
 Setup and the tunnel `postgres-prod` needs: `docs/mcp-servers.md`.
 
 ## Where the rest lives
 
-| Topic                                             | File                            | Load it when                              |
-| ------------------------------------------------- | ------------------------------- | ----------------------------------------- |
-| api: layers, DI, HTTP, database, queues, cost     | `apps/api/AGENTS.md`            | touching `apps/api`                       |
-| web: routing, features, dark mode, design, forms  | `apps/web/AGENTS.md`            | touching `apps/web`                       |
-| the shared contract and its build order           | `packages/schemas/AGENTS.md`    | touching any boundary shape               |
-| the visual contract                               | `DESIGN.md`                     | touching anything visible                 |
-| i18n: keys, plurals, enum leaves                  | the `i18n` skill                | adding or changing any string             |
-| checking a change in a browser                    | the `visual-check` skill        | any visible change                        |
+<!-- prettier-ignore -->
+| Topic | File | Load it when |
+| --- | --- | --- |
+| api: layers, DI, HTTP, database, queues, cost | `apps/api/AGENTS.md` | touching `apps/api` |
+| web: routing, features, dark mode, design, forms | `apps/web/AGENTS.md` | touching `apps/web` |
+| the shared contract and its build order | `packages/schemas/AGENTS.md` | touching any boundary shape |
+| the visual contract | `DESIGN.md` | touching anything visible |
+| i18n: keys, plurals, enum leaves | the `i18n` skill | adding or changing any string |
+| checking a change in a browser | the `visual-check` skill | any visible change |
 | the harness: hooks, lint layers, how to extend it | `docs/harness/agent-harness.md` | adding a rule or a skill, or a hook fired |
+
+## Workflows — invoke by name
+
+<!-- prettier-ignore -->
+| Skill | Invoke it when |
+| --- | --- |
+| `plan` → `implement` | a change worth thinking about before typing |
+| `bug-resolver` | something reported as broken |
+| `linear-work` | "what am I working on" — lists the cycle, routes the issue |
+| `commit-push-pr` | commit · CodeRabbit · push · PR · Linear, any subset |
+| `guardrails-repair` | the gate went red |
+| `spec-writer` → `spec-implement` | the heavy lane: multi-screen, with a design |
+
+They share `.agents/references/linear-github.md` — GitHub, Linear and the
+argument conventions, written once. Read-only subagents live in
+`.agents/agents/`. `npm run tools:doctor` says what this machine is missing.
 
 ## Output contract
 

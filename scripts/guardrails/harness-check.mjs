@@ -121,7 +121,8 @@ function walk(dir, depth, onFile) {
 function nestedAgentsFiles() {
   const found = [];
   walk(ROOT, 0, (file) => {
-    if (file.endsWith("/AGENTS.md") && file !== join(ROOT, "AGENTS.md")) found.push(file);
+    if (file.endsWith("/AGENTS.md") && file !== join(ROOT, "AGENTS.md"))
+      found.push(file);
   });
   return found.sort();
 }
@@ -131,6 +132,25 @@ function skillMarkdownFiles() {
   const skillsDir = join(ROOT, ".agents/skills");
   if (existsSync(skillsDir)) {
     walk(skillsDir, 0, (file) => {
+      if (file.endsWith(".md")) found.push(file);
+    });
+  }
+  return found.sort();
+}
+
+/**
+ * `.agents/agents/` (subagent contracts) and `.agents/references/` (the shared
+ * reference the workflow skills cite) are harness surfaces too: they are prose
+ * four tools read as true, and a dead cite inside one is exactly as expensive as
+ * a dead cite in a SKILL.md. They are not under `.agents/skills`, so they need
+ * their own discovery.
+ */
+function looseHarnessFiles() {
+  const found = [];
+  for (const rel of [".agents/agents", ".agents/references"]) {
+    const dir = join(ROOT, rel);
+    if (!existsSync(dir)) continue;
+    walk(dir, 0, (file) => {
       if (file.endsWith(".md")) found.push(file);
     });
   }
@@ -162,7 +182,13 @@ const NPM_RUN_RE = /`npm run ([A-Za-z0-9:_-]+)[^`]*`/g;
 function isCheckablePath(raw) {
   if (!raw || raw.includes(" ")) return false;
   if (/^(https?:|#|mailto:)/.test(raw)) return false;
-  if (raw.includes("*") || raw.includes("<") || raw.includes("{") || raw.includes("[")) return false;
+  if (
+    raw.includes("*") ||
+    raw.includes("<") ||
+    raw.includes("{") ||
+    raw.includes("[")
+  )
+    return false;
   if (raw.includes("$")) return false;
   if (raw.includes("...") || raw.includes("…")) return false;
   if (raw.endsWith("/")) return false;
@@ -208,7 +234,10 @@ function citesIn(text) {
   const out = new Set();
   for (const match of prose.matchAll(CITE_RE)) {
     let raw = (match[1] ?? match[2] ?? "").trim();
-    raw = raw.split("#")[0].replace(/^\.\//, "").replace(/[.,;:)]+$/, "");
+    raw = raw
+      .split("#")[0]
+      .replace(/^\.\//, "")
+      .replace(/[.,;:)]+$/, "");
     if (isCheckablePath(raw)) out.add(raw);
   }
   return [...out];
@@ -259,7 +288,8 @@ function readScriptNames() {
     }
   };
   addFrom(join(ROOT, "package.json"));
-  for (const workspace of workspaceDirs()) addFrom(join(ROOT, workspace, "package.json"));
+  for (const workspace of workspaceDirs())
+    addFrom(join(ROOT, workspace, "package.json"));
   return names;
 }
 
@@ -289,7 +319,8 @@ function chainFor(nestedFile) {
   const parts = relative(ROOT, dirname(nestedFile)).split("/");
   for (let i = 1; i <= parts.length; i += 1) {
     const candidate = join(ROOT, ...parts.slice(0, i), "AGENTS.md");
-    if (candidate !== nestedFile && existsSync(candidate)) chain.push(candidate);
+    if (candidate !== nestedFile && existsSync(candidate))
+      chain.push(candidate);
   }
   chain.push(nestedFile);
   return [...new Set(chain)];
@@ -298,7 +329,11 @@ function chainFor(nestedFile) {
 function check(root) {
   const problems = [];
   const say = (file, what, fix) =>
-    problems.push({ file: relative(root, file) || relative(ROOT, file), what, fix });
+    problems.push({
+      file: relative(root, file) || relative(ROOT, file),
+      what,
+      fix,
+    });
 
   const rootAgents = join(root, "AGENTS.md");
   const nested = nestedAgentsFiles();
@@ -306,7 +341,14 @@ function check(root) {
   const extras = ["DESIGN.md", "docs/mcp-servers.md"]
     .map((rel) => join(root, rel))
     .filter(existsSync);
-  const surfaces = [rootAgents, ...nested, ...skillFiles, ...extras].filter(existsSync);
+  const loose = looseHarnessFiles();
+  const surfaces = [
+    rootAgents,
+    ...nested,
+    ...skillFiles,
+    ...loose,
+    ...extras,
+  ].filter(existsSync);
   const workspaces = workspaceDirs();
   const scriptNames = readScriptNames();
 
@@ -360,10 +402,18 @@ function check(root) {
     const lines = lineCount(text);
     const bytes = Buffer.byteLength(text);
     if (lines > NESTED_MAX_LINES) {
-      say(file, `${lines} lines, over the ${NESTED_MAX_LINES}-line budget`, "move depth to a skill");
+      say(
+        file,
+        `${lines} lines, over the ${NESTED_MAX_LINES}-line budget`,
+        "move depth to a skill",
+      );
     }
     if (bytes > NESTED_MAX_BYTES) {
-      say(file, `${bytes} bytes, over the ${NESTED_MAX_BYTES}-byte budget`, "move depth to a skill");
+      say(
+        file,
+        `${bytes} bytes, over the ${NESTED_MAX_BYTES}-byte budget`,
+        "move depth to a skill",
+      );
     }
     const chain = chainFor(file);
     const chainBytes = chain.reduce((sum, p) => sum + statSync(p).size, 0);
@@ -391,7 +441,11 @@ function check(root) {
     const folder = dirname(file).slice(dirname(file).lastIndexOf("/") + 1);
     const fields = frontmatter(text);
     if (!fields) {
-      say(file, "has no YAML frontmatter", "add `name:` and `description:` at the top");
+      say(
+        file,
+        "has no YAML frontmatter",
+        "add `name:` and `description:` at the top",
+      );
       continue;
     }
     if (fields.name !== folder) {
@@ -419,7 +473,10 @@ function check(root) {
     }
   }
 
-  return { problems, counts: { surfaces: surfaces.length, nested: nested.length } };
+  return {
+    problems,
+    counts: { surfaces: surfaces.length, nested: nested.length },
+  };
 }
 
 /* ─────────────────────────────── self-test ─────────────────────────────── */
@@ -456,14 +513,50 @@ function selfTest() {
       text: "In `apps/web`, every route lives in `src/router.tsx`.",
       expect: null,
     },
+    // `.agents/agents/` and `.agents/references/` were unscanned until the
+    // workflow skills landed there. A broken cite inside a subagent contract is
+    // as expensive as one in a SKILL.md, so prove both that the directories are
+    // discovered and that a dead cite in one is still reported.
+    {
+      name: "dead path cite inside .agents/references",
+      text: "See `docs/harness/not-a-real-file.md` for the rest.",
+      probe: join(ROOT, ".agents/references/linear-github.md"),
+      expect: /does not exist/,
+    },
+    {
+      name: ".agents/agents and .agents/references are surfaces",
+      structural: () => {
+        const found = looseHarnessFiles();
+        const missing = [];
+        for (const rel of [".agents/agents", ".agents/references"]) {
+          if (!existsSync(join(ROOT, rel))) continue;
+          if (!found.some((f) => f.startsWith(join(ROOT, rel) + "/")))
+            missing.push(rel);
+        }
+        return missing.map((rel) => `${rel} is not scanned`);
+      },
+      expect: null,
+    },
   ];
 
   const workspaces = workspaceDirs();
   const scriptNames = readScriptNames();
-  const probe = join(ROOT, "AGENTS.md");
+  const defaultProbe = join(ROOT, "AGENTS.md");
   let failures = 0;
 
   for (const testCase of cases) {
+    if (testCase.structural) {
+      const found = testCase.structural();
+      const matched = found.length === 0;
+      if (!matched) {
+        failures += 1;
+        console.log(`  ✗ ${testCase.name} — got ${JSON.stringify(found)}`);
+      } else {
+        console.log(`  ✓ ${testCase.name}`);
+      }
+      continue;
+    }
+    const probe = testCase.probe ?? defaultProbe;
     const found = [];
     for (const cite of citesIn(testCase.text)) {
       if (!resolvesFrom(probe, cite, workspaces, testCase.text)) {
@@ -471,7 +564,8 @@ function selfTest() {
       }
     }
     for (const script of npmScriptCitesIn(testCase.text)) {
-      if (!scriptNames.has(script)) found.push(`cites \`npm run ${script}\`, which is in no package.json`);
+      if (!scriptNames.has(script))
+        found.push(`cites \`npm run ${script}\`, which is in no package.json`);
     }
     const matched = testCase.expect
       ? found.some((f) => testCase.expect.test(f))
@@ -514,7 +608,9 @@ function main() {
     console.log(`    → ${problem.fix}`);
   }
   console.log("");
-  console.log("  The harness is instructions four different tools read as true.");
+  console.log(
+    "  The harness is instructions four different tools read as true.",
+  );
   console.log("  Fix the file, do not delete the check.");
   return 1;
 }
