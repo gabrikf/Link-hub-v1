@@ -57,10 +57,20 @@ const ROOT = resolve(import.meta.dirname, "../..");
 const BASELINE_PATH = resolve(ROOT, "scripts/guardrails/lint-baseline.json");
 
 /**
- * Workspaces that own an eslint flat config. ESLint 9 resolves a flat config's
+ * Directories that own an eslint flat config. ESLint 9 resolves a flat config's
  * `files`/`ignores` patterns and its plugin imports relative to the config's own
- * directory, so each workspace is linted with `cwd` set to it. Linting from the
+ * directory, so each one is linted with `cwd` set to it. Linting from the
  * repo root with one `--config` flag silently matches nothing.
+ *
+ * MOSTLY workspaces, but not only. `infra/cloudflare/backup-watchdog` is not an
+ * npm workspace and does not need to be — it is a dependency-free Cloudflare
+ * Worker. But "not a workspace" was also silently meaning "not linted": this
+ * list was the only lint layer that could reach it, since `npm run lint` is
+ * `turbo run lint` and turbo only sees workspaces. ~950 lines of JavaScript
+ * shipped with no lint coverage at all while the repo reported green — the
+ * first pass over it found a 31-point cognitive-complexity function. A
+ * directory is eligible here the moment it owns an `eslint.typed.config.js`;
+ * `groupByWorkspace` skips any entry that does not, so adding one is safe.
  */
 const LINTABLE_WORKSPACES = [
   "apps/web",
@@ -70,6 +80,7 @@ const LINTABLE_WORKSPACES = [
   "apps/training",
   "packages/schemas",
   "packages/ui",
+  "infra/cloudflare/backup-watchdog",
 ];
 
 /**

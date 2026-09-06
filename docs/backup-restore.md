@@ -300,17 +300,22 @@ ALERTA — não silêncio. Um vigia que se cala quando não consegue olhar é pi
 porque fabrica confiança. Isso está coberto por testes:
 
 ```bash
-npx vitest run --root infra/cloudflare/backup-watchdog
+npm run test:infra
 ```
 
-> **Atenção:** esses testes NÃO rodam em `npm run guardrails` nem no CI hoje — este
-> diretório não é um workspace npm e os dois iteram workspaces via turbo. Rode-os à mão
-> ao mexer no worker. O cabeçalho de `worker.test.mjs` diz o que falta para automatizar.
+> **Onde eles rodam:** **no CI, sim** — `.github/workflows/ci.yml` tem o passo
+> "Test — infra workers", que chama `npm run test:infra` no job `test`. **No gate local
+> (`npm run guardrails`), não** — o gate roda testes por workspace via turbo, e este
+> diretório não é um workspace npm. Ao mexer no worker, rode `npm run test:infra` à mão
+> antes de empurrar: o CI pega, mas só depois do push. O lint, esse sim, alcança o
+> diretório pelo ratchet (`scripts/guardrails/lint-changed.mjs`), que roda dentro do gate.
 
 > ⚠️ **O horário do backup está contraditório no repositório.** A tabela acima diz
 > 04:17 UTC; o cabeçalho de `scripts/backup.sh` documenta `17 3 * * *` (03:17 UTC).
-> Só o crontab da VPS decide. Resolva com `ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy
-'crontab -l'` e corrija o perdedor. O limite de 24h do vigia funciona nos dois casos
+> Só o crontab da VPS decide. Resolva com um `crontab -l` na VPS (o endereço de ssh está
+> na tabela "os fatos que você vai precisar", lá em cima, e em
+> `docs/production-inventory.md` — não repita o IP aqui: ele muda quando o servidor é
+> recriado) e corrija o perdedor. O limite de 24h do vigia funciona nos dois casos
 > (backup saudável tem 1,3h ou 2,3h; um dia perdido tem 25,3h ou 26,3h), mas se você
 > mexer no horário do backup ou no do vigia, refaça a conta em `variables.tf`.
 
@@ -343,8 +348,14 @@ export TF_VAR_resend_api_key="$RESEND_API_KEY"
 export CLOUDFLARE_API_TOKEN=...   # com Workers Scripts: Edit
 export HCLOUD_TOKEN=...
 
-# 2. o destinatário, no tfvars
-echo 'backup_alert_email = "voce@example.com"' >> terraform.tfvars
+# 2. o destinatário: ACRESCENTE esta linha ao terraform.tfvars, editando o arquivo.
+#    Não faça `>> terraform.tfvars` às cegas — rodar duas vezes deixa o atributo
+#    definido duas vezes e o terraform passa a morrer com "Attribute redefined" em
+#    QUALQUER comando neste diretório até alguém abrir o arquivo e apagar a duplicata.
+#
+#        backup_alert_email = "voce@example.com"
+#
+#    Se a linha já existir, troque o valor em vez de acrescentar outra.
 
 # 3. init (backend R2), plan, e só então apply
 terraform init -backend-config=backend.hcl
@@ -371,10 +382,13 @@ alerta também está.
 
 ### Recebi "[CraftHub] BACKUP COM PROBLEMA"
 
-O e-mail traz o motivo e a idade do backup mais recente. O primeiro comando é sempre:
+O e-mail traz o motivo e a idade do backup mais recente. O primeiro comando é sempre
+o log do backup na VPS (endereço de ssh: a tabela "os fatos que você vai precisar" no topo
+deste arquivo, ou `docs/production-inventory.md` — o IP muda quando o servidor é recriado,
+e é por isso que ele não está escrito aqui):
 
 ```bash
-ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy 'tail -30 /var/log/crafthub-backup.log; echo ---; crontab -l'
+ssh deploy@<VPS> -i ~/.ssh/linkhub_deploy 'tail -30 /var/log/crafthub-backup.log; echo ---; crontab -l'
 ```
 
 - **Log com `ERROR`** → a mensagem diz o que falhou. Rode `/srv/crafthub/scripts/backup.sh`
@@ -403,10 +417,11 @@ rclone cat r2:crafthub-backups/watchdog/last-run.json
 
 Isso exige um remote `r2` no seu rclone local (mesmas credenciais do `rclone.conf` da VPS
 — `terraform output r2_backups_access_key_id` e `r2_backups_secret_access_key`). Se você
-ainda não configurou, o caminho pela VPS continua valendo enquanto ela estiver de pé:
+ainda não configurou, o caminho pela VPS continua valendo enquanto ela estiver de pé
+(endereço de ssh: a tabela no topo deste arquivo, ou `docs/production-inventory.md`):
 
 ```bash
-ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy 'rclone cat r2:crafthub-backups/watchdog/last-run.json'
+ssh deploy@<VPS> -i ~/.ssh/linkhub_deploy 'rclone cat r2:crafthub-backups/watchdog/last-run.json'
 ```
 
 Ele grava esse marcador em toda execução. `checkedAt` velho = vigia parado. `healthy:

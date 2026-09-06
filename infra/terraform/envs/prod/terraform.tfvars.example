@@ -122,7 +122,14 @@ backup_alert_email = "voce@example.com"
 # backup_watchdog_cron              = "30 5 * * *"   # UTC, ~2h depois do backup das 03:17
 # backup_watchdog_max_age_hours     = 24             # 4..25; ver a aritmética em variables.tf
 # backup_watchdog_min_bytes         = 20000
-# backup_watchdog_heartbeat_weekday = "1"            # "0".."6" (segunda = 1); "" desliga
+# backup_watchdog_heartbeat_weekday = "1"            # "0".."6" (segunda = 1)
+#
+# O "" desliga o batimento — e desligar o batimento desliga o único sinal de que o vigia
+# está vivo. A partir daí, NÃO receber e-mail não quer dizer que o backup está bem: quer
+# dizer que você não sabe. Nada falha e nada avisa no plan; o worker é que passa a gritar
+# em toda execução, com um console.warn e com `thresholds.heartbeatDisabled: true` no
+# marcador (`rclone cat r2:crafthub-backups/watchdog/last-run.json`). Se usar, marque na
+# agenda quando religar.
 #
 # Não existe variável para o endereço da VPS: o worker recebe o comando de ssh já pronto,
 # montado com o IP que está no state (hcloud_server.main.ipv4_address).

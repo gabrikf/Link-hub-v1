@@ -378,6 +378,23 @@ variable "backup_watchdog_heartbeat_weekday" {
     de digitação que desligaria o batimento em silêncio. O worker também recusa o valor
     em tempo de execução e ALERTA — mas falhar no plan é mais barato que descobrir pelo
     e-mail que deixou de chegar.
+
+    SOBRE O "" — LEIA ANTES DE USAR. Ele passa na validação de propósito: existem
+    motivos legítimos para desligar o batimento (uma janela de manutenção longa, um
+    destinatário trocando de e-mail). Mas ele desliga O ÚNICO SINAL de que este vigia
+    continua vivo: a partir daí, não receber e-mail nenhum deixa de significar "está
+    tudo bem" e passa a não significar nada — nem sobre o backup, nem sobre o vigia.
+    Nada mais falha, nada mais avisa; o alerta de problema continua funcionando, mas
+    só se o Worker ainda estiver rodando, que é justamente o que você deixou de saber.
+
+    Por isso ele não é mais silencioso do lado do runtime: com "", o worker emite um
+    `console.warn` a cada execução e grava `thresholds.heartbeatDisabled: true` no
+    marcador. Confira com:
+
+        rclone cat r2:crafthub-backups/watchdog/last-run.json
+
+    Se você desligar, marque na agenda quando vai religar. "" não é o default por um
+    motivo.
   EOT
   type        = string
   default     = "1"

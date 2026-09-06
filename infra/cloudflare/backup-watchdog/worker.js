@@ -15,7 +15,7 @@
  * o cenário que motiva ter backup é a VPS morrer. Um vigia hospedado nela morre junto e
  * o silêncio dele é indistinguível de silêncio saudável.
  *
- * A REGRA QUE GOVERNA TODO O ARQUIVO: **falhar em conferir nunca pode parecer saúde.**
+ * A REGRA QUE GOVERNA O ARQUIVO INTEIRO: **falhar em conferir nunca pode parecer saúde.**
  * Um vigia que se cala quando não consegue olhar é pior que nenhum, porque fabrica
  * confiança. Por isso, aqui:
  *   - binding de thresholds ausente ou não-numérico vira PROBLEMA, não `NaN` comparado
@@ -30,10 +30,19 @@
  * simulado trimestral responde — ver docs/backup-restore.md.
  *
  * TESTES: infra/cloudflare/backup-watchdog/worker.test.mjs. Rode da raiz do repositório:
- *     npx vitest run --root infra/cloudflare/backup-watchdog
- * Este diretório NÃO é um workspace npm, então nem `npm run guardrails` nem o job de
- * teste do CI o alcançam hoje — os dois iteram workspaces via turbo. O cabeçalho do
- * arquivo de teste diz exatamente o que falta para fechar essa lacuna.
+ *     npm run test:infra          (= vitest run --root infra/cloudflare/backup-watchdog)
+ *
+ * ONDE ELES RODAM, exatamente: **no CI, sim** — `.github/workflows/ci.yml` tem o passo
+ * "Test — infra workers", que chama `npm run test:infra` no job `test`. **No gate local
+ * (`npm run guardrails`), NÃO** — o pre-push.mjs roda testes por workspace via turbo, e
+ * este diretório não é workspace, então nenhum passo do gate o alcança. Ao mexer no
+ * worker, rode `npm run test:infra` à mão antes de empurrar; o CI é a rede de segurança,
+ * não o primeiro aviso.
+ *
+ * LINT: este diretório tem `eslint.config.js` e `eslint.typed.config.js` próprios e está
+ * listado em `LINTABLE_WORKSPACES` de `scripts/guardrails/lint-changed.mjs`, então o
+ * ratchet do gate linta estes arquivos. `npm run lint` (turbo) continua sem alcançá-lo,
+ * pelo mesmo motivo dos testes.
  */
 
 const BACKUP_PREFIX = "postgres/";
@@ -84,7 +93,21 @@ export async function check(env, now = new Date()) {
     problems,
   );
   const minBytes = readPositiveNumber(env.MIN_BYTES, "MIN_BYTES", problems);
-  const heartbeatWeekday = readWeekday(env.HEARTBEAT_WEEKDAY, problems);
+  const { weekday: heartbeatWeekday, disabled: heartbeatDisabled } =
+    readWeekday(env.HEARTBEAT_WEEKDAY, problems);
+
+  if (heartbeatDisabled) {
+    // Desligar o batimento é uma escolha legítima, mas NÃO pode ser uma escolha silenciosa:
+    // ele é o único sinal de que este vigia continua vivo, e sem ele o silêncio volta a
+    // não significar nada. Não vira problema (foi pedido de propósito), vira RUÍDO VISÍVEL:
+    // aparece no log do Worker e no marcador, que é onde alguém investigando "por que parei
+    // de receber o e-mail de segunda?" vai olhar primeiro.
+    console.warn(
+      "HEARTBEAT_WEEKDAY está vazio: o batimento semanal está DESLIGADO. Enquanto isso valer, " +
+        "a ausência de e-mail deste vigia não prova nada — nem que está tudo bem, nem que ele " +
+        "está vivo. Confira o marcador: rclone cat r2:crafthub-backups/watchdog/last-run.json",
+    );
+  }
 
   const missingMail = REQUIRED_MAIL_BINDINGS.filter((name) => !env[name]);
   if (missingMail.length) {
@@ -95,26 +118,14 @@ export async function check(env, now = new Date()) {
   }
 
   // ── Listagem ────────────────────────────────────────────────────────────────────
+  // O acumulador é passado para `listBackups` em vez de devolvido por ela porque uma
+  // listagem que falha na SEGUNDA página ainda precisa entregar o que viu na primeira:
+  // esse objeto vira pista no relatório, mesmo sem virar veredito.
+  const listing = { count: 0, newest: null };
   let listFailed = false;
-  let newest = null;
-  let count = 0;
 
   try {
-    if (!env.BACKUPS || typeof env.BACKUPS.list !== "function") {
-      throw new Error("o binding R2 `BACKUPS` não existe neste Worker");
-    }
-
-    // A listagem do R2 é paginada em 1000. Com 30 dias de retenção nunca chega perto,
-    // mas paginar é barato e evita um bug silencioso caso a retenção cresça.
-    let cursor;
-    do {
-      const page = await env.BACKUPS.list({ prefix: BACKUP_PREFIX, cursor });
-      for (const obj of page.objects) {
-        count += 1;
-        if (!newest || obj.uploaded > newest.uploaded) newest = obj;
-      }
-      cursor = page.truncated ? page.cursor : undefined;
-    } while (cursor);
+    await listBackups(env.BACKUPS, listing);
   } catch (err) {
     // Falha ao listar é problema por si só: ou o binding quebrou, ou o bucket sumiu.
     // E é `listFailed`, não só um item em `problems`, porque tudo abaixo depende de a
@@ -127,6 +138,8 @@ export async function check(env, now = new Date()) {
     );
   }
 
+  const { count, newest } = listing;
+
   // Calculado assim que `newest` existe, e NÃO dentro do bloco abaixo: uma listagem que
   // falha na segunda página deixa `newest` preenchido, e a montagem do status logo
   // adiante desreferencia esta variável.
@@ -135,33 +148,7 @@ export async function check(env, now = new Date()) {
     : null;
 
   if (!listFailed) {
-    if (count === 0) {
-      problems.push(
-        "O bucket de backups está VAZIO. Não existe nenhum backup do banco.",
-      );
-    } else {
-      if (ageHours < -FUTURE_TOLERANCE_HOURS) {
-        problems.push(
-          `O backup mais recente está datado ${Math.abs(ageHours).toFixed(1)}h NO FUTURO. ` +
-            "Relógio errado em algum lado — enquanto isso durar, a idade dos backups " +
-            "não quer dizer nada e este vigia não consegue afirmar que o backup está em dia.",
-        );
-      } else if (maxAgeHours !== null && ageHours > maxAgeHours) {
-        problems.push(
-          `O backup mais recente tem ${ageHours.toFixed(1)}h de idade ` +
-            `(limite: ${maxAgeHours}h). O cron da VPS provavelmente parou de rodar.`,
-        );
-      }
-
-      // Um dump que encolheu de repente é sinal de dump parcial. O backup.sh já barra
-      // dumps minúsculos, mas ele só protege quando roda — este limite é independente.
-      if (minBytes !== null && newest.size < minBytes) {
-        problems.push(
-          `O backup mais recente tem só ${newest.size} bytes ` +
-            `(mínimo esperado: ${minBytes}). Suspeita de dump truncado.`,
-        );
-      }
-    }
+    inspectBucket({ count, newest, ageHours, maxAgeHours, minBytes }, problems);
   }
 
   const status = {
@@ -179,7 +166,11 @@ export async function check(env, now = new Date()) {
           ageHours: Number(ageHours.toFixed(2)),
         }
       : null,
-    thresholds: { maxAgeHours, minBytes, heartbeatWeekday },
+    // `heartbeatDisabled` fica AO LADO de `heartbeatWeekday: null` porque os dois
+    // valores `null` possíveis contam histórias opostas: "desligado de propósito" e
+    // "o valor configurado é lixo e virou problema". Quem lê o marcador com o e-mail de
+    // segunda faltando precisa dessa diferença, e ela não estava em lugar nenhum.
+    thresholds: { maxAgeHours, minBytes, heartbeatWeekday, heartbeatDisabled },
   };
 
   // Antes de qualquer e-mail: se o envio estourar, o log ainda existe. Este é o único
@@ -223,6 +214,109 @@ export async function check(env, now = new Date()) {
   return status;
 }
 
+/* ─────────────────────────────── listagem do R2 ────────────────────────────────── */
+
+/**
+ * Percorre TODAS as páginas de `postgres/` e acumula em `listing` quantos objetos existem
+ * e qual é o mais recente. Estoura em qualquer coisa que impeça uma listagem completa —
+ * quem chama transforma a exceção em `listFailed`, que é o que suprime as conclusões.
+ *
+ * O `prefix` NÃO é decorativo: sem ele a listagem inclui `watchdog/last-run.json`, o
+ * marcador que este mesmo Worker acabou de escrever segundos antes. Ele é sempre o objeto
+ * mais novo do bucket e tem ~600 bytes, então viraria o `newest` de cada dia e dispararia
+ * "suspeita de dump truncado" para sempre. O teste que fixa isso inspeciona os argumentos
+ * de `list()`, e não só o resultado.
+ *
+ * @param {R2Bucket} bucket
+ * @param {{ count: number, newest: unknown }} listing acumulador; preenchido mesmo se estourar
+ */
+async function listBackups(bucket, listing) {
+  if (!bucket || typeof bucket.list !== "function") {
+    throw new Error("o binding R2 `BACKUPS` não existe neste Worker");
+  }
+
+  // A listagem do R2 é paginada em 1000. Com 30 dias de retenção nunca chega perto,
+  // mas paginar é barato e evita um bug silencioso caso a retenção cresça.
+  let cursor;
+  do {
+    const page = await bucket.list({ prefix: BACKUP_PREFIX, cursor });
+
+    for (const obj of page.objects) {
+      listing.count += 1;
+      if (!listing.newest || obj.uploaded > listing.newest.uploaded) {
+        listing.newest = obj;
+      }
+    }
+
+    // `truncated: true` sem cursor é uma listagem que se declara INCOMPLETA e não diz
+    // como continuar. Sem este `throw`, o `do/while` simplesmente terminaria e o resto
+    // do arquivo trataria um pedaço do bucket como o bucket inteiro — `listFailed`
+    // continuaria `false` e a conclusão ("vazio", "está velho", "truncado") sairia de
+    // uma amostra. É exatamente a falha silenciosa que este vigia existe para não ter.
+    if (page.truncated && !page.cursor) {
+      throw new Error(
+        "o R2 marcou a listagem como truncada mas não devolveu cursor: não dá para " +
+          "percorrer o resto do bucket, e o pedaço que veio não autoriza conclusão nenhuma",
+      );
+    }
+
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+}
+
+/**
+ * O veredito sobre o bucket, dado que a listagem foi COMPLETA. Extraído de `check` para
+ * manter as duas funções abaixo do limite de complexidade cognitiva do lint — e porque
+ * "o que os números querem dizer" é uma pergunta diferente de "consegui olhar?".
+ */
+function inspectBucket(
+  { count, newest, ageHours, maxAgeHours, minBytes },
+  problems,
+) {
+  if (count === 0) {
+    problems.push(
+      "O bucket de backups está VAZIO. Não existe nenhum backup do banco.",
+    );
+    return;
+  }
+
+  if (ageHours < -FUTURE_TOLERANCE_HOURS) {
+    problems.push(
+      `O backup mais recente está datado ${Math.abs(ageHours).toFixed(1)}h NO FUTURO. ` +
+        "Relógio errado em algum lado — enquanto isso durar, a idade dos backups " +
+        "não quer dizer nada e este vigia não consegue afirmar que o backup está em dia.",
+    );
+  } else if (maxAgeHours !== null && ageHours > maxAgeHours) {
+    problems.push(
+      `O backup mais recente tem ${ageHours.toFixed(1)}h de idade ` +
+        `(limite: ${maxAgeHours}h). O cron da VPS provavelmente parou de rodar.`,
+    );
+  }
+
+  // O DADO, antes do limite. `MIN_BYTES` ausente já vira problema lá em cima, mas um
+  // `size` ausente ou não-numérico no objeto do R2 fazia `newest.size < minBytes` valer
+  // `false` — e `false` aqui significa "está tudo bem". É a mesma classe de `NaN` que o
+  // resto do arquivo mata, um campo adiante: o vigia sairia com `healthy: true` sem ter
+  // conferido o tamanho de nada.
+  if (!Number.isFinite(newest.size)) {
+    problems.push(
+      `O backup mais recente (${newest.key}) veio sem um tamanho utilizável ` +
+        `(size=${JSON.stringify(newest.size) ?? "undefined"}). A checagem de dump ` +
+        "truncado não aconteceu, e a ausência dela pareceria saúde.",
+    );
+    return;
+  }
+
+  // Um dump que encolheu de repente é sinal de dump parcial. O backup.sh já barra
+  // dumps minúsculos, mas ele só protege quando roda — este limite é independente.
+  if (minBytes !== null && newest.size < minBytes) {
+    problems.push(
+      `O backup mais recente tem só ${newest.size} bytes ` +
+        `(mínimo esperado: ${minBytes}). Suspeita de dump truncado.`,
+    );
+  }
+}
+
 /* ─────────────────────────────── configuração ──────────────────────────────────── */
 
 /**
@@ -251,14 +345,23 @@ function readPositiveNumber(raw, name, problems) {
 }
 
 /**
- * Dia da semana do batimento. String vazia = desligado DE PROPÓSITO (devolve `null` sem
- * reclamar). Qualquer outra coisa que não seja um inteiro 0..6 é problema: `Number("seg")`
- * é `NaN`, nunca igual a `getUTCDay()`, e o batimento sumiria sem ninguém saber — o que
- * apaga justamente o sinal de "o vigia ainda está de pé".
+ * Dia da semana do batimento. String vazia = desligado DE PROPÓSITO. Qualquer outra coisa
+ * que não seja um inteiro 0..6 é problema: `Number("seg")` é `NaN`, nunca igual a
+ * `getUTCDay()`, e o batimento sumiria sem ninguém saber — o que apaga justamente o sinal
+ * de "o vigia ainda está de pé".
+ *
+ * DEVOLVE UM PAR, e não só o número, porque os dois caminhos que produzem `null` querem
+ * dizer coisas opostas. `disabled: true` é a válvula de escape usada; `disabled: false`
+ * com `weekday: null` é configuração quebrada. Quem chama registra a primeira no log e no
+ * marcador — desligar o único sinal de vida do vigia é legítimo, ser silencioso a respeito
+ * não é.
+ *
+ * @returns {{ weekday: number | null, disabled: boolean }}
  */
 function readWeekday(raw, problems) {
-  if (raw === undefined || raw === null || String(raw).trim() === "")
-    return null;
+  if (raw === undefined || raw === null || String(raw).trim() === "") {
+    return { weekday: null, disabled: true };
+  }
 
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 0 || value > 6) {
@@ -267,10 +370,10 @@ function readWeekday(raw, problems) {
         "O batimento semanal ficaria desligado em silêncio, e ele é o único sinal " +
         "de que este vigia continua vivo.",
     );
-    return null;
+    return { weekday: null, disabled: false };
   }
 
-  return value;
+  return { weekday: value, disabled: false };
 }
 
 function errorMessage(err) {
@@ -294,12 +397,12 @@ async function writeMarker(env, status) {
 
 /* ──────────────────────────────────── e-mail ───────────────────────────────────── */
 
-function alertBody(status, env) {
+/**
+ * O bloco de fatos que os dois e-mails compartilham. Estava duplicado; a duplicata é o
+ * jeito de um dos dois passar a mentir depois de alguém editar só o outro.
+ */
+function bucketSummaryLines(status) {
   const lines = [
-    "O vigia do backup encontrou problema.",
-    "",
-    ...status.problems.map((p) => `  - ${p}`),
-    "",
     `Backups no bucket: ${status.backupCount ?? "não sei — a listagem falhou"}`,
   ];
 
@@ -309,6 +412,18 @@ function alertBody(status, env) {
       `                   ${status.newest.size} bytes, ${status.newest.ageHours}h atrás`,
     );
   }
+
+  return lines;
+}
+
+function alertBody(status, env) {
+  const lines = [
+    "O vigia do backup encontrou problema.",
+    "",
+    ...status.problems.map((p) => `  - ${p}`),
+    "",
+    ...bucketSummaryLines(status),
+  ];
 
   // O endereço da VPS vem por binding, não hardcoded: este arquivo é publicado na borda
   // e o IP muda quando o servidor é recriado. Sem o binding, o e-mail ainda serve — ele
@@ -337,15 +452,8 @@ function heartbeatBody(status) {
   const lines = [
     "Nada de errado — este e-mail existe só para provar que o vigia está vivo.",
     "",
-    `Backups no bucket: ${status.backupCount ?? "não sei — a listagem falhou"}`,
+    ...bucketSummaryLines(status),
   ];
-
-  if (status.newest) {
-    lines.push(
-      `Mais recente:      ${status.newest.key}`,
-      `                   ${status.newest.size} bytes, ${status.newest.ageHours}h atrás`,
-    );
-  }
 
   lines.push(
     "",

@@ -2,11 +2,11 @@
  * Testes do vigia do backup.
  *
  * COMO RODAR (da raiz do repositório):
- *     npx vitest run --root infra/cloudflare/backup-watchdog
+ *     npm run test:infra          (= vitest run --root infra/cloudflare/backup-watchdog)
  *
  * ONDE ISTO MORA, E POR QUE NÃO EM UM WORKSPACE. `npm run test` é
- * `turbo run test`, e o gate (`scripts/guardrails/pre-push.mjs`) e o job `test` do CI
- * chamam `turbo run test --filter=...`. Turbo só enxerga workspaces, e `workspaces` no
+ * `turbo run test`, e o gate (`scripts/guardrails/pre-push.mjs`) chama
+ * `turbo run test --filter=...`. Turbo só enxerga workspaces, e `workspaces` no
  * package.json da raiz é `["apps/*", "packages/*"]`. Logo:
  *
  *   - nenhum workspace existente é dono deste código. Enfiar um teste de infraestrutura
@@ -14,21 +14,21 @@
  *     ratchet de cobertura daquele workspace;
  *   - transformar `infra/cloudflare/backup-watchdog` em workspace exige mudar
  *     `workspaces` na raiz e rodar `npm install`, o que reescreve o package-lock — caro
- *     demais para um arquivo de 300 linhas sem dependências.
+ *     demais para um arquivo de 400 linhas sem dependências.
  *
- * CONSEQUÊNCIA, DITA EM VOZ ALTA: **este arquivo não roda no gate nem no CI hoje.**
- * Ele passa quando você o chama, e só. O menor jeito honesto de fechar isso são duas
- * linhas, que estão propostas e NÃO foram aplicadas aqui (mexem em arquivos de outra
- * pessoa):
+ * ONDE ELES RODAM HOJE, com precisão:
  *
- *   1. `package.json` da raiz, em scripts:
- *        "test:infra": "vitest run --root infra/cloudflare/backup-watchdog"
- *   2. `.github/workflows/ci.yml`, no job `test`, depois de "Test — every other
- *      workspace":
- *        - name: Test — infra workers
- *          run: npm run test:infra
- *
- * (E, se quiser no gate local, um `step("test — infra", ...)` em pre-push.mjs.)
+ *   - **NO CI, SIM.** `.github/workflows/ci.yml` tem, no job `test`, o passo
+ *     "Test — infra workers", que roda `npm run test:infra`. Esse script existe no
+ *     package.json da raiz e chama o vitest direto neste diretório, sem passar por turbo
+ *     — que é justamente o que faz ele alcançar um diretório que não é workspace.
+ *   - **NO GATE LOCAL (`npm run guardrails`), NÃO.** O pre-push.mjs roda testes por
+ *     workspace afetado; não existe passo de teste de infra nele. Rode
+ *     `npm run test:infra` à mão ao mexer no worker: o CI pega, mas depois do push.
+ *   - **LINT: sim, pelo ratchet.** Este diretório tem `eslint.config.js` e
+ *     `eslint.typed.config.js` próprios e está em `LINTABLE_WORKSPACES` de
+ *     `scripts/guardrails/lint-changed.mjs`. `npm run lint` (turbo) continua sem
+ *     alcançá-lo, pelo mesmo motivo dos testes.
  *
  * O QUE ESTES TESTES PROVAM, em uma frase: que **falhar em conferir nunca sai daqui
  * parecendo saúde**. Os quatro cenários pedidos — backup fresco, backup velho, erro do
@@ -51,24 +51,44 @@ const TUESDAY = new Date("2026-09-08T05:30:00.000Z");
 /**
  * Um dublê do binding R2. `list` devolve as páginas na ordem em que foram passadas, e
  * cada página pode ser um erro — é assim que "a segunda página falhou" fica testável.
+ *
+ * `listOptions` GUARDA OS ARGUMENTOS, e isso não é conveniência: um dublê que ignora o
+ * que recebeu não consegue reprovar nada sobre o que foi pedido. Enquanto ele era
+ * `async list()` sem parâmetros, apagar `{ prefix: BACKUP_PREFIX }` do worker deixava
+ * a suíte inteira VERDE — e em produção a listagem passaria a incluir o próprio
+ * `watchdog/last-run.json` (~600 bytes, escrito segundos antes, portanto sempre o mais
+ * novo), gerando alerta de "dump truncado" dia após dia. Ver o teste
+ * "pede ao R2 só o prefixo dos backups".
+ *
+ * `truncatedWithoutCursor` simula a outra falha de listagem que não é uma exceção: o R2
+ * dizendo "tem mais" sem dizer por onde continuar.
  */
-function fakeBucket({ pages = [[]], listError = null, putError = null } = {}) {
+function fakeBucket({
+  pages = [[]],
+  listError = null,
+  putError = null,
+  truncatedWithoutCursor = false,
+} = {}) {
   const puts = [];
+  const listOptions = [];
   let call = 0;
 
   return {
     puts,
+    listOptions,
     listCalls: () => call,
-    async list() {
+    async list(options) {
+      listOptions.push(options);
       if (listError) throw listError;
       const index = call;
       call += 1;
       const objects = pages[index] ?? [];
-      const truncated = index < pages.length - 1;
+      const truncated = truncatedWithoutCursor || index < pages.length - 1;
       return {
         objects,
         truncated,
-        cursor: truncated ? `cursor-${index}` : undefined,
+        cursor:
+          truncated && !truncatedWithoutCursor ? `cursor-${index}` : undefined,
       };
     },
     async put(key, body, options) {
@@ -112,6 +132,7 @@ beforeEach(() => {
   // sem esconder nada: o conteúdo do log é reafirmado pelo objeto devolvido por check().
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -127,6 +148,77 @@ function emailsSent() {
   }));
 }
 
+/* ──────────────────────── o que ele PEDE ao R2, não só o que recebe ─────────────── */
+
+describe("a consulta feita ao bucket", () => {
+  it("pede ao R2 só o prefixo dos backups", async () => {
+    // ESTE TESTE EXISTE POR CAUSA DE UMA MUTAÇÃO QUE SOBREVIVIA. Com o dublê antigo
+    // (`async list()`, sem parâmetros), tanto apagar o argumento `{ prefix }` quanto
+    // trocar `BACKUP_PREFIX` por `""` deixavam os 30 testes verdes. Em produção
+    // qualquer uma das duas faz a listagem incluir `watchdog/last-run.json` — o
+    // marcador de ~600 bytes que o próprio Worker escreveu segundos antes, logo sempre
+    // o mais novo do bucket — e o vigia passa a alertar "dump truncado" dia após dia,
+    // para sempre, sobre o seu próprio arquivo.
+    const e = env(
+      {},
+      { pages: [[backupObject({ hoursAgo: 2.2, now: TUESDAY })]] },
+    );
+
+    await check(e, TUESDAY);
+
+    expect(e.BACKUPS.listOptions).toHaveLength(1);
+    expect(e.BACKUPS.listOptions[0].prefix).toBe("postgres/");
+  });
+
+  it("mantém o prefixo em TODAS as páginas, junto do cursor", async () => {
+    // Perder o prefixo só a partir da segunda página seria o mesmo bug, escondido
+    // atrás da paginação.
+    const e = env(
+      {},
+      {
+        pages: [
+          [backupObject({ hoursAgo: 30, now: TUESDAY, key: "postgres/a.gz" })],
+          [backupObject({ hoursAgo: 2.2, now: TUESDAY, key: "postgres/b.gz" })],
+        ],
+      },
+    );
+
+    await check(e, TUESDAY);
+
+    expect(e.BACKUPS.listOptions).toHaveLength(2);
+    for (const options of e.BACKUPS.listOptions) {
+      expect(options.prefix).toBe("postgres/");
+    }
+    expect(e.BACKUPS.listOptions[0].cursor).toBeUndefined();
+    expect(e.BACKUPS.listOptions[1].cursor).toBe("cursor-0");
+  });
+
+  it("uma página `truncated` SEM cursor é falha de listagem, não fim da listagem", async () => {
+    // O `do/while` terminava em silêncio nesse estado: `cursor` virava `undefined`,
+    // o laço parava, `listFailed` continuava `false` — e um pedaço do bucket era
+    // relatado como o bucket inteiro. Com um único objeto velho na página, a diferença
+    // entre os dois comportamentos é "backup com 400h" (um veredito inventado sobre
+    // uma amostra) e "não consegui listar" (o único fato disponível).
+    const e = env(
+      {},
+      {
+        pages: [[backupObject({ hoursAgo: 400, now: TUESDAY })]],
+        truncatedWithoutCursor: true,
+      },
+    );
+
+    const status = await check(e, TUESDAY);
+
+    expect(status.healthy).toBe(false);
+    expect(status.backupCount).toBeNull();
+    expect(status.problems).toHaveLength(1);
+    expect(status.problems[0]).toContain("Não consegui listar o bucket");
+    expect(status.problems[0]).toContain("truncada mas não devolveu cursor");
+    // E nenhuma conclusão sobre idade saiu da amostra.
+    expect(status.problems.some((p) => p.includes("de idade"))).toBe(false);
+  });
+});
+
 /* ─────────────────────────── os quatro cenários pedidos ─────────────────────────── */
 
 describe("backup fresco", () => {
@@ -141,7 +233,9 @@ describe("backup fresco", () => {
     expect(status.healthy).toBe(true);
     expect(status.problems).toEqual([]);
     expect(status.backupCount).toBe(1);
-    expect(status.newest.ageHours).toBe(2.2);
+    // `toBeCloseTo`, não `toBe`: o worker arredonda com `toFixed(2)`, e comparar dois
+    // doubles por igualdade exata é uma armadilha mesmo quando hoje ela não dispara.
+    expect(status.newest.ageHours).toBeCloseTo(2.2, 10);
     expect(emailsSent()).toEqual([]);
   });
 
@@ -185,6 +279,54 @@ describe("backup fresco", () => {
     expect(status.healthy).toBe(true);
     expect(emailsSent()).toEqual([]);
   });
+
+  it("com HEARTBEAT_WEEKDAY vazio, o marcador DIZ que o batimento está desligado", async () => {
+    // A válvula de escape continua existindo — desligar o batimento é uma escolha
+    // legítima. O que não pode é ela ser INVISÍVEL: `""` passa na validação do
+    // Terraform, não gera problema no worker, e desliga o único sinal de que este
+    // vigia está vivo. Quem for investigar "por que parei de receber o e-mail de
+    // segunda?" abre o marcador com `rclone cat`, e a resposta tem que estar lá.
+    const e = env(
+      { HEARTBEAT_WEEKDAY: "" },
+      { pages: [[backupObject({ hoursAgo: 2.2 })]] },
+    );
+
+    const status = await check(e, MONDAY);
+
+    expect(status.thresholds.heartbeatDisabled).toBe(true);
+    expect(status.thresholds.heartbeatWeekday).toBeNull();
+
+    const [marker] = e.BACKUPS.puts;
+    expect(JSON.parse(marker.body).thresholds.heartbeatDisabled).toBe(true);
+
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(console.warn).mock.calls[0][0]).toContain("DESLIGADO");
+  });
+
+  it("com o batimento ligado, nada é avisado e o marcador diz `false`", async () => {
+    const e = env({}, { pages: [[backupObject({ hoursAgo: 2.2 })]] });
+
+    const status = await check(e, MONDAY);
+
+    expect(status.thresholds.heartbeatDisabled).toBe(false);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("HEARTBEAT_WEEKDAY inválido NÃO é lido como desligado de propósito", async () => {
+    // "segunda" já era problema; o que faltava é a diferença entre os dois `null`.
+    // Marcar isso como `heartbeatDisabled: true` transformaria um erro de digitação
+    // numa decisão deliberada aos olhos de quem lê o marcador.
+    const e = env(
+      { HEARTBEAT_WEEKDAY: "segunda" },
+      { pages: [[backupObject({ hoursAgo: 2.2 })]] },
+    );
+
+    const status = await check(e, MONDAY);
+
+    expect(status.thresholds.heartbeatDisabled).toBe(false);
+    expect(status.thresholds.heartbeatWeekday).toBeNull();
+    expect(console.warn).not.toHaveBeenCalled();
+  });
 });
 
 describe("backup velho", () => {
@@ -210,6 +352,21 @@ describe("backup velho", () => {
     const e = env(
       {},
       { pages: [[backupObject({ hoursAgo: 23.9, now: TUESDAY })]] },
+    );
+
+    const status = await check(e, TUESDAY);
+
+    expect(status.healthy).toBe(true);
+    expect(emailsSent()).toEqual([]);
+  });
+
+  it("NÃO alerta EXATAMENTE no limite: 24,0h ainda está dentro", async () => {
+    // A comparação é `>` e não `>=`, e essa escolha é o que separa "um dia perdido"
+    // (25,3h a 26,3h) de um backup que chegou no fio. Sem este teste, trocar um pelo
+    // outro não quebra nada.
+    const e = env(
+      {},
+      { pages: [[backupObject({ hoursAgo: 24, now: TUESDAY })]] },
     );
 
     const status = await check(e, TUESDAY);
@@ -293,6 +450,69 @@ describe("dump truncado", () => {
 
     const [alert] = emailsSent();
     expect(alert.subject).toBe("[CraftHub] BACKUP COM PROBLEMA");
+  });
+
+  it("NÃO alerta com folga larga: o dobro do mínimo passa", async () => {
+    const e = env(
+      {},
+      {
+        pages: [[backupObject({ hoursAgo: 2.2, size: 40_000, now: TUESDAY })]],
+      },
+    );
+
+    const status = await check(e, TUESDAY);
+
+    expect(status.healthy).toBe(true);
+    expect(emailsSent()).toEqual([]);
+  });
+
+  it("um `size` AUSENTE é problema, não checagem que não aconteceu", async () => {
+    // A mesma classe de NaN que o resto do arquivo mata, um campo adiante: com
+    // `size: undefined`, `undefined < 20000` é `false` — e `false` aqui significa
+    // "está tudo bem". O vigia saía com healthy: true sem ter conferido tamanho nenhum,
+    // e na segunda-feira o batimento confirmaria ativamente que estava tudo certo.
+    // `delete`, e não `size: undefined`: o default do parâmetro de `backupObject`
+    // repõe 40.760 quando o valor chega `undefined`, e o teste passaria pelo caminho
+    // saudável provando outra coisa.
+    const semTamanho = backupObject({ hoursAgo: 2.2, now: TUESDAY });
+    delete semTamanho.size;
+    const e = env({}, { pages: [[semTamanho]] });
+
+    const status = await check(e, TUESDAY);
+
+    expect(status.healthy).toBe(false);
+    expect(status.problems).toHaveLength(1);
+    expect(status.problems[0]).toContain("sem um tamanho utilizável");
+    expect(emailsSent()).toHaveLength(1);
+  });
+
+  it("um `size` não-numérico é problema", async () => {
+    const e = env(
+      {},
+      {
+        pages: [[backupObject({ hoursAgo: 2.2, size: "40760", now: TUESDAY })]],
+      },
+    );
+
+    const status = await check(e, TUESDAY);
+
+    expect(status.healthy).toBe(false);
+    expect(status.problems[0]).toContain("sem um tamanho utilizável");
+  });
+
+  it("`size` ausente não engole o veredito sobre a IDADE", async () => {
+    // O problema de tamanho não pode substituir o de idade: os dois são fatos
+    // independentes e o e-mail precisa dos dois.
+    const e = env(
+      {},
+      { pages: [[backupObject({ hoursAgo: 30, size: null, now: TUESDAY })]] },
+    );
+
+    const status = await check(e, TUESDAY);
+
+    expect(status.problems).toHaveLength(2);
+    expect(status.problems[0]).toContain("de idade");
+    expect(status.problems[1]).toContain("sem um tamanho utilizável");
   });
 });
 
@@ -511,6 +731,37 @@ describe("carimbo no futuro", () => {
     expect(status.healthy).toBe(true);
     expect(emailsSent()).toEqual([]);
   });
+
+  it("passa da tolerância de 15 min e vira problema: -0,3h", async () => {
+    // A fronteira de cima da tolerância. Sem este teste, alargar
+    // FUTURE_TOLERANCE_HOURS de 0,25 para, digamos, 1 não quebra nada — e um carimbo
+    // no futuro é o defeito que esconde PARA SEMPRE o backup ter parado.
+    const e = env(
+      {},
+      { pages: [[backupObject({ hoursAgo: -0.3, now: TUESDAY })]] },
+    );
+
+    const status = await check(e, TUESDAY);
+
+    expect(status.healthy).toBe(false);
+    expect(status.problems[0]).toContain("NO FUTURO");
+  });
+
+  it("um `uploaded` inválido derruba a invocação em vez de virar idade NaN", async () => {
+    // `Invalid Date` faz `ageHours` virar NaN, e NaN não dispara nenhuma das duas
+    // comparações de idade. O que impede isso de sair daqui como saúde é o
+    // `toISOString()` na montagem do status, que estoura — ANTES do console.log, do
+    // marcador e de qualquer e-mail. A invocação aparece como FALHA no painel do
+    // Worker, que é o comportamento certo: não dá para dizer nada sobre esse backup.
+    const invalido = backupObject({ hoursAgo: 2.2, now: TUESDAY });
+    invalido.uploaded = new Date("isto-não-é-uma-data");
+    const e = env({}, { pages: [[invalido]] });
+
+    await expect(check(e, TUESDAY)).rejects.toThrow(RangeError);
+    expect(console.log).not.toHaveBeenCalled();
+    expect(e.BACKUPS.puts).toEqual([]);
+    expect(emailsSent()).toEqual([]);
+  });
 });
 
 /* ──────────────────────────── o canal de alerta em si ───────────────────────────── */
@@ -535,6 +786,22 @@ describe("envio", () => {
     const e = env({}, { pages: [[]] });
 
     await expect(check(e, TUESDAY)).rejects.toThrow(/Resend respondeu 403/);
+  });
+
+  it("loga o status ANTES de falar com o Resend, e grava o marcador antes também", async () => {
+    // A ordem é o ponto: se o Resend estiver fora do ar, o `sendEmail` estoura e o
+    // único registro que sobra do que o vigia apurou é o console.log e o marcador no
+    // R2. Inverter a ordem apagaria os dois exatamente no dia em que eles importam.
+    const e = env({}, { pages: [[]] });
+
+    await check(e, TUESDAY);
+
+    expect(console.log).toHaveBeenCalledTimes(1);
+    expect(e.BACKUPS.puts).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(console.log).mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock.mock.invocationCallOrder[0],
+    );
   });
 
   it("sem RUNBOOK_SSH o alerta aponta para o inventário em vez de inventar um endereço", async () => {
