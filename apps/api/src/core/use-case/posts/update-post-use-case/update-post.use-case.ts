@@ -1,7 +1,4 @@
-import {
-  PostSource,
-  PostStatus,
-} from "../../../entity/post/post-entity.js";
+import { PostStatus } from "../../../entity/post/post-entity.js";
 import {
   ForbiddenError,
   ResourceNotFoundError,

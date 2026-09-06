@@ -68,15 +68,17 @@ export function ForgotPasswordPage() {
       ) : (
         <form
           className="space-y-3"
-          onSubmit={handleSubmit(async (values) => {
-            try {
-              await forgotPasswordMutation.mutateAsync(values);
-            } catch {
-              // Rendered below. react-hook-form re-throws whatever the submit
-              // handler rejects with, and an escaped rejection reaches Sentry's
-              // global unhandledrejection handler carrying the typed address.
-            }
-          })}
+          onSubmit={(event) => {
+            void handleSubmit(async (values) => {
+              try {
+                await forgotPasswordMutation.mutateAsync(values);
+              } catch {
+                // Rendered below. react-hook-form re-throws whatever the submit
+                // handler rejects with, and an escaped rejection reaches Sentry's
+                // global unhandledrejection handler carrying the typed address.
+              }
+            })(event);
+          }}
         >
           <Input
             id="forgot-password-email"
@@ -107,7 +109,7 @@ export function ForgotPasswordPage() {
       <Button
         type="button"
         variant="ghost"
-        onClick={() => navigate({ to: "/" })}
+        onClick={() => void navigate({ to: "/" })}
       >
         <FiArrowLeft className="h-4 w-4" aria-hidden="true" />
         {t("auth.backToLogin")}

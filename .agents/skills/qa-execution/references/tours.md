@@ -99,7 +99,7 @@ The Theme tour is the one exception to "one tour per charter" in a narrow sense:
 - **Mission verbs:** "format", "span", "round".
 - **Off-script actions:** set the device to a non-default timezone (Sydney, Anchorage) and re-read every timestamp; enter a work-history range ending today, ending "present", starting and ending the same month, and inverted (end before start); post something at 23:59 local and read the date it shows; cross a daylight-saving boundary; read a match percentage of exactly 0, exactly 100, and something that rounds at .5.
 - **What to look for:** off-by-one days, a "present" role rendered as ending in 1970, a range that excludes its own edge, a duration computed in the server's timezone and displayed in the browser's, a percentage rendered with false precision or as a raw float.
-- **Note:** CraftHub has **no i18n** — `<html lang="en">`, all strings hardcoded English. There is no translation coverage to check and no `t()` calls to add. This tour is about time and number handling only.
+- **Note:** CraftHub ships three locales, so translation coverage IS in scope here: switch language and look for a raw English string, a key rendering as its own name, or a layout that breaks on longer pt-BR copy. Time and number handling is the other half of this tour.
 - **Sample evidence:** screenshot with the device timezone visible alongside the rendered value.
 
 ### Paste Tour

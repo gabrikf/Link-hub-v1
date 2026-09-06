@@ -66,11 +66,11 @@ export function Skeleton({
   );
 }
 
-type SkeletonTextProps = {
+type SkeletonTextProps = Readonly<{
   /** Number of lines to render. The last one is shortened, like real text. */
   lines?: number;
   className?: string;
-};
+}>;
 
 /** A paragraph-shaped stack of text bars. */
 export function SkeletonText({ lines = 3, className }: SkeletonTextProps) {
@@ -87,10 +87,10 @@ export function SkeletonText({ lines = 3, className }: SkeletonTextProps) {
   );
 }
 
-type SkeletonChipsProps = {
+type SkeletonChipsProps = Readonly<{
   count?: number;
   className?: string;
-};
+}>;
 
 /** A row of pill-shaped placeholders, for tag/skill chip rows. */
 export function SkeletonChips({ count = 4, className }: SkeletonChipsProps) {
@@ -110,9 +110,9 @@ export function SkeletonChips({ count = 4, className }: SkeletonChipsProps) {
   );
 }
 
-type LoadingLabelProps = {
+type LoadingLabelProps = Readonly<{
   children: string;
-};
+}>;
 
 /**
  * Screen-reader announcement to pair with a visual skeleton.

@@ -18,6 +18,7 @@ import {
   buildTestApp,
   type TestAppHandles,
 } from "../../test-support/build-test-app.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 const JSON_HEADERS = { "content-type": "application/json" };
 
@@ -121,11 +122,7 @@ describe("Webhooks E2E", () => {
       );
 
     githubConnection = seed("github", GITHUB_SECRET, "octocat");
-    gitlabPlaintextConnection = seed(
-      "gitlab",
-      GITLAB_PLAINTEXT_SECRET,
-      "dev",
-    );
+    gitlabPlaintextConnection = seed("gitlab", GITLAB_PLAINTEXT_SECRET, "dev");
     gitlabSigningConnection = seed("gitlab", gitlabSigningSecret, "dev");
   });
 
@@ -151,10 +148,7 @@ describe("Webhooks E2E", () => {
       const response = await post(GITHUB_PUSH_BODY, {
         "x-github-event": "push",
         "x-github-delivery": "delivery-1",
-        "x-hub-signature-256": githubSignature(
-          GITHUB_SECRET,
-          GITHUB_PUSH_BODY,
-        ),
+        "x-hub-signature-256": githubSignature(GITHUB_SECRET, GITHUB_PUSH_BODY),
       });
 
       // 202, never 200-after-processing: the forge is told we have the event,
@@ -162,7 +156,8 @@ describe("Webhooks E2E", () => {
       expect(response.statusCode).toBe(202);
       expect(response.json()).toEqual({ recorded: 1, duplicates: 0 });
 
-      const [stored] = ctx.activityEventRepository.items;
+      const [storedEvent] = ctx.activityEventRepository.items;
+      const stored = expectDefined(storedEvent, "the stored activity event");
       expect(stored.source).toBe("github");
       expect(stored.externalDeliveryId).toBe("delivery-1");
       expect(stored.kind).toBe("commit");
@@ -182,10 +177,7 @@ describe("Webhooks E2E", () => {
       await post(GITHUB_PUSH_BODY, {
         "x-github-event": "push",
         "x-github-delivery": "delivery-1",
-        "x-hub-signature-256": githubSignature(
-          GITHUB_SECRET,
-          GITHUB_PUSH_BODY,
-        ),
+        "x-hub-signature-256": githubSignature(GITHUB_SECRET, GITHUB_PUSH_BODY),
       });
 
       const serialized = JSON.stringify(
@@ -241,10 +233,7 @@ describe("Webhooks E2E", () => {
       const headers = {
         "x-github-event": "push",
         "x-github-delivery": "delivery-1",
-        "x-hub-signature-256": githubSignature(
-          GITHUB_SECRET,
-          GITHUB_PUSH_BODY,
-        ),
+        "x-hub-signature-256": githubSignature(GITHUB_SECRET, GITHUB_PUSH_BODY),
       };
 
       await post(GITHUB_PUSH_BODY, headers);
@@ -275,10 +264,7 @@ describe("Webhooks E2E", () => {
       const headers = {
         "x-github-event": "push",
         "x-github-delivery": "delivery-1",
-        "x-hub-signature-256": githubSignature(
-          GITHUB_SECRET,
-          GITHUB_PUSH_BODY,
-        ),
+        "x-hub-signature-256": githubSignature(GITHUB_SECRET, GITHUB_PUSH_BODY),
       };
 
       for (const connectionId of [
@@ -337,7 +323,8 @@ describe("Webhooks E2E", () => {
       expect(response.statusCode).toBe(202);
       expect(response.json()).toEqual({ recorded: 1, duplicates: 0 });
 
-      const [stored] = ctx.activityEventRepository.items;
+      const [storedEvent] = ctx.activityEventRepository.items;
+      const stored = expectDefined(storedEvent, "the stored activity event");
       expect(stored.source).toBe("gitlab");
       expect(stored.occurredOn).toBe("2026-08-12");
       expect(stored.repoFingerprint).toBe(
@@ -407,7 +394,7 @@ describe("Webhooks E2E", () => {
       expect(response.statusCode).toBe(202);
       expect(response.json()).toEqual({ recorded: 1, duplicates: 0 });
       // `webhook-id` doubles as the delivery id when no event UUID is sent.
-      expect(ctx.activityEventRepository.items[0].externalDeliveryId).toBe(
+      expect(ctx.activityEventRepository.items[0]?.externalDeliveryId).toBe(
         deliveryId,
       );
     });

@@ -9,6 +9,7 @@ import {
   readS3StorageConfigFromEnv,
   resolveFileStorageConfig,
 } from "./s3-file-storage-provider.js";
+import { expectDefined } from "../../test-support/expect-defined.js";
 
 function makeConfig() {
   return {
@@ -36,7 +37,10 @@ describe("S3FileStorageProvider", () => {
     expect(result.url).toBe("https://cdn.example.com/uploads/user-1/abc.png");
     expect(send).toHaveBeenCalledTimes(1);
 
-    const command = send.mock.calls[0]![0] as PutObjectCommand;
+    const command = expectDefined(
+      send.mock.calls[0]?.[0],
+      "the first argument of the single send() call",
+    );
     expect(command).toBeInstanceOf(PutObjectCommand);
     expect(command.input).toMatchObject({
       Bucket: "media",
@@ -110,8 +114,12 @@ describe("readS3StorageConfigFromEnv", () => {
   });
 
   it("returns null when a required variable is missing", () => {
-    const { S3_BUCKET, ...withoutBucket } = fullEnv;
-    void S3_BUCKET;
+    const withoutBucket = {
+      S3_ENDPOINT: fullEnv.S3_ENDPOINT,
+      S3_ACCESS_KEY_ID: fullEnv.S3_ACCESS_KEY_ID,
+      S3_SECRET_ACCESS_KEY: fullEnv.S3_SECRET_ACCESS_KEY,
+      S3_PUBLIC_BASE_URL: fullEnv.S3_PUBLIC_BASE_URL,
+    };
     expect(readS3StorageConfigFromEnv(withoutBucket)).toBeNull();
     expect(readS3StorageConfigFromEnv({})).toBeNull();
   });
@@ -191,8 +199,12 @@ describe("resolveFileStorageConfig", () => {
   it("reports a PARTIAL S3_* environment instead of redirecting it to MinIO", () => {
     // Four of five set is a typo, and silently sending those uploads to a local
     // container would hide it until the photo failed to load for visitors.
-    const { S3_BUCKET, ...missingBucket } = realS3Env;
-    void S3_BUCKET;
+    const missingBucket = {
+      S3_ENDPOINT: realS3Env.S3_ENDPOINT,
+      S3_ACCESS_KEY_ID: realS3Env.S3_ACCESS_KEY_ID,
+      S3_SECRET_ACCESS_KEY: realS3Env.S3_SECRET_ACCESS_KEY,
+      S3_PUBLIC_BASE_URL: realS3Env.S3_PUBLIC_BASE_URL,
+    };
 
     expect(
       resolveFileStorageConfig({ NODE_ENV: "development", ...missingBucket }),

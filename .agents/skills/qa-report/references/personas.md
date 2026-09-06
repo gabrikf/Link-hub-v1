@@ -166,7 +166,7 @@ Its users are three distinct species, and one of them is not a person. Derive `<
 
 **Accessibility-Reliant is not optional.** If a cycle folds it into Sam rather than running it separately, record that; if it skips it entirely, record the skip and its reasoning in `<qa-docs-path>/personas.md` — per the derivation rules above. The layout editor's drag-and-drop is the surface most likely to have no keyboard path at all, and only this persona will find that.
 
-**Locale is not a persona axis here.** CraftHub has no i18n — `<html lang="en">`, every string hardcoded English. Do not plan a bilingual persona or a translation sweep; the `i18n` skill describes a *planned* setup, not existing code. Time, timezone and number formatting are still real risks; they belong to the Time & Formatting tour.
+**Locale is a real persona axis.** CraftHub ships three locales (`pt-BR`, `en-US`, `es-ES`) with the language persisted next to the theme, so a Brazilian persona and a Spanish-speaking persona see genuinely different screens. A bilingual persona and a translation sweep are both worth planning. Time, timezone and number formatting sit alongside it and belong to the Time & Formatting tour.
 
 **Theme is a persona axis.** Diego and Sam live in dark mode; Nina and Priya arrive in whatever their OS gave them. Every browser persona's charter names the themes it walks.
 

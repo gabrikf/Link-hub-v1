@@ -21,7 +21,8 @@ export function buildEmailVerificationMessage(params: {
 }): MailMessage {
   const { to, name, verificationUrl, expiresInHours } = params;
 
-  const hoursLabel = expiresInHours === 1 ? "1 hour" : `${expiresInHours} hours`;
+  const hoursLabel =
+    expiresInHours === 1 ? "1 hour" : `${expiresInHours} hours`;
 
   const text = [
     `Hi ${name},`,
@@ -53,6 +54,21 @@ export function buildEmailVerificationMessage(params: {
 }
 
 /**
+ * Removes trailing slashes without a regex. `/\/+$/` is unanchored at the
+ * start, so a rejecting scan has to be retried from every position in the
+ * input — `scslre` (the engine behind `sonarjs/super-linear-regex`) flags
+ * exactly that as super-linear. A plain loop bounded by the actual number of
+ * trailing slashes has no such cost and behaves identically.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
+/**
  * Where the emailed link points. One function so the API and any future
  * re-send path cannot disagree about the shape of the URL the web app parses.
  */
@@ -60,6 +76,6 @@ export function buildVerificationUrl(
   appPublicUrl: string,
   rawToken: string,
 ): string {
-  const base = appPublicUrl.replace(/\/+$/, "");
+  const base = stripTrailingSlashes(appPublicUrl);
   return `${base}/verify-email?token=${encodeURIComponent(rawToken)}`;
 }

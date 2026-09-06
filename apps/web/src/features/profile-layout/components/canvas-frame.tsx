@@ -2,14 +2,14 @@ import type { ProfileViewport } from "@repo/schemas";
 import type { ReactNode, Ref } from "react";
 import { minCanvasWidth, PROFILE_CANVAS_WIDTH } from "../grid-utils";
 
-type CanvasFrameProps = {
+type CanvasFrameProps = Readonly<{
   /** Which canvas width to size to — see `PROFILE_CANVAS_WIDTH`. */
   viewport: ProfileViewport;
   /** Attached to the SIZED element, so a measuring hook reads the real width. */
   innerRef?: Ref<HTMLDivElement>;
   className?: string;
   children: ReactNode;
-};
+}>;
 
 /**
  * The box a block canvas lives in — the editor grid and its loading skeleton

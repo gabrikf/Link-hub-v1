@@ -17,10 +17,8 @@ import { InMemoryResumesRepository } from "../../../repositories/resume/in-memor
 import { InMemoryUsersRepository } from "../../../repositories/user/in-memory-users-repository.js";
 import { InMemoryWorkExperienceRepository } from "../../../repositories/work-experience/in-memory-work-experience-repository.js";
 import { EnqueueResumeEmbeddingUseCase } from "../../resumes/enqueue-resume-embedding-use-case/enqueue-resume-embedding.use-case.js";
-import {
-  IUpdatePostInput,
-  UpdatePostUseCase,
-} from "./update-post.use-case.js";
+import { IUpdatePostInput, UpdatePostUseCase } from "./update-post.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 describe("UpdatePostUseCase", () => {
   let postsRepository: InMemoryPostsRepository;
@@ -160,7 +158,11 @@ describe("UpdatePostUseCase — machine-authored content is immutable", () => {
     const post = await seedMachinePost();
 
     await expect(
-      sut.execute({ userId: "owner", postId: post.id, title: "Nicer headline" }),
+      sut.execute({
+        userId: "owner",
+        postId: post.id,
+        title: "Nicer headline",
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -678,14 +680,19 @@ describe("UpdatePostUseCase — disclosure policy + search freshness", () => {
     const draft = makePost({ userId: user.id, body: "draft", status: "draft" });
     await postsRepository.create(draft);
 
-    await sut.execute({ userId: user.id, postId: draft.id, body: "still draft" });
+    await sut.execute({
+      userId: user.id,
+      postId: draft.id,
+      body: "still draft",
+    });
 
     expect(queue.jobs).toHaveLength(0);
   });
 
   it("persists workExperienceId on update", async () => {
     const post = await seedOwnPost();
-    const [role] = await workExperienceRepository.findByUserId(user.id);
+    const [firstRole] = await workExperienceRepository.findByUserId(user.id);
+    const role = expectDefined(firstRole, "the seeded work experience");
 
     const updated = await sut.execute({
       userId: user.id,

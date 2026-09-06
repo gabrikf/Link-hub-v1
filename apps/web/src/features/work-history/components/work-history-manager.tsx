@@ -13,22 +13,20 @@ import {
   fetchMyWorkExperiences,
   updateWorkExperience,
 } from "../../../lib/auth-api";
+import { reportError } from "../../../lib/report-error";
 import { Button } from "../../../shared-components/button";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
-import {
-  LoadingLabel,
-  Skeleton,
-} from "../../../shared-components/skeleton";
+import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
 import {
   formatWorkDateRange,
   formatWorkLocation,
 } from "../utils/work-experience-format";
 import { WorkExperienceForm } from "./work-experience-form";
 
-type WorkHistoryManagerProps = {
+type WorkHistoryManagerProps = Readonly<{
   enabled?: boolean;
   onMutated?: () => void;
-};
+}>;
 
 export function WorkHistoryManager({
   enabled = true,
@@ -46,7 +44,11 @@ export function WorkHistoryManager({
   });
 
   const handleSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["work-experiences"] });
+    void queryClient
+      .invalidateQueries({ queryKey: ["work-experiences"] })
+      .catch((error: unknown) => {
+        reportError(error, { action: "work-history.invalidate" });
+      });
     onMutated?.();
   };
 
@@ -121,10 +123,7 @@ export function WorkHistoryManager({
 
       {createMutation.isError ? (
         <div className="mt-3">
-          <FeedbackMessage
-            tone="error"
-            message={t("work.addFailed")}
-          />
+          <FeedbackMessage tone="error" message={t("work.addFailed")} />
         </div>
       ) : null}
 
@@ -210,12 +209,12 @@ function WorkHistoryListSkeleton() {
   );
 }
 
-type WorkHistoryRowProps = {
+type WorkHistoryRowProps = Readonly<{
   item: WorkExperienceResponse;
   disabled: boolean;
   onEdit: () => void;
   onDelete: () => void;
-};
+}>;
 
 function WorkHistoryRow({
   item,

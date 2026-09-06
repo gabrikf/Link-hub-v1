@@ -401,7 +401,7 @@ describe("ProfileLayoutPage — the per-viewport tabs switch", () => {
         releaseStaleRead = () => resolve(staleAnswer);
       });
     });
-    client.invalidateQueries({ queryKey: ["layout"] });
+    void client.invalidateQueries({ queryKey: ["layout"] });
 
     let releaseWrite = () => {};
     setTabsEnabled.mockImplementationOnce(
@@ -960,6 +960,6 @@ describe("ProfileLayoutPage — each add button sits in the section it fills", (
     // One menu in the document, owned by the tabs row now.
     const menus = screen.getAllByRole("menu", { name: "Add a custom block" });
     expect(menus).toHaveLength(1);
-    expect(tabManagerSection().contains(menus[0]!)).toBe(true);
+    expect(tabManagerSection().contains(menus[0] ?? null)).toBe(true);
   });
 });

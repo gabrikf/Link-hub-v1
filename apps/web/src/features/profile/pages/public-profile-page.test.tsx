@@ -88,8 +88,8 @@ async function getBlockStack(): Promise<HTMLElement> {
  * restores the exact value desktop had before.
  */
 function gutters(className: string) {
-  const base = className.match(/(?:^|\s)px-([\d.]+)(?=\s|$)/)?.[1] ?? null;
-  const sm = className.match(/(?:^|\s)sm:px-([\d.]+)(?=\s|$)/)?.[1] ?? null;
+  const base = /(?:^|\s)px-([\d.]+)(?=\s|$)/.exec(className)?.[1] ?? null;
+  const sm = /(?:^|\s)sm:px-([\d.]+)(?=\s|$)/.exec(className)?.[1] ?? null;
   return { base, sm };
 }
 
@@ -191,7 +191,9 @@ describe("PublicProfilePage horizontal gutters", () => {
     // against the viewport. The fix narrows the gutters; it does not remove
     // them.
     expect(Number(gutters(getMain().className).base)).toBeGreaterThan(0);
-    expect(Number(gutters((await getBlockStack()).className).base)).toBeGreaterThan(0);
+    expect(
+      Number(gutters((await getBlockStack()).className).base),
+    ).toBeGreaterThan(0);
   });
 });
 

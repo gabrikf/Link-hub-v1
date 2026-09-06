@@ -1,6 +1,6 @@
-import type { AiQuotaOperation } from "../../../infra/config/app-config.js";
 import {
   AiQuotaConsumption,
+  AiQuotaOperation,
   IAiQuotaProvider,
   nextUtcMidnight,
   utcDayKey,

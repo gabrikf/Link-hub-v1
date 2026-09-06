@@ -17,6 +17,21 @@ export interface S3FileStorageConfig {
 }
 
 /**
+ * Removes trailing slashes without a regex. `/\/+$/` is unanchored at the
+ * start, so a rejecting scan has to be retried from every position in the
+ * input — `scslre` (the engine behind `sonarjs/super-linear-regex`) flags
+ * exactly that as super-linear. A plain loop bounded by the actual number of
+ * trailing slashes has no such cost and behaves identically.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
+/**
  * S3-compatible object storage adapter. Uses `forcePathStyle: true`, required
  * by MinIO and Cloudflare R2 (and safe for other providers).
  */
@@ -27,7 +42,7 @@ export class S3FileStorageProvider implements IFileStorageProvider {
 
   constructor(config: S3FileStorageConfig, client?: S3Client) {
     this.bucket = config.bucket;
-    this.publicBaseUrl = config.publicBaseUrl.replace(/\/+$/, "");
+    this.publicBaseUrl = stripTrailingSlashes(config.publicBaseUrl);
     this.client =
       client ??
       new S3Client({

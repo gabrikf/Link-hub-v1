@@ -12,6 +12,7 @@
     "dist",
     "src/**/*.test.ts",
     "src/test-setup.ts",
+    "src/test-support/**",
     "src/infra/http/test-support/**"
   ]
 }

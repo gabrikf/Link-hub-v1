@@ -213,9 +213,9 @@ function UsernameStatusMessage({
   username,
   t,
 }: {
-  status: UsernameStatus;
-  username: string;
-  t: TFunction;
+  readonly status: UsernameStatus;
+  readonly username: string;
+  readonly t: TFunction;
 }) {
   if (status.kind === "idle") {
     return null;
@@ -286,15 +286,15 @@ function TuningSlider({
   valueText,
   onChange,
 }: {
-  id: string;
-  label: string;
-  icon: ReactNode;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  valueText: string;
-  onChange: (value: number) => void;
+  readonly id: string;
+  readonly label: string;
+  readonly icon: ReactNode;
+  readonly value: number;
+  readonly min: number;
+  readonly max: number;
+  readonly step: number;
+  readonly valueText: string;
+  readonly onChange: (value: number) => void;
 }) {
   return (
     <div className="space-y-1">
@@ -325,7 +325,7 @@ function TuningSlider({
   );
 }
 
-type DashboardProfileFormProps = {
+type DashboardProfileFormProps = Readonly<{
   initialValues: ProfileFormValues;
   onSubmit: (data: ProfileFormValues) => Promise<void>;
   avatarUrl?: string | null;
@@ -344,7 +344,7 @@ type DashboardProfileFormProps = {
    * still says what it said when the dialog opened.
    */
   currentUsername?: string;
-};
+}>;
 
 export function DashboardProfileForm({
   initialValues,
@@ -433,7 +433,12 @@ export function DashboardProfileForm({
   };
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        void handleSubmit(onSubmit)(event);
+      }}
+    >
       {/* Avatars are the only always-circular surface, so they're the only
           upload that previews as a circle and goes through the crop dialog. */}
       <FileUpload

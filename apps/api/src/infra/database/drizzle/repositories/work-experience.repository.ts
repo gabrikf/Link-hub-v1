@@ -4,6 +4,7 @@ import { WorkExperienceEntity } from "../../../../core/entity/work-experience/wo
 import { IWorkExperienceRepository } from "../../../../core/repositories/work-experience/work-experience-repository.js";
 import { db } from "../index.js";
 import { workExperiences } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 type WorkExperienceRow = typeof workExperiences.$inferSelect;
 
@@ -70,7 +71,7 @@ export class DrizzleWorkExperienceRepository
   async create(
     workExperience: WorkExperienceEntity,
   ): Promise<WorkExperienceEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(workExperiences)
       .values({
         id: workExperience.id,
@@ -94,7 +95,9 @@ export class DrizzleWorkExperienceRepository
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(
+      requireReturnedRow(insertedRows, "insert into workExperiences"),
+    );
   }
 
   async update(

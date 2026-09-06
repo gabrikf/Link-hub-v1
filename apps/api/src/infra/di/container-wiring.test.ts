@@ -57,9 +57,7 @@ setupContainer();
 function depsOf(
   useCase: RecordCandidateInteractionUseCase,
 ): RecordCandidateInteractionDeps {
-  return (
-    useCase as unknown as { deps: RecordCandidateInteractionDeps }
-  ).deps;
+  return (useCase as unknown as { deps: RecordCandidateInteractionDeps }).deps;
 }
 
 describe("container wiring — activity ingestion repositories", () => {
@@ -100,9 +98,16 @@ describe("container wiring — activity ingestion use cases", () => {
   });
 
   it("gives IngestActivityUseCase a hash provider, without which nothing can be fingerprinted", () => {
-    const useCase = resolve<IngestActivityUseCase>(TOKENS.IngestActivityUseCase);
+    const useCase = resolve<IngestActivityUseCase>(
+      TOKENS.IngestActivityUseCase,
+    );
     const tokenProvider = (
-      useCase as unknown as { tokenProvider: { hash(value: string): string } }
+      useCase as unknown as {
+        // `this: void` because the assertion below reads `hash` unbound, and
+        // the real provider (`CryptoTokenProvider.hash`) touches no instance
+        // state — so detaching it is safe rather than a latent `this` bug.
+        tokenProvider: { hash(this: void, value: string): string };
+      }
     ).tokenProvider;
 
     expect(tokenProvider?.hash).toBeTypeOf("function");
@@ -231,7 +236,10 @@ describe("container wiring — auth, email and password reset", () => {
    * typo'd token would surface as a 500 on somebody's first signup.
    */
   it.each([
-    ["EmailVerificationTokenRepository", DrizzleEmailVerificationTokenRepository],
+    [
+      "EmailVerificationTokenRepository",
+      DrizzleEmailVerificationTokenRepository,
+    ],
     ["PasswordResetTokenRepository", DrizzlePasswordResetTokenRepository],
   ] as const)("resolves %s to its Drizzle implementation", (token, impl) => {
     expect(resolve(TOKENS[token])).toBeInstanceOf(impl);
@@ -326,7 +334,9 @@ describe("container wiring — auth, email and password reset", () => {
 
     // Without this a LinkedIn user — who leaves no column on `users` — could be
     // refused a login over an email nobody ever needed to send them.
-    expect(injected.oauthAccountRepository?.findByUserId).toBeTypeOf("function");
+    expect(injected.oauthAccountRepository?.findByUserId).toBeTypeOf(
+      "function",
+    );
   });
 
   it("gives ResetPasswordUseCase the refresh-token repository it revokes sessions through", () => {

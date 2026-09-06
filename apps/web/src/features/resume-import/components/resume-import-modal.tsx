@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import type { ParsedResumeData, ResumeResponse } from "@repo/schemas";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -8,10 +8,7 @@ import { applyResumeImport, parseResumeImport } from "../../../lib/auth-api";
 import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { FeedbackMessage } from "../../../shared-components/feedback-message";
-import {
-  LoadingLabel,
-  Skeleton,
-} from "../../../shared-components/skeleton";
+import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
 import { TextArea } from "../../../shared-components/text-area";
 import {
   buildApplyPayload,
@@ -83,6 +80,11 @@ function buildDefaultSelection(
   };
 }
 
+/** What a failed mutation shows: its own message, or the generic fallback. */
+function failureMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 function displayValue(value: string | number | null): string {
   if (value === null) {
     return "";
@@ -97,7 +99,7 @@ export function ResumeImportModal({
   currentProfileName,
   currentProfileDescription,
   onApplied,
-}: ResumeImportModalProps) {
+}: Readonly<ResumeImportModalProps>) {
   const [step, setStep] = useState<"input" | "review" | "applied">("input");
   const [file, setFile] = useState<File | null>(null);
   const [pasteText, setPasteText] = useState("");
@@ -163,44 +165,12 @@ export function ResumeImportModal({
     applyMutation.mutate(buildApplyPayload(parsed, selection));
   };
 
-  const toggleResumeField = (key: ResumeScalarField) => {
-    setSelection((previous) => {
-      const next = new Set(previous.resumeFields);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return { ...previous, resumeFields: next };
-    });
-  };
-
-  const toggleSetItem = (
-    bucket: "skills" | "titles",
-    value: string,
-  ) => {
-    setSelection((previous) => {
-      const next = new Set(previous[bucket]);
-      if (next.has(value)) {
-        next.delete(value);
-      } else {
-        next.add(value);
-      }
-      return { ...previous, [bucket]: next };
-    });
-  };
-
-  const toggleWork = (index: number) => {
-    setSelection((previous) => {
-      const next = new Set(previous.workIndexes);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return { ...previous, workIndexes: next };
-    });
-  };
+  const parseErrorMessage = parseMutation.isError
+    ? failureMessage(parseMutation.error, t("resumeImport.parseFailed"))
+    : null;
+  const applyErrorMessage = applyMutation.isError
+    ? failureMessage(applyMutation.error, t("resumeImport.saveFailed"))
+    : null;
 
   return (
     <Dialog
@@ -217,263 +187,387 @@ export function ResumeImportModal({
       contentClassName="max-w-2xl"
     >
       {step === "input" ? (
-        <div className="space-y-4">
-          {/*
+        <ResumeImportInputStep
+          file={file}
+          pasteText={pasteText}
+          isParsing={parseMutation.isPending}
+          parseErrorMessage={parseErrorMessage}
+          canParse={canParse}
+          onFileChange={setFile}
+          onPasteTextChange={setPasteText}
+          onParse={handleParse}
+          onSkip={resetAndClose}
+        />
+      ) : null}
+
+      {step === "review" && parsed ? (
+        <ResumeImportReviewStep
+          parsed={parsed}
+          currentResume={currentResume}
+          currentProfileName={currentProfileName}
+          currentProfileDescription={currentProfileDescription}
+          selection={selection}
+          onSelectionChange={setSelection}
+          isApplying={applyMutation.isPending}
+          applyErrorMessage={applyErrorMessage}
+          onBack={() => setStep("input")}
+          onApply={handleApply}
+        />
+      ) : null}
+
+      {step === "applied" && result ? (
+        <ResumeImportAppliedStep result={result} onDone={resetAndClose} />
+      ) : null}
+    </Dialog>
+  );
+}
+
+/** Step 1: pick a file or paste the text, then hand it to the AI parse. */
+function ResumeImportInputStep({
+  file,
+  pasteText,
+  isParsing,
+  parseErrorMessage,
+  canParse,
+  onFileChange,
+  onPasteTextChange,
+  onParse,
+  onSkip,
+}: Readonly<{
+  file: File | null;
+  pasteText: string;
+  isParsing: boolean;
+  parseErrorMessage: string | null;
+  canParse: boolean;
+  onFileChange: (file: File | null) => void;
+  onPasteTextChange: (text: string) => void;
+  onParse: () => void;
+  onSkip: () => void;
+}>) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-4">
+      {/*
             The AI parse is by far the longest wait in the app (tens of
             seconds), so it gets more than a disabled button: the pick-a-file
             controls step aside for a progress banner plus a skeleton of the
             review screen that is about to replace it.
           */}
-          {parseMutation.isPending ? (
-            <ResumeParseProgress />
-          ) : (
-            <>
-              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center transition hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/40">
-                <FiUploadCloud className="h-7 w-7 text-zinc-400" />
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                  {file ? file.name : t("resumeImport.clickToUpload")}
-                </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {t("resumeImport.parsedByAi")}
-                </span>
-                <input
-                  type="file"
-                  accept={ACCEPTED_TYPES}
-                  className="hidden"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                />
-              </label>
+      {isParsing ? (
+        <ResumeParseProgress />
+      ) : (
+        <>
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center transition hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/40">
+            <FiUploadCloud className="h-7 w-7 text-zinc-400" />
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+              {file ? file.name : t("resumeImport.clickToUpload")}
+            </span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              {t("resumeImport.parsedByAi")}
+            </span>
+            <input
+              type="file"
+              accept={ACCEPTED_TYPES}
+              className="hidden"
+              onChange={(event) =>
+                onFileChange(event.target.files?.[0] ?? null)
+              }
+            />
+          </label>
 
-              <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-zinc-400">
-                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-                {t("resumeImport.orPasteText")}
-                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-              </div>
-
-              <TextArea
-                id="resume-paste"
-                label={t("resumeImport.pasteResumeText")}
-                rows={6}
-                placeholder={t("resumeImport.pastePlaceholder")}
-                value={pasteText}
-                onChange={(event) => setPasteText(event.target.value)}
-              />
-
-              {parseMutation.isError ? (
-                <FeedbackMessage
-                  tone="error"
-                  message={
-                    parseMutation.error instanceof Error
-                      ? parseMutation.error.message
-                      : t("resumeImport.parseFailed")
-                  }
-                />
-              ) : null}
-            </>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              fullWidth={false}
-              onClick={resetAndClose}
-            >
-              {t("resumeImport.skipForNow")}
-            </Button>
-            <Button
-              type="button"
-              fullWidth={false}
-              disabled={!canParse}
-              isLoading={parseMutation.isPending}
-              loadingLabel={t("resumeImport.readingResume")}
-              onClick={handleParse}
-            >
-              {t("resumeImport.parseWithAi")}
-            </Button>
+          <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-zinc-400">
+            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+            {t("resumeImport.orPasteText")}
+            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
           </div>
-        </div>
-      ) : null}
 
-      {step === "review" && parsed ? (
-        <div className="space-y-5">
-          {/* `svh`, not `vh`: `vh` resolves against the LARGE viewport, so
+          <TextArea
+            id="resume-paste"
+            label={t("resumeImport.pasteResumeText")}
+            rows={6}
+            placeholder={t("resumeImport.pastePlaceholder")}
+            value={pasteText}
+            onChange={(event) => onPasteTextChange(event.target.value)}
+          />
+
+          {parseErrorMessage ? (
+            <FeedbackMessage tone="error" message={parseErrorMessage} />
+          ) : null}
+        </>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          fullWidth={false}
+          onClick={onSkip}
+        >
+          {t("resumeImport.skipForNow")}
+        </Button>
+        <Button
+          type="button"
+          fullWidth={false}
+          disabled={!canParse}
+          isLoading={isParsing}
+          loadingLabel={t("resumeImport.readingResume")}
+          onClick={onParse}
+        >
+          {t("resumeImport.parseWithAi")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Step 2: tick which of the parsed fields actually get written. */
+function ResumeImportReviewStep({
+  parsed,
+  currentResume,
+  currentProfileName,
+  currentProfileDescription,
+  selection,
+  onSelectionChange,
+  isApplying,
+  applyErrorMessage,
+  onBack,
+  onApply,
+}: Readonly<{
+  parsed: ParsedResumeData;
+  currentResume: ResumeResponse | null;
+  currentProfileName: string;
+  currentProfileDescription: string | null;
+  selection: ImportSelection;
+  onSelectionChange: Dispatch<SetStateAction<ImportSelection>>;
+  isApplying: boolean;
+  applyErrorMessage: string | null;
+  onBack: () => void;
+  onApply: () => void;
+}>) {
+  const { t } = useTranslation();
+
+  const toggleResumeField = (key: ResumeScalarField) => {
+    onSelectionChange((previous) => {
+      const next = new Set(previous.resumeFields);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return { ...previous, resumeFields: next };
+    });
+  };
+
+  const toggleSetItem = (bucket: "skills" | "titles", value: string) => {
+    onSelectionChange((previous) => {
+      const next = new Set(previous[bucket]);
+      if (next.has(value)) {
+        next.delete(value);
+      } else {
+        next.add(value);
+      }
+      return { ...previous, [bucket]: next };
+    });
+  };
+
+  const toggleWork = (index: number) => {
+    onSelectionChange((previous) => {
+      const next = new Set(previous.workIndexes);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return { ...previous, workIndexes: next };
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* `svh`, not `vh`: `vh` resolves against the LARGE viewport, so
               under mobile browser chrome this scroll area was taller than the
               space actually visible. */}
-          <div className="max-h-[55svh] space-y-5 overflow-y-auto pr-1">
-            <ReviewGroup title={t("resumeImport.profileBasics")}>
-              {getResumeScalarFields(t).map(({ key, label }) => {
-                const value = parsedValueFor(parsed, key);
-                if (value === null) {
-                  return null;
-                }
-                const alreadyFilled = !isResumeFieldEmpty(currentResume, key);
-                return (
-                  <CheckboxRow
-                    key={key}
-                    checked={selection.resumeFields.has(key)}
-                    onToggle={() => toggleResumeField(key)}
-                    label={label}
-                    value={displayValue(value)}
-                    note={alreadyFilled ? t("resumeImport.alreadySet") : undefined}
-                  />
-                );
-              })}
+      <div className="max-h-[55svh] space-y-5 overflow-y-auto pr-1">
+        <ReviewGroup title={t("resumeImport.profileBasics")}>
+          {getResumeScalarFields(t).map(({ key, label }) => {
+            const value = parsedValueFor(parsed, key);
+            if (value === null) {
+              return null;
+            }
+            const alreadyFilled = !isResumeFieldEmpty(currentResume, key);
+            return (
+              <CheckboxRow
+                key={key}
+                checked={selection.resumeFields.has(key)}
+                onToggle={() => toggleResumeField(key)}
+                label={label}
+                value={displayValue(value)}
+                note={alreadyFilled ? t("resumeImport.alreadySet") : undefined}
+              />
+            );
+          })}
 
-              {parsed.profileName ? (
-                <CheckboxRow
-                  checked={selection.includeProfileName}
-                  onToggle={() =>
-                    setSelection((p) => ({
-                      ...p,
-                      includeProfileName: !p.includeProfileName,
-                    }))
-                  }
-                  label={t("resumeImport.displayName")}
-                  value={parsed.profileName}
-                  note={currentProfileName ? t("resumeImport.alreadySet") : undefined}
-                />
-              ) : null}
-
-              {parsed.profileDescription ? (
-                <CheckboxRow
-                  checked={selection.includeProfileDescription}
-                  onToggle={() =>
-                    setSelection((p) => ({
-                      ...p,
-                      includeProfileDescription: !p.includeProfileDescription,
-                    }))
-                  }
-                  label={t("resumeImport.profileBio")}
-                  value={parsed.profileDescription}
-                  note={currentProfileDescription ? t("resumeImport.alreadySet") : undefined}
-                />
-              ) : null}
-
-              {parsed.spokenLanguages && parsed.spokenLanguages.length > 0 ? (
-                <CheckboxRow
-                  checked={selection.includeLanguages}
-                  onToggle={() =>
-                    setSelection((p) => ({
-                      ...p,
-                      includeLanguages: !p.includeLanguages,
-                    }))
-                  }
-                  label={t("common.languages")}
-                  value={parsed.spokenLanguages.join(", ")}
-                />
-              ) : null}
-            </ReviewGroup>
-
-            {parsed.titles && parsed.titles.length > 0 ? (
-              <ReviewGroup title={t("common.titles")}>
-                <ChipToggleList
-                  items={parsed.titles}
-                  selected={selection.titles}
-                  onToggle={(value) => toggleSetItem("titles", value)}
-                />
-              </ReviewGroup>
-            ) : null}
-
-            {parsed.skills && parsed.skills.length > 0 ? (
-              <ReviewGroup title={t("common.skills")}>
-                <ChipToggleList
-                  items={parsed.skills}
-                  selected={selection.skills}
-                  onToggle={(value) => toggleSetItem("skills", value)}
-                />
-              </ReviewGroup>
-            ) : null}
-
-            {parsed.workExperiences && parsed.workExperiences.length > 0 ? (
-              <ReviewGroup title={t("common.workHistory")}>
-                <div className="space-y-2">
-                  {parsed.workExperiences.map((entry, index) => (
-                    <CheckboxRow
-                      key={`${entry.title}-${entry.companyName}-${index}`}
-                      checked={selection.workIndexes.has(index)}
-                      onToggle={() => toggleWork(index)}
-                      label={`${entry.title} · ${entry.companyName}`}
-                      // The description rides along on the value line so the
-                      // parsed bullets are reviewable BEFORE they are saved —
-                      // `CheckboxRow` renders it with `whitespace-pre-line`, so
-                      // one bullet per line stays one bullet per line.
-                      value={
-                        [
-                          [
-                            entry.startDate,
-                            entry.isCurrent
-                              ? t("common.present")
-                              : entry.endDate,
-                          ]
-                            .filter(Boolean)
-                            .join(" — "),
-                          entry.description ?? "",
-                        ]
-                          .filter(Boolean)
-                          .join("\n") || ""
-                      }
-                    />
-                  ))}
-                </div>
-              </ReviewGroup>
-            ) : null}
-          </div>
-
-          {applyMutation.isError ? (
-            <FeedbackMessage
-              tone="error"
-              message={
-                applyMutation.error instanceof Error
-                  ? applyMutation.error.message
-                  : t("resumeImport.saveFailed")
+          {parsed.profileName ? (
+            <CheckboxRow
+              checked={selection.includeProfileName}
+              onToggle={() =>
+                onSelectionChange((p) => ({
+                  ...p,
+                  includeProfileName: !p.includeProfileName,
+                }))
+              }
+              label={t("resumeImport.displayName")}
+              value={parsed.profileName}
+              note={
+                currentProfileName ? t("resumeImport.alreadySet") : undefined
               }
             />
           ) : null}
 
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              fullWidth={false}
-              onClick={() => setStep("input")}
-            >
-              {t("common.back")}
-            </Button>
-            <Button
-              type="button"
-              fullWidth={false}
-              isLoading={applyMutation.isPending}
-              loadingLabel={t("common.saving")}
-              onClick={handleApply}
-            >
-              {t("resumeImport.applySelected")}
-            </Button>
-          </div>
-        </div>
+          {parsed.profileDescription ? (
+            <CheckboxRow
+              checked={selection.includeProfileDescription}
+              onToggle={() =>
+                onSelectionChange((p) => ({
+                  ...p,
+                  includeProfileDescription: !p.includeProfileDescription,
+                }))
+              }
+              label={t("resumeImport.profileBio")}
+              value={parsed.profileDescription}
+              note={
+                currentProfileDescription
+                  ? t("resumeImport.alreadySet")
+                  : undefined
+              }
+            />
+          ) : null}
+
+          {parsed.spokenLanguages && parsed.spokenLanguages.length > 0 ? (
+            <CheckboxRow
+              checked={selection.includeLanguages}
+              onToggle={() =>
+                onSelectionChange((p) => ({
+                  ...p,
+                  includeLanguages: !p.includeLanguages,
+                }))
+              }
+              label={t("common.languages")}
+              value={parsed.spokenLanguages.join(", ")}
+            />
+          ) : null}
+        </ReviewGroup>
+
+        {parsed.titles && parsed.titles.length > 0 ? (
+          <ReviewGroup title={t("common.titles")}>
+            <ChipToggleList
+              items={parsed.titles}
+              selected={selection.titles}
+              onToggle={(value) => toggleSetItem("titles", value)}
+            />
+          </ReviewGroup>
+        ) : null}
+
+        {parsed.skills && parsed.skills.length > 0 ? (
+          <ReviewGroup title={t("common.skills")}>
+            <ChipToggleList
+              items={parsed.skills}
+              selected={selection.skills}
+              onToggle={(value) => toggleSetItem("skills", value)}
+            />
+          </ReviewGroup>
+        ) : null}
+
+        {parsed.workExperiences && parsed.workExperiences.length > 0 ? (
+          <ReviewGroup title={t("common.workHistory")}>
+            <div className="space-y-2">
+              {parsed.workExperiences.map((entry, index) => (
+                <CheckboxRow
+                  key={`${entry.title}-${entry.companyName}-${index}`}
+                  checked={selection.workIndexes.has(index)}
+                  onToggle={() => toggleWork(index)}
+                  label={`${entry.title} · ${entry.companyName}`}
+                  // The description rides along on the value line so the
+                  // parsed bullets are reviewable BEFORE they are saved —
+                  // `CheckboxRow` renders it with `whitespace-pre-line`, so
+                  // one bullet per line stays one bullet per line.
+                  value={
+                    [
+                      [
+                        entry.startDate,
+                        entry.isCurrent ? t("common.present") : entry.endDate,
+                      ]
+                        .filter(Boolean)
+                        .join(" — "),
+                      entry.description ?? "",
+                    ]
+                      .filter(Boolean)
+                      .join("\n") || ""
+                  }
+                />
+              ))}
+            </div>
+          </ReviewGroup>
+        ) : null}
+      </div>
+
+      {applyErrorMessage ? (
+        <FeedbackMessage tone="error" message={applyErrorMessage} />
       ) : null}
 
-      {step === "applied" && result ? (
-        <div className="space-y-4 text-center">
-          <FiCheckCircle className="mx-auto h-10 w-10 text-emerald-500" />
-          <div>
-            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              {t("resumeImport.profileUpdated")}
-            </p>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              {t("resumeImport.appliedSummary", {
-                skillsAdded: result.skillsAdded,
-                titlesAdded: result.titlesAdded,
-                workExperiencesAdded: result.workExperiencesAdded,
-              })}
-            </p>
-          </div>
-          <Button type="button" fullWidth={false} onClick={resetAndClose}>
-            {t("common.done")}
-          </Button>
-        </div>
-      ) : null}
-    </Dialog>
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          fullWidth={false}
+          onClick={onBack}
+        >
+          {t("common.back")}
+        </Button>
+        <Button
+          type="button"
+          fullWidth={false}
+          isLoading={isApplying}
+          loadingLabel={t("common.saving")}
+          onClick={onApply}
+        >
+          {t("resumeImport.applySelected")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Step 3: what was written, and the way out. */
+function ResumeImportAppliedStep({
+  result,
+  onDone,
+}: Readonly<{
+  result: ApplyResult;
+  onDone: () => void;
+}>) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-4 text-center">
+      <FiCheckCircle className="mx-auto h-10 w-10 text-emerald-500" />
+      <div>
+        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {t("resumeImport.profileUpdated")}
+        </p>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          {t("resumeImport.appliedSummary", {
+            skillsAdded: result.skillsAdded,
+            titlesAdded: result.titlesAdded,
+            workExperiencesAdded: result.workExperiencesAdded,
+          })}
+        </p>
+      </div>
+      <Button type="button" fullWidth={false} onClick={onDone}>
+        {t("common.done")}
+      </Button>
+    </div>
   );
 }
 
@@ -544,7 +638,9 @@ function ResumeParseProgress() {
 }
 
 /** `<ReviewGroup>` with its heading and body stubbed out. */
-function ReviewGroupSkeleton({ children }: { children: React.ReactNode }) {
+function ReviewGroupSkeleton({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <div>
       {/* the `mb-2 text-xs` group heading */}
@@ -578,7 +674,7 @@ function CheckboxRowSkeleton() {
  * pills land on the real 26px height (`py-1` + `text-xs` + border) and the real
  * `gap-1.5`.
  */
-function ChipRowSkeleton({ widths }: { widths: number[] }) {
+function ChipRowSkeleton({ widths }: Readonly<{ widths: number[] }>) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {widths.map((width, index) => (
@@ -591,10 +687,10 @@ function ChipRowSkeleton({ widths }: { widths: number[] }) {
 function ReviewGroup({
   title,
   children,
-}: {
+}: Readonly<{
   title: string;
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <div>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -611,13 +707,13 @@ function CheckboxRow({
   label,
   value,
   note,
-}: {
+}: Readonly<{
   checked: boolean;
   onToggle: () => void;
   label: string;
   value: string;
   note?: string;
-}) {
+}>) {
   return (
     <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-200 bg-white p-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
       <input
@@ -651,11 +747,11 @@ function ChipToggleList({
   items,
   selected,
   onToggle,
-}: {
+}: Readonly<{
   items: string[];
   selected: Set<string>;
   onToggle: (value: string) => void;
-}) {
+}>) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {items.map((item) => {

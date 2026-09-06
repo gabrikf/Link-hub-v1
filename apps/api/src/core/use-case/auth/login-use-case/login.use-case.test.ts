@@ -12,6 +12,7 @@ import { InMemoryRefreshTokenRepository } from "../../../repositories/refresh-to
 import { InMemoryOAuthAccountRepository } from "../../../repositories/oauth-account/in-memory-oauth-account-repository.js";
 import { InMemoryHashProvider } from "../../../providers/hash/in-memory-hash-provider.js";
 import { InMemoryJwtProvider } from "../../../providers/jwt/in-memory-jwt-provider.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 const mockValidator = vi.fn();
 
@@ -38,7 +39,7 @@ describe("LoginUseCase", () => {
       oauthAccountRepository,
       hashProvider,
       jwtProvider,
-      mockValidator
+      mockValidator,
     );
 
     validInput = {
@@ -89,9 +90,9 @@ describe("LoginUseCase", () => {
 
       const allRefreshTokens = refreshTokenRepository.getAll();
       expect(allRefreshTokens).toHaveLength(1);
-      expect(allRefreshTokens[0].userId).toBe(testUser.id);
-      expect(allRefreshTokens[0].token).toBe(result.refreshToken);
-      expect(allRefreshTokens[0].isValid()).toBe(true);
+      expect(allRefreshTokens[0]?.userId).toBe(testUser.id);
+      expect(allRefreshTokens[0]?.token).toBe(result.refreshToken);
+      expect(allRefreshTokens[0]?.isValid()).toBe(true);
 
       // Verify returned user matches
       expect(result.user).toEqual(testUser.toPublic());
@@ -107,7 +108,7 @@ describe("LoginUseCase", () => {
 
       // Act & Assert
       await expect(loginUseCase.execute(invalidInput)).rejects.toThrow(
-        InvalidCredentialsError
+        InvalidCredentialsError,
       );
 
       // Verify no refresh token was created
@@ -124,7 +125,7 @@ describe("LoginUseCase", () => {
 
       // Act & Assert
       await expect(loginUseCase.execute(invalidInput)).rejects.toThrow(
-        InvalidCredentialsError
+        InvalidCredentialsError,
       );
 
       // Verify no refresh token was created
@@ -165,11 +166,11 @@ describe("LoginUseCase", () => {
 
       // Assert
       const refreshTokens = await refreshTokenRepository.findByUserId(
-        testUser.id
+        testUser.id,
       );
       expect(refreshTokens).toHaveLength(1);
-      expect(refreshTokens[0].token).toBe(result.refreshToken);
-      expect(refreshTokens[0].userId).toBe(testUser.id);
+      expect(refreshTokens[0]?.token).toBe(result.refreshToken);
+      expect(refreshTokens[0]?.userId).toBe(testUser.id);
     });
 
     it("should set refresh token expiration to 7 days", async () => {
@@ -184,13 +185,16 @@ describe("LoginUseCase", () => {
       const refreshTokens = refreshTokenRepository.getAll();
       expect(refreshTokens).toHaveLength(1);
 
-      const expiresAt = refreshTokens[0].expiresAt;
+      const expiresAt = expectDefined(
+        refreshTokens[0],
+        "the issued refresh token",
+      ).expiresAt;
       const sevenDaysFromNow = new Date(beforeLogin);
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
       // Check that expiration is approximately 7 days (within 1 second tolerance)
       const timeDiff = Math.abs(
-        expiresAt.getTime() - sevenDaysFromNow.getTime()
+        expiresAt.getTime() - sevenDaysFromNow.getTime(),
       );
       expect(timeDiff).toBeLessThan(1000); // Less than 1 second difference
     });
@@ -235,7 +239,9 @@ describe("LoginUseCase", () => {
       let capitalisedOwner: UserEntity;
       let lowercaseOwner: UserEntity;
 
-      async function seedCollidingPair(order: "capitalised-first" | "lowercase-first") {
+      async function seedCollidingPair(
+        order: "capitalised-first" | "lowercase-first",
+      ) {
         capitalisedOwner = UserEntity.create({
           email: "Dup.Owner@Example.com",
           login: "dup-owner-capitalised",
@@ -299,7 +305,7 @@ describe("LoginUseCase", () => {
           expect(capitalisedResult.user.email).toBe("Dup.Owner@Example.com");
           expect(lowercaseResult.user.id).toBe(lowercaseOwner.id);
           expect(lowercaseResult.user.email).toBe("dup.owner@example.com");
-        }
+        },
       );
 
       it("does not let one owner's password open the other owner's address", async () => {
@@ -314,7 +320,7 @@ describe("LoginUseCase", () => {
 
         // Act & Assert
         await expect(loginUseCase.execute(crossedInput)).rejects.toThrow(
-          InvalidCredentialsError
+          InvalidCredentialsError,
         );
         expect(refreshTokenRepository.count()).toBe(0);
       });
@@ -378,7 +384,7 @@ describe("LoginUseCase — email verification gate", () => {
       oauthAccountRepository,
       new InMemoryHashProvider(),
       new InMemoryJwtProvider(),
-      mockValidator
+      mockValidator,
     );
 
     vi.mocked(mockValidator).mockReturnValue(input);
@@ -406,7 +412,7 @@ describe("LoginUseCase — email verification gate", () => {
     await seed({ emailVerifiedAt: null });
 
     await expect(loginUseCase.execute(input)).rejects.toBeInstanceOf(
-      EmailNotVerifiedError
+      EmailNotVerifiedError,
     );
 
     // 403, not 401: the credentials were right. A 401 would send the web client
@@ -441,7 +447,7 @@ describe("LoginUseCase — email verification gate", () => {
     // The gate must not run before the password check, or anyone could learn
     // which addresses have accounts by watching for EMAIL_NOT_VERIFIED.
     await expect(loginUseCase.execute(input)).rejects.toBeInstanceOf(
-      InvalidCredentialsError
+      InvalidCredentialsError,
     );
   });
 
@@ -464,7 +470,7 @@ describe("LoginUseCase — email verification gate", () => {
         userId: user.id,
         provider: "linkedin",
         providerAccountId: "linkedin-123",
-      })
+      }),
     );
 
     await expect(loginUseCase.execute(input)).resolves.toMatchObject({

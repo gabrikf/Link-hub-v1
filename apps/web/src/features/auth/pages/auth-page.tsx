@@ -1,4 +1,8 @@
-import type { CreateUserInput, LoginInput } from "@repo/schemas";
+import {
+  userResponseSchema,
+  type CreateUserInput,
+  type LoginInput,
+} from "@repo/schemas";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -34,7 +38,14 @@ import type { AuthTab } from "../types/auth-tab";
 
 export function AuthPage() {
   const { t } = useTranslation();
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  /*
+   * `import.meta.env` is untyped, so read the value as `unknown` and narrow it
+   * at runtime rather than asserting a type onto it. Vite inlines a configured
+   * variable as a string literal; anything else means it is simply not set.
+   */
+  const rawGoogleClientId: unknown = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const googleClientId =
+    typeof rawGoogleClientId === "string" ? rawGoogleClientId : undefined;
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   /**
    * The address a signup just created, or null. Non-null replaces the whole
@@ -115,13 +126,16 @@ export function AuthPage() {
         Math.ceil(normalizedBase64.length / 4) * 4,
         "=",
       );
-      const decodedUser = JSON.parse(atob(paddedBase64));
+      // The callback payload is a network boundary like any other, so it goes
+      // through the same contract the sign-in responses are parsed against —
+      // a malformed one lands in the catch below instead of in the store.
+      const decodedUser: unknown = JSON.parse(atob(paddedBase64));
 
       setAuthTokens({
         accessToken,
         refreshToken,
       });
-      setUserInfo(decodedUser);
+      setUserInfo(userResponseSchema.parse(decodedUser));
     } catch (error) {
       // The provider callback is ours to encode — a payload we cannot decode
       // means the OAuth round-trip is broken, and the user is silently left on
@@ -135,7 +149,7 @@ export function AuthPage() {
 
   useEffect(() => {
     if (userInfo) {
-      navigate({ to: "/dashboard" });
+      void navigate({ to: "/dashboard" });
     }
   }, [navigate, userInfo]);
 
@@ -210,7 +224,9 @@ export function AuthPage() {
     },
   });
 
-  const goToForgotPassword = () => navigate({ to: "/forgot-password" });
+  const goToForgotPassword = () => {
+    void navigate({ to: "/forgot-password" });
+  };
 
   /*
    * The CODE, never the message. The API translates its messages (every request

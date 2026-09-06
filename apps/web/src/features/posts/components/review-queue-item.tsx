@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { FiCheck, FiExternalLink, FiLock, FiTrash2 } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 import { SURFACE, SURFACE_INSET } from "../../../shared-components/surface";
-import { Markdown } from "../lib/markdown";
 import {
   describePostProvenance,
   formatPostDate,
@@ -13,14 +12,15 @@ import {
   STATUS_META,
 } from "../lib/post-format";
 import { AttachLinkControl } from "./attach-link-control";
+import { Markdown } from "./markdown";
 
-type ReviewQueueItemProps = {
+type ReviewQueueItemProps = Readonly<{
   post: Post;
   isApproving?: boolean;
   isDeleting?: boolean;
   onApprove: (postId: string) => void;
   onDelete: (postId: string) => void;
-};
+}>;
 
 /**
  * One post awaiting the author's decision.
@@ -75,7 +75,9 @@ export function ReviewQueueItem({
         <Markdown>{post.body}</Markdown>
 
         {facts.length > 0 ? (
-          <dl className={`flex flex-wrap gap-x-6 gap-y-2 px-3 py-2 ${SURFACE_INSET}`}>
+          <dl
+            className={`flex flex-wrap gap-x-6 gap-y-2 px-3 py-2 ${SURFACE_INSET}`}
+          >
             {facts.map((fact) => (
               <div key={fact.key} className="flex items-baseline gap-1.5">
                 <dt className="text-xs text-zinc-500 dark:text-zinc-400">

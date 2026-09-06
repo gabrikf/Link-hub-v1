@@ -3,11 +3,11 @@
 Three importable dashboards for the CraftHub API, versioned next to the code that
 emits the metrics.
 
-| File | Dashboard | UID | Answers |
-| --- | --- | --- | --- |
-| `dashboards/api-health.json` | CraftHub — API health | `crafthub-api-health` | Is it up, is it fast, are the queues draining? |
-| `dashboards/business.json` | CraftHub — Business | `crafthub-business` | Are people signing up, publishing and searching? |
-| `dashboards/ai-cost.json` | CraftHub — AI cost | `crafthub-ai-cost` | What is OpenAI costing, and who is hitting the quota? |
+| File                         | Dashboard             | UID                   | Answers                                               |
+| ---------------------------- | --------------------- | --------------------- | ----------------------------------------------------- |
+| `dashboards/api-health.json` | CraftHub — API health | `crafthub-api-health` | Is it up, is it fast, are the queues draining?        |
+| `dashboards/business.json`   | CraftHub — Business   | `crafthub-business`   | Are people signing up, publishing and searching?      |
+| `dashboards/ai-cost.json`    | CraftHub — AI cost    | `crafthub-ai-cost`    | What is OpenAI costing, and who is hitting the quota? |
 
 They are plain dashboard JSON, not a provisioning bundle — import them by hand,
 or point Grafana's file provisioner at this directory if you would rather manage
@@ -35,7 +35,7 @@ second Grafana Cloud org.
 ### Re-importing after a change
 
 Editing the JSON here and importing it again will prompt about the existing UID.
-Choose **Import (Overwrite)**. Changes made in the Grafana UI do *not* flow back
+Choose **Import (Overwrite)**. Changes made in the Grafana UI do _not_ flow back
 to this repo — if you improve a panel in the browser, use **Dashboard settings →
 JSON Model**, copy the JSON, and paste it over the file here so the repo stays
 the source of truth.
@@ -54,7 +54,7 @@ the source of truth.
   only those two models are priced: if `RESUME_PARSING_MODEL`,
   `QUERY_CONVERSION_MODEL` or `EMBEDDING_MODEL` is pointed somewhere else, its
   tokens show up in the rate panels but contribute `$0.00` to spend. The
-  *Tokens by model* table exists to make that omission visible.
+  _Tokens by model_ table exists to make that omission visible.
 
 ---
 
@@ -71,19 +71,19 @@ few hundred megabytes of it forwarding bytes the process can post itself.
 Set these in `.env.production` (the file `docker-compose.prod.yml` hands to every
 service).
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | **yes — this is the on/off switch** | Your Grafana Cloud OTLP gateway URL. Its presence alone starts the SDK; with it unset, no provider is registered, every instrument is a no-op, and nothing is exported. |
-| `GRAFANA_CLOUD_INSTANCE_ID` | yes (unless using `OTEL_EXPORTER_OTLP_HEADERS`) | The numeric instance/user ID of your stack's OTLP endpoint. Becomes the Basic-auth username. |
-| `GRAFANA_CLOUD_API_TOKEN` | yes (unless using `OTEL_EXPORTER_OTLP_HEADERS`) | A Grafana Cloud access policy token with write scopes. Becomes the Basic-auth password. |
-| `OTEL_SERVICE_NAME` | no — defaults to `crafthub-api` | Service name on every span, metric and log. |
-| `OTEL_SERVICE_NAMESPACE` | no — defaults to `crafthub` | Groups the API and its workers. |
-| `DEPLOYMENT_ENVIRONMENT` | no — defaults to `NODE_ENV` | `deployment.environment.name` resource attribute. |
-| `OTEL_METRIC_EXPORT_INTERVAL_MS` | no — defaults to `60000` | How often metrics are pushed. Lowering it costs data points, not series; on the free tier, 60 s is already generous. |
-| `SERVICE_ROLE` | set per container: `api`, `worker-embedding`, `worker-digest` | Decides which process reports the once-per-cluster gauges. **Exactly one container may claim `api`**, or daily-active-users and queue depth arrive three times under three different instance IDs. `docker-compose.prod.yml` already sets this correctly. |
-| `GIT_SHA` | no | Becomes `service.version`, and doubles as the Sentry release. |
-| `OTEL_ESM_LOADER_HOOK` | no — **defaults to `false`, leave it there** | Installs the OpenTelemetry ESM loader hook, which is what makes the http/fastify/pg/ioredis/undici instrumentations able to patch anything. It is off because it breaks `openai@4` — see "The loader hook" below. Off costs traces and no dashboard panels. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | no | The standard OTel escape hatch. If set it **takes precedence** and the two `GRAFANA_CLOUD_*` variables are ignored — the app assumes you have assembled the auth header yourself. |
+| Variable                         | Required                                                      | Purpose                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`    | **yes — this is the on/off switch**                           | Your Grafana Cloud OTLP gateway URL. Its presence alone starts the SDK; with it unset, no provider is registered, every instrument is a no-op, and nothing is exported.                                                                                                                                                                                         |
+| `GRAFANA_CLOUD_INSTANCE_ID`      | yes (unless using `OTEL_EXPORTER_OTLP_HEADERS`)               | The numeric instance/user ID of your stack's OTLP endpoint. Becomes the Basic-auth username.                                                                                                                                                                                                                                                                    |
+| `GRAFANA_CLOUD_API_TOKEN`        | yes (unless using `OTEL_EXPORTER_OTLP_HEADERS`)               | A Grafana Cloud access policy token with write scopes. Becomes the Basic-auth password.                                                                                                                                                                                                                                                                         |
+| `OTEL_SERVICE_NAME`              | no — defaults to `crafthub-api`                               | Service name on every span, metric and log.                                                                                                                                                                                                                                                                                                                     |
+| `OTEL_SERVICE_NAMESPACE`         | no — defaults to `crafthub`                                   | Groups the API and its workers.                                                                                                                                                                                                                                                                                                                                 |
+| `DEPLOYMENT_ENVIRONMENT`         | no — defaults to `NODE_ENV`                                   | `deployment.environment.name` resource attribute.                                                                                                                                                                                                                                                                                                               |
+| `OTEL_METRIC_EXPORT_INTERVAL_MS` | no — defaults to `60000`                                      | How often metrics are pushed. Lowering it costs data points, not series; on the free tier, 60 s is already generous.                                                                                                                                                                                                                                            |
+| `SERVICE_ROLE`                   | set per container: `api`, `worker-embedding`, `worker-digest` | Decides which process reports the once-per-cluster gauges. **Exactly one container may claim `api`**, or daily-active-users and queue depth arrive three times under three different instance IDs. `docker-compose.prod.yml` already sets this correctly.                                                                                                       |
+| `GIT_SHA`                        | no                                                            | Becomes `service.version`, and doubles as the Sentry release.                                                                                                                                                                                                                                                                                                   |
+| `OTEL_ESM_LOADER_HOOK`           | no — **defaults to `false`, leave it there**                  | Installs the OpenTelemetry ESM loader hook, without which the http, ioredis and pino instrumentations patch nothing. It also gates `@fastify/otel` and undici, which need no patching but are held behind the same switch on purpose. It is off because it breaks `openai@4` — see "The loader hook" below. Off costs traces and logs, and no dashboard panels. |
+| `OTEL_EXPORTER_OTLP_HEADERS`     | no                                                            | The standard OTel escape hatch. If set it **takes precedence** and the two `GRAFANA_CLOUD_*` variables are ignored — the app assumes you have assembled the auth header yourself.                                                                                                                                                                               |
 
 Sentry is a separate, independent switch (`SENTRY_DSN`). It is the error sink
 only; tracing is left to OTel, which is why `SENTRY_TRACES_SAMPLE_RATE` defaults
@@ -112,9 +112,32 @@ has to be re-encoded by hand.
 
 ### The loader hook, and why traces are off
 
-`OTEL_ESM_LOADER_HOOK` defaults to `false`. Turning it on is what the API's five
-module-patching instrumentations need in order to produce spans — and it is also
-what crash-loops the API at boot.
+`OTEL_ESM_LOADER_HOOK` defaults to `false`. Turning it on is what the API's
+module-patching instrumentations need in order to produce anything — and it is
+also what crash-loops the API at boot.
+
+**There are three of them, not five.** This page said five (http, fastify, pg,
+ioredis, undici) until 2026-09-05, and two of those were wrong.
+`@opentelemetry/instrumentation-pg` was removed that day — it patches
+node-postgres, and this app reaches Postgres through `postgres.js`, so it
+matched no module and emitted nothing — and
+`@opentelemetry/instrumentation-fastify` was replaced with `@fastify/otel`,
+which registers through Fastify's `initialization` diagnostics_channel and
+patches nothing at all. Re-derived from
+[`otel.ts`](../../apps/api/src/infra/observability/otel.ts), the instrumentations
+that actually rewrite a module at import time are:
+
+| Instrumentation           | Patches         | Produces                                   |
+| ------------------------- | --------------- | ------------------------------------------ |
+| `instrumentation-http`    | `http`, `https` | the incoming-request span                  |
+| `instrumentation-ioredis` | `ioredis`       | BullMQ enqueue and quota/DAU counter spans |
+| `instrumentation-pino`    | `pino`          | log records — not spans                    |
+
+`@fastify/otel` and `instrumentation-undici` are in the same gate but need no
+patching: both return no module definitions and work through
+`diagnostics_channel`. They are gated with the rest deliberately, so this one
+switch keeps meaning exactly "no request spans" instead of quietly changing what
+arrives in Tempo on the next deploy.
 
 `@opentelemetry/instrumentation/hook.mjs` installs `import-in-the-middle`, which
 intercepts **every** ESM import in the process rather than only the modules an
@@ -131,10 +154,33 @@ before any handler runs. This is not theoretical: on 2026-08-29, setting
 `OTEL_EXPORTER_OTLP_ENDPOINT` for the first time took production down for six
 minutes in exactly this way, with all six containers reporting green.
 
-**What being off costs: distributed traces, and nothing else.** Every metric
-queried by the three dashboards in this directory is recorded by hand in
-`metrics.ts`. `RuntimeNodeInstrumentation` reads `perf_hooks` rather than
-patching modules, so the Node process metrics survive too.
+**What being off costs: request traces and the pino log bridge, and nothing
+else.** Every metric queried by the three dashboards in this directory is
+recorded by hand in `metrics.ts`. `RuntimeNodeInstrumentation` reads
+`perf_hooks` rather than patching modules, so the Node process metrics survive
+too.
+
+### There are no database spans, and there never were
+
+Turning the hook on does **not** buy you query timings. Nothing in this app
+instruments a database call:
+
+- The `pg` instrumentation that used to be listed here patched node-postgres.
+  The app uses `postgres.js` via `drizzle-orm/postgres-js`, so it matched no
+  module. It was removed on 2026-09-05 rather than left standing as a
+  reassurance the trace data does not support.
+- Drizzle's own tracing is dead code upstream. `drizzle-orm/tracing.js` wraps
+  every query in `tracer.startActiveSpan`, but the module declares `let otel;`
+  and never assigns it, so the `if (!otel) return fn()` guard short-circuits on
+  every call. Confirmed in 0.44.4 (the version pinned here) and unchanged in
+  0.45.2. Its `Logger.logQuery` hook is no substitute: it fires at query start
+  only, with no completion and no duration, so no span can be closed from it.
+
+**So a slow query is invisible in Tempo.** It shows up only as unexplained time
+inside the fastify `handler - …` span with nothing underneath it. Do not read a
+flat waterfall as "the database is fine", and do not infer query time from one.
+Adding DB spans means wrapping the `postgres()` client by hand, which is a
+deliberate change with its own review.
 
 **`openai` v5 deleted `_shims`, and this repo is now on v7**, so that crash is
 gone. Verified rather than assumed: the built app was booted through the
@@ -154,9 +200,9 @@ exporter, and it has to patch `pino` to do it — so it needs the hook exactly
 like the span instrumentations do. **With `OTEL_ESM_LOADER_HOOK=false` you get
 metrics only: Tempo and Loki both stay empty.**
 
-Note that log-to-trace correlation does *not* depend on this. `server.ts`
+Note that log-to-trace correlation does _not_ depend on this. `server.ts`
 already stamps `trace_id` and `span_id` onto every pino line through its own
-`mixin()`. The instrumentation adds the *delivery*, plus `trace_flags`.
+`mixin()`. The instrumentation adds the _delivery_, plus `trace_flags`.
 
 ### Checking it works
 
@@ -225,9 +271,9 @@ enforced by review, not by code: check it when you add an instrument.
 Not shipped as JSON (alert rules are stack-specific and want notification
 policies attached), but these are the four worth creating first:
 
-| Alert | Expression sketch | Why |
-| --- | --- | --- |
-| API down | `absent(up)` / no `http_server_requests_total` for 10m | Nothing else fires if no data arrives. |
-| Error budget | 5xx ratio > 2% for 10m | The one number that means "users are seeing failures". |
-| Queue backing up | `queue_depth{state="waiting"} > 50` for 15m | Resumes accepted but never becoming searchable. |
-| AI spend | projected 30-day spend > your budget | Cheaper to catch here than on the OpenAI invoice. |
+| Alert            | Expression sketch                                      | Why                                                    |
+| ---------------- | ------------------------------------------------------ | ------------------------------------------------------ |
+| API down         | `absent(up)` / no `http_server_requests_total` for 10m | Nothing else fires if no data arrives.                 |
+| Error budget     | 5xx ratio > 2% for 10m                                 | The one number that means "users are seeing failures". |
+| Queue backing up | `queue_depth{state="waiting"} > 50` for 15m            | Resumes accepted but never becoming searchable.        |
+| AI spend         | projected 30-day spend > your budget                   | Cheaper to catch here than on the OpenAI invoice.      |

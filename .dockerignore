@@ -74,8 +74,6 @@ apps/extractor/*
 !apps/extractor/package.json
 apps/training/*
 !apps/training/package.json
-packages/ui/*
-!packages/ui/package.json
 packages/eslint-config/*
 !packages/eslint-config/package.json
 

@@ -30,6 +30,7 @@ import {
   fixturePath,
   modelsDir,
 } from "../lib/scoring-fixture.js";
+import { expectDefined } from "../lib/expect-defined.js";
 
 const TOLERANCE = 1e-3;
 
@@ -88,7 +89,10 @@ describe("frozen scoring fixture", () => {
     expect(cases).toHaveLength(fixture.cases.length);
 
     for (const [index, testCase] of cases.entries()) {
-      const frozen = fixture.cases[index]!;
+      const frozen = expectDefined(
+        fixture.cases[index],
+        `the frozen case at index ${String(index)}`,
+      );
       expect(frozen.id).toBe(testCase.id);
 
       const vector = toQueryCandidateFeatureVector(
@@ -99,8 +103,11 @@ describe("frozen scoring fixture", () => {
 
       expect(vector).toHaveLength(frozen.vector.length);
       for (const [position, value] of vector.entries()) {
+        // A missing position yields NaN, which fails the comparison below with
+        // the case and feature named — the same failure a drifted value gives.
+        const expected = frozen.vector[position] ?? Number.NaN;
         expect(
-          Math.abs(value - frozen.vector[position]!),
+          Math.abs(value - expected),
           `case ${frozen.id}, feature ${position}`,
         ).toBeLessThanOrEqual(TOLERANCE);
       }
@@ -120,7 +127,7 @@ describe("frozen scoring fixture", () => {
 
     for (const [index, testCase] of fixture.cases.entries()) {
       expect(
-        Math.abs(predictions[index]! - testCase.score),
+        Math.abs((predictions[index] ?? Number.NaN) - testCase.score),
         `case ${testCase.id}`,
       ).toBeLessThanOrEqual(TOLERANCE);
     }

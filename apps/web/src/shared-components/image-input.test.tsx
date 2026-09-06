@@ -12,7 +12,7 @@ describe("ImageInput", () => {
       />,
     );
 
-    const img = screen.getByAltText("Banner preview") as HTMLImageElement;
+    const img = screen.getByAltText<HTMLImageElement>("Banner preview");
     expect(img).toBeInTheDocument();
     expect(img.src).toBe("https://example.com/pic.png");
   });
@@ -25,9 +25,7 @@ describe("ImageInput", () => {
     fireEvent.change(input, { target: { value: "javascript:alert(1)" } });
     fireEvent.blur(input);
 
-    expect(
-      screen.getByText(/valid http\(s\) image URL/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/valid http\(s\) image URL/i)).toBeInTheDocument();
     expect(input).toHaveAttribute("aria-invalid", "true");
     // Invalid values are never committed upward.
     expect(onChange).not.toHaveBeenCalled();

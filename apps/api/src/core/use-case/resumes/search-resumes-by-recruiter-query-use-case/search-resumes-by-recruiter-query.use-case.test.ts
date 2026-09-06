@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { IEmbeddingProvider } from "../../../providers/embedding/embedding-provider.js";
 import { InMemoryResumeSearchRepository } from "../../../repositories/resume-search/in-memory-resume-search-repository.js";
 import { SearchResumesByRecruiterQueryUseCase } from "./search-resumes-by-recruiter-query.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 class FakeEmbeddingProvider implements IEmbeddingProvider {
   async createEmbedding(): Promise<number[]> {
@@ -76,7 +77,9 @@ describe("SearchResumesByRecruiterQueryUseCase", () => {
 
     expect(result).toHaveLength(2);
     expect(result[0]?.resumeId).toBe("r1");
-    expect(result[0]!.similarity).toBeGreaterThan(result[1]!.similarity);
+    expect(
+      expectDefined(result[0], "the top result").similarity,
+    ).toBeGreaterThan(expectDefined(result[1], "the runner-up").similarity);
   });
 
   it("caps topK at 100", async () => {
@@ -182,8 +185,9 @@ describe("SearchResumesByRecruiterQueryUseCase", () => {
     ]);
 
     for (let index = 0; index < result.length - 1; index += 1) {
-      expect(result[index]!.similarity).toBeGreaterThanOrEqual(
-        result[index + 1]!.similarity,
+      expect(result[index]?.similarity).toBeGreaterThanOrEqual(
+        expectDefined(result[index + 1], `result ${String(index + 1)}`)
+          .similarity,
       );
     }
   });

@@ -10,7 +10,7 @@ import { Button } from "../../../shared-components/button";
 import { Input } from "../../../shared-components/input";
 import { FOCUS_RING } from "../../../shared-components/surface";
 
-type RegisterFormProps = {
+type RegisterFormProps = Readonly<{
   isPending: boolean;
   errorMessage?: string;
   /**
@@ -22,7 +22,7 @@ type RegisterFormProps = {
   // Rejects when the registration fails. The parent owns how that reads to the
   // user and passes it back down as `errorMessage`.
   onSubmit: (data: CreateUserInput) => Promise<void>;
-};
+}>;
 
 // Friendly labels for the optional persona picker. Values must match
 // `personaSchema` in @repo/schemas.
@@ -65,22 +65,28 @@ export function RegisterForm({
   return (
     <form
       className="space-y-3"
-      onSubmit={handleSubmit(async (data) => {
-        try {
-          await onSubmit(data);
-        } catch {
-          // An address that is already registered is an ordinary outcome, and
-          // it is already handled: the parent renders it as `errorMessage`
-          // below. react-hook-form re-throws whatever the submit handler
-          // rejects with, so letting it through would hand the message — which
-          // quotes the email the user just typed — to the global
-          // unhandledrejection handler, which is Sentry in production.
-          // Keep the typed values so the correction is one edit, not a retype.
-          return;
-        }
+      onSubmit={(event) => {
+        // `handleSubmit` hands back a promise-returning handler, and the DOM
+        // `onSubmit` attribute wants one that returns nothing. Discarding the
+        // promise is safe here and only here: every rejection is already dealt
+        // with inside the callback below.
+        void handleSubmit(async (data) => {
+          try {
+            await onSubmit(data);
+          } catch {
+            // An address that is already registered is an ordinary outcome, and
+            // it is already handled: the parent renders it as `errorMessage`
+            // below. react-hook-form re-throws whatever the submit handler
+            // rejects with, so letting it through would hand the message —
+            // which quotes the email the user just typed — to the global
+            // unhandledrejection handler, which is Sentry in production.
+            // Keep the typed values so the correction is one edit, not a retype.
+            return;
+          }
 
-        reset();
-      })}
+          reset();
+        })(event);
+      }}
     >
       <Input
         id="register-name"
@@ -124,7 +130,7 @@ export function RegisterForm({
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           defaultValue=""
           {...register("persona", {
-            setValueAs: (value) => (value === "" ? undefined : value),
+            setValueAs: (value: unknown) => (value === "" ? undefined : value),
           })}
         >
           <option value="">{t("auth.preferNotToSay")}</option>

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-type AvatarProps = {
+type AvatarProps = Readonly<{
   name?: string | null;
   imageUrl?: string | null;
   size?: number;
   className?: string;
-};
+}>;
 
 const DEFAULT_SIZE = 40;
 

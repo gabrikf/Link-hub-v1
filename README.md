@@ -11,7 +11,7 @@ Three things happen here:
   drag-and-drop tabs and blocks, backed by a structured resume (skills, titles,
   work history) that can be imported from a PDF by an LLM.
 - **Recruiters** paste a job description — text or a PDF — at `POST
-  /resumes/search` and get candidates ranked by vector similarity over resume
+/resumes/search` and get candidates ranked by vector similarity over resume
   embeddings, then re-ranked in the browser by a small TensorFlow.js model.
 - **Coding agents** publish posts about real work through an
   [MCP server](apps/mcp/README.md) and an
@@ -35,22 +35,21 @@ npm@11.1.0`, a single root `package-lock.json`) — not pnpm, not yarn.
 
 ### Apps
 
-| Path | What it is |
-| --- | --- |
-| `apps/api` | Fastify 5 backend plus two BullMQ workers (resume embedding, activity digest). Clean-architecture layout — `core/entity`, `core/use-case`, `core/repositories`, `core/providers`, `infra/*` — with tsyringe for DI, Drizzle ORM over Postgres + pgvector, Zod schemas via `fastify-type-provider-zod`, and Swagger UI at `/docs`. |
-| `apps/web` | React 19 + Vite SPA: auth, dashboard, public profile, recruiter search, the drag-and-drop layout editor, posts and the post review queue. TanStack Router + React Query, Tailwind 4, Zustand, Radix UI, dnd-kit, and `@tensorflow/tfjs` running in a web worker. |
-| `apps/mcp` | A stdio MCP server exposing CraftHub post/profile tools to Claude Desktop, Claude Code, Cursor and VS Code. Published to npm as [`crafthub-mcp`](https://www.npmjs.com/package/crafthub-mcp), so users run it with `npx` and never need this repo. A thin authenticated HTTP client over the API — it stores no state and calls no AI of its own. |
+| Path             | What it is                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api`       | Fastify 5 backend plus two BullMQ workers (resume embedding, activity digest). Clean-architecture layout — `core/entity`, `core/use-case`, `core/repositories`, `core/providers`, `infra/*` — with tsyringe for DI, Drizzle ORM over Postgres + pgvector, Zod schemas via `fastify-type-provider-zod`, and Swagger UI at `/docs`.                              |
+| `apps/web`       | React 19 + Vite SPA: auth, dashboard, public profile, recruiter search, the drag-and-drop layout editor, posts and the post review queue. TanStack Router + React Query, Tailwind 4, Zustand, Radix UI, dnd-kit, and `@tensorflow/tfjs` running in a web worker.                                                                                               |
+| `apps/mcp`       | A stdio MCP server exposing CraftHub post/profile tools to Claude Desktop, Claude Code, Cursor and VS Code. Published to npm as [`crafthub-mcp`](https://www.npmjs.com/package/crafthub-mcp), so users run it with `npx` and never need this repo. A thin authenticated HTTP client over the API — it stores no state and calls no AI of its own.              |
 | `apps/extractor` | A local CLI and Claude Code hook that turns git history and agent sessions into hashed, aggregated activity metadata you review before anything is uploaded. Published to npm as [`crafthub-extract`](https://www.npmjs.com/package/crafthub-extract) (providing `crafthub-extract` and `crafthub-hook`), so users run it with `npx` and never need this repo. |
-| `apps/training` | Offline trainer for the "AI Match %" model. Writes versioned TensorFlow.js artefacts into `apps/web/public/ai-models/` and bumps `latest.json`. |
+| `apps/training`  | Offline trainer for the "AI Match %" model. Writes versioned TensorFlow.js artefacts into `apps/web/public/ai-models/` and bumps `latest.json`.                                                                                                                                                                                                                |
 
 ### Packages
 
-| Path | What it is |
-| --- | --- |
+| Path                                 | What it is                                                                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `packages/schemas` (`@repo/schemas`) | The shared contract. Zod schemas and types consumed by api, web, mcp, extractor and training. **Ships built** (`main: dist/index.js`), so it must be built before anything type-checks or tests. |
-| `packages/typescript-config` | Shared `tsconfig` bases. |
-| `packages/eslint-config` | Shared flat ESLint configs. |
-| `packages/ui` | Turborepo-starter leftover. Nothing in `apps/` imports it. |
+| `packages/typescript-config`         | Shared `tsconfig` bases.                                                                                                                                                                         |
+| `packages/eslint-config`             | Shared flat ESLint configs.                                                                                                                                                                      |
 
 ---
 
@@ -249,7 +248,7 @@ Cloudflare's ranges as `trusted_proxies` and reads `CF-Connecting-IP`. Without
 that, `X-Real-IP` would be a colo address and the API's per-user rate limit would
 silently become a per-datacenter one.
 
-Every container has a hard `mem_limit` and a `NODE_OPTIONS` heap cap set *below*
+Every container has a hard `mem_limit` and a `NODE_OPTIONS` heap cap set _below_
 it, so a leak produces a V8 heap-limit stack trace rather than a silent cgroup
 OOM kill. Postgres and Redis publish **no ports** — they are reachable only over
 the compose network. The API publishes on `127.0.0.1:3333` so the deploy script
@@ -412,24 +411,50 @@ Tempo trace.
 
 ## Scripts reference
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | api + web + both workers, in parallel |
-| `npm run build` | build every workspace (`@repo/schemas` first) |
-| `npm run lint` | ESLint across the workspaces that have a lint script |
-| `npm run check-types` | `tsc --noEmit` across every workspace |
-| `npm run test` | every test suite |
-| `npm run db:migrate` / `db:generate` | apply / author Drizzle migrations |
-| `npm run db:seed:all` / `db:seed:fresh` | seed data / destroy and re-seed |
-| `npm run db:studio` | Drizzle Studio |
-| `npm run train:model:incremental` | retrain the match model from new interactions |
+| Command                                 | What it does                                         |
+| --------------------------------------- | ---------------------------------------------------- |
+| `npm run dev`                           | api + web + both workers, in parallel                |
+| `npm run build`                         | build every workspace (`@repo/schemas` first)        |
+| `npm run lint`                          | ESLint across the workspaces that have a lint script |
+| `npm run check-types`                   | `tsc --noEmit` across every workspace                |
+| `npm run test`                          | every test suite                                     |
+| `npm run db:migrate` / `db:generate`    | apply / author Drizzle migrations                    |
+| `npm run db:seed:all` / `db:seed:fresh` | seed data / destroy and re-seed                      |
+| `npm run db:studio`                     | Drizzle Studio                                       |
+| `npm run train:model:incremental`       | retrain the match model from new interactions        |
+
+---
+
+## Working with coding agents
+
+This repo is set up so Claude Code, Cursor, Codex and Kiro all read the same
+instructions, from one set of files rather than one copy per tool.
+
+- **[AGENTS.md](AGENTS.md)** — the root index every tool loads: the gate, the
+  non-negotiables, and a table pointing at everything else. `CLAUDE.md` is a
+  symlink to it.
+- **[apps/api/AGENTS.md](apps/api/AGENTS.md)**,
+  **[apps/web/AGENTS.md](apps/web/AGENTS.md)**,
+  **[packages/schemas/AGENTS.md](packages/schemas/AGENTS.md)** — the depth for
+  each workspace, loaded when you are working inside it.
+- **[docs/harness/agent-harness.md](docs/harness/agent-harness.md)** — how the
+  wiring works, which tool reads what, how to add a rule or a skill, and how to
+  onboard a new agent tool.
+
+`npm run harness:check` verifies the whole thing on every push: every path an
+instruction cites exists, every command it names is real, and no file has grown
+past the size its reader will actually load.
 
 ---
 
 ## Further reading
 
-- **[DEVELOPMENT-GUIDE.md](DEVELOPMENT-GUIDE.md)** — architecture layers, DI, how
-  to add a use case, testing conventions
+- **[DEVELOPMENT-GUIDE.md](DEVELOPMENT-GUIDE.md)** — a reference for the npm
+  scripts, and nothing else
+- **[docs/harness/agent-harness.md](docs/harness/agent-harness.md)** — the agent
+  harness: layout, per-tool loading rules, and how to extend it
+- **[docs/harness/known-debt.md](docs/harness/known-debt.md)** — the debt that is
+  recorded on purpose, and why each item is still there
 - **[apps/mcp/README.md](apps/mcp/README.md)** — MCP server setup for Claude
   Desktop / Claude Code / Cursor / VS Code, the tool surface, and the disclosure
   policy model

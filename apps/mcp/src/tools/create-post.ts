@@ -52,7 +52,6 @@ const inputSchema = {
         "which is what makes it trustworthy to a reader.",
     ),
   workExperienceId: z
-    .string()
     .uuid()
     .optional()
     .describe(

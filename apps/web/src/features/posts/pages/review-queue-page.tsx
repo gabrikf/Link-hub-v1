@@ -19,6 +19,23 @@ import { ReviewQueueSkeleton } from "../components/review-queue-skeleton";
 import { selectPendingReview } from "../lib/post-format";
 
 /**
+ * The message for a rolled-back optimistic mutation: the server's own message
+ * when it sent one, else the generic fallback. `null` while the mutation is
+ * fine, so the two queue mutations can be tried in order with `??`.
+ */
+function resolveMutationErrorMessage(
+  mutation: { isError: boolean; error: unknown },
+  fallback: string,
+): string | null {
+  if (!mutation.isError) {
+    return null;
+  }
+  return mutation.error instanceof Error && mutation.error.message
+    ? mutation.error.message
+    : fallback;
+}
+
+/**
  * The review queue for software-written posts.
  *
  * Its own route rather than a tab on the posts page because the two surfaces
@@ -43,15 +60,9 @@ export function ReviewQueuePage() {
 
   // Approve and delete are optimistic, so a failure has already taken the card
   // off screen and put it back. Without this the rollback looks like a glitch.
-  const mutationError = approvePost.isError
-    ? approvePost.error instanceof Error && approvePost.error.message
-      ? approvePost.error.message
-      : t("posts.approveFailed")
-    : deletePost.isError
-      ? deletePost.error instanceof Error && deletePost.error.message
-        ? deletePost.error.message
-        : t("posts.deleteFailed")
-      : null;
+  const mutationError =
+    resolveMutationErrorMessage(approvePost, t("posts.approveFailed")) ??
+    resolveMutationErrorMessage(deletePost, t("posts.deleteFailed"));
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-4 lg:p-8">

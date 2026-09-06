@@ -3,13 +3,6 @@ import { ZodError } from "zod/v4";
 import {
   BaseError,
   DuplicateResourceError,
-  UnauthorizedError,
-  ForbiddenError,
-  NotFoundError,
-  ConflictError,
-  ValidationError,
-  BadRequestError,
-  InternalServerError,
 } from "../../../core/errors/index.js";
 import { captureApiException } from "../../observability/sentry.js";
 import { structuredLoggingEnabled } from "../../config/app-config.js";
@@ -25,6 +18,199 @@ interface ErrorResponse {
   details?: unknown;
   timestamp: string;
   path?: string;
+}
+
+interface ResolvedError {
+  statusCode: number;
+  errorMessage: string;
+  errorCode?: string;
+  details?: unknown;
+}
+
+/**
+ * Handles the "FastifyError" branch of `resolveErrorByName`: by the time we
+ * get here, `resolveErrorDetails` has already ruled out a truthy
+ * `error.statusCode`, so the only signal left is the message text.
+ */
+function resolveFastifyErrorByMessage(message: string): ResolvedError {
+  if (message.includes("JSON")) {
+    return {
+      statusCode: 400,
+      errorMessage: "Invalid JSON format in request body",
+      errorCode: "INVALID_JSON",
+    };
+  }
+  if (message.includes("body-limit")) {
+    return {
+      statusCode: 413,
+      errorMessage: "Request body too large",
+      errorCode: "PAYLOAD_TOO_LARGE",
+    };
+  }
+  if (message.includes("querystring")) {
+    return {
+      statusCode: 400,
+      errorMessage: "Invalid query string",
+      errorCode: "INVALID_QUERY",
+    };
+  }
+  return { statusCode: 500, errorMessage: message, errorCode: "FASTIFY_ERROR" };
+}
+
+/**
+ * Fallback resolution for errors that are not `ZodError`,
+ * `DuplicateResourceError`, `BaseError`, and do not carry a usable
+ * `validation` or `statusCode` field — dispatched by `error.name`.
+ */
+function resolveErrorByName(name: string, message: string): ResolvedError {
+  switch (name) {
+    case "FastifyError":
+      return resolveFastifyErrorByMessage(message);
+    case "UnauthorizedError":
+    case "JsonWebTokenError":
+    case "TokenExpiredError":
+      return {
+        statusCode: 401,
+        errorMessage: "Unauthorized",
+        errorCode: "UNAUTHORIZED",
+      };
+    case "ForbiddenError":
+      return {
+        statusCode: 403,
+        errorMessage: "Forbidden",
+        errorCode: "FORBIDDEN",
+      };
+    case "NotFoundError":
+      return {
+        statusCode: 404,
+        errorMessage: "Resource Not Found",
+        errorCode: "NOT_FOUND",
+      };
+    case "ConflictError":
+      return {
+        statusCode: 409,
+        errorMessage: message || "Conflict",
+        errorCode: "CONFLICT",
+      };
+    case "ValidationError":
+      return {
+        statusCode: 422,
+        errorMessage: message || "Validation Failed",
+        errorCode: "VALIDATION_ERROR",
+      };
+    case "DatabaseError":
+    case "DrizzleError":
+      return {
+        statusCode: 500,
+        // Don't expose database errors to client in production
+        errorMessage:
+          process.env.NODE_ENV === "development" ? message : "Database Error",
+        errorCode: "DATABASE_ERROR",
+      };
+    default:
+      return {
+        statusCode: 500,
+        // Only show detailed error message in development
+        errorMessage:
+          process.env.NODE_ENV === "development"
+            ? message
+            : "Internal Server Error",
+        errorCode: "INTERNAL_ERROR",
+      };
+  }
+}
+
+/** Fastify errors that carry their own status code, e.g. `FST_ERR_*`. */
+function resolveFastifyStatusError(
+  statusCode: number,
+  message: string,
+): ResolvedError {
+  let errorMessage = message;
+  let errorCode: string | undefined;
+  // Clean up generic Fastify error messages
+  if (errorMessage.includes("FST_ERR_")) {
+    errorCode = /FST_ERR_[A-Z_]+/.exec(errorMessage)?.[0];
+    errorMessage = message.replace(/FST_ERR_[A-Z_]+: /, "");
+  }
+  return { statusCode, errorMessage, errorCode };
+}
+
+/**
+ * Turns a caught error into the status code, message, code and optional
+ * details the client should see. Extracted from `errorHandler` so each kind
+ * of error is a single, flat branch instead of one deeply nested function.
+ */
+function resolveErrorDetails(
+  error: Error | FastifyError | ZodError | BaseError,
+): ResolvedError {
+  // Handle Zod validation errors
+  if (error instanceof ZodError) {
+    return {
+      statusCode: 400,
+      errorMessage: "Validation Error",
+      errorCode: "VALIDATION_ERROR",
+      details: error.issues.map((err) => ({
+        path: err.path.join("."),
+        message: err.message,
+      })),
+    };
+  }
+
+  // Handle Duplicate Resource Error
+  if (error instanceof DuplicateResourceError) {
+    return {
+      statusCode: 409,
+      errorMessage: error.message,
+      errorCode: "DUPLICATE_RESOURCE",
+    };
+  }
+
+  // Handle all BaseError subclasses (custom application errors)
+  if (error instanceof BaseError) {
+    return {
+      statusCode: error.statusCode,
+      errorMessage: error.message,
+      // An error that declares its own code wins. The class-name derivation
+      // below cannot express a multi-word domain code
+      // (`EmailNotVerifiedError` would come out as `EMAILNOTVERIFIED`), so
+      // anything a client is expected to branch on sets `errorCode` on the
+      // class itself.
+      errorCode:
+        error.errorCode ??
+        error.constructor.name.replace("Error", "").toUpperCase(),
+    };
+  }
+
+  // Handle Fastify validation errors
+  if ("validation" in error && error.validation) {
+    return {
+      statusCode: 400,
+      errorMessage: "Validation Error",
+      errorCode: "VALIDATION_ERROR",
+      details: error.validation,
+    };
+  }
+
+  // Handle Fastify JSON parsing errors
+  if (
+    "statusCode" in error &&
+    error.statusCode === 400 &&
+    error.message.includes("JSON")
+  ) {
+    return {
+      statusCode: 400,
+      errorMessage: "Invalid JSON format in request body",
+      errorCode: "INVALID_JSON",
+    };
+  }
+
+  // Handle Fastify errors with status code
+  if ("statusCode" in error && error.statusCode) {
+    return resolveFastifyStatusError(error.statusCode, error.message);
+  }
+
+  // Handle specific error types by name
+  return resolveErrorByName(error.name, error.message);
 }
 
 /**
@@ -59,138 +245,8 @@ export async function errorHandler(
     console.error("Error caught by global handler:", errorDetails);
   }
 
-  // Default error response
-  let statusCode = 500;
-  let errorMessage = "Internal Server Error";
-  let errorCode: string | undefined;
-  let details: unknown;
-
-  // Handle Zod validation errors
-  if (error instanceof ZodError) {
-    statusCode = 400;
-    errorMessage = "Validation Error";
-    errorCode = "VALIDATION_ERROR";
-    details = error.issues.map((err) => ({
-      path: err.path.join("."),
-      message: err.message,
-    }));
-  }
-  // Handle Duplicate Resource Error
-  else if (error instanceof DuplicateResourceError) {
-    statusCode = 409;
-    errorMessage = error.message;
-    errorCode = "DUPLICATE_RESOURCE";
-  }
-  // Handle all BaseError subclasses (custom application errors)
-  else if (error instanceof BaseError) {
-    statusCode = error.statusCode;
-    errorMessage = error.message;
-    // An error that declares its own code wins. The class-name derivation below
-    // cannot express a multi-word domain code (`EmailNotVerifiedError` would
-    // come out as `EMAILNOTVERIFIED`), so anything a client is expected to
-    // branch on sets `errorCode` on the class itself.
-    errorCode =
-      error.errorCode ??
-      error.constructor.name.replace("Error", "").toUpperCase();
-  }
-  // Handle Fastify validation errors
-  else if ("validation" in error && error.validation) {
-    statusCode = 400;
-    errorMessage = "Validation Error";
-    errorCode = "VALIDATION_ERROR";
-    details = error.validation;
-  }
-  // Handle Fastify JSON parsing errors
-  else if (
-    "statusCode" in error &&
-    error.statusCode === 400 &&
-    error.message.includes("JSON")
-  ) {
-    statusCode = 400;
-    errorMessage = "Invalid JSON format in request body";
-    errorCode = "INVALID_JSON";
-  }
-  // Handle Fastify errors with status code
-  else if ("statusCode" in error && error.statusCode) {
-    statusCode = error.statusCode;
-    errorMessage = error.message;
-    // Clean up generic Fastify error messages
-    if (errorMessage.includes("FST_ERR_")) {
-      errorCode = errorMessage.match(/FST_ERR_[A-Z_]+/)?.[0];
-      errorMessage = error.message.replace(/FST_ERR_[A-Z_]+: /, "");
-    }
-  }
-  // Handle specific error types by name
-  else {
-    switch (error.name) {
-      case "FastifyError":
-        // Handle specific Fastify errors
-        if (error.message.includes("JSON")) {
-          statusCode = 400;
-          errorMessage = "Invalid JSON format in request body";
-          errorCode = "INVALID_JSON";
-        } else if (error.message.includes("body-limit")) {
-          statusCode = 413;
-          errorMessage = "Request body too large";
-          errorCode = "PAYLOAD_TOO_LARGE";
-        } else if (error.message.includes("querystring")) {
-          statusCode = 400;
-          errorMessage = "Invalid query string";
-          errorCode = "INVALID_QUERY";
-        } else {
-          statusCode = ("statusCode" in error && error.statusCode) || 500;
-          errorMessage = error.message;
-          errorCode = "FASTIFY_ERROR";
-        }
-        break;
-      case "UnauthorizedError":
-      case "JsonWebTokenError":
-      case "TokenExpiredError":
-        statusCode = 401;
-        errorMessage = "Unauthorized";
-        errorCode = "UNAUTHORIZED";
-        break;
-      case "ForbiddenError":
-        statusCode = 403;
-        errorMessage = "Forbidden";
-        errorCode = "FORBIDDEN";
-        break;
-      case "NotFoundError":
-        statusCode = 404;
-        errorMessage = "Resource Not Found";
-        errorCode = "NOT_FOUND";
-        break;
-      case "ConflictError":
-        statusCode = 409;
-        errorMessage = error.message || "Conflict";
-        errorCode = "CONFLICT";
-        break;
-      case "ValidationError":
-        statusCode = 422;
-        errorMessage = error.message || "Validation Failed";
-        errorCode = "VALIDATION_ERROR";
-        break;
-      case "DatabaseError":
-      case "DrizzleError":
-        statusCode = 500;
-        errorMessage = "Database Error";
-        errorCode = "DATABASE_ERROR";
-        // Don't expose database errors to client in production
-        if (process.env.NODE_ENV === "development") {
-          errorMessage = error.message;
-        }
-        break;
-      default:
-        // Generic error handling
-        statusCode = 500;
-        errorMessage = "Internal Server Error";
-        errorCode = "INTERNAL_ERROR";
-        // Only show detailed error message in development
-        if (process.env.NODE_ENV === "development") {
-          errorMessage = error.message;
-        }
-    }
-  }
+  const { statusCode, errorMessage, errorCode, details } =
+    resolveErrorDetails(error);
 
   /**
    * Report to Sentry only what a human would actually want to be woken for.

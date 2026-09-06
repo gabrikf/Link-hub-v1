@@ -6,6 +6,10 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    // Matches `@repo/typescript-config/base.json`, which this workspace cannot
+    // extend without also inheriting its declaration emit, `isolatedModules`
+    // and ES2022 target — all build-output changes this repo has not asked for.
+    "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

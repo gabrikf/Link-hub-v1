@@ -9,7 +9,11 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    # `develop` as well as `main`. Feature branches merge into `develop` here,
+    # so a workflow that only watched `main` gave those pull requests no CI at
+    # all — every "CI enforces this" claim in the docs was vacuous for exactly
+    # the branches people actually open.
+    branches: [main, develop]
   workflow_dispatch:
 
 # A force-push to a PR branch should cancel the previous run rather than pay for
@@ -26,37 +30,46 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # LINT — RECORDED BASELINE, NOT A GATE (yet)
+  # LINT — A REAL GATE
   # ---------------------------------------------------------------------------
   #
-  # `continue-on-error: true` is deliberate and it is NOT a way of pretending
-  # the repo is clean.
+  # This job blocks. `npm run lint` must exit 0 across every workspace.
   #
-  # As of the commit that introduced this workflow, `npm run lint` reports
-  # 30 pre-existing eslint errors in `apps/web`, essentially all of them
-  # `react-hooks/set-state-in-effect` (new in eslint-plugin-react-hooks v7) and
-  # `react-refresh/only-export-components`, plus one `no-control-regex` and one
-  # unused `_params` argument. Clearing them means refactoring components that
-  # work today, which is a separate piece of work with its own review.
+  # HOW IT GOT HERE, because the history matters if it ever goes red again.
+  # Until 2026-09-04 `npm run lint` covered 238 of the repo's ~800 TypeScript
+  # files — apps/web and the (since deleted) packages/ui were the only
+  # workspaces with a `lint` script. All of them are now wired to
+  # `@repo/eslint-config`, which adds
+  # `eslint-plugin-sonarjs` and `eslint-plugin-n`. That rescoping surfaced 67
+  # errors, recorded as a non-blocking ratchet (`LINT_ERROR_BASELINE`) so the
+  # debt could be paid down without blocking the merge queue.
   #
-  # The three options were: (a) delete the lint check, (b) weaken the eslint
-  # config until it passes, (c) run it, publish the number, and forbid it from
-  # growing. This is (c). The eslint config is untouched. The count is printed
-  # in the job log AND in the PR job summary on every single run, and the
-  # ratchet step below fails the job the moment the count exceeds the baseline —
-  # the job just does not block the merge queue while the debt is being paid.
+  # On 2026-09-05 the backlog was cleared: 67 -> 0, and the type-aware baseline
+  # in `scripts/guardrails/lint-baseline.json` went 555 -> 0 alongside it. The
+  # ratchet and `continue-on-error` were removed at that point, which is exactly
+  # what the previous version of this comment said to do at zero.
   #
-  # WHEN THE COUNT REACHES 0: drop `continue-on-error` and the ratchet, and let
-  # `npm run lint` fail the job outright.
+  # Sixty-five of the 67 were real fixes. TWO are green by a deliberate,
+  # reviewed, config-level rule exception in `packages/eslint-config`, because
+  # they cannot be fixed by changing code:
+  #   - `sonarjs/redundant-type-aliases` on `TransactionContext`
+  #     (core/providers/unit-of-work/unit-of-work.ts). `unknown` is the only type
+  #     accepting both a real drizzle `PgTransaction` and `undefined` without a
+  #     cast; a branded opaque type was implemented and rejected by tsc with
+  #     TS2559 (weak-type check) and TS2345.
+  #   - `sonarjs/deprecation` on `settings/lib/use-clipboard.ts`.
+  #     `document.execCommand("copy")` IS the fallback for contexts without the
+  #     async Clipboard API, on the path that copies PATs. The only
+  #     non-deprecated API is the one it falls back FROM.
+  # Both are scoped to one file and one rule, carry their evidence in a comment,
+  # and were blast-radius checked. `docs/harness/known-debt.md` has the detail.
+  #
+  # `turbo run lint --continue` (the root `lint` script) runs every workspace
+  # rather than stopping at the first failure, so a red run reports everything
+  # that is wrong, not just the first workspace alphabetically.
   lint:
-    name: Lint (recorded baseline — non-blocking)
+    name: Lint
     runs-on: ubuntu-latest
-    continue-on-error: true
-
-    env:
-      # The number of eslint errors that existed when this workflow was written.
-      # This may only ever go DOWN. Lower it as violations are fixed.
-      LINT_ERROR_BASELINE: "30"
 
     steps:
       - name: Checkout
@@ -71,57 +84,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The syntactic config does not need emitted types, but `packages/schemas`
+      # imports from the built output, so build first for the same reason
+      # check-types does.
+
+      # NOTE: `turbo run lint` has no `dependsOn` (see turbo.json), so nothing
+      # in the lint graph builds anything. This explicit step is what makes
+      # the built `@repo/schemas` types available on a fresh CI checkout.
+      - name: Build shared packages
+        run: npm run build:schemas
+
       - name: Run eslint
-        id: eslint
-        run: |
-          set -o pipefail
-          # `|| true` so the count below is always computed; the ratchet step is
-          # what decides pass/fail.
-          npm run lint 2>&1 | tee lint-output.txt || true
-
-      - name: Count violations and enforce the ratchet
-        run: |
-          # eslint's stylish formatter ends each workspace with a summary line
-          # like "✖ 30 problems (30 errors, 0 warnings)". Turborepo prefixes
-          # every line with "web:lint: ", so match anywhere on the line and sum
-          # across workspaces.
-          ERRORS=$(grep -oE '[0-9]+ errors?' lint-output.txt \
-            | grep -oE '^[0-9]+' \
-            | awk '{ total += $1 } END { print total + 0 }')
-
-          BASELINE="${LINT_ERROR_BASELINE}"
-
-          echo "================================================================"
-          echo " ESLINT BASELINE REPORT"
-          echo "----------------------------------------------------------------"
-          echo " current errors : ${ERRORS}"
-          echo " baseline       : ${BASELINE}"
-          echo "================================================================"
-
-          {
-            echo "### ESLint baseline"
-            echo ""
-            echo "| | |"
-            echo "|---|---|"
-            echo "| Current errors | \`${ERRORS}\` |"
-            echo "| Recorded baseline | \`${BASELINE}\` |"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$ERRORS" -gt "$BASELINE" ]; then
-            echo "::error::This PR adds $((ERRORS - BASELINE)) new eslint error(s) on top of the ${BASELINE} pre-existing ones. Fix the new violations."
-            echo "This PR **adds $((ERRORS - BASELINE)) new eslint error(s)** on top of the recorded baseline. Fix the new violations." >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-
-          if [ "$ERRORS" -lt "$BASELINE" ]; then
-            echo "::notice::Lint debt went down by $((BASELINE - ERRORS)). Lower LINT_ERROR_BASELINE in .github/workflows/ci.yml to ${ERRORS} to lock the improvement in."
-            echo "Lint debt went **down by $((BASELINE - ERRORS))**. Lower \`LINT_ERROR_BASELINE\` in \`.github/workflows/ci.yml\` to \`${ERRORS}\` to lock this in." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          echo "::warning::${ERRORS} pre-existing eslint errors remain (unchanged). These are technical debt and must be burned down; see the comment at the top of .github/workflows/ci.yml."
-          echo "${ERRORS} pre-existing eslint errors remain. This is recorded technical debt that must be burned down." >> "$GITHUB_STEP_SUMMARY"
+        run: npm run lint
 
   # ---------------------------------------------------------------------------
   # TYPE CHECK — a real gate
@@ -149,6 +123,103 @@ jobs:
 
       - name: Type check all workspaces
         run: npm run check-types
+
+  # ---------------------------------------------------------------------------
+  # HARNESS — the agent instructions, checked like code
+  # ---------------------------------------------------------------------------
+  #
+  # AGENTS.md, the nested workspace files and the skills are loaded as
+  # instructions by Claude Code, Cursor, Codex and Kiro. Nothing else in this
+  # workflow reads them, so a rule that cites a file somebody renamed stays
+  # "true" until an agent goes looking and improvises instead. This job is the
+  # same check the pre-push gate runs, plus the sensor's own self-test — a
+  # check nobody has seen fire is indistinguishable from one that cannot.
+  #
+  # No dependencies, no build: it is node and the repo, and it finishes in
+  # under a second.
+  harness:
+    name: Harness (cites, budgets, skills)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Prove the sensor still bites
+        run: node scripts/guardrails/harness-check.mjs --self-test
+
+      - name: Check the harness
+        run: node scripts/guardrails/harness-check.mjs
+
+      - name: Prove the palette check still bites
+        run: node scripts/guardrails/design-tokens.mjs --self-test
+
+      - name: Check the palette
+        run: node scripts/guardrails/design-tokens.mjs
+
+  # ---------------------------------------------------------------------------
+  # LINT RATCHET — the gate that actually blocks
+  # ---------------------------------------------------------------------------
+  #
+  # The `lint` job above counts findings and does not block. THIS one blocks,
+  # and it asks a different question: not "is the repo clean" but "did this
+  # pull request add anything".
+  #
+  # It lints the changed files with `eslint.typed.config.js` — the syntactic
+  # rules plus the type-aware ones (`no-unsafe-*`, `no-floating-promises`) —
+  # and compares each file+rule count against
+  # `scripts/guardrails/lint-baseline.json`. A finding already recorded there is
+  # inherited debt and passes. One that is not, fails.
+  #
+  # `fetch-depth: 0` because the ratchet diffs against the merge-base, and a
+  # shallow clone has no merge-base to find.
+  lint-ratchet:
+    name: Lint ratchet (new findings only)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The type-aware rules need @repo/schemas' emitted types to resolve, the
+      # same reason check-types and test both depend on ^build.
+      - name: Build shared packages
+        run: npm run build:schemas
+
+      # `github.base_ref` is empty on a workflow_dispatch run, which would make
+      # this `--base origin/` and fail. Passing no `--base` lets the script fall
+      # back to its own merge-base resolution, which is the right answer when
+      # there is no pull request to compare against.
+      # A deleted test turns a suite red; a deleted eslint rule turns lint
+      # GREEN. Two sensors were lost exactly that way during this rollout, and
+      # nothing said so. This asserts each one still fires on a probe and stays
+      # quiet on a control.
+      - name: Prove the eslint sensors still bite
+        run: node scripts/guardrails/lint-sensors-self-test.mjs
+
+      - name: Lint the changed files against the ratchet
+        run: |
+          if [ -n "${{ github.base_ref }}" ]; then
+            node scripts/guardrails/lint-changed.mjs --base "origin/${{ github.base_ref }}"
+          else
+            node scripts/guardrails/lint-changed.mjs
+          fi
 
   # ---------------------------------------------------------------------------
   # TEST — a real gate, against real Postgres + Redis
@@ -272,3 +343,11 @@ jobs:
 
       - name: Test — every other workspace
         run: npx turbo run test '--filter=!api'
+
+      # `infra/` is not an npm workspace, so turbo never sees it and neither the
+      # gate nor the step above would run this. Without this step the backup
+      # watchdog's 30 tests exist but never execute in CI — and a watchdog whose
+      # tests do not run is the same class of problem as the watchdog bug they
+      # were written to catch: something that looks covered and is not.
+      - name: Test — infra workers
+        run: npm run test:infra

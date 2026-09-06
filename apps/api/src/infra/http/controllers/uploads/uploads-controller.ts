@@ -15,6 +15,7 @@ import {
   isAllowedImageMimeType,
   MAX_IMAGE_SIZE_BYTES,
 } from "../../utils/validate-image.js";
+import { toAsyncHook } from "../../to-async-hook.js";
 
 type MultipartFile = {
   filename: string;
@@ -30,6 +31,17 @@ type MultipartRequest = FastifyRequest & {
   }) => Promise<MultipartFile | undefined>;
 };
 
+/**
+ * Fastify's typed `preHandler` property resolves to the callback-style hook
+ * signature (`(request, reply, done) => void`), never the promise-returning
+ * one — `preHandlerMetaHookHandler`'s `Return` generic always defaults to
+ * `void` at that property, regardless of how the guard function passed in is
+ * itself typed. Adapting an async guard to the callback form here keeps the
+ * guard itself a plain `async` function with no behaviour change: a
+ * rejection becomes `done(error)`, which Fastify routes to the same error
+ * handler an async hook's rejection would.
+ */
+
 export class UploadsController {
   static handle(server: FastifyInstance) {
     const app = server.withTypeProvider<ZodTypeProvider>();
@@ -37,7 +49,7 @@ export class UploadsController {
     app.post(
       "/me/uploads",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Uploads"],
           summary: "Upload an image and get its public URL",
@@ -81,11 +93,15 @@ export class UploadsController {
         try {
           buffer = await filePart.toBuffer();
         } catch {
-          throw new BadRequestError("Image is too large. Maximum size is 5 MB.");
+          throw new BadRequestError(
+            "Image is too large. Maximum size is 5 MB.",
+          );
         }
 
         if (filePart.file.truncated || buffer.length > MAX_IMAGE_SIZE_BYTES) {
-          throw new BadRequestError("Image is too large. Maximum size is 5 MB.");
+          throw new BadRequestError(
+            "Image is too large. Maximum size is 5 MB.",
+          );
         }
 
         if (buffer.length === 0) {

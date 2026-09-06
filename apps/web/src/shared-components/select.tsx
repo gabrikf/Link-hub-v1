@@ -60,8 +60,11 @@ export function SelectField<
       ? getOptionLabel(option)
       : (optionWithIcon.label ?? "");
 
+    // Fragment, not a bare `label`: both branches then hand back a single
+    // element, which is what `sonarjs/function-return-type` asks for. A fragment
+    // adds no DOM node, so the option still renders as plain text.
     if (!optionWithIcon.icon) {
-      return label;
+      return <>{label}</>;
     }
 
     return (

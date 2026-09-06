@@ -53,7 +53,10 @@ export function isResumeFieldEmpty(
     return true;
   }
   const value = resume[field];
-  return value === null || value === undefined || value === "";
+  if (value === null) {
+    return true;
+  }
+  return typeof value === "string" && value === "";
 }
 
 export function parsedWorkToInput(

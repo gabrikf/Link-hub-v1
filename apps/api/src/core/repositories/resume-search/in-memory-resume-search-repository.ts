@@ -91,10 +91,15 @@ function cosineSimilarity(a: number[], b: number[]) {
   let normA = 0;
   let normB = 0;
 
-  for (let i = 0; i < a.length; i += 1) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
+  for (const [index, left] of a.entries()) {
+    // The length equality is checked above, so `b` really does have this index;
+    // the default is what makes that visible to the compiler without asserting
+    // it away.
+    const right = b[index] ?? 0;
+
+    dot += left * right;
+    normA += left * left;
+    normB += right * right;
   }
 
   if (normA === 0 || normB === 0) {
@@ -199,17 +204,19 @@ export class InMemoryResumeSearchRepository implements IResumeSearchRepository {
       ];
     });
 
-    return scored
-      // Same total order as SQL: score first, then id. Without the id
-      // tie-break two equally-scored candidates come back in seeding order
-      // here and in executor order there, and the double stops predicting the
-      // real thing.
-      .sort((a, b) =>
-        b.similarity === a.similarity
-          ? a.resumeId.localeCompare(b.resumeId)
-          : b.similarity - a.similarity,
-      )
-      .slice(0, input.topK);
+    return (
+      [...scored]
+        // Same total order as SQL: score first, then id. Without the id
+        // tie-break two equally-scored candidates come back in seeding order
+        // here and in executor order there, and the double stops predicting the
+        // real thing.
+        .sort((a, b) =>
+          b.similarity === a.similarity
+            ? a.resumeId.localeCompare(b.resumeId)
+            : b.similarity - a.similarity,
+        )
+        .slice(0, input.topK)
+    );
   }
 
   async findCandidateContact(

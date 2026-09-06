@@ -8,6 +8,7 @@ import {
   ACTIVITY_DIGEST_SWEEP_SCHEDULER_ID,
   BullMqActivityDigestQueue,
 } from "./bullmq-activity-digest-queue.js";
+import { expectDefined } from "../../test-support/expect-defined.js";
 
 /**
  * Pins the two things this queue must not become.
@@ -69,7 +70,12 @@ describe("BullMqActivityDigestQueue — enqueue", () => {
   it("never pins a job to the digest key", async () => {
     await createQueue().enqueue(payload("digest:c1:2026-08-08:2026-08-14"));
 
-    const [job] = await inspector.getJobs(["waiting", "delayed", "active"]);
+    const [queuedJob] = await inspector.getJobs([
+      "waiting",
+      "delayed",
+      "active",
+    ]);
+    const job = expectDefined(queuedJob, "the enqueued digest job");
 
     // A job id keyed on the payload is unique for as long as the job record
     // exists, and `removeOnComplete` keeps completed jobs around — so a digest
@@ -146,7 +152,7 @@ describe("BullMqActivityDigestQueue — the sweep scheduler", () => {
     const schedulers = await inspector.getJobSchedulers();
 
     expect(schedulers).toHaveLength(1);
-    expect(schedulers[0].key).toBe(ACTIVITY_DIGEST_SWEEP_SCHEDULER_ID);
-    expect(schedulers[0].name).toBe(ACTIVITY_DIGEST_SWEEP_JOB_NAME);
+    expect(schedulers[0]?.key).toBe(ACTIVITY_DIGEST_SWEEP_SCHEDULER_ID);
+    expect(schedulers[0]?.name).toBe(ACTIVITY_DIGEST_SWEEP_JOB_NAME);
   });
 });

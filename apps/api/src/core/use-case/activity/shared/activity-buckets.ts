@@ -34,6 +34,21 @@ export function monthBucket(date: string): string {
 }
 
 /**
+ * Splits a `YYYY-MM-DD` into its three numbers.
+ *
+ * `date.split("-").map(Number)` destructures to `number | undefined` under
+ * `noUncheckedIndexedAccess`, and a string with fewer than three parts really
+ * does produce one. Every caller below feeds the parts straight to `Date.UTC`,
+ * where `undefined` and `NaN` are the same thing — an Invalid Date — so
+ * defaulting to `NaN` keeps today's behaviour and drops the lie in the type.
+ */
+function splitDateParts(date: string): [number, number, number] {
+  const [year, month, day] = date.split("-").map(Number);
+
+  return [year ?? Number.NaN, month ?? Number.NaN, day ?? Number.NaN];
+}
+
+/**
  * The ISO-8601 week a date falls in, as `YYYY-Www`.
  *
  * Deliberately a standalone copy of `ActivityEventEntity.weekBucket()` rather
@@ -47,7 +62,7 @@ export function monthBucket(date: string): string {
  * Thursday of the week rather than from the date itself.
  */
 export function isoWeekBucket(date: string): string {
-  const [year, month, day] = date.split("-").map(Number);
+  const [year, month, day] = splitDateParts(date);
   const target = new Date(Date.UTC(year, month - 1, day));
 
   // Shift to the Thursday of this ISO week (Sunday counts as day 7).
@@ -61,7 +76,8 @@ export function isoWeekBucket(date: string): string {
   firstThursday.setUTCDate(firstThursday.getUTCDate() + 4 - firstIsoDayOfWeek);
 
   const week =
-    1 + Math.round((target.getTime() - firstThursday.getTime()) / (7 * MS_PER_DAY));
+    1 +
+    Math.round((target.getTime() - firstThursday.getTime()) / (7 * MS_PER_DAY));
 
   return `${isoYear}-W${String(week).padStart(2, "0")}`;
 }
@@ -73,7 +89,7 @@ export function toDateString(instant: Date): string {
 
 /** Midnight UTC on a `YYYY-MM-DD`, for the rare place that needs a real instant. */
 export function toUtcDate(date: string): Date {
-  const [year, month, day] = date.split("-").map(Number);
+  const [year, month, day] = splitDateParts(date);
   return new Date(Date.UTC(year, month - 1, day));
 }
 
@@ -92,7 +108,7 @@ export function addDays(date: string, days: number): string {
  * overflow.
  */
 export function addMonths(date: string, months: number): string {
-  const [year, month, day] = date.split("-").map(Number);
+  const [year, month, day] = splitDateParts(date);
   const cursor = new Date(Date.UTC(year, month - 1, 1));
   cursor.setUTCMonth(cursor.getUTCMonth() + months);
 
@@ -109,8 +125,9 @@ export function countDaysInWindow(from: string, to: string): number {
   if (from > to) return 0;
 
   const days =
-    Math.round((toUtcDate(to).getTime() - toUtcDate(from).getTime()) / MS_PER_DAY) +
-    1;
+    Math.round(
+      (toUtcDate(to).getTime() - toUtcDate(from).getTime()) / MS_PER_DAY,
+    ) + 1;
 
   return Math.min(days, MAX_ENUMERATED_DAYS);
 }
@@ -126,10 +143,10 @@ export function countDaysInWindow(from: string, to: string): number {
 export function countMonthsInWindow(from: string, to: string): number {
   if (from > to) return 0;
 
-  const [fromYear, fromMonth] = from.split("-").map(Number);
-  const [toYear, toMonth] = to.split("-").map(Number);
+  const [fromYear, fromMonth] = splitDateParts(from);
+  const [toYear, toMonth] = splitDateParts(to);
 
-  return (toYear * 12 + toMonth) - (fromYear * 12 + fromMonth) + 1;
+  return toYear * 12 + toMonth - (fromYear * 12 + fromMonth) + 1;
 }
 
 /**
@@ -193,7 +210,11 @@ export function enumerateMonths(from: string, to: string): string[] {
   let cursor = `${monthBucket(from)}-01`;
   const last = monthBucket(to);
 
-  for (let guard = 0; guard < MAX_ENUMERATED_DAYS && monthBucket(cursor) <= last; guard += 1) {
+  for (
+    let guard = 0;
+    guard < MAX_ENUMERATED_DAYS && monthBucket(cursor) <= last;
+    guard += 1
+  ) {
     months.push(monthBucket(cursor));
     cursor = addMonths(cursor, 1);
   }

@@ -43,7 +43,10 @@ import {
  */
 const requireSession = () => {
   if (!hasStoredSession()) {
-    throw redirect({ to: "/" });
+    // `throw: true` makes `redirect()` throw the very same Response the bare
+    // `throw redirect(...)` form threw — it is the router's own option for
+    // call sites where the `throw` keyword is awkward. Navigation stops here.
+    redirect({ to: "/", throw: true });
   }
 };
 
@@ -59,7 +62,8 @@ const requireSession = () => {
  */
 const requireAnonymous = () => {
   if (hasStoredSession()) {
-    throw redirect({ to: "/dashboard" });
+    // Throws, exactly as `throw redirect(...)` did — see `requireSession`.
+    redirect({ to: "/dashboard", throw: true });
   }
 };
 
@@ -169,7 +173,8 @@ const publicProfileRoute = createRoute({
   path: "/$username",
   beforeLoad: ({ params }) => {
     if (isReservedUsername(params.username)) {
-      throw notFound();
+      // Throws, exactly as `throw notFound()` did — see `requireSession`.
+      notFound({ throw: true });
     }
   },
   component: lazyRouteComponent(
@@ -212,10 +217,13 @@ const legacyProfileRoute = createRoute({
   path: "/profile/$username",
   beforeLoad: ({ params, location }) => {
     if (isReservedUsername(params.username)) {
-      throw notFound();
+      // Throws. The `return` is what makes that visible to a reader and to
+      // tsc, which can no longer see the throw through the `throw: true` option.
+      notFound({ throw: true });
+      return;
     }
 
-    throw redirect({
+    redirect({
       to: "/$username",
       params: { username: params.username },
       /*
@@ -229,6 +237,7 @@ const legacyProfileRoute = createRoute({
       search: location.search,
       hash: location.hash,
       replace: true,
+      throw: true,
     });
   },
 });

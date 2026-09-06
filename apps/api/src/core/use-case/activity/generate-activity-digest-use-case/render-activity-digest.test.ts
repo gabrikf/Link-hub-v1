@@ -7,6 +7,7 @@ import {
   resolveTrackRecordWindow,
 } from "../shared/digest-window.js";
 import { renderActivityDigest } from "./render-activity-digest.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 const REPO = "a".repeat(64);
 let counter = 0;
@@ -78,8 +79,16 @@ function buildRichDigest(blockedTerms: string[] = []) {
         technologies: ["TypeScript"],
       }),
     ),
-    makeEvent({ kind: "commit", occurredOn: "2025-01-05", technologies: ["Go"] }),
-    makeEvent({ kind: "commit", occurredOn: "2025-02-05", technologies: ["Go"] }),
+    makeEvent({
+      kind: "commit",
+      occurredOn: "2025-01-05",
+      technologies: ["Go"],
+    }),
+    makeEvent({
+      kind: "commit",
+      occurredOn: "2025-02-05",
+      technologies: ["Go"],
+    }),
   ];
 
   // Eleven of the thirteen recent weeks have activity.
@@ -93,7 +102,10 @@ function buildRichDigest(blockedTerms: string[] = []) {
   return renderActivityDigest({
     period: deriveCandidateEvidence(periodEvents, PERIOD_WINDOW),
     recent: deriveCandidateEvidence(recentEvents, RECENT_WINDOW),
-    trackRecord: deriveCandidateEvidence(trackRecordEvents, TRACK_RECORD_WINDOW),
+    trackRecord: deriveCandidateEvidence(
+      trackRecordEvents,
+      TRACK_RECORD_WINDOW,
+    ),
     blockedTerms,
   });
 }
@@ -223,7 +235,10 @@ describe("renderActivityDigest", () => {
   });
 
   it("carries no repository or reviewer identity into the rendered text", () => {
-    const reviewer = fingerprints(1, "secret")[0];
+    const reviewer = expectDefined(
+      fingerprints(1, "secret")[0],
+      "the single generated reviewer fingerprint",
+    );
     const evidence = deriveCandidateEvidence(
       [
         makeEvent({

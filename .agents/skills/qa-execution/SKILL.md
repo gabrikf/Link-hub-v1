@@ -19,6 +19,7 @@ metadata:
   github: https://github.com/pedronauck
   repository: https://github.com/pedronauck/skills
 ---
+
 # Real-User QA Execution
 
 QA the product the way a real person meets it: a **persona** walks a journey through the product's public interfaces, feels the friction, hits the edges, and reports what happened. This is **dogfooding**, not a scripted test pass — the session is the work, and the living QA docs tree remembers it.
@@ -42,20 +43,21 @@ Three non-negotiables hold every session:
   node scripts/visual/run.mjs scripts/visual/scenarios/<name>.scenario.mjs
   node scripts/visual/session.mjs login      # seeds an authenticated storageState at .playwright/auth.json
   ```
-  The runner fails the walk on console errors, uncaught exceptions and un-mocked 4xx/5xx — those are findings even when the screen looks right. `mock()` inside a scenario is what forces a loading, empty or error state; use it to *reach* a state, never to fake the state under test. Command surface: `references/session-protocol.md`.
+  The runner fails the walk on console errors, uncaught exceptions and un-mocked 4xx/5xx — those are findings even when the screen looks right. `mock()` inside a scenario is what forces a loading, empty or error state; use it to _reach_ a state, never to fake the state under test. Command surface: `references/session-protocol.md`.
 - **Dark mode is a standing dimension, not an optional tour.** The web app themes through a `.dark` class on `<html>`, persisted in `localStorage["crafthub-theme"]` (`@custom-variant dark` in `apps/web/src/index.css`); a surface whose author forgot its `dark:` variant renders invisible or unreadable text and is one of this repo's most common real bug classes. Every browser charter walks its surface in **both** themes, and the report says so.
 - **The disclosure policy is the highest-value bug class in the product.** A post published by a coding agent that names an employer, a client, or a blocked term above the user's chosen disclosure level is a `Data-Loss`-tier leak of someone's real employment context. It gets its own lens (`references/lenses.md`), its own edge-case section (`references/edge-cases.md`), and its own tour (`references/tours.md`). Never treat a disclosure finding as cosmetic.
 - **Design questions resolve against `DESIGN.md`** at the repo root — CraftHub's design language. There is no external design system to cite.
-- **There is no i18n.** `<html lang="en">`, every user-visible string is hardcoded English. Do not walk a "Locale tour" looking for missing translation keys, and never invent `t()` calls in a fix — the **`i18n`** skill holds the *planned* setup, not a description of existing code. Number, date and timezone formatting is still in scope; that lives in the Time & Formatting tour and the lens pass.
+- **i18n is shipped.** Three locales (`pt-BR`, `en-US`, `es-ES`) under `apps/web/src/i18n/locales/`, with `<html lang>` kept in step by `apps/web/src/lib/language.ts`. A Locale tour is worth walking: a raw string on screen and a key missing from one locale are both real bugs, and both have a gate check behind them. A fix adds the key to all three files. The **`i18n`** skill is the contract. Number, date and timezone formatting sits in the Time & Formatting tour.
 - **Bugs go to GitHub.** Every registry bug that reaches engineering gets an issue via `gh issue create` on `https://github.com/gabrikf/Link-hub-v1` (read `git remote -v` rather than trusting that string), and on close carries one **Root Cause** from the fixed taxonomy in `../qa-report/references/bug-registry.md`. Default branch is `main`.
 - **CI gates and test hygiene are not this skill's job.** `node scripts/guardrails/pre-push.mjs` owns the gate. A session that uncovers a gate problem files it and names the gate; it does not pivot mid-session into fixing the pipeline.
-- **The known, deliberate debt is not a finding.** 30 pre-existing eslint errors in `apps/web`, no eslint history in `apps/api`, zero tests in `apps/mcp`, dead `packages/ui`, `eslint-plugin-only-warn` neutering `packages/eslint-config`, the stray `pluguins/` directory. A session does not file these and a fix does not "clean them up on the way past".
+- **The known, deliberate debt is not a finding.** 30 pre-existing eslint errors in `apps/web`, no eslint history in `apps/api`, zero tests in `apps/mcp`, `eslint-plugin-only-warn` neutering `packages/eslint-config`, the stray `pluguins/` directory. A session does not file these and a fix does not "clean them up on the way past".
 
 ## Steps
 
 Each step names the reference that owns its detail — read it in full when you reach the step; the inline text is the trigger, not the contract.
 
 **Step 1 — Resolve the tree, scope, and preconditions**
+
 - Read, in order: `<qa-docs-path>/README.md` (entry points, dev-server commands, area codes), the in-scope `scenarios/` files, open `bugs/`, and this cycle's charters. The tree is the memory; running without reading it recreates the duplication this design kills.
 - Scope: a **branch/PR run** covers the journeys its user-visible diff touches plus one adjacent canary — no user-visible change, report that and stop. A **release/full run** covers the journeys the cycle plan marked in scope.
 - Preconditions, in order:
@@ -70,37 +72,43 @@ Each step names the reference that owns its detail — read it in full when you 
 - **Done when:** scope is fixed and every precondition is met or its gap is surfaced.
 
 **Step 2 — Build the matrix and create the report now**
+
 - Read `references/status-and-reporting.md` — it owns the six-value status enum and the report lifecycle.
 - Assemble the session matrix from the planned charters: persona × journey × tour × theme × time-box, ordered by risk. A charter missing for an in-scope journey is drafted per `../qa-report/references/session-charters.md` before running — never walk unplanned.
 - Create `<qa-docs-path>/reports/<YYYY-MM-DD>-<scope>.md` from the report template (project copy at `<qa-docs-path>/templates/report.md`, else `assets/report-template.md`) **before the first session**, with every matrix row `Pending`. This on-disk report is the source of truth for resume — update it after every session and every fix, never only at the end.
 - **Done when:** the report exists on disk carrying the full matrix, every row `Pending`.
 
 **Step 3 — Walk each journey in persona**
+
 - Read `references/session-protocol.md` (the enter→act→verify→capture loop, the evidence standard, the browser and MCP command surfaces) and `references/persona-fidelity.md` (the public-interface guardrails and stall-is-a-finding). Load the **`visual-check`** skill — it owns how the browser is driven here.
 - For each charter, in matrix order: adopt the persona (device, network, theme), enter through its real entry point, and walk the journey verb by verb to its **true end state** — verifying each step against the evidence standard.
-- The **coding-agent persona walks through MCP**, not the browser: the `crafthub` MCP tools (`get_disclosure_policy`, `get_work_context`, `create_post`, `create_commit_summary_post`, `update_post`, `list_my_posts`, `delete_post`) are its only interface, exactly as a real agent has them. Its true end state is always what the *human* sees in `/dashboard/posts/review` and on the public profile.
+- The **coding-agent persona walks through MCP**, not the browser: the `crafthub` MCP tools (`get_disclosure_policy`, `get_work_context`, `create_post`, `create_commit_summary_post`, `update_post`, `list_my_posts`, `delete_post`) are its only interface, exactly as a real agent has them. Its true end state is always what the _human_ sees in `/dashboard/posts/review` and on the public profile.
 - Hunt **paper cuts** throughout: persona-felt friction no functional check fails; sharp ones become findings.
 - A leg only a human can complete (real Google OAuth against a live account, a real GitHub App install, a funded `OPENAI_API_KEY` import) is marked `Blocked (needs human verify)` with exact instructions — never faked.
 - **Done when:** every charter is walked to a recorded verdict in both themes where a browser is involved, evidence captured at checkpoints and divergences, the debrief written to the report's Session Debriefs section, and the matrix row updated.
 
 **Step 4 — Run each tour and edge probe**
+
 - Read `references/tours.md` (the tour catalog and surface-to-tour matrix) and `references/edge-cases.md` (the non-technical user edge cases, including the disclosure-leak section).
-- Run each charter's single **tour** against its surface, in persona, inside the box, asking at each action: *"would this matter for this tour's theme?"*
+- Run each charter's single **tour** against its surface, in persona, inside the box, asking at each action: _"would this matter for this tour's theme?"_
 - Pick 5-10 edge cases matching the surface and persona and attempt them; attempted-and-clean is evidence too. Any charter touching posts, the agent surface, or settings **must** draw at least two from the disclosure section.
 - **Done when:** every charter's tour is run and its chosen edge cases are attempted and recorded.
 
 **Step 5 — Experiential lens pass**
+
 - Read `references/lenses.md` — the seven lenses and their severity defaults.
 - Pick the 2 journeys covering the largest changed surface and re-walk them holding the lenses in a 45-minute box, recording `pass` / `friction` / `fail` per lens.
 - **Done when:** both journeys are re-walked and every lens verdict is recorded, including the disclosure lens whenever an agent-authored surface was in scope.
 
 **Step 6 — File findings into the registry**
+
 - Read `../qa-report/references/bug-registry.md` — it owns ids, dedup, the impact rubric, the GitHub link and the root-cause taxonomy.
 - Dedup first: search `bugs/` and the affected scenarios' `bug_ids`. Re-found → append `## Re-found`; regressed → reopen with `## Regressed`; only a genuinely new symptom mints a new `BUG-<YYYYMMDD>-<slug>` id.
 - File with the user first — impact tier, persona, journey step, reproduction from the persona's entry point, evidence paths — then link the id into the affected scenario files.
 - **Done when:** every finding is deduped, filed, and linked to its rows.
 
 **Step 7 — Fix loop (governed)**
+
 - Read `references/fix-loop.md` — the **governor**, the regression-test-per-fix rule, and Decisions for a Human.
 - Judge each fix against the governor **before editing**: only what passes all its bounds is auto-fixed. Everything else goes to the report's **Decisions for a Human** with options and a recommendation.
 - **Red test first, always.** Every auto-fix starts with a **vitest** test that reproduces the finding, is run, and is **seen failing for the right reason** — then the fix, then green. Tests are vitest everywhere (`describe/it/expect` from `vitest`); there is no jest in this repo. Place it beside the code it protects (`references/fix-loop.md` owns the map) and, for anything crossing the API boundary, assert a **real captured payload** through its `@repo/schemas` zod schema — that contract test is the strongest sensor here. The **`testing-boss`** skill owns how to write it; **`no-workarounds`** owns fixing the cause instead of the symptom.
@@ -108,6 +116,7 @@ Each step names the reference that owns its detail — read it in full when you 
 - **Done when:** every finding is either fixed-with-a-red-test-turned-green-and-retested, or escalated with a recommendation, and no fix is left half-applied.
 
 **Step 8 — Close the round**
+
 - Re-read the round-close checklist in `references/status-and-reporting.md`; map matrix verdicts to tracker enums per `../qa-report/references/state-schema.md`.
 - **Exit gate:**
   ```bash

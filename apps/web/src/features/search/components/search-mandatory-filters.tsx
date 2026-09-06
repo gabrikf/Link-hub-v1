@@ -16,13 +16,13 @@ import {
   WORK_MODEL_OPTIONS,
 } from "../types/advanced-search";
 
-type SearchMandatoryFiltersProps = {
+type SearchMandatoryFiltersProps = Readonly<{
   control: Control<AdvancedSearchFormValues>;
   register: UseFormRegister<AdvancedSearchFormValues>;
   errors: FieldErrors<AdvancedSearchFormValues>;
   isOpen: boolean;
   onToggle: () => void;
-};
+}>;
 
 export function SearchMandatoryFilters({
   control,

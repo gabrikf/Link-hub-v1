@@ -35,7 +35,9 @@ describe("embedding configuration", () => {
       process.env.EMBEDDING_VERSION = value;
       const version = resolveEmbeddingVersion();
 
-      expect(Number.isInteger(version), `EMBEDDING_VERSION=${value}`).toBe(true);
+      expect(Number.isInteger(version), `EMBEDDING_VERSION=${value}`).toBe(
+        true,
+      );
       expect(Number.isNaN(version)).toBe(false);
     }
 
@@ -50,11 +52,11 @@ describe("embedding configuration", () => {
 
   it("a valid version compares equal to itself across calls", () => {
     process.env.EMBEDDING_VERSION = "7";
-    expect(resolveEmbeddingVersion() === resolveEmbeddingVersion()).toBe(true);
+    expect(resolveEmbeddingVersion()).toBe(resolveEmbeddingVersion());
 
     // The NaN case is what broke the cache, so pin the property directly.
     process.env.EMBEDDING_VERSION = "not-a-number";
-    expect(resolveEmbeddingVersion() === resolveEmbeddingVersion()).toBe(true);
+    expect(resolveEmbeddingVersion()).toBe(resolveEmbeddingVersion());
   });
 
   it("never yields NaN for a numeric tunable", () => {

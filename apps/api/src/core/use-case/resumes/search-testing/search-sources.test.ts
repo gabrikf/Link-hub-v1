@@ -6,6 +6,7 @@ import {
   searchTestEmbedder,
   seedCorpus,
 } from "./search-corpus.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 /**
  * `sources` is the feature that separates "who claims this?" from "who has
@@ -56,39 +57,44 @@ describe("recruiter search — per-source scoping", () => {
     });
 
     expect(results.length).toBeGreaterThan(0);
-    expect(results.map((item) => item.resumeId).sort()).toEqual(
-      ["backend-1", "data-1", "devops-1", "fullstack-1", "ml-1"].sort(),
+    expect(
+      results.map((item) => item.resumeId).sort((a, b) => a.localeCompare(b)),
+    ).toEqual(
+      ["backend-1", "data-1", "devops-1", "fullstack-1", "ml-1"].sort((a, b) =>
+        a.localeCompare(b),
+      ),
     );
   });
 
   it("reports a similarity per searched source", async () => {
-    const [top] = await sut.execute({
+    const [topResult] = await sut.execute({
       query: "kubernetes terraform aws clusters",
       topK: 5,
       sources: ["profile", "posts"],
     });
+    const top = expectDefined(topResult, "the top search result");
 
-    expect(top?.resumeId).toBe("devops-1");
-    expect(Object.keys(top!.sourceSimilarity!).sort()).toEqual([
-      "posts",
-      "profile",
-    ]);
+    expect(top.resumeId).toBe("devops-1");
+    expect(
+      Object.keys(top.sourceSimilarity!).sort((a, b) => a.localeCompare(b)),
+    ).toEqual(["posts", "profile"]);
     // The headline score is the fused one, so it can never be below any of the
     // parts it was fused from.
-    for (const value of Object.values(top!.sourceSimilarity!)) {
-      expect(top!.similarity).toBeGreaterThanOrEqual(value - 1e-9);
+    for (const value of Object.values(top.sourceSimilarity!)) {
+      expect(top.similarity).toBeGreaterThanOrEqual(value - 1e-9);
     }
   });
 
   it("fuses with max, so the score equals the best matching source", async () => {
-    const [top] = await sut.execute({
+    const [topResult] = await sut.execute({
       query: "shipping a graphql gateway in node.js",
       topK: 5,
       sources: ["profile", "work", "posts"],
     });
+    const top = expectDefined(topResult, "the top search result");
 
-    const parts = Object.values(top!.sourceSimilarity!);
-    expect(top!.similarity).toBeCloseTo(Math.max(...parts), 10);
+    const parts = Object.values(top.sourceSimilarity!);
+    expect(top.similarity).toBeCloseTo(Math.max(...parts), 10);
   });
 
   it("widening the source set can only raise a candidate's score", async () => {
@@ -129,7 +135,11 @@ describe("recruiter search — per-source scoping", () => {
 
   it("still hides candidates who are not open to work", async () => {
     const query = "typescript react node.js";
-    const results = await sut.execute({ query, topK: 50, sources: ["profile"] });
+    const results = await sut.execute({
+      query,
+      topK: 50,
+      sources: ["profile"],
+    });
 
     // Control: without this the assertion below would also pass for a query
     // that simply matched nobody on the scoped path.

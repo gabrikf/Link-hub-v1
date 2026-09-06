@@ -10,6 +10,7 @@ import {
 } from "../../../../core/repositories/candidate-interaction/candidate-interaction-repository.js";
 import { db } from "../index.js";
 import { candidateInteractions } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 type CandidateInteractionRow = typeof candidateInteractions.$inferSelect;
 
@@ -47,7 +48,7 @@ export class DrizzleCandidateInteractionRepository
   async create(
     input: CreateCandidateInteractionInput,
   ): Promise<CandidateInteractionEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(candidateInteractions)
       .values({
         resumeId: input.resumeId,
@@ -57,14 +58,8 @@ export class DrizzleCandidateInteractionRepository
         semanticSimilarity: input.semanticSimilarity ?? null,
         rankPosition: input.rankPosition ?? null,
         metadata: input.metadata ?? null,
-        candidateSnapshot: (input.candidateSnapshot ?? null) as Record<
-          string,
-          unknown
-        > | null,
-        querySnapshot: (input.querySnapshot ?? null) as Record<
-          string,
-          unknown
-        > | null,
+        candidateSnapshot: input.candidateSnapshot ?? null,
+        querySnapshot: input.querySnapshot ?? null,
         // These four were accepted by the request schema and had columns waiting
         // for them, and were then silently dropped right here — which is why
         // nothing downstream could correct for position bias.
@@ -75,7 +70,9 @@ export class DrizzleCandidateInteractionRepository
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(
+      requireReturnedRow(insertedRows, "insert into candidateInteractions"),
+    );
   }
 
   async findDuplicate(

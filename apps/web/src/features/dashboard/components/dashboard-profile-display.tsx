@@ -13,7 +13,7 @@ import {
   type ThemePreset,
 } from "../../profile/components/profile-theme";
 
-type DashboardProfileDisplayProps = {
+type DashboardProfileDisplayProps = Readonly<{
   name: string;
   username: string;
   description: string | null;
@@ -33,7 +33,7 @@ type DashboardProfileDisplayProps = {
   /** The user's own words, used only when `persona` is "other". */
   personaOther: string | null;
   onEdit: () => void;
-};
+}>;
 
 /**
  * The thumbnail honours the stored focal point. A thumbnail that showed the
@@ -45,9 +45,9 @@ function ImageThumb({
   url,
   placement,
 }: {
-  label: string;
-  url: string | null;
-  placement: ImagePlacement | null;
+  readonly label: string;
+  readonly url: string | null;
+  readonly placement: ImagePlacement | null;
 }) {
   const { t } = useTranslation();
 
@@ -91,7 +91,7 @@ function ImageThumb({
  * "dismiss" that would let it be lost — it disappears the moment the setting
  * changes, which is the only honest way for it to go away.
  */
-function NotDiscoverableNotice({ onEdit }: { onEdit: () => void }) {
+function NotDiscoverableNotice({ onEdit }: { readonly onEdit: () => void }) {
   const { t } = useTranslation();
 
   return (

@@ -6,11 +6,7 @@ import {
   type CreateApiTokenInput,
   type CreateApiTokenOutput,
 } from "@repo/schemas";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 // Personal-access-token fetchers live here (not in auth-api.ts) to avoid
 // conflicts with a parallel agent. They reuse the shared authed axios wrapper
 // from auth-api so base URL + bearer/refresh header handling stay in exactly
@@ -69,9 +65,7 @@ export function useMyTokens(enabled = true) {
 
 function useInvalidateTokens() {
   const queryClient = useQueryClient();
-  return () => {
-    queryClient.invalidateQueries({ queryKey: tokenQueryKeys.mine });
-  };
+  return () => queryClient.invalidateQueries({ queryKey: tokenQueryKeys.mine });
 }
 
 export function useCreateToken() {

@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../../../test-support/assert-defined";
 import { RegisterForm } from "./register-form";
 
 const EXPECTED_PERSONAS = [
@@ -19,8 +20,9 @@ describe("RegisterForm persona picker", () => {
     render(<RegisterForm isPending={false} onSubmit={vi.fn()} />);
 
     const select = screen.getByLabelText(/role/i);
-    expect(within(select).getByRole("option", { name: "Prefer not to say" }))
-      .toBeInTheDocument();
+    expect(
+      within(select).getByRole("option", { name: "Prefer not to say" }),
+    ).toBeInTheDocument();
     for (const label of EXPECTED_PERSONAS) {
       expect(
         within(select).getByRole("option", { name: label }),
@@ -66,7 +68,9 @@ describe("RegisterForm persona picker", () => {
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    const payload = onSubmit.mock.calls[0][0];
+    const [firstCall] = onSubmit.mock.calls;
+    assertDefined(firstCall, "the first onSubmit call");
+    const [payload] = firstCall;
     expect(payload.persona).toBeUndefined();
   });
 });

@@ -122,7 +122,7 @@ describe("F14 — exposure context reaches the row", () => {
     expect(result.interaction.displayedRank).toBe(3);
     expect(result.interaction.resultCount).toBe(50);
     expect(result.interaction.searchSessionId).toBe("session-1");
-    expect(result.interaction.propensity).toBe(0.4);
+    expect(result.interaction.propensity).toBeCloseTo(0.4, 10);
   });
 
   it("accepts NOT_RELEVANT, the only explicit negative", async () => {
@@ -231,7 +231,11 @@ describe("F4 — the training set is not writable at will", () => {
   it("rate-limits a recruiter hammering the endpoint", async () => {
     const useCase = new RecordCandidateInteractionUseCase(repository);
 
-    for (let index = 0; index < INTERACTION_GUARDRAILS.rateLimitMax; index += 1) {
+    for (
+      let index = 0;
+      index < INTERACTION_GUARDRAILS.rateLimitMax;
+      index += 1
+    ) {
       await useCase.execute(
         baseInput({
           resumeId: `resume-${index}`,
@@ -240,9 +244,7 @@ describe("F4 — the training set is not writable at will", () => {
       );
     }
 
-    expect(repository.rows).toHaveLength(
-      INTERACTION_GUARDRAILS.rateLimitMax,
-    );
+    expect(repository.rows).toHaveLength(INTERACTION_GUARDRAILS.rateLimitMax);
 
     await expect(
       useCase.execute(

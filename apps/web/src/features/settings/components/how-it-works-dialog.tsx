@@ -44,7 +44,10 @@ const getNeverLeaves = (t: TFunction): readonly string[] => [
   t("settings.how.timestamps"),
 ];
 
-function FlowPanel({ title, detail }: { title: string; detail: string }) {
+function FlowPanel({
+  title,
+  detail,
+}: Readonly<{ title: string; detail: string }>) {
   return (
     <div className={`flex-1 p-3 ${SURFACE_INSET}`}>
       <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
@@ -71,10 +74,10 @@ function FlowArrow() {
 function DetailsGroup({
   summary,
   children,
-}: {
+}: Readonly<{
   summary: string;
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <details className="group rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/60">
       <summary
@@ -91,10 +94,10 @@ function DetailsGroup({
   );
 }
 
-type HowItWorksDialogProps = {
+type HowItWorksDialogProps = Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
-};
+}>;
 
 export function HowItWorksDialog({
   open,

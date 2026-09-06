@@ -276,6 +276,135 @@ variable "backups_max_age_days" {
   }
 }
 
+# ---------------------------------------------------------------------------------
+# Vigia do backup (Cloudflare Worker)
+# ---------------------------------------------------------------------------------
+
+variable "backup_alert_email" {
+  description = "Para onde vai o alerta quando o backup falhar ou parar de acontecer. NÃO tem default de propósito: um vigia que não sabe para quem gritar é pior que nenhum, porque parece configurado."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.backup_alert_email))
+    error_message = "backup_alert_email precisa ser um endereço de e-mail."
+  }
+}
+
+variable "backup_alert_from" {
+  description = "Remetente do alerta. Deixe null para usar 'CraftHub <no-reply@<domain>>'. O domínio precisa estar verificado no Resend — o de produção já está, porque a API manda e-mail de verificação por ele."
+  type        = string
+  default     = null
+}
+
+variable "resend_api_key" {
+  description = <<-EOT
+    Chave da API do Resend que o Worker usa para mandar o alerta.
+
+    NÃO coloque em terraform.tfvars. Passe por ambiente, como os tokens dos providers:
+
+        export TF_VAR_resend_api_key="$RESEND_API_KEY"
+
+    Basta uma chave restrita a envio ("sending access"). O Worker só chama POST /emails.
+  EOT
+  type        = string
+  sensitive   = true
+}
+
+variable "backup_watchdog_cron" {
+  description = "Quando o vigia roda, em cron UTC. O default é 05:30, duas horas depois do backup das 03:17 (o horário que scripts/backup.sh documenta no crontab) — margem de sobra para um dump lento sem esperar o dia inteiro para saber."
+  type        = string
+  default     = "30 5 * * *"
+
+  validation {
+    condition     = can(regex("^[^ ]+ [^ ]+ [^ ]+ [^ ]+ [^ ]+$", trimspace(var.backup_watchdog_cron)))
+    error_message = "backup_watchdog_cron precisa ter os cinco campos de um cron (ex.: \"30 5 * * *\")."
+  }
+}
+
+variable "backup_watchdog_max_age_hours" {
+  description = <<-EOT
+    Idade máxima aceitável do backup mais recente, em horas.
+
+    A ARITMÉTICA IMPORTA, e é onde este alerta seria inútil sem parecer.
+
+    O REPOSITÓRIO SE CONTRADIZ SOBRE O HORÁRIO DO BACKUP, e isso não foi resolvido aqui
+    porque só o crontab da VPS decide: o cabeçalho de scripts/backup.sh documenta
+    03:17 UTC; a tabela de fatos de docs/backup-restore.md diz 04:17 UTC. Confira com
+    `ssh deploy@<vps> crontab -l` e acerte o perdedor.
+
+    Com o vigia às 05:30, os dois casos dão:
+      - backup 03:17 → saudável ~2,3h; um dia perdido ~26,3h
+      - backup 04:17 → saudável ~1,3h; um dia perdido ~25,3h
+
+    O limite precisa ficar acima da idade saudável e abaixo da idade de "um dia
+    perdido", com folga dos dois lados. 24 satisfaz as duas leituras. Um limite de 26h
+    (o "óbvio" de um ciclo diário) NÃO satisfaz nenhuma das duas, e um de 30h só
+    dispararia depois de DOIS dias perdidos.
+
+    SE VOCÊ MUDAR UM DOS DOIS HORÁRIOS, refaça esta conta. Um limite abaixo da idade
+    saudável alarma todo santo dia até alguém desligar o alerta; um acima da idade de
+    "um dia perdido" nunca dispara e parece configurado.
+  EOT
+  type        = number
+  default     = 24
+
+  validation {
+    condition     = var.backup_watchdog_max_age_hours >= 4 && var.backup_watchdog_max_age_hours <= 25
+    error_message = "backup_watchdog_max_age_hours deve ficar entre 4 e 25. Abaixo de 4 o alerta dispara contra um backup saudável (1,3h a 2,3h de idade quando o vigia olha) e vira ruído; acima de 25 ele deixa de pegar um único dia perdido (25,3h a 26,3h), que é justamente o caso que ele existe para pegar."
+  }
+}
+
+variable "backup_watchdog_min_bytes" {
+  description = "Tamanho mínimo aceitável do backup mais recente. Em 2026-08-29 o dump comprimido tinha ~40.760 bytes; 20.000 é metade disso, folgado para o banco crescer e apertado o bastante para pegar um dump truncado. É independente do MIN_DUMP_BYTES do script, que só protege quando o script roda."
+  type        = number
+  default     = 20000
+
+  validation {
+    condition     = var.backup_watchdog_min_bytes > 0
+    error_message = "backup_watchdog_min_bytes precisa ser positivo. Zero desliga a checagem de dump truncado sem dizer que desligou — e o worker passa a recusar o valor em tempo de execução, alertando, em vez de fingir saúde."
+  }
+}
+
+variable "backup_watchdog_heartbeat_weekday" {
+  description = <<-EOT
+    Dia da semana (UTC, 0=domingo) em que o vigia manda um e-mail dizendo que está vivo,
+    mesmo com tudo bem. String vazia desliga.
+
+    Existe porque um vigia morto é tão silencioso quanto um backup saudável. Sem o
+    batimento, você não teria como distinguir "nada de errado" de "ninguém olhando" —
+    que é exatamente o problema que este Worker veio resolver, um nível acima.
+
+    A validação abaixo existe porque "3" e "" são configurações, e "quarta" é um erro
+    de digitação que desligaria o batimento em silêncio. O worker também recusa o valor
+    em tempo de execução e ALERTA — mas falhar no plan é mais barato que descobrir pelo
+    e-mail que deixou de chegar.
+
+    SOBRE O "" — LEIA ANTES DE USAR. Ele passa na validação de propósito: existem
+    motivos legítimos para desligar o batimento (uma janela de manutenção longa, um
+    destinatário trocando de e-mail). Mas ele desliga O ÚNICO SINAL de que este vigia
+    continua vivo: a partir daí, não receber e-mail nenhum deixa de significar "está
+    tudo bem" e passa a não significar nada — nem sobre o backup, nem sobre o vigia.
+    Nada mais falha, nada mais avisa; o alerta de problema continua funcionando, mas
+    só se o Worker ainda estiver rodando, que é justamente o que você deixou de saber.
+
+    Por isso ele não é mais silencioso do lado do runtime: com "", o worker emite um
+    `console.warn` a cada execução e grava `thresholds.heartbeatDisabled: true` no
+    marcador. Confira com:
+
+        rclone cat r2:crafthub-backups/watchdog/last-run.json
+
+    Se você desligar, marque na agenda quando vai religar. "" não é o default por um
+    motivo.
+  EOT
+  type        = string
+  default     = "1"
+
+  validation {
+    condition     = contains(["", "0", "1", "2", "3", "4", "5", "6"], var.backup_watchdog_heartbeat_weekday)
+    error_message = "backup_watchdog_heartbeat_weekday precisa ser \"0\"(domingo) a \"6\"(sábado), ou \"\" para desligar o batimento."
+  }
+}
+
 variable "tfstate_bucket_name" {
   description = "Nome do bucket R2 que guarda o state deste Terraform. Precisa bater exatamente com o `bucket` do backend em versions.tf. Este bucket é criado À MÃO no bootstrap e depois adotado por um bloco import — ver README."
   type        = string

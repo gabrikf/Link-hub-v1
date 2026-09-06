@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { LoadingLabel, Skeleton } from "../../../shared-components/skeleton";
 
-type LinkListSkeletonProps = {
+type LinkListSkeletonProps = Readonly<{
   count?: number;
-};
+}>;
 
 /**
  * Placeholder for the sortable link list.
@@ -31,8 +31,18 @@ export function LinkListSkeleton({ count = 3 }: LinkListSkeletonProps) {
                   <Skeleton shape="circle" width={20} height={20} />
                   <Skeleton shape="text" height={24} width={140} />
                 </div>
-                <Skeleton shape="text" height={20} width={220} className="mt-1" />
-                <Skeleton shape="text" height={16} width={56} className="mt-1" />
+                <Skeleton
+                  shape="text"
+                  height={20}
+                  width={220}
+                  className="mt-1"
+                />
+                <Skeleton
+                  shape="text"
+                  height={16}
+                  width={56}
+                  className="mt-1"
+                />
               </div>
             </div>
 

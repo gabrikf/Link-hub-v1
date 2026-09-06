@@ -177,7 +177,7 @@ describe("ApprovePostUseCase — search freshness", () => {
     await sut.execute({ userId: "owner", postId: post.id });
 
     expect(queue.jobs).toHaveLength(1);
-    expect(queue.jobs[0].userId).toBe("owner");
+    expect(queue.jobs[0]?.userId).toBe("owner");
   });
 
   it("does not re-enqueue when the post was already published", async () => {

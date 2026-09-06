@@ -3,6 +3,7 @@ import { ResumeTitleEntity } from "../../../../core/entity/resume-title/resume-t
 import { IResumeTitleRepository } from "../../../../core/repositories/resume-title/resume-title-repository.js";
 import { db } from "../index.js";
 import { resumeTitles, titlesCatalog } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 export class DrizzleResumeTitleRepository implements IResumeTitleRepository {
   async listByResumeId(resumeId: string): Promise<ResumeTitleEntity[]> {
@@ -116,7 +117,7 @@ export class DrizzleResumeTitleRepository implements IResumeTitleRepository {
     isPrimary: boolean;
     displayOrder: number;
   }): Promise<ResumeTitleEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(resumeTitles)
       .values({
         resumeId: input.resumeId,
@@ -125,6 +126,11 @@ export class DrizzleResumeTitleRepository implements IResumeTitleRepository {
         displayOrder: input.displayOrder,
       })
       .returning();
+
+    const created = requireReturnedRow(
+      insertedRows,
+      "insert into resumeTitles",
+    );
 
     const [joined] = await db
       .select({

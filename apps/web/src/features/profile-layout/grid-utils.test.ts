@@ -4,6 +4,7 @@ import {
   type ProfileBlock,
 } from "@repo/schemas";
 import { describe, expect, it } from "vitest";
+import { assertDefined } from "../../test-support/assert-defined";
 import {
   blocksToRglLayout,
   buildDefaultLayout,
@@ -60,7 +61,9 @@ describe("buildDefaultLayout", () => {
 
     const resume = layout.blocks.find((block) => block.kind === "resume");
     expect(resume?.pinnedAllTabs).toBe(false);
-    expect(resume?.tabId).toBe(layout.tabs[0].id);
+    const [firstTab] = layout.tabs;
+    assertDefined(firstTab, "the default layout's first tab");
+    expect(resume?.tabId).toBe(firstTab.id);
   });
 
   /*
@@ -223,6 +226,7 @@ describe("compactBlocks", () => {
     ];
 
     const [packed] = compactBlocks(blocks, GRID_COLUMNS.pc);
+    assertDefined(packed, "the compacted block");
     expect(packed.gridX + packed.gridW).toBeLessThanOrEqual(GRID_COLUMNS.pc);
     expect(packed.gridY).toBe(0);
   });
@@ -231,7 +235,7 @@ describe("compactBlocks", () => {
     const blocks = [makeBlock({ id: "a", gridY: 7, gridW: 12, gridH: 2 })];
 
     compactBlocks(blocks, GRID_COLUMNS.pc);
-    expect(blocks[0].gridY).toBe(7);
+    expect(blocks[0]?.gridY).toBe(7);
   });
 });
 
@@ -285,6 +289,7 @@ describe("moveBlockBy", () => {
     ];
 
     const [moved] = moveBlockBy(blocks, "a", 2, 0, GRID_COLUMNS.pc);
+    assertDefined(moved, "the moved block");
     expect(moved.gridX).toBe(2);
   });
 
@@ -293,13 +298,13 @@ describe("moveBlockBy", () => {
       makeBlock({ id: "a", gridX: 0, gridY: 0, gridW: 4, gridH: 2 }),
     ];
 
-    expect(moveBlockBy(blocks, "a", -1, 0, GRID_COLUMNS.pc)[0].gridX).toBe(0);
-    expect(moveBlockBy(blocks, "a", 0, -1, GRID_COLUMNS.pc)[0].gridY).toBe(0);
+    expect(moveBlockBy(blocks, "a", -1, 0, GRID_COLUMNS.pc)[0]?.gridX).toBe(0);
+    expect(moveBlockBy(blocks, "a", 0, -1, GRID_COLUMNS.pc)[0]?.gridY).toBe(0);
 
     const atEdge = [
       makeBlock({ id: "a", gridX: GRID_COLUMNS.pc - 4, gridW: 4, gridH: 2 }),
     ];
-    expect(moveBlockBy(atEdge, "a", 1, 0, GRID_COLUMNS.pc)[0].gridX).toBe(
+    expect(moveBlockBy(atEdge, "a", 1, 0, GRID_COLUMNS.pc)[0]?.gridX).toBe(
       GRID_COLUMNS.pc - 4,
     );
   });
@@ -314,8 +319,8 @@ describe("moveBlockBy", () => {
     const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
 
     // b took the top row; a was pushed down and the zone stays gapless.
-    expect(byId.b.gridY).toBe(0);
-    expect(byId.a.gridY).toBe(2);
+    expect(byId.b?.gridY).toBe(0);
+    expect(byId.a?.gridY).toBe(2);
   });
 
   /**
@@ -334,8 +339,8 @@ describe("moveBlockBy", () => {
     const moved = moveBlockBy(blocks, "short", 0, -1, GRID_COLUMNS.pc);
     const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
 
-    expect(byId.short.gridY).toBe(0);
-    expect(byId.tall.gridY).toBe(2);
+    expect(byId.short?.gridY).toBe(0);
+    expect(byId.tall?.gridY).toBe(2);
   });
 
   it("drops a block under a shorter neighbour with the one-row delta the card sends", () => {
@@ -347,8 +352,8 @@ describe("moveBlockBy", () => {
     const moved = moveBlockBy(blocks, "tall", 0, 1, GRID_COLUMNS.pc);
     const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
 
-    expect(byId.short.gridY).toBe(0);
-    expect(byId.tall.gridY).toBe(2);
+    expect(byId.short?.gridY).toBe(0);
+    expect(byId.tall?.gridY).toBe(2);
   });
 
   it("returns the same blocks when a nudge has nowhere to go, so nothing is persisted", () => {
@@ -383,12 +388,12 @@ describe("moveBlockBy", () => {
     const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
 
     // The focused block actually crossed the row above it...
-    expect(byId.wide.gridY).toBe(0);
+    expect(byId.wide?.gridY).toBe(0);
     // ...and its two neighbours came down together, still side by side.
-    expect(byId.left.gridY).toBe(6);
-    expect(byId.right.gridY).toBe(6);
-    expect(byId.left.gridX).toBe(0);
-    expect(byId.right.gridX).toBe(6);
+    expect(byId.left?.gridY).toBe(6);
+    expect(byId.right?.gridY).toBe(6);
+    expect(byId.left?.gridX).toBe(0);
+    expect(byId.right?.gridX).toBe(6);
   });
 
   it("drops one half of a shared row below the block under it, leaving its row-mate alone", () => {
@@ -401,10 +406,10 @@ describe("moveBlockBy", () => {
     const moved = moveBlockBy(blocks, "left", 0, 1, GRID_COLUMNS.pc);
     const byId = Object.fromEntries(moved.map((block) => [block.id, block]));
 
-    expect(byId.left.gridY).toBe(12);
+    expect(byId.left?.gridY).toBe(12);
     // The row-mate is a bystander: it must not be dragged along or displaced.
-    expect(byId.right.gridY).toBe(0);
-    expect(byId.wide.gridY).toBe(6);
+    expect(byId.right?.gridY).toBe(0);
+    expect(byId.wide?.gridY).toBe(6);
 
     // The bottom block has nowhere further down to go: same array, no PATCH.
     expect(moveBlockBy(blocks, "wide", 0, 1, GRID_COLUMNS.pc)).toBe(blocks);
@@ -415,7 +420,7 @@ describe("moveBlockBy", () => {
 
     expect(moveBlockBy(blocks, "nope", 1, 0, GRID_COLUMNS.pc)).toBe(blocks);
     moveBlockBy(blocks, "a", 3, 0, GRID_COLUMNS.pc);
-    expect(blocks[0].gridX).toBe(0);
+    expect(blocks[0]?.gridX).toBe(0);
   });
 });
 
@@ -424,9 +429,11 @@ describe("resizeBlockBy", () => {
     const blocks = [makeBlock({ id: "a", gridX: 0, gridW: 4, gridH: 4 })];
 
     const [wider] = resizeBlockBy(blocks, "a", 2, 0, GRID_COLUMNS.pc);
+    assertDefined(wider, "the widened block");
     expect(wider.gridW).toBe(6);
 
     const [shorter] = resizeBlockBy(blocks, "a", 0, -1, GRID_COLUMNS.pc);
+    assertDefined(shorter, "the shortened block");
     expect(shorter.gridH).toBe(3);
   });
 
@@ -438,7 +445,7 @@ describe("resizeBlockBy", () => {
     // Mobile only has 4 columns, so a single-column block is legal there.
     const mobile = [makeBlock({ id: "a", gridX: 0, gridW: 2, gridH: 2 })];
     expect(
-      resizeBlockBy(mobile, "a", -1, 0, GRID_COLUMNS.mobile)[0].gridW,
+      resizeBlockBy(mobile, "a", -1, 0, GRID_COLUMNS.mobile)[0]?.gridW,
     ).toBe(1);
   });
 
@@ -448,6 +455,7 @@ describe("resizeBlockBy", () => {
     ];
 
     const [resized] = resizeBlockBy(blocks, "a", 4, 0, GRID_COLUMNS.pc);
+    assertDefined(resized, "the resized block");
     expect(resized.gridX + resized.gridW).toBeLessThanOrEqual(GRID_COLUMNS.pc);
   });
 });

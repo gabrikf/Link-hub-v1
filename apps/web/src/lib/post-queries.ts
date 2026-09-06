@@ -32,17 +32,19 @@ export type PublicPostsParams = {
 export const postQueryKeys = {
   mine: ["my-posts"] as const,
   public: (username: string, params: PublicPostsParams = {}) =>
-    ["public-posts", username, params.limit ?? null, params.offset ?? null] as const,
+    [
+      "public-posts",
+      username,
+      params.limit ?? null,
+      params.offset ?? null,
+    ] as const,
 };
 
 /* ------------------------------------------------------------------ *
  * Fetchers
  * ------------------------------------------------------------------ */
 
-export async function fetchMyPosts(
-  limit = 50,
-  offset = 0,
-): Promise<Post[]> {
+export async function fetchMyPosts(limit = 50, offset = 0): Promise<Post[]> {
   const response = await fetchWithTokens(
     `/me/posts?limit=${limit}&offset=${offset}`,
     { method: "GET" },
@@ -174,10 +176,11 @@ export function usePublicPosts(
 /** Invalidate every post cache (own list + any public feed). */
 function useInvalidatePosts() {
   const queryClient = useQueryClient();
-  return () => {
-    queryClient.invalidateQueries({ queryKey: postQueryKeys.mine });
-    queryClient.invalidateQueries({ queryKey: ["public-posts"] });
-  };
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: postQueryKeys.mine }),
+      queryClient.invalidateQueries({ queryKey: ["public-posts"] }),
+    ]);
 }
 
 /**

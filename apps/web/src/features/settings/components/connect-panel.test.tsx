@@ -112,7 +112,9 @@ describe("ConnectPanel", () => {
     // Claude Desktop has no slash commands at all. Showing "/weekly_update"
     // in a copy box is what sent users to type it and get "Unknown command".
     await user.click(screen.getByRole("tab", { name: "Claude Desktop" }));
-    expect(codeTextOf(container)).toContain("+ menu → crafthub → weekly_update");
+    expect(codeTextOf(container)).toContain(
+      "+ menu → crafthub → weekly_update",
+    );
     expect(codeTextOf(container)).not.toContain("/weekly_update");
   });
 

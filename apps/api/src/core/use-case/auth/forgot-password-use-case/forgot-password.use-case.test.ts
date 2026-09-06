@@ -7,6 +7,7 @@ import { InMemoryPasswordResetTokenRepository } from "../../../repositories/pass
 import { InMemoryTokenProvider } from "../../../providers/token/in-memory-token-provider.js";
 import { InMemoryMailProvider } from "../../../providers/mail/in-memory-mail-provider.js";
 import { AUTH_EMAIL_COOLDOWN_MS } from "../auth-email-cooldown.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 const EMAIL = "forgetful@example.com";
 const APP_PUBLIC_URL = "https://app.example.com";
@@ -83,14 +84,16 @@ describe("ForgotPasswordUseCase", () => {
     const rawToken = new URL(link!).searchParams.get("token")!;
     const stored = tokenRepository.getAll();
     expect(stored).toHaveLength(1);
-    expect(stored[0].userId).toBe(user.id);
+    expect(stored[0]?.userId).toBe(user.id);
     // A stored reset token that could be presented would be worse than a
     // stolen password hash — it needs no cracking at all.
-    expect(stored[0].tokenHash).not.toBe(rawToken);
-    expect(stored[0].tokenHash).toBe(tokenProvider.hash(rawToken));
+    expect(stored[0]?.tokenHash).not.toBe(rawToken);
+    expect(stored[0]?.tokenHash).toBe(tokenProvider.hash(rawToken));
 
     // 20 minutes, not 24 hours.
-    const lifetimeMs = stored[0].expiresAt.getTime() - Date.now();
+    const lifetimeMs =
+      expectDefined(stored[0], "the stored reset token").expiresAt.getTime() -
+      Date.now();
     expect(lifetimeMs).toBeLessThanOrEqual(TTL_MINUTES * 60 * 1000);
     expect(lifetimeMs).toBeGreaterThan(TTL_MINUTES * 60 * 1000 - 5000);
   });

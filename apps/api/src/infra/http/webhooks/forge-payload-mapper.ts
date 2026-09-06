@@ -181,7 +181,8 @@ function mapGithubReview(
   // The connection's own forge account id is the only way to tell a review the
   // user GAVE from one they RECEIVED, and the two are different signals: one is
   // work done for other people, the other is trust placed in the user's work.
-  const reviewedByOwner = ownerAccountId !== null && reviewer === ownerAccountId;
+  const reviewedByOwner =
+    ownerAccountId !== null && reviewer === ownerAccountId;
 
   return [
     {
@@ -381,10 +382,10 @@ function mapGitlabRelease(
  */
 export function toDateOnly(value: unknown, fallback: Date): string {
   const text = asString(value);
-  const match = text?.match(/^(\d{4}-\d{2}-\d{2})/);
+  const isoDay = text?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
 
-  if (match) {
-    return match[1];
+  if (isoDay !== undefined) {
+    return isoDay;
   }
 
   return fallback.toISOString().slice(0, 10);

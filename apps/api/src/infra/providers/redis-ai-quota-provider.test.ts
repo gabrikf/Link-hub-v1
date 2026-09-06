@@ -26,7 +26,39 @@ class FakeRedis implements AiQuotaRedis {
 
   pipeline(): AiQuotaRedisPipeline {
     const queued: Command[] = [];
-    const self = this;
+
+    // `exec` is an arrow function so it closes over the FakeRedis instance's
+    // own `this` lexically — `incr`/`expire` don't need instance state, so
+    // they stay as plain methods returning `chain`.
+    const exec = async (): Promise<Array<[Error | null, unknown]>> => {
+      if (this.failure) {
+        throw this.failure;
+      }
+
+      const results: Array<[Error | null, unknown]> = [];
+
+      for (const command of queued) {
+        this.commands.push(command);
+
+        if (command.name === "incr") {
+          if (this.pipelineCommandError) {
+            results.push([this.pipelineCommandError, null]);
+            continue;
+          }
+          const key = command.args[0] as string;
+          const next = (this.store.get(key) ?? 0) + 1;
+          this.store.set(key, next);
+          results.push([null, next]);
+          continue;
+        }
+
+        const [key, seconds] = command.args as [string, number];
+        this.ttls.set(key, seconds);
+        results.push([null, 1]);
+      }
+
+      return results;
+    };
 
     const chain: AiQuotaRedisPipeline = {
       incr(key: string) {
@@ -37,35 +69,7 @@ class FakeRedis implements AiQuotaRedis {
         queued.push({ name: "expire", args: [key, seconds] });
         return chain;
       },
-      async exec() {
-        if (self.failure) {
-          throw self.failure;
-        }
-
-        const results: Array<[Error | null, unknown]> = [];
-
-        for (const command of queued) {
-          self.commands.push(command);
-
-          if (command.name === "incr") {
-            if (self.pipelineCommandError) {
-              results.push([self.pipelineCommandError, null]);
-              continue;
-            }
-            const key = command.args[0] as string;
-            const next = (self.store.get(key) ?? 0) + 1;
-            self.store.set(key, next);
-            results.push([null, next]);
-            continue;
-          }
-
-          const [key, seconds] = command.args as [string, number];
-          self.ttls.set(key, seconds);
-          results.push([null, 1]);
-        }
-
-        return results;
-      },
+      exec,
     };
 
     return chain;
@@ -179,7 +183,9 @@ describe("RedisAiQuotaProvider — consume", () => {
     const { sut, travelTo } = buildSut("2026-08-15T23:59:59.000Z");
 
     await sut.consume("user-1", "resume_parse", 1);
-    expect((await sut.consume("user-1", "resume_parse", 1)).allowed).toBe(false);
+    expect((await sut.consume("user-1", "resume_parse", 1)).allowed).toBe(
+      false,
+    );
 
     travelTo("2026-08-16T00:00:01.000Z");
 

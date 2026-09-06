@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { FiCheck } from "react-icons/fi";
-import { getWizardSteps, type WizardStepKey } from "./wizard-shared";
+import { getWizardSteps, type WizardStepKey } from "./wizard-vocabulary";
 
 const cx = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
@@ -15,11 +15,11 @@ const cx = (...parts: Array<string | false | null | undefined>) =>
 export function WizardStepper({
   current,
   done,
-}: {
+}: Readonly<{
   current: WizardStepKey;
   /** The success screen: every step reads as completed. */
   done?: boolean;
-}) {
+}>) {
   const { t } = useTranslation();
   const wizardSteps = getWizardSteps(t);
   const currentIndex = wizardSteps.findIndex((step) => step.key === current);

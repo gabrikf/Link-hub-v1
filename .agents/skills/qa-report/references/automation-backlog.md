@@ -22,13 +22,13 @@ Automation intent lives in **one place** — `<qa-docs-path>/automation-backlog/
 
 Pick the cheapest layer that would actually have caught the bug:
 
-| Layer | What it is | Best for |
-|---|---|---|
-| **Contract test** | `.parse()` a **real captured payload** through its `@repo/schemas` zod schema | Anything that failed because a response shape drifted. The strongest sensor in this repo, and usually the cheapest. |
-| **Unit / component (vitest)** | vitest everywhere; `@testing-library/react` + jsdom on the web side, node env on the API side | A single component's or use case's behavior |
-| **API route test** | `apps/api/src/infra/http/test-support/build-test-app.ts` — in-memory repositories + `server.inject`, no socket, no database | A route's behavior end to end without infrastructure |
-| **Visual scenario** | `scripts/visual/scenarios/<name>.scenario.mjs`, run by `node scripts/visual/run.mjs <file>` | A walked journey: one browser launch across loading / empty / error / filled, failing on console errors and un-mocked 4xx/5xx. The right home for a theme sweep. |
-| **Coverage ratchet** | `npm run test:coverage`, per-package floors that may only go up | A flashlight on untested surface — never a correctness claim on its own |
+| Layer                         | What it is                                                                                                                  | Best for                                                                                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Contract test**             | `.parse()` a **real captured payload** through its `@repo/schemas` zod schema                                               | Anything that failed because a response shape drifted. The strongest sensor in this repo, and usually the cheapest.                                              |
+| **Unit / component (vitest)** | vitest everywhere; `@testing-library/react` + jsdom on the web side, node env on the API side                               | A single component's or use case's behavior                                                                                                                      |
+| **API route test**            | `apps/api/src/infra/http/test-support/build-test-app.ts` — in-memory repositories + `server.inject`, no socket, no database | A route's behavior end to end without infrastructure                                                                                                             |
+| **Visual scenario**           | `scripts/visual/scenarios/<name>.scenario.mjs`, run by `node scripts/visual/run.mjs <file>`                                 | A walked journey: one browser launch across loading / empty / error / filled, failing on console errors and un-mocked 4xx/5xx. The right home for a theme sweep. |
+| **Coverage ratchet**          | `npm run test:coverage`, per-package floors that may only go up                                                             | A flashlight on untested surface — never a correctness claim on its own                                                                                          |
 
 Two constraints to record in any entry that needs them: `npm run build:schemas` must run before anything type-checks, and three API test files need the docker stack up (and, for two of them, a funded `OPENAI_API_KEY`) — so a suggested layer that lands in those files is more expensive than it looks.
 
@@ -38,6 +38,7 @@ One file per item at `<qa-docs-path>/automation-backlog/<slug>.md` — the slug 
 
 ```markdown
 # <journey or scenario title>
+
 - Source: <J-<slug> / scenario ids / bug id that motivated this>
 - Why automate: <regression-prone | high-value stable journey | fix lacked a test | recurring root cause>
 - Suggested layer: <contract test | unit/component (vitest) | API route test | visual scenario | coverage floor>
@@ -53,7 +54,7 @@ One file per item at `<qa-docs-path>/automation-backlog/<slug>.md` — the slug 
 - A fix shipped with a documented replay instead of a regression test — the entry records the debt.
 - A cycle's Root Cause totals concentrate on one value; the entry proposes the sensor that would have caught that class.
 
-**What does not go here:** the known, deliberate debt. Zero tests in `apps/mcp`, the 30 eslint errors in `apps/web`, `packages/ui` being dead, `eslint-plugin-only-warn` neutering the shared config. Those are decisions already made, and re-proposing them every cycle is noise. If a QA cycle produces evidence that one of them is now costing real bugs, that is a Decision for a Human in the report — not a backlog entry filed quietly.
+**What does not go here:** the known, deliberate debt. Zero tests in `apps/mcp`, the 30 eslint errors in `apps/web`, `eslint-plugin-only-warn` neutering the shared config. Those are decisions already made, and re-proposing them every cycle is noise. If a QA cycle produces evidence that one of them is now costing real bugs, that is a Decision for a Human in the report — not a backlog entry filed quietly.
 
 ## Lifecycle
 

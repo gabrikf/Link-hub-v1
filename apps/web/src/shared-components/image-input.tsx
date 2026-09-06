@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiAlertCircle, FiImage, FiLink2, FiX } from "react-icons/fi";
 
@@ -11,7 +11,7 @@ import { FiAlertCircle, FiImage, FiLink2, FiX } from "react-icons/fi";
 
 export type ImageAspect = "banner" | "cover" | "square";
 
-type ImageInputProps = {
+type ImageInputProps = Readonly<{
   value: string | null;
   onChange: (url: string | null) => void;
   label?: string;
@@ -21,7 +21,7 @@ type ImageInputProps = {
   aspect?: ImageAspect;
   className?: string;
   helperText?: string;
-};
+}>;
 
 const ASPECT_CLASS: Record<ImageAspect, string> = {
   banner: "aspect-[3/1]",
@@ -57,6 +57,119 @@ function isValidHttpUrl(raw: string): boolean {
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
 
+/**
+ * What fills the preview frame: the image itself (with its loading sheen), the
+ * "that link did not load" explanation, or the empty-state prompt.
+ *
+ * Module scope, not a closure inside {@link ImageInput}: a component
+ * redeclared on every render is a new type every render, so React would
+ * remount the `<img>` on every keystroke and restart the load.
+ */
+function PreviewArea({
+  previewUrl,
+  label,
+  loadState,
+  onLoad,
+  onError,
+}: Readonly<{
+  previewUrl: string | null;
+  label?: string;
+  loadState: LoadState;
+  onLoad: () => void;
+  onError: () => void;
+}>) {
+  const { t } = useTranslation();
+
+  if (!previewUrl) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-zinc-400 dark:text-zinc-500">
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-zinc-900/5 dark:bg-zinc-900 dark:ring-white/10">
+          <FiImage className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          {t("image.addImageUrl")}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {loadState === "loading" ? (
+        <div
+          className="anim-sheen absolute inset-0 bg-zinc-200 dark:bg-zinc-700/60"
+          aria-hidden="true"
+        />
+      ) : null}
+      {loadState !== "error" ? (
+        <img
+          key={previewUrl}
+          src={previewUrl}
+          alt={label ? t("image.labelPreview", { label }) : t("image.preview")}
+          className={[
+            "h-full w-full object-cover transition-opacity duration-300",
+            loadState === "loaded" ? "opacity-100" : "opacity-0",
+          ].join(" ")}
+          onLoad={onLoad}
+          onError={onError}
+        />
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-zinc-500 dark:text-zinc-400">
+          <FiAlertCircle className="h-6 w-6" aria-hidden="true" />
+          <span className="text-xs font-medium">{t("image.couldNotLoad")}</span>
+          <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
+            {t("image.checkDirectLink")}
+          </span>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * The line under the field: the validation error, else the caller's helper
+ * text, else the standing hint about what kind of link works here.
+ */
+function FieldHint({
+  showError,
+  errorId,
+  helperText,
+  helperId,
+}: Readonly<{
+  showError: boolean;
+  errorId: string;
+  helperText?: string;
+  helperId: string;
+}>) {
+  const { t } = useTranslation();
+
+  if (showError) {
+    return (
+      <p
+        id={errorId}
+        className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400"
+      >
+        <FiAlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {t("image.invalidUrl")}
+      </p>
+    );
+  }
+
+  if (helperText) {
+    return (
+      <p id={helperId} className="text-xs text-zinc-500 dark:text-zinc-400">
+        {helperText}
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-xs text-zinc-400 dark:text-zinc-500">
+      {t("image.pasteDirectLink")}
+    </p>
+  );
+}
+
 export function ImageInput({
   value,
   onChange,
@@ -79,11 +192,19 @@ export function ImageInput({
   const [touched, setTouched] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>("idle");
 
-  // Keep the draft in sync when the value changes from the outside (e.g. form
-  // reset / initial hydrate) without clobbering active typing.
-  useEffect(() => {
+  /**
+   * Keep the draft in sync when the value changes from the OUTSIDE (e.g. form
+   * reset / initial hydrate) without clobbering active typing.
+   *
+   * Adjusted during render rather than in an effect: an effect paints one frame
+   * of the stale draft before correcting itself, and typing here is a
+   * per-keystroke path. Same pattern as {@link FileUpload}'s preview sheen.
+   */
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (value !== syncedValue) {
+    setSyncedValue(value);
     setDraft(value ?? "");
-  }, [value]);
+  }
 
   const trimmed = draft.trim();
   const isEmpty = trimmed.length === 0;
@@ -91,9 +212,12 @@ export function ImageInput({
   const showError = touched && !isEmpty && !isValid;
   const previewUrl = isValid ? trimmed : null;
 
-  useEffect(() => {
+  /** A different URL is a different `<img>`, so the load cycle starts over. */
+  const [loadingUrl, setLoadingUrl] = useState(previewUrl);
+  if (previewUrl !== loadingUrl) {
+    setLoadingUrl(previewUrl);
     setLoadState(previewUrl ? "loading" : "idle");
-  }, [previewUrl]);
+  }
 
   const commit = (next: string) => {
     const value = next.trim();
@@ -105,6 +229,9 @@ export function ImageInput({
       onChange(value);
     }
   };
+
+  const handleImageLoad = () => setLoadState("loaded");
+  const handleImageError = () => setLoadState("error");
 
   const handleClear = () => {
     setDraft("");
@@ -136,50 +263,13 @@ export function ImageInput({
             : "border-zinc-200 ring-zinc-900/5 dark:border-zinc-700 dark:ring-white/5",
         ].join(" ")}
       >
-        {previewUrl ? (
-          <>
-            {loadState === "loading" ? (
-              <div
-                className="anim-sheen absolute inset-0 bg-zinc-200 dark:bg-zinc-700/60"
-                aria-hidden="true"
-              />
-            ) : null}
-            {loadState !== "error" ? (
-              <img
-                key={previewUrl}
-                src={previewUrl}
-                alt={
-                  label ? t("image.labelPreview", { label }) : t("image.preview")
-                }
-                className={[
-                  "h-full w-full object-cover transition-opacity duration-300",
-                  loadState === "loaded" ? "opacity-100" : "opacity-0",
-                ].join(" ")}
-                onLoad={() => setLoadState("loaded")}
-                onError={() => setLoadState("error")}
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-zinc-500 dark:text-zinc-400">
-                <FiAlertCircle className="h-6 w-6" aria-hidden="true" />
-                <span className="text-xs font-medium">
-                  {t("image.couldNotLoad")}
-                </span>
-                <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                  {t("image.checkDirectLink")}
-                </span>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-zinc-400 dark:text-zinc-500">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-zinc-900/5 dark:bg-zinc-900 dark:ring-white/10">
-              <FiImage className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              {t("image.addImageUrl")}
-            </span>
-          </div>
-        )}
+        <PreviewArea
+          previewUrl={previewUrl}
+          label={label}
+          loadState={loadState}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+        />
 
         {/* Clear button (only when there's a value) */}
         {hasValue ? (
@@ -240,23 +330,12 @@ export function ImageInput({
         />
       </div>
 
-      {showError ? (
-        <p
-          id={errorId}
-          className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400"
-        >
-          <FiAlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {t("image.invalidUrl")}
-        </p>
-      ) : helperText ? (
-        <p id={helperId} className="text-xs text-zinc-500 dark:text-zinc-400">
-          {helperText}
-        </p>
-      ) : (
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          {t("image.pasteDirectLink")}
-        </p>
-      )}
+      <FieldHint
+        showError={showError}
+        errorId={errorId}
+        helperText={helperText}
+        helperId={helperId}
+      />
     </div>
   );
 }

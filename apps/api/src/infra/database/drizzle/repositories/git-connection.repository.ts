@@ -9,6 +9,7 @@ import { GitConnectionEntity } from "../../../../core/entity/git-connection/git-
 import { IGitConnectionRepository } from "../../../../core/repositories/git-connection/git-connection-repository.js";
 import { db } from "../index.js";
 import { gitConnections } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 type GitConnectionRow = typeof gitConnections.$inferSelect;
 
@@ -37,7 +38,7 @@ export class DrizzleGitConnectionRepository
   implements IGitConnectionRepository
 {
   async create(connection: GitConnectionEntity): Promise<GitConnectionEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(gitConnections)
       .values({
         id: connection.id,
@@ -58,7 +59,9 @@ export class DrizzleGitConnectionRepository
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(
+      requireReturnedRow(insertedRows, "insert into gitConnections"),
+    );
   }
 
   async findById(id: string): Promise<GitConnectionEntity | null> {

@@ -56,17 +56,17 @@ is a suggestion a model can ignore, and it only takes one published post to
 matter.
 
 So the privacy rule is not advice here. You pick a **disclosure level** in
-CraftHub settings, and CraftHub applies it *server-side*, on both sides of the
+CraftHub settings, and CraftHub applies it _server-side_, on both sides of the
 wire:
 
 - **Reads** — `get_work_context` returns your work history already redacted. At
-  the default level, employer names are stripped from the fields *and* the
+  the default level, employer names are stripped from the fields _and_ the
   prose.
 - **Writes** — a post created through a token that names a blocked employer or
   client is rejected with HTTP 400 that names the offending term.
 
 The agent is told the rules up front (they are baked into the tool descriptions
-at startup) *and* stopped at the door if it ignores them.
+at startup) _and_ stopped at the door if it ignores them.
 
 ---
 
@@ -91,10 +91,10 @@ In the CraftHub web app: **Settings → Personal access tokens → Create token*
 The plaintext token (`lh_pat_…`) is shown **once**. Copy it immediately — it can
 never be retrieved again, only replaced.
 
-| Scope | Needed for | What happens without it |
-| --- | --- | --- |
-| `posts:write` | `create_post`, `create_commit_summary_post`, `update_post`, `delete_post` | Every publish fails with 403. |
-| `posts:read` | `list_my_posts`, and the `since_last_post` prompt | The prompt can't find your last update, so it can't compute the window. |
+| Scope          | Needed for                                                                | What happens without it                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `posts:write`  | `create_post`, `create_commit_summary_post`, `update_post`, `delete_post` | Every publish fails with 403.                                                                                                                                                      |
+| `posts:read`   | `list_my_posts`, and the `since_last_post` prompt                         | The prompt can't find your last update, so it can't compute the window.                                                                                                            |
 | `profile:read` | `get_work_context`, `get_disclosure_policy`, and the startup policy fetch | The server **falls back to the strictest disclosure level** and says so in every tool description. Nothing breaks, but the agent works blind and assumes it may not name anything. |
 
 All three are checked by default. `profile:read` is read-only by design: an
@@ -214,14 +214,14 @@ Prompts appear as `/mcp.crafthub.weekly_update` in the Chat view.
 
 ## Verify the connection
 
-| Host | Check |
-| --- | --- |
-| Claude Code | `/mcp` in-session, or `claude mcp list` from a shell — `crafthub` should read *connected*. |
+| Host           | Check                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| Claude Code    | `/mcp` in-session, or `claude mcp list` from a shell — `crafthub` should read _connected_.  |
 | Claude Desktop | Fully quit and reopen, then look for `crafthub` and its tools in the composer's tools menu. |
-| Cursor | **Settings → MCP** — `crafthub` should show a green dot and its tool list. |
-| VS Code | Run the **MCP: List Servers** command — `crafthub` should be *Running*. |
+| Cursor         | **Settings → MCP** — `crafthub` should show a green dot and its tool list.                  |
+| VS Code        | Run the **MCP: List Servers** command — `crafthub` should be _Running_.                     |
 
-Then prove the token works: ask *"list my CraftHub posts"*. A bad or expired PAT
+Then prove the token works: ask _"list my CraftHub posts"_. A bad or expired PAT
 surfaces as `Invalid or expired CraftHub token`; an unreachable API surfaces as
 `Could not reach the CraftHub API at ...`.
 
@@ -244,16 +244,16 @@ printf '%s\n' \
 Create a post from scratch. Use it for anything not derived from commits.
 Stored with `source='mcp'`.
 
-| Argument | Type | Required | Description |
-| --- | --- | --- | --- |
-| `body` | string | yes | Post body, in Markdown. |
-| `title` | string | no | Headline. Under 70 characters. |
-| `coverImageUrl` | string (http/https) | no | Cover image. |
-| `images` | string[] | no | Additional images, max 12. |
-| `externalUrl` | string (http/https) | no | The PR, release, repo, demo or article the post points at. |
-| `tags` | string[] | no | Max 20, each ≤ 40 chars. Stack-first: `["typescript", "fastify"]`. |
-| `status` | `"draft"` \| `"published"` | no | Defaults to `published`. |
-| `workExperienceId` | uuid | no | Attributes the post to a role from `get_work_context`; the post then inherits that role's disclosure level instead of the account default. |
+| Argument           | Type                       | Required | Description                                                                                                                                |
+| ------------------ | -------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `body`             | string                     | yes      | Post body, in Markdown.                                                                                                                    |
+| `title`            | string                     | no       | Headline. Under 70 characters.                                                                                                             |
+| `coverImageUrl`    | string (http/https)        | no       | Cover image.                                                                                                                               |
+| `images`           | string[]                   | no       | Additional images, max 12.                                                                                                                 |
+| `externalUrl`      | string (http/https)        | no       | The PR, release, repo, demo or article the post points at.                                                                                 |
+| `tags`             | string[]                   | no       | Max 20, each ≤ 40 chars. Stack-first: `["typescript", "fastify"]`.                                                                         |
+| `status`           | `"draft"` \| `"published"` | no       | Defaults to `published`.                                                                                                                   |
+| `workExperienceId` | uuid                       | no       | Attributes the post to a role from `get_work_context`; the post then inherits that role's disclosure level instead of the account default. |
 
 ### `create_commit_summary_post`
 
@@ -262,47 +262,47 @@ Publish a summary of recent git work. **This tool runs no AI** — it publishes
 Use the `weekly_update` prompt to get that text right. Stored with
 `source='commit'` and `metadata { repo, commitCount, period }`.
 
-| Argument | Type | Required | Description |
-| --- | --- | --- | --- |
-| `summary` | string | yes | The finished Markdown body. |
-| `title` | string | no | Headline (< 70 chars). Omitting it derives one from repo + period, which is worse — always pass one. |
-| `period` | string | no | `"weekly"`, `"daily"`, or a range like `"2026-07-14..2026-07-21"`. |
-| `repo` | string | no | The scope of the summary: one repository's name (never a path or remote URL), or the count when the post aggregates several — `"4 repositories"`. Omit for private/client work. |
-| `commitCount` | number | no | Count of the user's own commits, summed across every repository covered. Counted, not estimated. |
-| `tags` | string[] | no | 2–5 lowercase, stack-first tags. |
-| `status` | `"draft"` \| `"published"` | no | Defaults to `published`. |
+| Argument      | Type                       | Required | Description                                                                                                                                                                     |
+| ------------- | -------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `summary`     | string                     | yes      | The finished Markdown body.                                                                                                                                                     |
+| `title`       | string                     | no       | Headline (< 70 chars). Omitting it derives one from repo + period, which is worse — always pass one.                                                                            |
+| `period`      | string                     | no       | `"weekly"`, `"daily"`, or a range like `"2026-07-14..2026-07-21"`.                                                                                                              |
+| `repo`        | string                     | no       | The scope of the summary: one repository's name (never a path or remote URL), or the count when the post aggregates several — `"4 repositories"`. Omit for private/client work. |
+| `commitCount` | number                     | no       | Count of the user's own commits, summed across every repository covered. Counted, not estimated.                                                                                |
+| `tags`        | string[]                   | no       | 2–5 lowercase, stack-first tags.                                                                                                                                                |
+| `status`      | `"draft"` \| `"published"` | no       | Defaults to `published`.                                                                                                                                                        |
 
 ### `list_my_posts`
 
-| Argument | Type | Required | Description |
-| --- | --- | --- | --- |
-| `limit` | number (1–100) | no | Default 20. |
-| `offset` | number (≥ 0) | no | Default 0. |
+| Argument | Type           | Required | Description |
+| -------- | -------------- | -------- | ----------- |
+| `limit`  | number (1–100) | no       | Default 20. |
+| `offset` | number (≥ 0)   | no       | Default 0.  |
 
 Returns id, title, status, source and `createdAt` per post, newest first.
 
 ### `update_post`
 
-| Argument | Type | Required | Description |
-| --- | --- | --- | --- |
-| `id` | uuid | yes | Post to update. |
-| `title`, `body`, `tags`, `status`, `externalUrl`, `coverImageUrl`, `images` | | no | Any subset. |
+| Argument                                                                    | Type | Required | Description     |
+| --------------------------------------------------------------------------- | ---- | -------- | --------------- |
+| `id`                                                                        | uuid | yes      | Post to update. |
+| `title`, `body`, `tags`, `status`, `externalUrl`, `coverImageUrl`, `images` |      | no       | Any subset.     |
 
 Updates are checked against the **resulting** post, not only the fields you
 changed — so a title-only edit cannot slip a blocked term past a clean body.
 
 ### `delete_post`
 
-| Argument | Type | Required | Description |
-| --- | --- | --- | --- |
-| `id` | uuid | yes | Post to delete. Irreversible. |
+| Argument | Type | Required | Description                   |
+| -------- | ---- | -------- | ----------------------------- |
+| `id`     | uuid | yes      | Post to delete. Irreversible. |
 
 ### `get_work_context`
 
 No arguments. Returns your work history **already redacted** to your disclosure
 level: role title, seniority hint, dates and duration, employment type, work
 model, tech stack, engineering practices, problem domain, achievements — and the
-employer name *only when the level permits it*.
+employer name _only when the level permits it_.
 
 **This is the only sanctioned source of employment detail.** The tool
 description tells the agent, in as many words, not to infer your employer from
@@ -326,16 +326,16 @@ MCP prompts are user-invoked workflows the server hands to the host agent. They
 are how the agent learns the commits-to-post pipeline without you configuring
 anything.
 
-| Prompt | Arguments | What it does |
-| --- | --- | --- |
-| `weekly_update` | `period?`, `repo?`, `status?` | The headline workflow. Walks the agent through resolving which repositories to cover, bounding the git window, reading the commits *and the diffs* in each, aggregating what shipped / impact / metrics / stack / links into one post, writing it in house style, running the safety and disclosure pass, and publishing via `create_commit_summary_post`. |
-| `since_last_post` | `repo?`, `status?` | Same workflow, but the window comes from CraftHub: it calls `list_my_posts`, finds your newest `source=commit` post, and summarizes only work done since then — so repeated runs never double-post. Falls back to 14 days if you have no commit summary yet. |
+| Prompt            | Arguments                     | What it does                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `weekly_update`   | `period?`, `repo?`, `status?` | The headline workflow. Walks the agent through resolving which repositories to cover, bounding the git window, reading the commits _and the diffs_ in each, aggregating what shipped / impact / metrics / stack / links into one post, writing it in house style, running the safety and disclosure pass, and publishing via `create_commit_summary_post`. |
+| `since_last_post` | `repo?`, `status?`            | Same workflow, but the window comes from CraftHub: it calls `list_my_posts`, finds your newest `source=commit` post, and summarizes only work done since then — so repeated runs never double-post. Falls back to 14 days if you have no commit summary yet.                                                                                               |
 
-| Argument | Accepted values |
-| --- | --- |
-| `period` | `daily`, `weekly` (default), `monthly`, a range like `2026-07-14..2026-07-21`, or any git date expression such as `3 days ago`. |
-| `repo` | Repository name, e.g. `crafthub-v.1`. Pass it only to NARROW the run to that one repository; by default the post covers every repository you configured. |
-| `status` | `published` (default) or `draft`. |
+| Argument | Accepted values                                                                                                                                          |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `period` | `daily`, `weekly` (default), `monthly`, a range like `2026-07-14..2026-07-21`, or any git date expression such as `3 days ago`.                          |
+| `repo`   | Repository name, e.g. `crafthub-v.1`. Pass it only to NARROW the run to that one repository; by default the post covers every repository you configured. |
+| `status` | `published` (default) or `draft`.                                                                                                                        |
 
 Both prompts inline your **active disclosure policy**, so the agent knows what it
 may say about the employer before it writes a word.
@@ -366,12 +366,12 @@ become one set of capabilities, not a roll call.
 
 ### Invoking a prompt
 
-| Host | How |
-| --- | --- |
-| Claude Code | `/crafthub:weekly_update` (arguments after it, e.g. `/crafthub:weekly_update monthly`) |
-| Claude Desktop | The **+** button in the composer → `crafthub` → `weekly_update` |
-| VS Code | `/mcp.crafthub.weekly_update` in the Chat view |
-| Cursor | The chat `/` menu on recent versions; otherwise just ask in plain language |
+| Host           | How                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------- |
+| Claude Code    | `/crafthub:weekly_update` (arguments after it, e.g. `/crafthub:weekly_update monthly`) |
+| Claude Desktop | The **+** button in the composer → `crafthub` → `weekly_update`                        |
+| VS Code        | `/mcp.crafthub.weekly_update` in the Chat view                                         |
+| Cursor         | The chat `/` menu on recent versions; otherwise just ask in plain language             |
 
 Hosts that don't surface MCP prompts still get the same guidance — the tool
 descriptions and the resources below carry it.
@@ -380,10 +380,10 @@ descriptions and the resources below carry it.
 
 ## Resources
 
-| URI | Contents |
-| --- | --- |
+| URI                              | Contents                                                                                                                                                                                                                                             |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `crafthub://guides/post-quality` | The house style guide: outcome over mechanics, what a strong post contains, **what you may say about your job**, what never ships, length and tone targets, a worked weak-vs-strong example, and the field mapping for `create_commit_summary_post`. |
-| `crafthub://policy/disclosure` | Your **active** disclosure contract: the current level, its allow/block lists, your banned terms, how enforcement works, and where employment facts must come from. |
+| `crafthub://policy/disclosure`   | Your **active** disclosure contract: the current level, its allow/block lists, your banned terms, how enforcement works, and where employment facts must come from.                                                                                  |
 
 An agent can read either unprompted at any time. Both are also inlined into the
 prompts, so an agent that never lists resources still gets them.
@@ -397,16 +397,16 @@ Sources of truth: `src/resources/post-guidelines.ts` and
 
 Three levels, set in CraftHub under **Settings → What your agent may share**.
 
-| Level | In one line |
-| --- | --- |
-| **Summary** (default) | Share what you did and how you did it, never who you did it for. |
-| **Detailed** | Everything in Summary, plus the companies and public work behind it. |
-| **Full** | No CraftHub-side restriction — you decide what the agent may say. |
+| Level                 | In one line                                                          |
+| --------------------- | -------------------------------------------------------------------- |
+| **Summary** (default) | Share what you did and how you did it, never who you did it for.     |
+| **Detailed**          | Everything in Summary, plus the companies and public work behind it. |
+| **Full**              | No CraftHub-side restriction — you decide what the agent may say.    |
 
 Plus two refinements:
 
 - **Blocked terms** — a personal denylist (client codenames, project names)
-  enforced at *every* level, including Full.
+  enforced at _every_ level, including Full.
 - **Per-employer overrides** — one role can deviate from the account default.
   Your open-source job can be `full` while your consulting client stays
   `summary`.
@@ -452,7 +452,7 @@ identifies Acme Corp.
 > through CI on every merge.
 
 One difference: the employer is named. That is the entire delta — the level
-controls *attribution*, not *substance*. Which is the point: you never have to
+controls _attribution_, not _substance_. Which is the point: you never have to
 trade a weaker post for a safer one.
 
 Note what is absent at **both** levels. `acme-checkout-v2` and `ACME-1187` are
@@ -505,10 +505,10 @@ Without invoking a prompt, plain language works too:
 
 ## Environment variables
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `CRAFTHUB_API_TOKEN` | **yes** | — | Your personal access token (`lh_pat_…`). The server exits at startup with a clear message if it is missing. |
-| `CRAFTHUB_API_URL` | no | `http://localhost:3333` | Base URL of the CraftHub API. A trailing slash is stripped. |
+| Variable             | Required | Default                 | Description                                                                                                 |
+| -------------------- | -------- | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `CRAFTHUB_API_TOKEN` | **yes**  | —                       | Your personal access token (`lh_pat_…`). The server exits at startup with a clear message if it is missing. |
+| `CRAFTHUB_API_URL`   | no       | `http://localhost:3333` | Base URL of the CraftHub API. A trailing slash is stripped.                                                 |
 
 Both are read once at startup. Changing a token means restarting the MCP server
 (and, for Claude Desktop, restarting the app).
@@ -595,7 +595,7 @@ npm run publish:mcp
 The npm account needs **two-factor authentication enabled** — since 2025 the
 registry refuses a publish from an account without it, with a `403` that says
 "Two-factor authentication or granular access token with bypass 2fa enabled is
-required" *after* the tarball has already been built and shown to you. That is
+required" _after_ the tarball has already been built and shown to you. That is
 an account setting, not a repo problem. If npm then asks for a one-time code,
 pass it through the chain with `--`:
 
@@ -624,7 +624,7 @@ src/
 Two conventions worth keeping:
 
 - **The policy is fetched once, in `main()`, before registration.** Tool
-  descriptions and prompt text are read by the host agent *before* it calls
+  descriptions and prompt text are read by the host agent _before_ it calls
   anything, so a policy discovered mid-conversation arrives too late to shape
   what gets written.
 - **It fails closed.** If the policy can't be read, the server assumes the

@@ -43,8 +43,11 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   render(): ReactNode {
+    // Fragment, not a bare `this.props.children`: both branches then hand back a
+    // single element, which is what `sonarjs/function-return-type` asks for. A
+    // fragment adds no DOM node, so the rendered output is unchanged.
     if (!this.state.error) {
-      return this.props.children;
+      return <>{this.props.children}</>;
     }
 
     // Message only in dev — a stack trace means nothing to a user and can leak

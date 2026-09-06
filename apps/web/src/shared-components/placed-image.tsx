@@ -1,7 +1,7 @@
 import type { ImagePlacement } from "@repo/schemas";
 import { placementStyle } from "../lib/image-placement";
 
-type PlacedImageProps = {
+type PlacedImageProps = Readonly<{
   src: string;
   /** `null` renders exactly as a browser's default centred `object-fit: cover`. */
   placement: ImagePlacement | null | undefined;
@@ -13,7 +13,7 @@ type PlacedImageProps = {
   className?: string;
   onLoad?: (event: React.SyntheticEvent<HTMLImageElement>) => void;
   "data-testid"?: string;
-};
+}>;
 
 /**
  * An image painted at a stored focal point.

@@ -8,6 +8,7 @@ import { InMemoryEmailVerificationTokenRepository } from "../../../repositories/
 import { InMemoryHashProvider } from "../../../providers/hash/in-memory-hash-provider.js";
 import { InMemoryTokenProvider } from "../../../providers/token/in-memory-token-provider.js";
 import { InMemoryMailProvider } from "../../../providers/mail/in-memory-mail-provider.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 const mockValidator = vi.fn();
 
@@ -38,7 +39,7 @@ describe("CreateUserUseCase", () => {
       tokenProvider,
       mailProvider,
       { appPublicUrl: APP_PUBLIC_URL, tokenTtlHours: TOKEN_TTL_HOURS },
-      mockValidator
+      mockValidator,
     );
 
     validInput = {
@@ -73,18 +74,18 @@ describe("CreateUserUseCase", () => {
       // Verify user was created in repository
       const allUsers = usersRepository.getAll();
       expect(allUsers).toHaveLength(1);
-      expect(allUsers[0].email).toBe(validInput.email);
-      expect(allUsers[0].login).toBe(validInput.login);
-      expect(allUsers[0].name).toBe(validInput.name);
-      expect(allUsers[0].password).toBe(expectedHashedPassword);
-      expect(allUsers[0].description).toBe(validInput.description);
-      expect(allUsers[0].avatarUrl).toBe(validInput.avatarUrl);
-      expect(allUsers[0].googleId).toBeNull();
+      expect(allUsers[0]?.email).toBe(validInput.email);
+      expect(allUsers[0]?.login).toBe(validInput.login);
+      expect(allUsers[0]?.name).toBe(validInput.name);
+      expect(allUsers[0]?.password).toBe(expectedHashedPassword);
+      expect(allUsers[0]?.description).toBe(validInput.description);
+      expect(allUsers[0]?.avatarUrl).toBe(validInput.avatarUrl);
+      expect(allUsers[0]?.googleId).toBeNull();
 
       // The account starts UNVERIFIED. If this ever comes back non-null the
       // whole verification step is decorative.
-      expect(allUsers[0].emailVerifiedAt).toBeNull();
-      expect(allUsers[0].isEmailVerified()).toBe(false);
+      expect(allUsers[0]?.emailVerifiedAt).toBeNull();
+      expect(allUsers[0]?.isEmailVerified()).toBe(false);
 
       // NO SESSION. Registration used to return both tokens; handing one out
       // here would sign in an address nobody has proved.
@@ -93,7 +94,7 @@ describe("CreateUserUseCase", () => {
       expect(result.emailVerificationRequired).toBe(true);
 
       // Verify returned user matches created user
-      expect(result.user).toEqual(allUsers[0].toPublic());
+      expect(result.user).toEqual(allUsers[0]?.toPublic());
     });
 
     it("emails a verification link whose token is stored only as a hash", async () => {
@@ -109,7 +110,7 @@ describe("CreateUserUseCase", () => {
 
       // Dig the raw token back out of the email the way a user's browser would.
       const rawToken = new URL(
-        message!.text.split("\n").find((line) => line.startsWith("http"))!
+        message!.text.split("\n").find((line) => line.startsWith("http"))!,
       ).searchParams.get("token");
 
       expect(rawToken).toBeTruthy();
@@ -117,12 +118,14 @@ describe("CreateUserUseCase", () => {
 
       const stored = verificationTokenRepository.getAll();
       expect(stored).toHaveLength(1);
-      expect(stored[0].userId).toBe(usersRepository.getAll()[0].id);
+      expect(stored[0]?.userId).toBe(
+        expectDefined(usersRepository.getAll()[0], "the created user").id,
+      );
       // The database must never hold the value that arrives in the request.
-      expect(stored[0].tokenHash).not.toBe(rawToken);
-      expect(stored[0].tokenHash).toBe(tokenProvider.hash(rawToken!));
-      expect(stored[0].consumedAt).toBeNull();
-      expect(stored[0].expiresAt.getTime()).toBeGreaterThan(Date.now());
+      expect(stored[0]?.tokenHash).not.toBe(rawToken);
+      expect(stored[0]?.tokenHash).toBe(tokenProvider.hash(rawToken!));
+      expect(stored[0]?.consumedAt).toBeNull();
+      expect(stored[0]?.expiresAt.getTime()).toBeGreaterThan(Date.now());
     });
 
     it("keeps the account when the mail transport fails", async () => {
@@ -139,7 +142,7 @@ describe("CreateUserUseCase", () => {
       expect(result.emailVerificationRequired).toBe(true);
       expect(result.verificationEmailSent).toBe(false);
       expect(result.verificationEmailError?.message).toBe(
-        "smtp: connection refused"
+        "smtp: connection refused",
       );
       // The token is still valid, so /auth/resend-verification can reach it.
       expect(verificationTokenRepository.count()).toBe(1);
@@ -162,7 +165,7 @@ describe("CreateUserUseCase", () => {
 
       // Act & Assert
       await expect(createUserUseCase.execute(validInput)).rejects.toThrow(
-        new DuplicateResourceError("User", "email", validInput.email)
+        new DuplicateResourceError("User", "email", validInput.email),
       );
 
       // Verify no new user was created
@@ -194,7 +197,7 @@ describe("CreateUserUseCase", () => {
 
       // Act & Assert - the same mailbox must not become a second account
       await expect(createUserUseCase.execute(lowercaseSignup)).rejects.toThrow(
-        new DuplicateResourceError("User", "email", lowercaseSignup.email)
+        new DuplicateResourceError("User", "email", lowercaseSignup.email),
       );
 
       expect(usersRepository.count()).toBe(1);
@@ -205,7 +208,10 @@ describe("CreateUserUseCase", () => {
       // Arrange - the pair BUG-20260827-login-multi-row-heap-order is about:
       // two rows one case-insensitive lookup both matches. Picking one of them
       // deterministically must not turn into "found nothing" here.
-      for (const email of ["Case.Split@Example.com", "case.split@example.com"]) {
+      for (const email of [
+        "Case.Split@Example.com",
+        "case.split@example.com",
+      ]) {
         await usersRepository.create(
           UserEntity.create({
             email,
@@ -215,7 +221,7 @@ describe("CreateUserUseCase", () => {
             description: null,
             avatarUrl: null,
             googleId: null,
-          })
+          }),
         );
       }
 
@@ -228,7 +234,7 @@ describe("CreateUserUseCase", () => {
 
       // Act & Assert
       await expect(createUserUseCase.execute(thirdSignup)).rejects.toThrow(
-        new DuplicateResourceError("User", "email", thirdSignup.email)
+        new DuplicateResourceError("User", "email", thirdSignup.email),
       );
 
       expect(usersRepository.count()).toBe(2);
@@ -252,7 +258,7 @@ describe("CreateUserUseCase", () => {
 
       // Act & Assert
       await expect(createUserUseCase.execute(validInput)).rejects.toThrow(
-        new DuplicateResourceError("User", "login", validInput.login)
+        new DuplicateResourceError("User", "login", validInput.login),
       );
 
       // Verify no new user was created
@@ -279,19 +285,19 @@ describe("CreateUserUseCase", () => {
       // Assert
       const allUsers = usersRepository.getAll();
       expect(allUsers).toHaveLength(1);
-      expect(allUsers[0].email).toBe(minimalInput.email);
-      expect(allUsers[0].login).toBe(minimalInput.login);
-      expect(allUsers[0].name).toBe(minimalInput.name);
-      expect(allUsers[0].password).toBe("hashed_password123");
-      expect(allUsers[0].description).toBeNull();
-      expect(allUsers[0].avatarUrl).toBeNull();
-      expect(allUsers[0].googleId).toBeNull();
+      expect(allUsers[0]?.email).toBe(minimalInput.email);
+      expect(allUsers[0]?.login).toBe(minimalInput.login);
+      expect(allUsers[0]?.name).toBe(minimalInput.name);
+      expect(allUsers[0]?.password).toBe("hashed_password123");
+      expect(allUsers[0]?.description).toBeNull();
+      expect(allUsers[0]?.avatarUrl).toBeNull();
+      expect(allUsers[0]?.googleId).toBeNull();
 
       // Verify the verification token was created
       expect(verificationTokenRepository.count()).toBe(1);
       expect(result.emailVerificationRequired).toBe(true);
 
-      expect(result.user).toEqual(allUsers[0].toPublic());
+      expect(result.user).toEqual(allUsers[0]?.toPublic());
     });
 
     it("should check for both email and login conflicts", async () => {
@@ -323,7 +329,7 @@ describe("CreateUserUseCase", () => {
 
       // Act & Assert - Should fail on email first
       await expect(createUserUseCase.execute(validInput)).rejects.toThrow(
-        new DuplicateResourceError("User", "email", validInput.email)
+        new DuplicateResourceError("User", "email", validInput.email),
       );
 
       // Verify no new user was created
@@ -339,8 +345,8 @@ describe("CreateUserUseCase", () => {
 
       // Assert
       const allUsers = usersRepository.getAll();
-      expect(allUsers[0].password).toBe("hashed_password123");
-      expect(allUsers[0].password).not.toBe(validInput.password);
+      expect(allUsers[0]?.password).toBe("hashed_password123");
+      expect(allUsers[0]?.password).not.toBe(validInput.password);
     });
   });
 });

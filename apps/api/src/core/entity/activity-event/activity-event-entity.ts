@@ -1,7 +1,4 @@
-import type {
-  ActivityEventKind,
-  ActivitySource,
-} from "@repo/schemas";
+import type { ActivityEventKind, ActivitySource } from "@repo/schemas";
 import { BaseEntity, type BaseEntityProps } from "../index.js";
 
 export interface ActivityEventEntityProps extends BaseEntityProps {
@@ -101,8 +98,17 @@ export class ActivityEventEntity extends BaseEntity<ActivityEventEntityProps> {
    * New Year, which is why the year is taken from the Thursday of the week.
    */
   weekBucket(): string {
+    // `undefined` and `NaN` both make `Date.UTC` an Invalid Date, so the
+    // fallbacks preserve what a malformed `occurredOn` already did while giving
+    // the parts an honest `number` type under `noUncheckedIndexedAccess`.
     const [year, month, day] = this.occurredOn.split("-").map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
+    const date = new Date(
+      Date.UTC(
+        year ?? Number.NaN,
+        (month ?? Number.NaN) - 1,
+        day ?? Number.NaN,
+      ),
+    );
 
     // Shift to the Thursday of this ISO week (Sunday counts as day 7).
     const isoDayOfWeek = date.getUTCDay() === 0 ? 7 : date.getUTCDay();
@@ -112,7 +118,9 @@ export class ActivityEventEntity extends BaseEntity<ActivityEventEntityProps> {
     const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
     const firstIsoDayOfWeek =
       firstThursday.getUTCDay() === 0 ? 7 : firstThursday.getUTCDay();
-    firstThursday.setUTCDate(firstThursday.getUTCDate() + 4 - firstIsoDayOfWeek);
+    firstThursday.setUTCDate(
+      firstThursday.getUTCDate() + 4 - firstIsoDayOfWeek,
+    );
 
     const week =
       1 +

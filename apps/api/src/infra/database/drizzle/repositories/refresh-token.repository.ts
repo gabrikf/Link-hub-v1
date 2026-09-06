@@ -3,10 +3,11 @@ import { RefreshTokenEntity } from "../../../../core/entity/refresh-token/refres
 import { IRefreshTokenRepository } from "../../../../core/repositories/refresh-token/refresh-token-repository.js";
 import { db } from "../index.js";
 import { refreshTokens } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 export class DrizzleRefreshTokenRepository implements IRefreshTokenRepository {
   async create(refreshToken: RefreshTokenEntity): Promise<RefreshTokenEntity> {
-    const [createdToken] = await db
+    const insertedRows = await db
       .insert(refreshTokens)
       .values({
         id: refreshToken.id,
@@ -17,6 +18,11 @@ export class DrizzleRefreshTokenRepository implements IRefreshTokenRepository {
         updatedAt: refreshToken.updatedAt,
       })
       .returning();
+
+    const createdToken = requireReturnedRow(
+      insertedRows,
+      "insert into refreshTokens",
+    );
 
     return new RefreshTokenEntity({
       id: createdToken.id,
@@ -61,7 +67,7 @@ export class DrizzleRefreshTokenRepository implements IRefreshTokenRepository {
           expiresAt: token.expiresAt,
           createdAt: token.createdAt,
           updatedAt: token.updatedAt,
-        })
+        }),
     );
   }
 

@@ -13,7 +13,6 @@ import { CreateUserUseCase } from "../../../core/use-case/auth/create-user-use-c
 import { UpsertMyResumeUseCase } from "../../../core/use-case/resumes/upsert-my-resume-use-case/upsert-my-resume.use-case.js";
 import { SaveResumeSkillsBulkUseCase } from "../../../core/use-case/resumes/save-resume-skills-bulk-use-case/save-resume-skills-bulk.use-case.js";
 import { SaveResumeTitlesBulkUseCase } from "../../../core/use-case/resumes/save-resume-titles-bulk-use-case/save-resume-titles-bulk.use-case.js";
-import { RecordCandidateInteractionUseCase } from "../../../core/use-case/interactions/record-candidate-interaction-use-case/record-candidate-interaction.use-case.js";
 import { ProcessResumeEmbeddingJobUseCase } from "../../../core/use-case/resumes/process-resume-embedding-job-use-case/process-resume-embedding-job.use-case.js";
 import { IUsersRepository } from "../../../core/repositories/user/user-repository.js";
 import { IResumesRepository } from "../../../core/repositories/resume/resume-repository.js";
@@ -119,9 +118,8 @@ function buildSeedWorkExperiences(candidate: CandidateSeed): Array<{
 
   return Array.from({ length: roleCount }, (_unused, roleIndex) => {
     const company =
-      SEED_COMPANY_POOL[
-        randomInt(0, SEED_COMPANY_POOL.length - 1)
-      ] ?? "TechCorp";
+      SEED_COMPANY_POOL[randomInt(0, SEED_COMPANY_POOL.length - 1)] ??
+      "TechCorp";
     const roleStack = roleIndex === 0 ? stack : stack.slice(0, 4);
     const title = candidate.titles[roleIndex] ?? baseTitle;
     return {
@@ -833,11 +831,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
     ],
     cloudSkills: ["Storybook", "Zeplin", "InVision", "Whimsical"],
     dataSkills: ["Product Analytics", "Amplitude", "Google Analytics"],
-    testingSkills: [
-      "Usability Testing",
-      "Heuristic Evaluation",
-      "A/B Testing",
-    ],
+    testingSkills: ["Usability Testing", "Heuristic Evaluation", "A/B Testing"],
   },
   {
     slug: "ux-researcher",
@@ -867,7 +861,12 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
       "Heuristic Evaluation",
     ],
     cloudSkills: ["Dovetail", "Maze", "UserTesting", "Optimal Workshop"],
-    dataSkills: ["Statistics", "Google Analytics", "Product Analytics", "Excel"],
+    dataSkills: [
+      "Statistics",
+      "Google Analytics",
+      "Product Analytics",
+      "Excel",
+    ],
     testingSkills: ["A/B Testing", "Experimentation", "Survey Design"],
   },
   {
@@ -877,18 +876,19 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
     mainLanguage: "Figma",
     summary:
       "Builds and maintains cohesive design systems and component libraries bridging design and engineering.",
-    coreTitles: [
-      "UI Designer",
-      "Design Systems Designer",
-      "Product Designer",
-    ],
+    coreTitles: ["UI Designer", "Design Systems Designer", "Product Designer"],
     salaryMin: 62000,
     salaryMax: 155000,
     yearsBase: 7,
     seniority: "senior",
     workModels: ["remote", "hybrid", "on-site"],
     contractTypes: ["full-time", "contract"],
-    requiredSkills: ["Figma", "Design Systems", "Design Tokens", "Visual Design"],
+    requiredSkills: [
+      "Figma",
+      "Design Systems",
+      "Design Tokens",
+      "Visual Design",
+    ],
     frameworkSkills: [
       "Storybook",
       "Tailwind CSS",
@@ -939,7 +939,12 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
       "Scrum",
     ],
     cloudSkills: ["Amplitude", "Mixpanel", "Segment", "Figma"],
-    dataSkills: ["Product Analytics", "SQL", "Data Analysis", "Google Analytics"],
+    dataSkills: [
+      "Product Analytics",
+      "SQL",
+      "Data Analysis",
+      "Google Analytics",
+    ],
     testingSkills: ["A/B Testing", "Experimentation", "Customer Interviews"],
   },
   {
@@ -949,11 +954,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
     mainLanguage: "Strategy",
     summary:
       "Drives activation, retention, and monetization through rapid experimentation and funnel analysis.",
-    coreTitles: [
-      "Growth Product Manager",
-      "Product Manager",
-      "Product Lead",
-    ],
+    coreTitles: ["Growth Product Manager", "Product Manager", "Product Lead"],
     salaryMin: 85000,
     salaryMax: 205000,
     yearsBase: 7,
@@ -966,7 +967,13 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
       "Product Analytics",
       "Go-to-Market",
     ],
-    frameworkSkills: ["Amplitude", "Mixpanel", "Segment", "Jira", "Productboard"],
+    frameworkSkills: [
+      "Amplitude",
+      "Mixpanel",
+      "Segment",
+      "Jira",
+      "Productboard",
+    ],
     architectureSkills: [
       "OKRs",
       "Prioritization",
@@ -1031,13 +1038,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
       "Test Planning",
       "Test Automation",
     ],
-    frameworkSkills: [
-      "Cypress",
-      "Playwright",
-      "Selenium",
-      "Postman",
-      "Appium",
-    ],
+    frameworkSkills: ["Cypress", "Playwright", "Selenium", "Postman", "Appium"],
     architectureSkills: [
       "Test Case Design",
       "Exploratory Testing",
@@ -1072,7 +1073,12 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
     seniority: "mid",
     workModels: ["remote", "hybrid", "on-site"],
     contractTypes: ["full-time", "contract"],
-    requiredSkills: ["SQL", "Data Analysis", "Data Visualization", "Statistics"],
+    requiredSkills: [
+      "SQL",
+      "Data Analysis",
+      "Data Visualization",
+      "Statistics",
+    ],
     frameworkSkills: ["Tableau", "Power BI", "Looker", "Metabase", "Superset"],
     architectureSkills: [
       "Data Modeling",
@@ -1091,11 +1097,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
     mainLanguage: "Python",
     summary:
       "Builds predictive models and experiments that ship measurable business impact into production.",
-    coreTitles: [
-      "Data Scientist",
-      "Applied Scientist",
-      "Research Scientist",
-    ],
+    coreTitles: ["Data Scientist", "Applied Scientist", "Research Scientist"],
     salaryMin: 90000,
     salaryMax: 220000,
     yearsBase: 7,
@@ -1127,11 +1129,7 @@ const CANDIDATE_BLUEPRINTS: CandidateBlueprint[] = [
     mainLanguage: "Terraform",
     summary:
       "Automates cloud infrastructure and delivery pipelines with strong reliability, security, and observability practices.",
-    coreTitles: [
-      "DevOps Engineer",
-      "Cloud Engineer",
-      "Platform Engineer",
-    ],
+    coreTitles: ["DevOps Engineer", "Cloud Engineer", "Platform Engineer"],
     salaryMin: 90000,
     salaryMax: 210000,
     yearsBase: 8,
@@ -1173,6 +1171,11 @@ function pad(value: number): string {
   return String(value).padStart(3, "0");
 }
 
+// Left as a recorded `sonarjs/pseudo-random` finding rather than "fixed":
+// this generates fake seed data (years of experience, salary jitter, company
+// pick), never a token, secret or anything an attacker benefits from
+// predicting — Math.random() is the right call here, and swapping to
+// crypto.randomInt would be reaching for a CSPRNG somewhere it buys nothing.
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -1188,8 +1191,15 @@ function hashSeed(input: string): number {
 }
 
 function pickOne<T>(items: readonly T[], seed: string): T {
-  const index = hashSeed(seed) % items.length;
-  return items[index]!;
+  const item = items[hashSeed(seed) % items.length];
+
+  // Only an empty `items` can land here. Throwing names the empty table; the
+  // alternative was a silent `undefined` seeded into a row.
+  if (item === undefined) {
+    throw new Error(`pickOne: nothing to pick from for seed '${seed}'`);
+  }
+
+  return item;
 }
 
 function pickManyUnique<T>(
@@ -1207,7 +1217,13 @@ function pickManyUnique<T>(
 
   while (selected.size < amount) {
     const index = hashSeed(`${seed}-${salt}`) % uniqueItems.length;
-    selected.add(uniqueItems[index]!);
+    const item = uniqueItems[index];
+
+    if (item === undefined) {
+      throw new Error(`pickManyUnique: nothing at index ${String(index)}`);
+    }
+
+    selected.add(item);
     salt += 1;
   }
 
@@ -1226,9 +1242,12 @@ function buildCandidateSeeds(count: number): CandidateSeed[] {
   const signatures = new Set<string>();
 
   for (let index = 0; index < count; index += 1) {
-    const blueprint =
-      CANDIDATE_BLUEPRINTS[index % CANDIDATE_BLUEPRINTS.length]!;
+    const blueprint = CANDIDATE_BLUEPRINTS[index % CANDIDATE_BLUEPRINTS.length];
     const sequence = index + 1;
+
+    if (!blueprint) {
+      throw new Error("CANDIDATE_BLUEPRINTS is empty; nothing to seed from");
+    }
 
     let attempt = 0;
     while (true) {
@@ -1287,7 +1306,8 @@ function buildCandidateSeeds(count: number): CandidateSeed[] {
       );
       const titles = [...new Set([primaryTitle, ...secondaryTitles])];
 
-      const signature = `${blueprint.slug}|${skills.sort().join("|")}|${titles.join("|")}`;
+      skills.sort((a, b) => a.localeCompare(b));
+      const signature = `${blueprint.slug}|${skills.join("|")}|${titles.join("|")}`;
       if (signatures.has(signature)) {
         attempt += 1;
         continue;
@@ -1345,7 +1365,9 @@ class DeterministicEmbeddingProvider implements IEmbeddingProvider {
     for (let index = 0; index < normalized.length; index += 1) {
       const code = normalized.charCodeAt(index);
       const bucket = index % size;
-      vector[bucket] += (code % 89) / 89;
+
+      // `bucket` is a modulo of the vector's own length, so the slot exists.
+      vector[bucket] = (vector[bucket] ?? 0) + (code % 89) / 89;
     }
 
     let sumSquares = 0;
@@ -1513,9 +1535,6 @@ async function seedCandidate(
   );
   const saveTitlesUseCase = resolve<SaveResumeTitlesBulkUseCase>(
     TOKENS.SaveResumeTitlesBulkUseCase,
-  );
-  const recordInteractionUseCase = resolve<RecordCandidateInteractionUseCase>(
-    TOKENS.RecordCandidateInteractionUseCase,
   );
 
   const userId = await ensureUser(candidate);

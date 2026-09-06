@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { expectDefined } from "./expect-defined.js";
 import {
   aggregateInteractions,
   buildLabel,
@@ -75,7 +76,10 @@ describe("F1 — interaction score is independent of profile size", () => {
     const rows = buildTrainingRows(
       aggregates,
       new Map([
-        ["thin", profile({ resumeId: "thin", skills: ["React"], titles: ["FE"] })],
+        [
+          "thin",
+          profile({ resumeId: "thin", skills: ["React"], titles: ["FE"] }),
+        ],
         [
           "chunky",
           profile({
@@ -99,7 +103,7 @@ describe("F1 — interaction score is independent of profile size", () => {
     ]);
 
     expect(aggregates).toHaveLength(1);
-    expect(aggregates[0]!.interactionScore).toBeCloseTo(1.35, 10);
+    expect(aggregates[0]?.interactionScore).toBeCloseTo(1.35, 10);
   });
 });
 
@@ -115,10 +119,11 @@ describe("F17 — one training row per (query, candidate)", () => {
     ]);
 
     expect(aggregates).toHaveLength(2);
-    expect(aggregates.map((a) => a.queryText).sort()).toEqual([
-      "React engineer",
-      "Rust engineer",
-    ]);
+    expect(
+      aggregates
+        .map((a) => a.queryText)
+        .sort((a, b) => (a ?? "").localeCompare(b ?? "")),
+    ).toEqual(["React engineer", "Rust engineer"]);
     expect(aggregates.every((a) => a.interactionScore === 1)).toBe(true);
   });
 
@@ -129,7 +134,7 @@ describe("F17 — one training row per (query, candidate)", () => {
     ]);
 
     expect(aggregates).toHaveLength(1);
-    expect(aggregates[0]!.interactionScore).toBe(2);
+    expect(aggregates[0]?.interactionScore).toBe(2);
   });
 });
 
@@ -149,8 +154,9 @@ describe("F5 — NOT_RELEVANT is a negative signal, and it survives", () => {
     );
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.interactionScore).toBe(-1);
-    expect(resolveLabel(rows[0]!)).toBe(0);
+    const rejected = expectDefined(rows[0], "the rejection-only training row");
+    expect(rejected.interactionScore).toBe(-1);
+    expect(resolveLabel(rejected)).toBe(0);
   });
 
   it("lets a rejection cancel a weak positive instead of adding to it", () => {
@@ -159,8 +165,12 @@ describe("F5 — NOT_RELEVANT is a negative signal, and it survives", () => {
       interaction({ interactionType: "NOT_RELEVANT" }),
     ]);
 
-    expect(aggregates[0]!.interactionScore).toBeCloseTo(-0.65, 10);
-    expect(buildLabel(aggregates[0]!.interactionScore)).toBe(0);
+    const aggregate = expectDefined(
+      aggregates[0],
+      "the aggregated interaction",
+    );
+    expect(aggregate.interactionScore).toBeCloseTo(-0.65, 10);
+    expect(buildLabel(aggregate.interactionScore)).toBe(0);
   });
 
   it("does not let repeated rejections raise the score", () => {
@@ -173,7 +183,11 @@ describe("F5 — NOT_RELEVANT is a negative signal, and it survives", () => {
       interaction({ interactionType: "NOT_RELEVANT" }),
     ]);
 
-    expect(many[0]!.interactionScore).toBeLessThan(one[0]!.interactionScore);
+    expect(
+      expectDefined(many[0], "the five-rejection aggregate").interactionScore,
+    ).toBeLessThan(
+      expectDefined(one[0], "the single-rejection aggregate").interactionScore,
+    );
   });
 });
 
@@ -193,8 +207,8 @@ describe("buildTrainingRows", () => {
     const rows = buildTrainingRows(aggregates, new Map());
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.headlineTitle).toBe("Ex Candidate");
-    expect(rows[0]!.skills).toEqual(["Elixir"]);
+    expect(rows[0]?.headlineTitle).toBe("Ex Candidate");
+    expect(rows[0]?.skills).toEqual(["Elixir"]);
   });
 
   it("drops a row that has neither a profile nor a snapshot", () => {
@@ -218,7 +232,7 @@ describe("buildTrainingRows", () => {
       new Map([["resume-1", profile()]]),
     );
 
-    expect(rows[0]!.queryText).toBe("Role: Fullstack Engineer");
+    expect(rows[0]?.queryText).toBe("Role: Fullstack Engineer");
   });
 
   it("keeps the best rank seen and the latest observation time", () => {
@@ -233,8 +247,8 @@ describe("buildTrainingRows", () => {
       }),
     ]);
 
-    expect(aggregates[0]!.displayedRank).toBe(3);
-    expect(aggregates[0]!.observedAt.toISOString()).toBe(
+    expect(aggregates[0]?.displayedRank).toBe(3);
+    expect(aggregates[0]?.observedAt.toISOString()).toBe(
       "2026-01-02T00:00:00.000Z",
     );
   });

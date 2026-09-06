@@ -8,7 +8,7 @@ import { SnippetBlock } from "./snippet-block";
 const cx = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
 
-type ToolTabsProps = {
+type ToolTabsProps = Readonly<{
   tabs: ToolTab[];
   /** Keeps tab/panel ids unique when two instances are mounted at once. */
   idPrefix: string;
@@ -18,7 +18,7 @@ type ToolTabsProps = {
    */
   activeKey?: string;
   onActiveKeyChange?: (key: string) => void;
-};
+}>;
 
 /**
  * The host-picker tablist plus its snippet / verify / invoke panel, extracted

@@ -14,6 +14,8 @@
  * and relocating them would be a refactor with no payoff.
  */
 
+import type { AiQuotaOperation } from "../../core/providers/ai-quota/ai-quota-provider.js";
+
 const DEFAULT_PORT = 3333;
 
 /** Origins allowed when WEB_APP_URL is unset — i.e. local development. */
@@ -60,6 +62,21 @@ function readBoolean(name: string, fallback: boolean): boolean {
   return fallback;
 }
 
+/**
+ * Removes trailing slashes without a regex. `/\/+$/` is unanchored at the
+ * start, so a rejecting scan has to be retried from every position in the
+ * input — `scslre` (the engine behind `sonarjs/super-linear-regex`) flags
+ * exactly that as super-linear. A plain loop bounded by the actual number of
+ * trailing slashes has no such cost and behaves identically.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
 function readList(name: string): string[] {
   const raw = readString(name);
   if (raw === undefined) {
@@ -67,7 +84,7 @@ function readList(name: string): string[] {
   }
   return raw
     .split(",")
-    .map((value) => value.trim().replace(/\/+$/, ""))
+    .map((value) => stripTrailingSlashes(value.trim()))
     .filter((value) => value.length > 0);
 }
 
@@ -142,7 +159,13 @@ export const rateLimitConfig = () => ({
   enabled: readBoolean("RATE_LIMIT_ENABLED", true),
 });
 
-export type AiQuotaOperation = "resume_parse" | "recruiter_search";
+/**
+ * Declared with the port in `core/providers/ai-quota/ai-quota-provider.js` —
+ * core must not take a name from infra — and re-exported here so the existing
+ * consumers of `app-config.js` keep their import untouched. Type-only in both
+ * directions: nothing crosses at runtime.
+ */
+export type { AiQuotaOperation };
 
 /**
  * Per-user, per-day caps on the two routes that spend OpenAI credits.
@@ -188,10 +211,13 @@ function readMailTransport(): MailTransport {
  * APP_PUBLIC_URL exists to make the choice explicit, and falls back to the
  * first WEB_APP_URL entry only so nothing new is required to boot.
  */
-export const appPublicUrl = (): string =>
-  readString("APP_PUBLIC_URL")?.replace(/\/+$/, "") ??
-  readList("WEB_APP_URL")[0] ??
-  "http://localhost:5173";
+export const appPublicUrl = (): string => {
+  const configured = readString("APP_PUBLIC_URL");
+  if (configured !== undefined) {
+    return stripTrailingSlashes(configured);
+  }
+  return readList("WEB_APP_URL")[0] ?? "http://localhost:5173";
+};
 
 export const mailConfig = () => ({
   transport: readMailTransport(),

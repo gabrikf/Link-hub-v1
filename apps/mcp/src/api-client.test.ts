@@ -73,7 +73,10 @@ function lastFetchCall(): FetchCall {
   if (!call) throw new Error("fetch was never called");
   const [input, init] = call;
   if (typeof input !== "string") {
-    throw new Error(`expected a string URL, got ${String(input)}`);
+    // `Request` has no useful `toString`, so read the URL off whichever of the
+    // two remaining shapes this is rather than printing `[object Object]`.
+    const seen = input instanceof URL ? input.href : input.url;
+    throw new Error(`expected a string URL, got ${seen}`);
   }
   if (init === undefined) throw new Error("expected an init argument");
   return { url: input, init };
@@ -185,8 +188,10 @@ describe("request shape", () => {
   it("sends the token from the config it was constructed with", async () => {
     respondWith(jsonResponse([]));
 
-    await client({ apiUrl: "https://crafthub.dev/api", token: "lh_pat_other" })
-      .listPosts();
+    await client({
+      apiUrl: "https://crafthub.dev/api",
+      token: "lh_pat_other",
+    }).listPosts();
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://crafthub.dev/api/me/posts",
@@ -213,8 +218,10 @@ describe("request shape", () => {
     // constructs the client with a hand-built config.
     respondWith(jsonResponse([]));
 
-    await client({ apiUrl: "http://api.test/", token: "lh_pat_test" })
-      .listPosts();
+    await client({
+      apiUrl: "http://api.test/",
+      token: "lh_pat_test",
+    }).listPosts();
 
     expect(lastFetchCall().url).toBe("http://api.test//me/posts");
   });
@@ -544,7 +551,9 @@ describe("error mapping", () => {
     const err = await captureApiError(client().createPost(CREATE_INPUT));
 
     expect(err.status).toBe(429);
-    expect(err.message).toBe("CraftHub API error (HTTP 429) (Too many requests).");
+    expect(err.message).toBe(
+      "CraftHub API error (HTTP 429) (Too many requests).",
+    );
   });
 
   it("a 502 with an unparseable body still yields a CraftHubApiError carrying the status", async () => {
@@ -578,7 +587,9 @@ describe("extractMessage", () => {
   });
 
   it("falls back to `error` when `message` is absent", async () => {
-    const message = await messageFrom(jsonResponse({ error: "from error" }, 404));
+    const message = await messageFrom(
+      jsonResponse({ error: "from error" }, 404),
+    );
 
     expect(message).toBe("Post not found (from error).");
   });
@@ -610,20 +621,12 @@ describe("extractMessage", () => {
     expect(message).toBe("Post not found.");
   });
 
-  it("survives a body that is not JSON at all", async () => {
-    const message = await messageFrom(textResponse("plain text", 404));
-
-    expect(message).toBe("Post not found.");
-  });
-
-  it("survives a body that is JSON `null`", async () => {
-    const message = await messageFrom(textResponse("null", 404));
-
-    expect(message).toBe("Post not found.");
-  });
-
-  it("survives an empty body", async () => {
-    const message = await messageFrom(textResponse("", 404));
+  it.each([
+    ["survives a body that is not JSON at all", "plain text"],
+    ["survives a body that is JSON `null`", "null"],
+    ["survives an empty body", ""],
+  ])("%s", async (_description, body) => {
+    const message = await messageFrom(textResponse(body, 404));
 
     expect(message).toBe("Post not found.");
   });
@@ -655,7 +658,10 @@ describe("transport failure", () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
     const err = await captureApiError(
-      client({ apiUrl: "https://crafthub.dev/api", token: "t" }).getAgentPolicy(),
+      client({
+        apiUrl: "https://crafthub.dev/api",
+        token: "t",
+      }).getAgentPolicy(),
     );
 
     expect(err.message).toContain("https://crafthub.dev/api");

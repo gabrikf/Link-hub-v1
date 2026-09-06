@@ -43,6 +43,7 @@ import {
 } from "../../../../../core/use-case/resumes/shared/embedding-config.js";
 import type { SearchZeroResultDiagnostics } from "../../../../../core/use-case/resumes/shared/search-zero-result-diagnostics.js";
 import { server } from "../../../server.js";
+import { expectDefined } from "../../../../../test-support/expect-defined.js";
 
 const PREFIX = `otw${Date.now().toString(36)}`;
 const EMBEDDING_DIMENSIONS = 1536;
@@ -70,7 +71,7 @@ async function seedCandidate(options: {
   const login = `${PREFIX}-${options.slug}`;
   const embedding = axisVector(options.axis);
 
-  const [user] = await db
+  const [insertedUser] = await db
     .insert(users)
     .values({
       name: `Open To Work ${options.slug}`,
@@ -81,7 +82,9 @@ async function seedCandidate(options: {
     })
     .returning({ id: users.id });
 
-  const [resume] = await db
+  const user = expectDefined(insertedUser, "the inserted user row");
+
+  const [insertedResume] = await db
     .insert(resumes)
     .values({
       userId: user.id,
@@ -90,6 +93,8 @@ async function seedCandidate(options: {
       spokenLanguages: [],
     })
     .returning({ id: resumes.id });
+
+  const resume = expectDefined(insertedResume, "the inserted resume row");
 
   if (options.withEmbedding !== false) {
     await db.insert(resumeEmbeddings).values({
@@ -129,7 +134,8 @@ async function captureZeroResultDiagnostics(
 
     const line = warn.mock.calls.find(
       (call) =>
-        typeof call[0] === "string" && call[0].startsWith(ZERO_RESULT_LOG_PREFIX),
+        typeof call[0] === "string" &&
+        call[0].startsWith(ZERO_RESULT_LOG_PREFIX),
     );
 
     expect(

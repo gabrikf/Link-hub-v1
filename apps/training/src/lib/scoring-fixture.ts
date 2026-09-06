@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CandidateFeaturesInput, PostFeature } from "@repo/schemas";
 import { SYNTHETIC_STACKS } from "./blueprints.js";
+import { pickCyclic } from "./cyclic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -109,11 +110,10 @@ export function buildFixtureCases(): FixtureCase[] {
     });
 
     // Mismatch: the candidate from the opposite half of the blueprint list.
-    const other =
-      SYNTHETIC_STACKS[
-        (index + Math.floor(SYNTHETIC_STACKS.length / 2)) %
-          SYNTHETIC_STACKS.length
-      ]!;
+    const other = pickCyclic(
+      SYNTHETIC_STACKS,
+      index + Math.floor(SYNTHETIC_STACKS.length / 2),
+    );
     cases.push({
       id: `${index}-mismatch`,
       queryText: query,

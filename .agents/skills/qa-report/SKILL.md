@@ -41,7 +41,7 @@ Five things this project fixes, so plans do not drift into generic QA:
 - **Dark mode is a standing planning dimension.** The web app themes through a `.dark` class; a surface authored without its `dark:` variants is unreadable, not merely off-brand, and it is this repo's cheapest bug to ship. Every browser charter is planned as light **and** dark, and `DESIGN.md` at the repo root is the arbiter of what each theme should look like.
 - **Area codes map to the real web features** under `apps/web/src/features/` and the routes in `apps/web/src/router.tsx` — one code per area, defined once in `<qa-docs-path>/README.md`. See the seed table in `references/qa-docs-layout.md`.
 - **Every bug carries its GitHub issue** (`gh issue create` against the repo in `git remote -v`) and, on close, one **Root Cause** from the fixed taxonomy — `api-contract · cache-state · auth-permission · disclosure-policy · date-timezone · race-loading · null-data · layout-responsive · dark-mode · search-ranking · regression · third-party`. Contract in `references/bug-registry.md`.
-- **Fixes are red-test-first (vitest) and gated by `node scripts/guardrails/pre-push.mjs`.** Planning does not fix anything, but the plans it writes must not imply otherwise — the fix contract lives in `../qa-execution/references/fix-loop.md`. There is no jest in this repo, and no i18n: strings are hardcoded English, so never plan a translation-coverage sweep or imply `t()` calls.
+- **Fixes are red-test-first (vitest) and gated by `node scripts/guardrails/pre-push.mjs`.** Planning does not fix anything, but the plans it writes must not imply otherwise — the fix contract lives in `../qa-execution/references/fix-loop.md`. There is no jest in this repo. There IS i18n — three locales, enforced by the gate — so a translation-coverage sweep is a legitimate session, and a raw string on screen is a real bug.
 
 ## Procedures
 
@@ -75,7 +75,7 @@ When a journey grows stable or regression-prone enough to deserve an automated w
 
 - **qa-execution** — runs the sessions this skill plans and writes results back into the same tree (statuses, bugs, reports). The living tree is the contract between the two.
 - **visual-check** — the browser driver `qa-execution` uses (scenario scripts via `node scripts/visual/run.mjs` against `npm run dev:web`, both themes, `DESIGN.md` as the visual authority). Planning names screens and routes; that skill is what actually looks at them.
-- **i18n** — the *planned* internationalisation setup. CraftHub has none today; consult it only to avoid writing plans that assume `t()` calls exist.
+- **i18n** — the shipped internationalisation contract: three locales, every user-visible string through `t()`, both halves gated. Consult it when a plan touches copy, or when planning a translation-coverage session.
 - **testing-boss** / **no-workarounds** — how a fix's regression test is written (vitest, red first), and how the fix itself is judged. Referenced by the automation backlog when a journey earns a committed spec.
 - **diagnose** — for a finding whose cause resists the walk.
 - **The guardrail scripts, not a skill** — `node scripts/guardrails/pre-push.mjs` (the gate), `npm run check-types`, `node scripts/guardrails/lint-changed.mjs`, `npm run test:coverage`. Route technical integration/security/performance/load suites there or to dedicated tooling; record the routing decision, don't absorb the work.

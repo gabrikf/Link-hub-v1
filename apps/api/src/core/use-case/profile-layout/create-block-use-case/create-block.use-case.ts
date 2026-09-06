@@ -2,12 +2,12 @@ import {
   CreateBlockInput,
   CUSTOM_BLOCK_KINDS,
   customBlockConfigSchemaByKind,
-  CustomBlockKind,
   GRID_COLUMNS,
   ProfileBlock,
   ProfileViewport,
 } from "@repo/schemas";
 import { ProfileBlockEntity } from "../../../entity/profile-block/profile-block-entity.js";
+import { ProfileTabEntity } from "../../../entity/profile-tab/profile-tab-entity.js";
 import { BadRequestError } from "../../../errors/index.js";
 import { IUnitOfWork } from "../../../providers/unit-of-work/unit-of-work.js";
 import { IProfileBlocksRepository } from "../../../repositories/profile-block/profile-block-repository.js";
@@ -16,6 +16,38 @@ import { toBlockDTO } from "../assemble-layout.js";
 import { ensureSeededViewport, VIEWPORTS } from "../seed-default-layout.js";
 
 const DEFAULT_BLOCK_HEIGHT = 4;
+
+interface CurrentTabResolution {
+  currentTabId: string | null;
+  pinnedAllTabs: boolean;
+}
+
+/**
+ * Resolve the target tab against the CURRENT viewport only. Tabs no longer
+ * correspond across viewports, so there is nothing to carry over: the
+ * mirrored row lands in the other viewport's DEFAULT (first) tab and the user
+ * can move it from there. Pinning, by contrast, is meaningful in both
+ * viewports, so a pinned block is created pinned in both.
+ */
+function resolveCurrentTab(
+  requestedTabId: string | null | undefined,
+  currentTabs: ProfileTabEntity[],
+): CurrentTabResolution {
+  if (requestedTabId === null) {
+    return { currentTabId: null, pinnedAllTabs: true };
+  }
+
+  if (typeof requestedTabId === "string") {
+    const targetTab = currentTabs.find((tab) => tab.id === requestedTabId);
+    if (!targetTab) {
+      throw new BadRequestError("Target tab does not exist");
+    }
+    return { currentTabId: targetTab.id, pinnedAllTabs: false };
+  }
+
+  const currentTabId = currentTabs[0]?.id ?? null;
+  return { currentTabId, pinnedAllTabs: currentTabId === null };
+}
 
 export class CreateBlockUseCase {
   constructor(
@@ -30,11 +62,11 @@ export class CreateBlockUseCase {
   ): Promise<ProfileBlock> {
     const kind = input.kind;
 
-    if (!CUSTOM_BLOCK_KINDS.includes(kind as CustomBlockKind)) {
+    if (!CUSTOM_BLOCK_KINDS.includes(kind)) {
       throw new BadRequestError("Only custom blocks can be created");
     }
 
-    const configSchema = customBlockConfigSchemaByKind[kind as CustomBlockKind];
+    const configSchema = customBlockConfigSchemaByKind[kind];
     const configResult = configSchema.safeParse(input.config);
     if (!configResult.success) {
       throw new BadRequestError("Invalid block config for the given kind");
@@ -64,27 +96,10 @@ export class CreateBlockUseCase {
         tx,
       );
 
-      // Resolve the target tab against the CURRENT viewport only. Tabs no
-      // longer correspond across viewports, so there is nothing to carry over:
-      // the mirrored row lands in the other viewport's DEFAULT (first) tab and
-      // the user can move it from there. Pinning, by contrast, is meaningful in
-      // both viewports, so a pinned block is created pinned in both.
-      let currentTabId: string | null;
-      let pinnedAllTabs = false;
-
-      if (input.tabId === null) {
-        currentTabId = null;
-        pinnedAllTabs = true;
-      } else if (typeof input.tabId === "string") {
-        const targetTab = currentTabs.find((tab) => tab.id === input.tabId);
-        if (!targetTab) {
-          throw new BadRequestError("Target tab does not exist");
-        }
-        currentTabId = targetTab.id;
-      } else {
-        currentTabId = currentTabs[0]?.id ?? null;
-        pinnedAllTabs = currentTabId === null;
-      }
+      const { currentTabId, pinnedAllTabs } = resolveCurrentTab(
+        input.tabId,
+        currentTabs,
+      );
 
       let created: ProfileBlockEntity | undefined;
 
@@ -157,9 +172,7 @@ export class CreateBlockUseCase {
     const gridX = placement?.gridX ?? 0;
     const gridH = placement?.gridH ?? DEFAULT_BLOCK_HEIGHT;
 
-    const groupBlocks = viewportBlocks.filter(
-      (block) => block.tabId === tabId,
-    );
+    const groupBlocks = viewportBlocks.filter((block) => block.tabId === tabId);
     const bottomY = groupBlocks.reduce(
       (max, block) => Math.max(max, block.gridY + block.gridH),
       0,

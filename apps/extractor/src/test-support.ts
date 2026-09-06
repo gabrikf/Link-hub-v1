@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
+import { GIT_BINARY } from "./git-binary.js";
+
 /**
  * Throwaway git repositories for the tests.
  *
@@ -73,9 +75,7 @@ export function commit(repo: string, options: CommitOptions): string {
       "-m",
       message,
     ],
-    stamp
-      ? { GIT_AUTHOR_DATE: stamp, GIT_COMMITTER_DATE: stamp }
-      : undefined,
+    stamp ? { GIT_AUTHOR_DATE: stamp, GIT_COMMITTER_DATE: stamp } : undefined,
   );
 
   return run(repo, ["rev-parse", "HEAD"]).trim();
@@ -95,12 +95,17 @@ export function setConfig(repo: string, key: string, value: string): void {
   run(repo, ["config", key, value]);
 }
 
+/**
+ * Runs git in `repo`. Uses the same absolute binary the extractor itself
+ * resolves (`./git-binary.js`), so the tests exercise the production lookup
+ * rather than a second, bare-name one that could drift from it.
+ */
 export function run(
   repo: string,
   args: readonly string[],
   env?: Record<string, string>,
 ): string {
-  return execFileSync("git", ["-C", repo, ...args], {
+  return execFileSync(GIT_BINARY, ["-C", repo, ...args], {
     encoding: "utf8",
     env: { ...process.env, ...env },
   });

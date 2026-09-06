@@ -13,7 +13,7 @@ charter:
   journey: J-<slug>
   scenarios: [<scenario ids this session can settle>]
   tour: <exactly one — see ../qa-execution/references/tours.md>
-  themes: [light, dark]        # both, for any browser charter, unless a reason is stated below
+  themes: [light, dark] # both, for any browser charter, unless a reason is stated below
   time_box_minutes: <30 | 60 | 90>
   environment:
     web: http://localhost:5173
@@ -22,10 +22,10 @@ charter:
   guidance:
     must_try:
       - "<2-4 specific things to attempt — for a Disclosure Tour, draw from the disclosure
-         section of ../qa-execution/references/edge-cases.md>"
+        section of ../qa-execution/references/edge-cases.md>"
     must_avoid:
       - "<known-broken or out-of-scope areas>"
-      - "the known deliberate debt: eslint backlog, apps/mcp test gap, packages/ui, pluguins/"
+      - "the known deliberate debt: eslint backlog, apps/mcp test gap, pluguins/"
     theme_exception: "<only if themes is not [light, dark] — why>"
 ```
 

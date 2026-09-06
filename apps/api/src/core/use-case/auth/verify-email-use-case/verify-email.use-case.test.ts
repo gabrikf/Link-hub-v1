@@ -88,9 +88,9 @@ describe("VerifyEmailUseCase", () => {
     expect(result.accessToken).toBeTruthy();
     expect(result.refreshToken).toBeTruthy();
     expect(refreshTokenRepository.count()).toBe(1);
-    expect(refreshTokenRepository.getAll()[0].userId).toBe(user.id);
+    expect(refreshTokenRepository.getAll()[0]?.userId).toBe(user.id);
 
-    expect(tokenRepository.getAll()[0].consumedAt).toBeInstanceOf(Date);
+    expect(tokenRepository.getAll()[0]?.consumedAt).toBeInstanceOf(Date);
   });
 
   it("refuses the SAME token a second time", async () => {
@@ -130,8 +130,12 @@ describe("VerifyEmailUseCase", () => {
       expiresAt: new Date(Date.now() - HOUR_MS),
     });
 
-    const unknownError = await useToken(unknown).catch((error: unknown) => error);
-    const expiredError = await useToken(expired).catch((error: unknown) => error);
+    const unknownError = await useToken(unknown).catch(
+      (error: unknown) => error,
+    );
+    const expiredError = await useToken(expired).catch(
+      (error: unknown) => error,
+    );
 
     expect(unknownError).toBeInstanceOf(InvalidVerificationTokenError);
     expect(expiredError).toBeInstanceOf(InvalidVerificationTokenError);
@@ -152,9 +156,9 @@ describe("VerifyEmailUseCase", () => {
 
     await useToken(second);
 
-    expect(
-      tokenRepository.getAll().every((token) => token.isConsumed()),
-    ).toBe(true);
+    expect(tokenRepository.getAll().every((token) => token.isConsumed())).toBe(
+      true,
+    );
 
     for (const stale of [first, third]) {
       await expect(useToken(stale)).rejects.toBeInstanceOf(

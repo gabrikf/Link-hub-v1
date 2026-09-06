@@ -11,10 +11,20 @@ export type Persona = NonNullable<ProfileResponse["persona"]>;
  * default accent on the public profile. Each `accent` mirrors the value the
  * matching `.profile-theme-*` class sets in index.css.
  */
-export const THEME_PRESETS: ReadonlyArray<{
+type ThemePresetOption = {
   value: ThemePreset;
   accent: string;
-}> = [
+};
+
+/**
+ * Typed as a non-empty tuple, not an array: the first entry is the documented
+ * fallback accent, and the tuple is what lets `THEME_PRESETS[0]` be read
+ * without a guard under `noUncheckedIndexedAccess`.
+ */
+export const THEME_PRESETS: readonly [
+  ThemePresetOption,
+  ...ThemePresetOption[],
+] = [
   { value: "violet", accent: "#8b5cf6" },
   { value: "ocean", accent: "#0ea5e9" },
   { value: "sunset", accent: "#f97316" },

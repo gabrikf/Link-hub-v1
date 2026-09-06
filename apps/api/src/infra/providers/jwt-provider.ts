@@ -29,7 +29,7 @@ export class JwtProvider implements IJwtProvider {
         payload,
         this.secret,
         {
-          expiresIn: this.expiresIn as string,
+          expiresIn: this.expiresIn,
           algorithm: this.algorithm,
         } as jwt.SignOptions,
         (err, token) => {
@@ -38,7 +38,7 @@ export class JwtProvider implements IJwtProvider {
           } else {
             resolve(token);
           }
-        }
+        },
       );
     });
   }
@@ -62,7 +62,7 @@ export class JwtProvider implements IJwtProvider {
           } else {
             resolve(decoded);
           }
-        }
+        },
       );
     });
   }

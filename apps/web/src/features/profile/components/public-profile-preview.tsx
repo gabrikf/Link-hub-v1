@@ -21,7 +21,7 @@ import {
   type ThemePreset,
 } from "./profile-theme";
 
-type PublicProfilePreviewProps = {
+type PublicProfilePreviewProps = Readonly<{
   layout: ProfileLayout;
   viewport: ProfileViewport;
   profile: {
@@ -73,7 +73,7 @@ type PublicProfilePreviewProps = {
    * before publishing.
    */
   tabsEnabled?: boolean;
-};
+}>;
 
 export function PublicProfilePreview({
   layout,

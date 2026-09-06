@@ -134,8 +134,10 @@ import {
 const DEFAULT_API_BASE_URL = "http://localhost:3333";
 
 const getApiBaseUrl = (): string => {
-  const configuredBaseUrl = import.meta.env.VITE_API_URL;
-  return configuredBaseUrl && configuredBaseUrl.length > 0
+  // Vite types every `VITE_*` key through an `any` index signature, so this is
+  // `unknown` plus a runtime narrowing rather than a trusted string.
+  const configuredBaseUrl: unknown = import.meta.env.VITE_API_URL;
+  return typeof configuredBaseUrl === "string" && configuredBaseUrl.length > 0
     ? configuredBaseUrl
     : DEFAULT_API_BASE_URL;
 };
@@ -232,7 +234,10 @@ const sessionRefresher = createSessionRefresher({
   transport: async (refreshToken) => {
     // Bare axios, not `apiClient` — the refresh call must never re-enter the
     // interceptor that triggered it.
-    const response = await axios.post(
+    // `transport` is declared to resolve the RAW body; the refresher zod-parses
+    // it. Typing the response `unknown` keeps that contract instead of letting
+    // axios' default `any` leak past the parse.
+    const response = await axios.post<unknown>(
       `${getApiBaseUrl()}${REFRESH_PATH}`,
       { refreshToken },
       { headers: { "Content-Type": "application/json" } },
@@ -890,21 +895,16 @@ export async function fetchPublicResume(
   return publicResumeSchema.parse(response.data);
 }
 
-export async function searchRecruiterResumes(
-  payload: RecruiterSearchPayload,
-): Promise<RecruiterSearchResponse> {
-  const { attachmentFile, ...searchInput } = payload;
-
-  const hasTextSemanticInput = Boolean(
-    searchInput.query || searchInput.chatPrompt || searchInput.attachmentText,
-  );
-
-  // When search is attachment-only, semantic text is produced on the server
-  // after file extraction, so client-side full schema validation must be skipped.
-  const body = hasTextSemanticInput
-    ? recruiterSearchInputSchema.parse(searchInput)
-    : searchInput;
-
+/**
+ * `multipart/form-data`, not JSON, because the recruiter can attach a job
+ * description file — so every scalar has to be serialised by hand, and every
+ * absent one has to be OMITTED rather than sent as "undefined". The empty and
+ * empty-array checks are the omission rules, one per field.
+ */
+function buildRecruiterSearchFormData(
+  body: Omit<RecruiterSearchPayload, "attachmentFile">,
+  attachmentFile: RecruiterSearchPayload["attachmentFile"],
+): FormData {
   const formData = new FormData();
 
   if (body.query) {
@@ -942,6 +942,26 @@ export async function searchRecruiterResumes(
   if (attachmentFile) {
     formData.append("attachment", attachmentFile);
   }
+
+  return formData;
+}
+
+export async function searchRecruiterResumes(
+  payload: RecruiterSearchPayload,
+): Promise<RecruiterSearchResponse> {
+  const { attachmentFile, ...searchInput } = payload;
+
+  const hasTextSemanticInput = Boolean(
+    searchInput.query || searchInput.chatPrompt || searchInput.attachmentText,
+  );
+
+  // When search is attachment-only, semantic text is produced on the server
+  // after file extraction, so client-side full schema validation must be skipped.
+  const body = hasTextSemanticInput
+    ? recruiterSearchInputSchema.parse(searchInput)
+    : searchInput;
+
+  const formData = buildRecruiterSearchFormData(body, attachmentFile);
 
   const headers = new Headers();
   const storedTokens = getAuthTokens();

@@ -32,9 +32,7 @@ class FakeWorker {
     }
   }
 
-  postMessage(message: {
-    payload: { candidates: RecruiterSearchResult[] };
-  }) {
+  postMessage(message: { payload: { candidates: RecruiterSearchResult[] } }) {
     queueMicrotask(() => {
       if (this.behaviour === "worker-error") {
         this.emit("error", new Event("error"));
@@ -129,7 +127,7 @@ describe("F15 — a rerank failure must not cost the recruiter their results", (
     expect(outcome.degraded).toBe(false);
     expect(outcome.reason).toBeNull();
     expect(outcome.candidates).toHaveLength(3);
-    expect(outcome.candidates[0]!.aiScore).toBe(1);
+    expect(outcome.candidates[0]?.aiScore).toBe(1);
   });
 
   it("returns every candidate, in API order, when the model fails to load", async () => {

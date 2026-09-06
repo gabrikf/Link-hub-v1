@@ -10,7 +10,8 @@
     "train:incremental": "tsx src/scripts/train-model.ts --mode=incremental",
     "train": "tsx src/scripts/train-model.ts",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@repo/schemas": "*",
@@ -20,10 +21,12 @@
     "postgres": "^3.4.7"
   },
   "devDependencies": {
+    "@repo/eslint-config": "*",
     "@types/node": "^24.3.0",
+    "@vitest/coverage-v8": "^4.1.5",
+    "eslint": "^9.39.4",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "vitest": "^4.1.5",
-    "@vitest/coverage-v8": "^4.1.5"
+    "vitest": "^4.1.5"
   }
 }

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { FiX } from "react-icons/fi";
 import { Button } from "./button";
 
-type DialogProps = {
+type DialogProps = Readonly<{
   title?: string;
   description?: string;
   children?: ReactNode;
@@ -14,7 +14,7 @@ type DialogProps = {
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
-};
+}>;
 
 const cx = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");

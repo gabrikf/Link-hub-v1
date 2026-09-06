@@ -7,7 +7,9 @@ import type { router as AppRouter } from "../router";
  * a single dynamic import that the production build drops entirely. Nothing
  * here should ever be imported statically from application code.
  */
-export default function Devtools({ router }: { router: typeof AppRouter }) {
+export default function Devtools({
+  router,
+}: Readonly<{ router: typeof AppRouter }>) {
   return (
     <>
       <ReactQueryDevtools initialIsOpen={false} />

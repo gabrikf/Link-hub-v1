@@ -18,14 +18,14 @@ const LANGUAGE_LABELS = {
   // check the key against the catalogue.
 } as const satisfies Record<Language, { code: string; nameKey: string }>;
 
-type LanguageToggleProps = {
+type LanguageToggleProps = Readonly<{
   /**
    * `bar` is the compact two-letter pill group that sits in the header row.
    * `menu` is the full-width row inside the mobile dropdown, where there is
    * room to spell the endonym out and a thumb needs a 44px target.
    */
   variant?: "bar" | "menu";
-};
+}>;
 
 /**
  * Sits beside the theme toggle in the header row — same height, same pill, same

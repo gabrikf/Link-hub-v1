@@ -34,6 +34,7 @@ import {
 } from "../../../../../core/use-case/resumes/shared/embedding-config.js";
 import { RecruiterSearchFilters } from "../../../../../core/repositories/resume-search/resume-search-repository.js";
 import { server } from "../../../server.js";
+import { expectDefined } from "../../../../../test-support/expect-defined.js";
 
 const PREFIX = `sbt${Date.now().toString(36)}`;
 const EMBEDDING_DIMENSIONS = 1536;
@@ -55,9 +56,11 @@ const seeded: SeededRow[] = [];
 
 /** Deterministic unit vectors — a flaky recall number is a useless one. */
 function randomUnitVector(random: () => number): number[] {
-  const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, () =>
-    // Box-Muller-free: uniform in [-1, 1] is plenty for a recall experiment.
-    random() * 2 - 1,
+  const vector = Array.from(
+    { length: EMBEDDING_DIMENSIONS },
+    () =>
+      // Box-Muller-free: uniform in [-1, 1] is plenty for a recall experiment.
+      random() * 2 - 1,
   );
   const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
   return vector.map((value) => value / norm);
@@ -65,8 +68,9 @@ function randomUnitVector(random: () => number): number[] {
 
 function cosine(a: number[], b: number[]): number {
   let dot = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    dot += a[index] * b[index];
+  for (const [index, left] of a.entries()) {
+    // Same length by construction; the default states that without asserting it.
+    dot += left * (b[index] ?? 0);
   }
   return dot;
 }
@@ -77,7 +81,7 @@ async function insertCandidate(
 ): Promise<SeededRow> {
   const login = `${PREFIX}-${index}`;
 
-  const [user] = await db
+  const [insertedUser] = await db
     .insert(users)
     .values({
       name: `Boundary ${index}`,
@@ -88,7 +92,9 @@ async function insertCandidate(
     })
     .returning({ id: users.id });
 
-  const [resume] = await db
+  const user = expectDefined(insertedUser, "the inserted user row");
+
+  const [insertedResume] = await db
     .insert(resumes)
     .values({
       userId: user.id,
@@ -101,6 +107,8 @@ async function insertCandidate(
       spokenLanguages: overrides.location === "São Paulo" ? ["Português"] : [],
     })
     .returning({ id: resumes.id });
+
+  const resume = expectDefined(insertedResume, "the inserted resume row");
 
   await db.insert(resumeEmbeddings).values({
     resumeId: resume.id,
@@ -145,7 +153,9 @@ function exactTopK(
       id: row.resumeId,
       score: cosine(row.embedding, queryEmbedding),
     }))
-    .sort((a, b) => (b.score === a.score ? a.id.localeCompare(b.id) : b.score - a.score))
+    .sort((a, b) =>
+      b.score === a.score ? a.id.localeCompare(b.id) : b.score - a.score,
+    )
     .slice(0, k)
     .map((row) => row.id);
 }
@@ -240,7 +250,10 @@ describe("recruiter search — SQL boundaries", () => {
 
   afterAll(async () => {
     // Cascades to resumes and resume_embeddings.
-    await db.execute(sql`DELETE FROM users WHERE login LIKE ${`${PREFIX}-%`}`);
+    const loginPrefixPattern = `${PREFIX}-%`;
+    await db.execute(
+      sql`DELETE FROM users WHERE login LIKE ${loginPrefixPattern}`,
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -542,7 +555,11 @@ describe("recruiter search — SQL boundaries", () => {
     });
 
     it("returns identical results for identical requests", async () => {
-      const first = await annTopK(recallQuery, { usernameContains: PREFIX }, 30);
+      const first = await annTopK(
+        recallQuery,
+        { usernameContains: PREFIX },
+        30,
+      );
       const second = await annTopK(
         recallQuery,
         { usernameContains: PREFIX },

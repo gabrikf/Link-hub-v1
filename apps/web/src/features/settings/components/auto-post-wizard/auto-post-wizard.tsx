@@ -1,12 +1,15 @@
 import type {
   CreateApiTokenOutput,
+  DigestPreview,
   GitConnection,
+  GitConnectionHealth,
   GitConnectionKind,
   GitConnectionProvider,
   Post,
   UpdateGitConnectionInput,
 } from "@repo/schemas";
 import axios from "axios";
+import type { TFunction } from "i18next";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiCheckCircle, FiCircle, FiPlus } from "react-icons/fi";
@@ -28,7 +31,7 @@ import {
   clearStashedConnection,
   stashConnection,
   type StashedConnection,
-} from "../new-connection-setup";
+} from "../../lib/connection-stash";
 import { ConnectStep } from "./connect-step";
 import { ConnectionPreviewBody, McpPreviewBody } from "./preview-step";
 import {
@@ -44,7 +47,7 @@ import {
   type ForgeProvider,
   type WizardSourceKey,
   type WizardStepKey,
-} from "./wizard-shared";
+} from "./wizard-vocabulary";
 import { WizardStepper } from "./wizard-stepper";
 
 /** How often the verify step asks "did anything arrive yet?". */
@@ -62,6 +65,277 @@ function sourceKeyForProvider(
   return provider;
 }
 
+/**
+ * The provider a connection would be created for. MCP creates none, and the
+ * forge card carries its own github/gitlab sub-choice.
+ */
+function resolveEffectiveProvider(
+  sourceKey: WizardSourceKey | null,
+  forgeProvider: ForgeProvider,
+): GitConnectionProvider | null {
+  if (sourceKey === null || sourceKey === "mcp") {
+    return null;
+  }
+  return sourceKey === "forge" ? forgeProvider : sourceKey;
+}
+
+/** The token name the Connect step suggests, per source. */
+function getTokenNameHint(
+  t: TFunction,
+  sourceKey: WizardSourceKey | null,
+  displayName: string,
+): string {
+  if (sourceKey === "mcp") {
+    return t("wizard.namePreset.codingAgent");
+  }
+  const name = displayName.trim() || t("wizard.namePreset.workLaptop");
+  return sourceKey === "extractor"
+    ? t("wizard.token.nameHintExtractor", { displayName: name })
+    : t("wizard.token.nameHintUploads", { displayName: name });
+}
+
+type ChecklistItem = { label: string; done: boolean };
+
+/** The Done step's recap of what this run actually achieved. */
+function buildChecklist(
+  t: TFunction,
+  progress: {
+    isMcp: boolean;
+    hasConnection: boolean;
+    verified: boolean;
+    previewSeen: boolean;
+    scheduleSaved: boolean;
+  },
+): ChecklistItem[] {
+  return [
+    {
+      label: t("wizard.stepSourceConnected"),
+      done: progress.isMcp || progress.hasConnection,
+    },
+    { label: t("wizard.stepFirstData"), done: progress.verified },
+    { label: t("wizard.stepPreviewSeen"), done: progress.previewSeen },
+    progress.isMcp
+      ? { label: t("wizard.stepWeeklyRhythm"), done: false }
+      : { label: t("wizard.stepScheduleSet"), done: progress.scheduleSaved },
+  ];
+}
+
+/** The settings a connection was created — or last patched — with. */
+type ConnectionSettings = {
+  kind: GitConnectionKind;
+  workExperienceId: string | null;
+  displayName: string;
+};
+
+/**
+ * What actually changed between the settings the connection carries and the
+ * ones the form now holds. An empty patch means the reuse path can skip the
+ * PATCH entirely.
+ */
+function diffConnectionSettings(
+  previous: ConnectionSettings | null,
+  next: ConnectionSettings,
+): UpdateGitConnectionInput {
+  const patch: UpdateGitConnectionInput = {};
+  if (!previous) {
+    return patch;
+  }
+  if (next.kind !== previous.kind) {
+    patch.kind = next.kind;
+  }
+  if (next.workExperienceId !== previous.workExperienceId) {
+    patch.workExperienceId = next.workExperienceId;
+  }
+  if (next.displayName !== previous.displayName) {
+    patch.displayName = next.displayName;
+  }
+  return patch;
+}
+
+/**
+ * Seeds wizard state from the connection the "Finish setup" path resumes into,
+ * once per connection. Done during render rather than from an effect so the
+ * seeded step is already there in the first commit instead of the Source step
+ * painting for a frame first — see
+ * https://react.dev/learn/you-might-not-need-an-effect.
+ *
+ * `resumeTarget` is null whenever there is nothing to resume (including while
+ * the wizard is closed), so closing and reopening on the same connection seeds
+ * again, exactly as reopening should.
+ */
+function useResumedConnection(
+  resumeTarget: GitConnection | null,
+  seed: (connection: GitConnection) => void,
+) {
+  const [seeded, setSeeded] = useState<GitConnection | null>(null);
+  if (seeded !== resumeTarget) {
+    setSeeded(resumeTarget);
+    if (resumeTarget) {
+      seed(resumeTarget);
+    }
+  }
+}
+
+/** A step-level failure, rendered only when there is one. */
+function ErrorNote({ message }: Readonly<{ message: string | null }>) {
+  return message ? <FeedbackMessage tone="error" message={message} /> : null;
+}
+
+/** The Verify step body: MCP watches your posts, everything else its health. */
+function VerifyBody({
+  sourceKey,
+  detectedPost,
+  health,
+  isHealthError,
+}: Readonly<{
+  sourceKey: WizardSourceKey;
+  detectedPost: Post | null;
+  health: GitConnectionHealth | undefined;
+  isHealthError: boolean;
+}>) {
+  if (sourceKey === "mcp") {
+    return <McpVerifyBody detectedPost={detectedPost} />;
+  }
+  return (
+    <ConnectionVerifyBody
+      sourceKey={sourceKey}
+      health={health}
+      isError={isHealthError}
+    />
+  );
+}
+
+/** The Preview step body: the agent's own post, or the digest we would send. */
+function PreviewBody({
+  isMcp,
+  detectedPost,
+  preview,
+  isPreviewLoading,
+  isPreviewError,
+}: Readonly<{
+  isMcp: boolean;
+  detectedPost: Post | null;
+  preview: DigestPreview | undefined;
+  isPreviewLoading: boolean;
+  isPreviewError: boolean;
+}>) {
+  if (isMcp) {
+    return <McpPreviewBody detectedPost={detectedPost} />;
+  }
+  return (
+    <ConnectionPreviewBody
+      preview={preview}
+      isLoading={isPreviewLoading}
+      isError={isPreviewError}
+    />
+  );
+}
+
+/** The Schedule step body, plus whatever the save failed with. */
+function ScheduleBody({
+  isMcp,
+  cadence,
+  onCadenceChange,
+  toolKey,
+  autoPostEnabled,
+  onAutoPostChange,
+  showAgentSummaryToggle,
+  includeAgentSummary,
+  onIncludeAgentSummaryChange,
+  saveError,
+}: Readonly<{
+  isMcp: boolean;
+  cadence: WizardCadence;
+  onCadenceChange: (cadence: WizardCadence) => void;
+  toolKey: string | null;
+  autoPostEnabled: boolean;
+  onAutoPostChange: (enabled: boolean) => void;
+  showAgentSummaryToggle: boolean;
+  includeAgentSummary: boolean;
+  onIncludeAgentSummaryChange: (include: boolean) => void;
+  saveError: string | null;
+}>) {
+  return (
+    <div className="space-y-3">
+      {isMcp ? (
+        <McpScheduleBody
+          cadence={cadence}
+          onCadenceChange={onCadenceChange}
+          toolKey={toolKey}
+        />
+      ) : (
+        <ScheduleStepBody
+          cadence={cadence}
+          onCadenceChange={onCadenceChange}
+          autoPostEnabled={autoPostEnabled}
+          onAutoPostChange={onAutoPostChange}
+          showAgentSummaryToggle={showAgentSummaryToggle}
+          includeAgentSummary={includeAgentSummary}
+          onIncludeAgentSummaryChange={onIncludeAgentSummaryChange}
+        />
+      )}
+      <ErrorNote message={saveError} />
+    </div>
+  );
+}
+
+/** The Done step body: what this run achieved, item by item. */
+function DoneBody({
+  isMcp,
+  connectedName,
+  checklist,
+  verified,
+}: Readonly<{
+  isMcp: boolean;
+  connectedName: string | null;
+  checklist: ChecklistItem[];
+  verified: boolean;
+}>) {
+  const { t } = useTranslation();
+  return (
+    <div className="anim-scale-in space-y-3">
+      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        {isMcp
+          ? t("wizard.agentWiredUp")
+          : t("wizard.displayNameConnected", {
+              displayName: connectedName ?? t("wizard.yourSource"),
+            })}
+      </p>
+      <ul className="space-y-1.5">
+        {checklist.map((item) => (
+          <li key={item.label} className="flex items-center gap-2 text-sm">
+            {item.done ? (
+              <FiCheckCircle
+                className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                aria-hidden="true"
+              />
+            ) : (
+              <FiCircle
+                className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-600"
+                aria-hidden="true"
+              />
+            )}
+            <span
+              className={cx(
+                item.done
+                  ? "text-zinc-800 dark:text-zinc-200"
+                  : "text-zinc-500 dark:text-zinc-400",
+              )}
+            >
+              {item.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {!verified ? (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {t("wizard.noDataYetFine")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 type AutoPostWizardProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -77,7 +351,7 @@ export function AutoPostWizard({
   open,
   onOpenChange,
   resumeConnection = null,
-}: AutoPostWizardProps) {
+}: Readonly<AutoPostWizardProps>) {
   const { t } = useTranslation();
   const [step, setStep] = useState<WizardStepKey | "done">("source");
   const [sourceKey, setSourceKey] = useState<WizardSourceKey | null>(null);
@@ -97,11 +371,8 @@ export function AutoPostWizard({
    * silently keeping a kind or employer the user went Back to change would be
    * a privacy bug, not a convenience.
    */
-  const [createdSettings, setCreatedSettings] = useState<{
-    kind: GitConnectionKind;
-    workExperienceId: string | null;
-    displayName: string;
-  } | null>(null);
+  const [createdSettings, setCreatedSettings] =
+    useState<ConnectionSettings | null>(null);
   const [token, setToken] = useState<CreateApiTokenOutput | null>(null);
   /**
    * MCP only: which Connect-step tool tab the user picked, so the Schedule
@@ -157,55 +428,60 @@ export function AutoPostWizard({
     [],
   );
 
-  // The "Finish setup" path: land on Verify with the existing connection.
-  useEffect(() => {
-    if (!open || !resumeConnection) {
-      return;
-    }
-    const resumedSource = sourceKeyForProvider(resumeConnection.provider);
+  /**
+   * The "Finish setup" path: land on Verify with the existing connection.
+   *
+   * Seeded during render rather than from an effect, so Verify and the resumed
+   * connection land in the same commit instead of the Source step painting for
+   * a frame first. `seededResume` tracks the exact (open, connection) pair the
+   * seeding was done for, which keeps the original trigger: re-seed whenever
+   * either changes, and never otherwise.
+   */
+  const seedFromResumedConnection = (connection: GitConnection) => {
+    const resumedSource = sourceKeyForProvider(connection.provider);
     setSourceKey(resumedSource);
     if (resumedSource === "forge") {
-      setForgeProvider(resumeConnection.provider as ForgeProvider);
+      setForgeProvider(connection.provider as ForgeProvider);
     }
-    setKind(resumeConnection.kind);
-    setWorkExperienceId(resumeConnection.workExperienceId);
-    setDisplayName(resumeConnection.displayName);
+    setKind(connection.kind);
+    setWorkExperienceId(connection.workExperienceId);
+    setDisplayName(connection.displayName);
     setNameEdited(true);
     setCreated({
-      connectionId: resumeConnection.id,
-      provider: resumeConnection.provider,
-      displayName: resumeConnection.displayName,
+      connectionId: connection.id,
+      provider: connection.provider,
+      displayName: connection.displayName,
       // The secret was disclosed at creation time and is unrecoverable — the
       // resumed Connect step shows everything except it.
       webhookSecret: null,
     });
     setCreatedSettings({
-      kind: resumeConnection.kind,
-      workExperienceId: resumeConnection.workExperienceId,
-      displayName: resumeConnection.displayName,
+      kind: connection.kind,
+      workExperienceId: connection.workExperienceId,
+      displayName: connection.displayName,
     });
     // The schedule UI has no Off option; remember the coercion so Finish does
     // not PATCH "weekly" onto a deliberately-off connection the user never
     // touched.
-    setCadenceCoercedFromOff(resumeConnection.cadence === "off");
+    setCadenceCoercedFromOff(connection.cadence === "off");
     setCadenceTouched(false);
     setCadence(
-      resumeConnection.cadence === "off"
+      connection.cadence === "off"
         ? "weekly"
-        : (resumeConnection.cadence as WizardCadence),
+        : (connection.cadence as WizardCadence),
     );
-    setAutoPostEnabled(resumeConnection.autoPostEnabled);
-    setIncludeAgentSummary(resumeConnection.includeAgentSummary);
+    setAutoPostEnabled(connection.autoPostEnabled);
+    setIncludeAgentSummary(connection.includeAgentSummary);
     setStep("verify");
-  }, [open, resumeConnection]);
+  };
+
+  useResumedConnection(
+    open ? resumeConnection : null,
+    seedFromResumedConnection,
+  );
 
   const isMcp = sourceKey === "mcp";
-  const effectiveProvider: GitConnectionProvider | null =
-    sourceKey === null || isMcp
-      ? null
-      : sourceKey === "forge"
-        ? forgeProvider
-        : sourceKey;
+  const effectiveProvider = resolveEffectiveProvider(sourceKey, forgeProvider);
   const connectionId = created?.connectionId ?? null;
 
   /* ------------------------------------------------------------------ *
@@ -323,6 +599,11 @@ export function AutoPostWizard({
     }
   };
 
+  const handleCadenceChange = (value: WizardCadence) => {
+    setCadence(value);
+    setCadenceTouched(true);
+  };
+
   const handleKindChange = (nextKind: GitConnectionKind) => {
     setKind(nextKind);
     // The prefill follows the personal/work choice until the user has typed a
@@ -330,6 +611,102 @@ export function AutoPostWizard({
     // wizard ignoring the click.
     if (!nameEdited && sourceKey) {
       prefillName(sourceKey, nextKind);
+    }
+  };
+
+  /**
+   * Reuses the connection already created for this provider, PATCHing any
+   * settings edited on the way back. Silently keeping the old kind or employer
+   * would misclassify work as personal (or vice versa), which is the
+   * disclosure policy's whole job. `false` means the step must not advance.
+   */
+  const reuseCreatedConnection = async (
+    connection: StashedConnection,
+    next: ConnectionSettings,
+  ): Promise<boolean> => {
+    const patch = diffConnectionSettings(createdSettings, next);
+    if (Object.keys(patch).length === 0) {
+      return true;
+    }
+    try {
+      await updateConnection.mutateAsync({
+        connectionId: connection.connectionId,
+        patch,
+      });
+      setCreatedSettings(next);
+      const renamed = { ...connection, displayName: next.displayName };
+      setCreated(renamed);
+      stashConnection(renamed);
+      return true;
+    } catch (error) {
+      reportError(error, {
+        action: "settings.wizard-update-connection",
+        extra: { kind: next.kind },
+      });
+      setCreateError(t("wizard.updateSourceFailed"));
+      return false;
+    }
+  };
+
+  /**
+   * Mints the connection for the picked provider. A provider switch after a
+   * create leaves an abandoned connection behind; delete it rather than
+   * orphaning it, and drop its stashed one-time secret so the panel cannot
+   * resurface a dead connection. `false` means the step must not advance.
+   */
+  const createFreshConnection = async (
+    next: ConnectionSettings,
+  ): Promise<boolean> => {
+    try {
+      if (created) {
+        await deleteConnection.mutateAsync(created.connectionId);
+        clearStashedConnection();
+        setCreated(null);
+        setCreatedSettings(null);
+      }
+
+      const result = await createConnection.mutateAsync({
+        provider: effectiveProvider as GitConnectionProvider,
+        kind: next.kind,
+        displayName: next.displayName,
+        workExperienceId: next.workExperienceId,
+        autoPostEnabled: false,
+        cadence: "weekly",
+        includeAgentSummary: false,
+      });
+      const stashed: StashedConnection = {
+        connectionId: result.id,
+        provider: result.provider,
+        displayName: result.displayName,
+        webhookSecret: result.webhookSecret,
+      };
+      setCreated(stashed);
+      setCreatedSettings(next);
+      // Session-scoped recovery: if the wizard is closed mid-way, the
+      // connections panel resurfaces the one-time secret from this stash.
+      stashConnection(stashed);
+      return true;
+    } catch (error) {
+      reportError(error, {
+        action: "settings.wizard-create-connection",
+        extra: { provider: effectiveProvider ?? null, kind: next.kind },
+      });
+
+      if (
+        axios.isAxiosError(error) &&
+        error.response?.status === 409 &&
+        effectiveProvider
+      ) {
+        setCreateError(
+          t("wizard.duplicateSource", {
+            providerLabel: PROVIDER_LABELS[effectiveProvider],
+            kindLabel: KIND_LABELS[next.kind],
+          }),
+        );
+        return false;
+      }
+      setCreateError(t("settings.connectionDialog.connectFailed"));
+      return false;
     }
   };
 
@@ -352,109 +729,21 @@ export function AutoPostWizard({
 
     // Only a personal source has no employer to attach. `mixed` does — it is
     // held to that employer's rules exactly like a work source is.
-    const effectiveWorkExperienceId =
-      kind === "personal" ? null : workExperienceId;
+    const next: ConnectionSettings = {
+      kind,
+      workExperienceId: kind === "personal" ? null : workExperienceId,
+      displayName: trimmedName,
+    };
 
     // Back-then-Next must not mint a second connection: reuse the one already
-    // created for this provider — but PATCH any settings edited on the way
-    // back. Silently keeping the old kind/employer would misclassify work as
-    // personal (or vice versa), which is the disclosure policy's whole job.
-    if (created && created.provider === effectiveProvider) {
-      const patch: UpdateGitConnectionInput = {};
-      if (createdSettings) {
-        if (kind !== createdSettings.kind) {
-          patch.kind = kind;
-        }
-        if (effectiveWorkExperienceId !== createdSettings.workExperienceId) {
-          patch.workExperienceId = effectiveWorkExperienceId;
-        }
-        if (trimmedName !== createdSettings.displayName) {
-          patch.displayName = trimmedName;
-        }
-      }
-      if (Object.keys(patch).length > 0) {
-        try {
-          await updateConnection.mutateAsync({
-            connectionId: created.connectionId,
-            patch,
-          });
-          setCreatedSettings({
-            kind,
-            workExperienceId: effectiveWorkExperienceId,
-            displayName: trimmedName,
-          });
-          const renamed = { ...created, displayName: trimmedName };
-          setCreated(renamed);
-          stashConnection(renamed);
-        } catch (error) {
-          reportError(error, {
-            action: "settings.wizard-update-connection",
-            extra: { kind },
-          });
-          setCreateError(t("wizard.updateSourceFailed"));
-          return;
-        }
-      }
+    // created for this provider.
+    const advanced =
+      created && created.provider === effectiveProvider
+        ? await reuseCreatedConnection(created, next)
+        : await createFreshConnection(next);
+
+    if (advanced) {
       setStep("connect");
-      return;
-    }
-
-    try {
-      // A provider switch after a create leaves an abandoned connection
-      // behind; delete it rather than orphaning it, and drop its stashed
-      // one-time secret so the panel cannot resurface a dead connection.
-      if (created) {
-        await deleteConnection.mutateAsync(created.connectionId);
-        clearStashedConnection();
-        setCreated(null);
-        setCreatedSettings(null);
-      }
-
-      const result = await createConnection.mutateAsync({
-        provider: effectiveProvider as GitConnectionProvider,
-        kind,
-        displayName: trimmedName,
-        workExperienceId: effectiveWorkExperienceId,
-        autoPostEnabled: false,
-        cadence: "weekly",
-        includeAgentSummary: false,
-      });
-      const stashed: StashedConnection = {
-        connectionId: result.id,
-        provider: result.provider,
-        displayName: result.displayName,
-        webhookSecret: result.webhookSecret,
-      };
-      setCreated(stashed);
-      setCreatedSettings({
-        kind,
-        workExperienceId: effectiveWorkExperienceId,
-        displayName: trimmedName,
-      });
-      // Session-scoped recovery: if the wizard is closed mid-way, the
-      // connections panel resurfaces the one-time secret from this stash.
-      stashConnection(stashed);
-      setStep("connect");
-    } catch (error) {
-      reportError(error, {
-        action: "settings.wizard-create-connection",
-        extra: { provider: effectiveProvider ?? null, kind },
-      });
-
-      if (
-        axios.isAxiosError(error) &&
-        error.response?.status === 409 &&
-        effectiveProvider
-      ) {
-        setCreateError(
-          t("wizard.duplicateSource", {
-            providerLabel: PROVIDER_LABELS[effectiveProvider],
-            kindLabel: KIND_LABELS[kind],
-          }),
-        );
-        return;
-      }
-      setCreateError(t("settings.connectionDialog.connectFailed"));
     }
   };
 
@@ -494,15 +783,7 @@ export function AutoPostWizard({
     ? detectedPost !== null
     : previewQuery.data?.status === "ready";
 
-  const tokenNameHint = isMcp
-    ? t("wizard.namePreset.codingAgent")
-    : sourceKey === "extractor"
-      ? t("wizard.token.nameHintExtractor", {
-          displayName: displayName.trim() || t("wizard.namePreset.workLaptop"),
-        })
-      : t("wizard.token.nameHintUploads", {
-          displayName: displayName.trim() || t("wizard.namePreset.workLaptop"),
-        });
+  const tokenNameHint = getTokenNameHint(t, sourceKey, displayName);
 
   /* ------------------------------------------------------------------ *
    * Footer buttons per step
@@ -532,7 +813,9 @@ export function AutoPostWizard({
               deleteConnection.isPending
             }
             loadingLabel={t("common.connecting")}
-            onClick={handleSourceNext}
+            onClick={() => {
+              void handleSourceNext();
+            }}
           >
             {t("common.next")}
           </Button>
@@ -629,7 +912,9 @@ export function AutoPostWizard({
             fullWidth={false}
             isLoading={updateConnection.isPending}
             loadingLabel={t("common.saving")}
-            onClick={handleFinish}
+            onClick={() => {
+              void handleFinish();
+            }}
           >
             {t("common.finish")}
           </Button>
@@ -659,17 +944,13 @@ export function AutoPostWizard({
    * Done checklist
    * ------------------------------------------------------------------ */
 
-  const checklist: Array<{ label: string; done: boolean }> = [
-    { label: t("wizard.stepSourceConnected"), done: isMcp || created !== null },
-    { label: t("wizard.stepFirstData"), done: verified },
-    { label: t("wizard.stepPreviewSeen"), done: Boolean(previewSeen) },
-    isMcp
-      ? {
-          label: t("wizard.stepWeeklyRhythm"),
-          done: false,
-        }
-      : { label: t("wizard.stepScheduleSet"), done: scheduleSaved },
-  ];
+  const checklist = buildChecklist(t, {
+    isMcp,
+    hasConnection: created !== null,
+    verified,
+    previewSeen: Boolean(previewSeen),
+    scheduleSaved,
+  });
 
   return (
     <Dialog
@@ -713,9 +994,7 @@ export function AutoPostWizard({
                 }}
                 displayNameError={nameError}
               />
-              {createError ? (
-                <FeedbackMessage tone="error" message={createError} />
-              ) : null}
+              <ErrorNote message={createError} />
             </div>
           ) : null}
 
@@ -732,105 +1011,46 @@ export function AutoPostWizard({
           ) : null}
 
           {step === "verify" && sourceKey ? (
-            isMcp ? (
-              <McpVerifyBody detectedPost={detectedPost} />
-            ) : (
-              <ConnectionVerifyBody
-                sourceKey={sourceKey as Exclude<WizardSourceKey, "mcp">}
-                health={healthQuery.data}
-                isError={healthQuery.isError}
-              />
-            )
+            <VerifyBody
+              sourceKey={sourceKey}
+              detectedPost={detectedPost}
+              health={healthQuery.data}
+              isHealthError={healthQuery.isError}
+            />
           ) : null}
 
           {step === "preview" ? (
-            isMcp ? (
-              <McpPreviewBody detectedPost={detectedPost} />
-            ) : (
-              <ConnectionPreviewBody
-                preview={previewQuery.data}
-                isLoading={previewQuery.isLoading}
-                isError={previewQuery.isError}
-              />
-            )
+            <PreviewBody
+              isMcp={isMcp}
+              detectedPost={detectedPost}
+              preview={previewQuery.data}
+              isPreviewLoading={previewQuery.isLoading}
+              isPreviewError={previewQuery.isError}
+            />
           ) : null}
 
           {step === "schedule" ? (
-            <div className="space-y-3">
-              {isMcp ? (
-                <McpScheduleBody
-                  cadence={cadence}
-                  onCadenceChange={(value) => {
-                    setCadence(value);
-                    setCadenceTouched(true);
-                  }}
-                  toolKey={toolKey}
-                />
-              ) : (
-                <ScheduleStepBody
-                  cadence={cadence}
-                  onCadenceChange={(value) => {
-                    setCadence(value);
-                    setCadenceTouched(true);
-                  }}
-                  autoPostEnabled={autoPostEnabled}
-                  onAutoPostChange={setAutoPostEnabled}
-                  showAgentSummaryToggle={created?.provider === "claude_code"}
-                  includeAgentSummary={includeAgentSummary}
-                  onIncludeAgentSummaryChange={setIncludeAgentSummary}
-                />
-              )}
-              {saveError ? (
-                <FeedbackMessage tone="error" message={saveError} />
-              ) : null}
-            </div>
+            <ScheduleBody
+              isMcp={isMcp}
+              cadence={cadence}
+              onCadenceChange={handleCadenceChange}
+              toolKey={toolKey}
+              autoPostEnabled={autoPostEnabled}
+              onAutoPostChange={setAutoPostEnabled}
+              showAgentSummaryToggle={created?.provider === "claude_code"}
+              includeAgentSummary={includeAgentSummary}
+              onIncludeAgentSummaryChange={setIncludeAgentSummary}
+              saveError={saveError}
+            />
           ) : null}
 
           {step === "done" ? (
-            <div className="anim-scale-in space-y-3">
-              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                {isMcp
-                  ? t("wizard.agentWiredUp")
-                  : t("wizard.displayNameConnected", {
-                      displayName:
-                        created?.displayName ?? t("wizard.yourSource"),
-                    })}
-              </p>
-              <ul className="space-y-1.5">
-                {checklist.map((item) => (
-                  <li
-                    key={item.label}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    {item.done ? (
-                      <FiCheckCircle
-                        className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <FiCircle
-                        className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-600"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span
-                      className={cx(
-                        item.done
-                          ? "text-zinc-800 dark:text-zinc-200"
-                          : "text-zinc-500 dark:text-zinc-400",
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {!verified ? (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {t("wizard.noDataYetFine")}
-                </p>
-              ) : null}
-            </div>
+            <DoneBody
+              isMcp={isMcp}
+              connectedName={created?.displayName ?? null}
+              checklist={checklist}
+              verified={verified}
+            />
           ) : null}
         </div>
 

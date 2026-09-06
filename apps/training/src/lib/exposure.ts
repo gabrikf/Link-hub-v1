@@ -83,10 +83,7 @@ export function expandByImportanceWeight<T>(
   let carry = 0;
 
   for (const row of rows) {
-    const weight = Math.min(
-      MAX_IMPORTANCE_COPIES,
-      Math.max(0, weightOf(row)),
-    );
+    const weight = Math.min(MAX_IMPORTANCE_COPIES, Math.max(0, weightOf(row)));
     const budget = weight + carry;
     const copies = Math.floor(budget);
     carry = budget - copies;
@@ -122,9 +119,9 @@ export const SKIP_ABOVE_ENGAGEMENT_THRESHOLD = 1;
  * silent majority. Emitting `PROFILE_VIEW` from the results UI is what makes
  * this worth anything.
  */
-export function deriveSkipAboveNegatives(
+function groupBySearchSession(
   rows: readonly ResumeTrainingRow[],
-): ResumeTrainingRow[] {
+): Map<string, ResumeTrainingRow[]> {
   const bySession = new Map<string, ResumeTrainingRow[]>();
 
   for (const row of rows) {
@@ -139,47 +136,75 @@ export function deriveSkipAboveNegatives(
     }
   }
 
+  return bySession;
+}
+
+/**
+ * Deepest rank the recruiter *chose* something at, within one session.
+ * Everything above it was on screen on the way down.
+ *
+ * "Chose" means a strong signal (an email copy, a contact reveal), not a
+ * profile view. A view is the evidence that a candidate was EXAMINED, which
+ * is exactly what makes them eligible to be a skip-above negative — treating
+ * it as engagement would exclude the only rows this can recover.
+ */
+function deepestEngagedRankIn(
+  sessionRows: readonly ResumeTrainingRow[],
+): number {
+  let deepestEngagedRank = 0;
+  for (const row of sessionRows) {
+    if (
+      row.interactionScore >= SKIP_ABOVE_ENGAGEMENT_THRESHOLD &&
+      row.displayedRank! > deepestEngagedRank
+    ) {
+      deepestEngagedRank = row.displayedRank!;
+    }
+  }
+  return deepestEngagedRank;
+}
+
+function skipAboveNegativesForSession(
+  sessionRows: readonly ResumeTrainingRow[],
+  deepestEngagedRank: number,
+): ResumeTrainingRow[] {
+  const negatives: ResumeTrainingRow[] = [];
+
+  for (const row of sessionRows) {
+    if (
+      row.interactionScore >= SKIP_ABOVE_ENGAGEMENT_THRESHOLD ||
+      row.displayedRank! >= deepestEngagedRank
+    ) {
+      continue;
+    }
+
+    negatives.push({
+      ...row,
+      resumeId: `${row.resumeId}#skip-above`,
+      // Explicit, because the row's own weak positive (a PROFILE_VIEW is
+      // worth 0.35) is exactly the signal being overruled: the recruiter
+      // looked, then chose someone below.
+      forcedLabel: 0,
+    });
+  }
+
+  return negatives;
+}
+
+export function deriveSkipAboveNegatives(
+  rows: readonly ResumeTrainingRow[],
+): ResumeTrainingRow[] {
+  const bySession = groupBySearchSession(rows);
   const negatives: ResumeTrainingRow[] = [];
 
   for (const sessionRows of bySession.values()) {
-    // Deepest rank the recruiter *chose* something at. Everything above it was
-    // on screen on the way down.
-    //
-    // "Chose" means a strong signal (an email copy, a contact reveal), not a
-    // profile view. A view is the evidence that a candidate was EXAMINED, which
-    // is exactly what makes them eligible to be a skip-above negative — treating
-    // it as engagement would exclude the only rows this can recover.
-    let deepestEngagedRank = 0;
-    for (const row of sessionRows) {
-      if (
-        row.interactionScore >= SKIP_ABOVE_ENGAGEMENT_THRESHOLD &&
-        row.displayedRank! > deepestEngagedRank
-      ) {
-        deepestEngagedRank = row.displayedRank!;
-      }
-    }
-
+    const deepestEngagedRank = deepestEngagedRankIn(sessionRows);
     if (deepestEngagedRank === 0) {
       continue;
     }
 
-    for (const row of sessionRows) {
-      if (
-        row.interactionScore >= SKIP_ABOVE_ENGAGEMENT_THRESHOLD ||
-        row.displayedRank! >= deepestEngagedRank
-      ) {
-        continue;
-      }
-
-      negatives.push({
-        ...row,
-        resumeId: `${row.resumeId}#skip-above`,
-        // Explicit, because the row's own weak positive (a PROFILE_VIEW is
-        // worth 0.35) is exactly the signal being overruled: the recruiter
-        // looked, then chose someone below.
-        forcedLabel: 0,
-      });
-    }
+    negatives.push(
+      ...skipAboveNegativesForSession(sessionRows, deepestEngagedRank),
+    );
   }
 
   return negatives;

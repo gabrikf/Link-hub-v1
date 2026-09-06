@@ -8,6 +8,7 @@ import {
   GetWorkContextUseCase,
   calculateDurationMonths,
 } from "./get-work-context.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 interface RoleOverrides {
   title?: string;
@@ -83,7 +84,7 @@ describe("GetWorkContextUseCase", () => {
     const context = await sut.execute(user.id);
 
     expect(context.disclosureLevel).toBe("summary");
-    expect(context.roles[0].companyName).toBeNull();
+    expect(context.roles[0]?.companyName).toBeNull();
   });
 
   it("includes the employer name at detailed and full level", async () => {
@@ -93,7 +94,7 @@ describe("GetWorkContextUseCase", () => {
     );
 
     const detailed = await sut.execute(detailedUser.id);
-    expect(detailed.roles[0].companyName).toBe("Acme Corp");
+    expect(detailed.roles[0]?.companyName).toBe("Acme Corp");
 
     const fullUser = UserEntity.create({
       email: "full@example.com",
@@ -111,7 +112,7 @@ describe("GetWorkContextUseCase", () => {
     );
 
     const full = await sut.execute(fullUser.id);
-    expect(full.roles[0].companyName).toBe("Nubank");
+    expect(full.roles[0]?.companyName).toBe("Nubank");
   });
 
   it("redacts the employer name out of achievement text at summary level", async () => {
@@ -126,11 +127,11 @@ describe("GetWorkContextUseCase", () => {
 
     const context = await sut.execute(user.id);
 
-    expect(context.roles[0].achievements[0]).toBe(
+    expect(context.roles[0]?.achievements[0]).toBe(
       "Rebuilt checkout for [employer].",
     );
     // Non-identifying outcome metrics survive — that is the whole trade.
-    expect(context.roles[0].achievements[1]).toBe(
+    expect(context.roles[0]?.achievements[1]).toBe(
       "Cut p95 latency by 40 percent.",
     );
   });
@@ -150,8 +151,8 @@ describe("GetWorkContextUseCase", () => {
 
     const context = await sut.execute(user.id);
 
-    expect(context.roles[0].achievements[0]).toContain("[employer]");
-    expect(context.roles[0].achievements[0]).not.toContain("Nubank");
+    expect(context.roles[0]?.achievements[0]).toContain("[employer]");
+    expect(context.roles[0]?.achievements[0]).not.toContain("Nubank");
   });
 
   it("keeps a summary-level employer redacted inside a full-level role", async () => {
@@ -171,10 +172,10 @@ describe("GetWorkContextUseCase", () => {
     const context = await sut.execute(user.id);
 
     // The permissive role may name ITSELF...
-    expect(context.roles[0].companyName).toBe("VTEX");
+    expect(context.roles[0]?.companyName).toBe("VTEX");
     // ...but not the employer the user deliberately left at summary.
-    expect(context.roles[0].achievements[0]).not.toContain("PagBank");
-    expect(context.roles[0].achievements[0]).toContain("[employer]");
+    expect(context.roles[0]?.achievements[0]).not.toContain("PagBank");
+    expect(context.roles[0]?.achievements[0]).toContain("[employer]");
   });
 
   it("honours a per-role override over the account default", async () => {
@@ -194,8 +195,8 @@ describe("GetWorkContextUseCase", () => {
 
     // Account-level level is still what the header reports.
     expect(context.disclosureLevel).toBe("summary");
-    expect(context.roles[0].companyName).toBe("Open Source Co");
-    expect(context.roles[1].companyName).toBeNull();
+    expect(context.roles[0]?.companyName).toBe("Open Source Co");
+    expect(context.roles[1]?.companyName).toBeNull();
   });
 
   it("applies the user's own blocked terms even at full level", async () => {
@@ -212,8 +213,8 @@ describe("GetWorkContextUseCase", () => {
 
     const context = await sut.execute(user.id);
 
-    expect(context.roles[0].companyName).toBe("Acme Corp");
-    expect(context.roles[0].achievements[0]).toBe("Led [employer] to launch.");
+    expect(context.roles[0]?.companyName).toBe("Acme Corp");
+    expect(context.roles[0]?.achievements[0]).toBe("Led [employer] to launch.");
   });
 
   it("surfaces stack, practices, domain and seniority — the safe signal", async () => {
@@ -227,7 +228,10 @@ describe("GetWorkContextUseCase", () => {
       }),
     );
 
-    const role = (await sut.execute(user.id)).roles[0];
+    const role = expectDefined(
+      (await sut.execute(user.id)).roles[0],
+      "the first role in the work context",
+    );
 
     expect(role.seniorityHint).toBe("senior");
     expect(role.stack).toEqual(["TypeScript", "PostgreSQL"]);
@@ -256,7 +260,10 @@ describe("GetWorkContextUseCase", () => {
       }),
     );
 
-    const role = (await sut.execute(user.id)).roles[0];
+    const role = expectDefined(
+      (await sut.execute(user.id)).roles[0],
+      "the first role in the work context",
+    );
 
     // A technology name is a label, not a sentence: redacting it in place would
     // ship "[employer] Platform" as a tech the agent then repeats in the post
@@ -273,7 +280,9 @@ describe("GetWorkContextUseCase", () => {
     // The sibling fields keep the treatment they already had.
     expect(role.title).toBe("Senior Engineer at [employer]");
     expect(role.companyName).toBeNull();
-    expect(role.achievements[0]).toBe("Built the [employer] ingestion pipeline.");
+    expect(role.achievements[0]).toBe(
+      "Built the [employer] ingestion pipeline.",
+    );
   });
 
   it("reports duration in whole months", async () => {
@@ -282,7 +291,7 @@ describe("GetWorkContextUseCase", () => {
       makeRole(user.id, { startDate: "2022-01-01", endDate: "2024-01-01" }),
     );
 
-    expect((await sut.execute(user.id)).roles[0].durationMonths).toBe(24);
+    expect((await sut.execute(user.id)).roles[0]?.durationMonths).toBe(24);
   });
 
   it("returns an empty role list for a user with no work history", async () => {

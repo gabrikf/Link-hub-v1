@@ -125,8 +125,8 @@ function getMenuPanel(): HTMLElement {
  * ancestor carries the base `hidden` utility (`md:hidden` is a different class
  * name and does not match).
  */
-function isHiddenBelowMd(element: Element, root: Element): boolean {
-  let node: Element | null = element;
+function isHiddenBelowMd(element: HTMLElement, root: HTMLElement): boolean {
+  let node: HTMLElement | null = element;
   while (node && node !== root.parentElement) {
     if (node.classList.contains("hidden")) {
       return true;

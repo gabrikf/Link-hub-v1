@@ -3,7 +3,7 @@ import type {
   GitConnection,
   WorkExperienceResponse,
 } from "@repo/schemas";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiActivity,
@@ -48,19 +48,18 @@ import {
   useDeleteConnection,
   useMyConnections,
 } from "../lib/connection-queries";
-import { ConnectionDialog } from "./connection-dialog";
 import {
   clearStashedConnection,
-  InstructionList,
-  NewConnectionSetup,
   readStashedConnection,
   stashConnection,
   type StashedConnection,
-} from "./new-connection-setup";
+} from "../lib/connection-stash";
+import { ConnectionDialog } from "./connection-dialog";
+import { InstructionList, NewConnectionSetup } from "./new-connection-setup";
 import { SnippetBlock } from "./snippet-block";
 
 // Re-exported for existing importers; the definition moved to
-// `new-connection-setup.tsx` so the auto-post wizard can reuse it.
+// `../lib/connection-stash.ts`, beside the sessionStorage it describes.
 export type { StashedConnection };
 
 const cx = (...parts: Array<string | false | null | undefined>) =>
@@ -114,11 +113,11 @@ function EffectiveDisclosure({
   connection,
   policy,
   roles,
-}: {
+}: Readonly<{
   connection: GitConnection;
   policy: AgentPolicy | undefined;
   roles: WorkExperienceResponse[];
-}) {
+}>) {
   const { t } = useTranslation();
   const { level, source } = resolveEffectiveDisclosure(connection, policy);
   const companyName =
@@ -157,7 +156,7 @@ function ConnectionRow({
   onDelete,
   onFinishSetup,
   isDeleting,
-}: {
+}: Readonly<{
   connection: GitConnection;
   policy: AgentPolicy | undefined;
   roles: WorkExperienceResponse[];
@@ -165,7 +164,7 @@ function ConnectionRow({
   onDelete: (id: string) => void;
   onFinishSetup?: (connection: GitConnection) => void;
   isDeleting: boolean;
-}) {
+}>) {
   const { t } = useTranslation();
   return (
     <li className={`anim-fade-up p-4 ${SURFACE_GLASS}`}>
@@ -376,7 +375,7 @@ export function ConnectionsPanel({
   onAddSource,
   onFinishSetup,
   wizardOpen = false,
-}: ConnectionsPanelProps) {
+}: Readonly<ConnectionsPanelProps>) {
   const { t } = useTranslation();
   const connectionsQuery = useMyConnections(enabled);
   const policyQuery = useAgentPolicy(enabled);
@@ -393,16 +392,21 @@ export function ConnectionsPanel({
 
   // The mount-time seed above misses a connection created inside the wizard
   // during this visit; re-reading when the wizard closes keeps the promise
-  // that closing it mid-flight loses nothing.
-  useEffect(() => {
-    if (wizardOpen) {
-      return;
+  // that closing it mid-flight loses nothing. Done during render on the
+  // open -> closed transition rather than from an effect, so the resurfaced
+  // secret is present in the very render that reveals the panel again — see
+  // "adjusting state when a prop changes" in
+  // https://react.dev/learn/you-might-not-need-an-effect.
+  const [trackedWizardOpen, setTrackedWizardOpen] = useState(wizardOpen);
+  if (trackedWizardOpen !== wizardOpen) {
+    setTrackedWizardOpen(wizardOpen);
+    if (!wizardOpen) {
+      const stashed = readStashedConnection();
+      if (stashed) {
+        setLastCreated(stashed);
+      }
     }
-    const stashed = readStashedConnection();
-    if (stashed) {
-      setLastCreated(stashed);
-    }
-  }, [wizardOpen]);
+  }
 
   const connections = connectionsQuery.data ?? [];
   const roles = workExperiencesQuery.data ?? [];

@@ -38,9 +38,7 @@ export class InMemoryFileStorageProvider implements IFileStorageProvider {
     contentType,
     key,
   }: UploadFileParams): Promise<UploadFileResult> {
-    const buffer = Buffer.isBuffer(body)
-      ? body
-      : await bufferFromStream(body);
+    const buffer = Buffer.isBuffer(body) ? body : await bufferFromStream(body);
 
     // Last write wins, exactly as an S3 PUT to an existing key does. A store
     // that rejected a repeat key here would let a test pass that would fail
@@ -56,14 +54,31 @@ export class InMemoryFileStorageProvider implements IFileStorageProvider {
     // targets a lib older than es2022 (see the CLAUDE.md note about apps/api
     // not extending @repo/typescript-config).
     const all = [...this.uploads.values()];
-    return all.length > 0 ? all[all.length - 1]! : null;
+    return all.length > 0 ? all[all.length - 1] : null;
   }
 }
 
 async function bufferFromStream(stream: Readable): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    chunks.push(chunkToBuffer(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+/**
+ * A `Readable` yields `any`, so the chunk is narrowed rather than trusted.
+ * These four shapes are every chunk Node produces for a byte stream; anything
+ * else means the caller handed us an object-mode stream, which would have
+ * thrown inside `Buffer.from` anyway — only later, and less legibly.
+ */
+function chunkToBuffer(chunk: unknown): Buffer {
+  if (Buffer.isBuffer(chunk)) return chunk;
+  if (typeof chunk === "string") return Buffer.from(chunk);
+  if (chunk instanceof Uint8Array) return Buffer.from(chunk);
+  if (chunk instanceof ArrayBuffer) return Buffer.from(chunk);
+
+  throw new TypeError(
+    "Unsupported stream chunk: expected a Buffer, string, Uint8Array or ArrayBuffer.",
+  );
 }

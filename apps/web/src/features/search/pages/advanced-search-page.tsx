@@ -99,12 +99,8 @@ export function AdvancedSearchPage() {
   });
 
   const { rerank, warmUp, isModelLoading } = useAiRerank();
-  const {
-    isAiMatchOn,
-    isDeviceDecision,
-    isTouchFirst,
-    setIsAiMatchOn,
-  } = useAiMatchPreference();
+  const { isAiMatchOn, isDeviceDecision, isTouchFirst, setIsAiMatchOn } =
+    useAiMatchPreference();
 
   /*
    * Start fetching the reranker bundle as soon as the page mounts, so it is
@@ -393,7 +389,12 @@ export function AdvancedSearchPage() {
           </div>
         </div>
 
-        <form onSubmit={onSearch} className="mt-5">
+        <form
+          onSubmit={(event) => {
+            void onSearch(event);
+          }}
+          className="mt-5"
+        >
           <SearchChatComposer
             control={control}
             register={register}
@@ -448,7 +449,9 @@ export function AdvancedSearchPage() {
         hasSearched={hasSearched}
         degradedNotice={rerankNotice}
         isAiMatchOn={isAiMatchOn}
-        onCopyEmail={handleCopyEmail}
+        onCopyEmail={(candidate, index) => {
+          void handleCopyEmail(candidate, index);
+        }}
         onViewProfile={handleViewProfile}
         onNotRelevant={handleNotRelevant}
       />

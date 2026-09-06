@@ -18,7 +18,7 @@ import { SKILL_OPTIONS, TITLE_OPTIONS } from "../types/advanced-search";
 /** Names the collapsible semantic block for the small-screen disclosure. */
 const SEMANTIC_FIELDS_ID = "advanced-search-semantic-fields";
 
-type SearchChatComposerProps = {
+type SearchChatComposerProps = Readonly<{
   control: Control<AdvancedSearchFormValues>;
   register: UseFormRegister<AdvancedSearchFormValues>;
   errors: FieldErrors<AdvancedSearchFormValues>;
@@ -26,7 +26,7 @@ type SearchChatComposerProps = {
   attachmentFile: File | null;
   onPickFile: () => void;
   onRemoveFile: () => void;
-};
+}>;
 
 export function SearchChatComposer({
   control,

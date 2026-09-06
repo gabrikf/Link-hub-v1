@@ -1,6 +1,6 @@
-type BrandLogoProps = {
+type BrandLogoProps = Readonly<{
   className?: string;
-};
+}>;
 
 /**
  * The CraftHub mark: a connected hub of nodes on a violet gradient disc.

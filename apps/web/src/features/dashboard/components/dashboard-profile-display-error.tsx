@@ -2,10 +2,10 @@ import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
 import { Button } from "../../../shared-components/button";
 
-type DashboardProfileDisplayErrorProps = {
+type DashboardProfileDisplayErrorProps = Readonly<{
   onRetry: () => void;
   isRetrying: boolean;
-};
+}>;
 
 /**
  * Shown when `GET /me` fails.

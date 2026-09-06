@@ -55,7 +55,10 @@ const BACKGROUND_URL = `${FIXTURE_ORIGIN}/background.svg`;
  * 600x900 — PORTRAIT, which is the shape that produced the bug: dropped into a
  * 3:1 strip and centred, the subject (the circle) is cropped away entirely.
  */
-const fixtureSvg = (top, bottom) => `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900">
+const fixtureSvg = (
+  top,
+  bottom,
+) => `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900">
   <rect width="600" height="450" fill="${top}"/>
   <rect y="450" width="600" height="450" fill="${bottom}"/>
   <circle cx="300" cy="150" r="90" fill="#ffffff"/>
@@ -85,14 +88,15 @@ const PAINT_PROBE = { x: 20, y: 400, width: 100, height: 120 };
 const PROBE_SIZES = [24, 12, 6];
 
 /**
- * Switch the theme for a SIGNED-IN visit.
+ * Switch the theme for a SIGNED-IN visit, preference and all.
  *
- * `setTheme` writes localStorage, which is enough for an anonymous page — but
- * `usePreferencesSync` applies the signed-in account's STORED preference over
- * the local one a moment after boot, and the seeded accounts carry
- * `theme: "system"`, which a headless browser resolves to light. Without the
- * server half, a "dark mode" capture is a light-mode screenshot with a dark
- * filename. Journey 5's `signIn` does exactly the same thing.
+ * The `PUT` is no longer what makes the theme stick — `setTheme` handles the
+ * signed-in case itself since 2026-09-05, by rewriting `GET /preferences`, and
+ * it throws if the theme it was asked for is not what paints. It is kept here
+ * because this scenario is also checking how a stored preference renders across
+ * a real sign-in, which the runner's in-memory rewrite does not exercise; the
+ * teardown restores the account either way. A capture that only needs the theme
+ * on screen wants plain `setTheme` and nothing else.
  */
 async function useThemeEverywhere(page, setTheme, apiOrigin, theme) {
   await page.evaluate(
@@ -161,8 +165,9 @@ async function cardOnlyProbe(page, sizes) {
      * class: the cover strip is itself `overflow-hidden`, so a class-based
      * lookup returns the strip and every hit test then lands on the banner.
      */
-    const card = document.querySelector('[data-testid="profile-cover-strip"]')
-      ?.parentElement;
+    const card = document.querySelector(
+      '[data-testid="profile-cover-strip"]',
+    )?.parentElement;
     if (!card) return null;
     const box = card.getBoundingClientRect();
 
@@ -448,7 +453,10 @@ export default async function bannerBackgroundPosition({
       );
       return element.contains(hit);
     });
-  assert(closeReachable, "the sticky preview does not cover the dialog's close button");
+  assert(
+    closeReachable,
+    "the sticky preview does not cover the dialog's close button",
+  );
 
   const veilOpacity = await dialog
     .getByTestId("profile-background-veil")
@@ -596,7 +604,10 @@ export default async function bannerBackgroundPosition({
     const handle = all.find((node) => node.textContent?.startsWith("@"));
     const name = document.querySelector("main h1");
     const out = {};
-    for (const [key, node] of [["handle", handle], ["name", name]]) {
+    for (const [key, node] of [
+      ["handle", handle],
+      ["name", name],
+    ]) {
       if (!node) continue;
       const color = toRgba(window.getComputedStyle(node).color).rgb;
       // The worse of the two extreme photographs.
@@ -641,7 +652,10 @@ export default async function bannerBackgroundPosition({
     .click();
   await frame.waitFor({ timeout: 15_000 });
   await shot("reposition-dark");
-  await page.getByRole("button", { name: /Cancel/i }).first().click();
+  await page
+    .getByRole("button", { name: /Cancel/i })
+    .first()
+    .click();
   await useThemeEverywhere(page, setTheme, apiUrl, "light");
 
   /* ── 390px — the same stored placement, a much shorter strip ────────── */
@@ -649,7 +663,6 @@ export default async function bannerBackgroundPosition({
   await goto(`/${username}`);
   await page.getByTestId("profile-cover-image").waitFor({ timeout: 20_000 });
   await shot("public-profile-390");
-
 
   const onPhone = await page
     .getByTestId("profile-cover-image")
@@ -697,7 +710,9 @@ export default async function bannerBackgroundPosition({
     "found a patch of card with no block over it to sample",
   );
   if (!probe) return;
-  log(`card-only probe: ${probe.width}x${probe.height} at ${probe.x},${probe.y}`);
+  log(
+    `card-only probe: ${probe.width}x${probe.height} at ${probe.x},${probe.y}`,
+  );
   const phoneCardOnGreen = await page.screenshot({ clip: probe });
 
   // Re-route the fixture host: same urls, a different photograph.

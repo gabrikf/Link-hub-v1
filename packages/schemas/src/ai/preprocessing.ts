@@ -435,8 +435,8 @@ export function toCandidateFeatureVector(
   const commitPostShare =
     posts.length === 0
       ? 0
-      : posts.filter((post) => normalizeToken(post.source) === "commit").length /
-        posts.length;
+      : posts.filter((post) => normalizeToken(post.source) === "commit")
+          .length / posts.length;
   const postRecency = postRecencyScore(posts, options.now ?? Date.now());
 
   return [
@@ -473,9 +473,9 @@ function scoreYearsHint(
   queryText: string,
   totalYearsExperience: number | null,
 ): number {
-  const yearsHint = queryText
-    .toLowerCase()
-    .match(/(\d{1,2})\s*(\+)?\s*(years|year|yrs|ano|anos)/);
+  const yearsHint = /(\d{1,2})\s*(?:\+\s*)?(years|year|yrs|ano|anos)/.exec(
+    queryText.toLowerCase(),
+  );
 
   if (!yearsHint || totalYearsExperience === null) {
     return 0;
@@ -507,8 +507,14 @@ export function toQueryCandidateFeatureVector(
   // made every multi-word entry ("machine learning", "tailwind css")
   // structurally impossible to find, so those queries silently encoded as
   // "no skills requested".
-  const queryKnownSkills = extractKnownTerms(input.queryText, config.knownSkills);
-  const queryKnownTitles = extractKnownTerms(input.queryText, config.knownTitles);
+  const queryKnownSkills = extractKnownTerms(
+    input.queryText,
+    config.knownSkills,
+  );
+  const queryKnownTitles = extractKnownTerms(
+    input.queryText,
+    config.knownTitles,
+  );
   const queryKnownLanguages = extractKnownTerms(
     input.queryText,
     config.knownLanguages,
@@ -546,10 +552,15 @@ export function toQueryCandidateFeatureVector(
   // React/Node query against someone who shipped React/Node at real companies.
   const stackTokens = [...workStackSet(input.candidate.workExperiences)];
   const heldTitleTokens = [...workTitleSet(input.candidate.workExperiences)];
-  const workTextTokens = tokenize(workHistoryText(input.candidate.workExperiences));
+  const workTextTokens = tokenize(
+    workHistoryText(input.candidate.workExperiences),
+  );
 
   const queryWorkStackCoverage = overlapScore(queryKnownSkills, stackTokens);
-  const queryWorkTitleCoverage = overlapScore(queryKnownTitles, heldTitleTokens);
+  const queryWorkTitleCoverage = overlapScore(
+    queryKnownTitles,
+    heldTitleTokens,
+  );
   const queryWorkTextCoverage = overlapScore(queryTokens, workTextTokens);
 
   const locationMentionScore = input.candidate.location
@@ -577,7 +588,9 @@ export function toQueryCandidateFeatureVector(
   // is the broader "did they write about any of this" signal.
   const posts = input.candidate.posts ?? [];
   const postTagCoverage =
-    posts.length === 0 ? 0 : overlapScore(queryKnownSkills, postTagTokens(posts));
+    posts.length === 0
+      ? 0
+      : overlapScore(queryKnownSkills, postTagTokens(posts));
   const postTextCoverage =
     posts.length === 0
       ? 0

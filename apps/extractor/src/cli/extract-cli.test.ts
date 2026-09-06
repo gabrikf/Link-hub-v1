@@ -1,7 +1,15 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ingestActivitySchemaInput } from "@repo/schemas";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { resetConfigCache } from "../config.js";
 import {
   cleanupTempRepos,
@@ -63,8 +71,12 @@ beforeEach(() => {
 
   stdout = [];
   stderr = [];
-  vi.spyOn(console, "log").mockImplementation((...a) => void stdout.push(a.join(" ")));
-  vi.spyOn(console, "error").mockImplementation((...a) => void stderr.push(a.join(" ")));
+  vi.spyOn(console, "log").mockImplementation((...a) => {
+    stdout.push(a.join(" "));
+  });
+  vi.spyOn(console, "error").mockImplementation((...a) => {
+    stderr.push(a.join(" "));
+  });
 
   resetConfigCache();
   process.env.CRAFTHUB_EXTRACTOR_CONFIG = "/nonexistent/crafthub.json";

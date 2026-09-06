@@ -9,7 +9,6 @@ A charter is a written mission for one QA session: *"for the next 60 minutes, th
 - Charter anatomy
 - Charter file format
 - Charter modes
-- Time-box guidance
 - Cycle planning and cadence tiers
 - The standing charters
 - The coverage inversion
@@ -37,21 +36,8 @@ One file per charter at `<qa-docs-path>/charters/CH-<slug>.md` (template: `<qa-d
 Pick the mode before writing the mission:
 
 - **Charter-with-tour (recommended default)** — mission constrained by one tour. *"As Diego (Power User) in dark mode, run the Multi-Tab Tour through the profile layout editor — two tabs rearranging the same profile must not silently lose one person's work."*
-- **Freestyle** — mission + persona + time-box only; improvise from what you observe. Use for brand-new surfaces where edges aren't understood yet.
-- **Scenario-based** — walk a realistic end-to-end story in plain language. *"As Priya, who has a React front-end role to fill: paste the JD out of the ATS, work the shortlist, open the top three profiles, and decide who to contact."* Use to validate a journey under realistic conditions.
-- **Strategy-based** — apply one technique throughout (error guessing, state-transition probing). Use for input-heavy or stateful surfaces — the disclosure policy's level transitions are the best example in this product.
 - **Adversarial-agent** — a CraftHub-specific mode. The Autonomous Agent persona is given a realistic, *innocent* task whose honest completion brushes against the disclosure boundary, and the session watches what it publishes. Not a jailbreak attempt: a real agent doing real work is what actually leaks. Use for every Disclosure Tour charter on the MCP surface.
 - **Collaborative** — two personas pair on one surface; one drives, one proposes. Use for the agent-plus-human loop: Atlas publishes, Diego reviews, and the session watches the seam between them.
-
-## Time-box guidance
-
-| Box | When |
-|---|---|
-| 30 min | Narrow scope, smoke re-walk, sanity check. Expect 2-5 findings. |
-| 60 min | Default for charter-with-tour. Best depth-vs-fatigue balance. |
-| 90 min | Complex multi-step journey, first pass on a new area, or any charter walking both themes across a large surface. Break in the middle. |
-
-**Hard rule:** the box ends when it ends. Findings piling up at the deadline become a follow-up charter, not an extension. Fatigue produces false positives.
 
 Budget honestly for themes: walking a surface twice is close to twice the time. A 30-minute box that promises both themes across five screens is a 30-minute box that will quietly walk one theme.
 
@@ -100,12 +86,8 @@ A session without a debrief is wasted exploration. When the box ends (written by
 
 ## Anti-patterns
 
-- **No mission** — a charter without a one-sentence mission is tab-clicking.
-- **Multi-tour charter** — one tour per box; a second theme is a second charter. (Walking both *color* themes is not a second tour — it is one charter's stated scope.)
-- **Unnamed themes** — a browser charter that doesn't say which themes it walks will walk whichever one the machine booted in.
 - **Drift outside the journey** — interesting bugs elsewhere go to a follow-up charter, not into this debrief's scope.
 - **Charter-per-round duplication** — re-drafting the same mission each cycle instead of re-running the existing charter. Charters are durable; debriefs are per-run and live in each run's report.
 - **Editing a run charter** — appending debriefs or tweaking the mission in place turns a durable mission into a contended file. Charters are immutable; a changed mission is a new charter.
 - **A jailbreak charter instead of an adversarial-agent charter** — trying to trick the agent into leaking measures the prompt, not the product. Give it honest work near the boundary.
-- **Skipping the debrief** — finding bugs without recording them equals not finding them.
 - **Case-count completeness** — see the coverage inversion. If the plan's success metric counts files, the plan is wrong.

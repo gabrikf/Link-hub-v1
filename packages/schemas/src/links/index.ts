@@ -25,7 +25,7 @@ export const linkIconSchema = z.enum([
 ]);
 
 /**
- * RESPONSE shape. `url` stays a bare `z.string().url()` on purpose: the two
+ * RESPONSE shape. `url` stays a bare `z.url()` on purpose: the two
  * INPUT schemas below are http(s)-only, so no NEW non-http(s) link can be
  * stored, but a row written before that gate existed would fail response
  * serialization here and 500 the whole profile — a worse outcome than the one
@@ -35,7 +35,7 @@ export const linkSchema = z.object({
   id: z.string(),
   userId: z.string(),
   title: z.string().min(1),
-  url: z.string().url(),
+  url: z.url(),
   icon: linkIconSchema.nullable(),
   isPublic: z.boolean(),
   order: z.number().int(),

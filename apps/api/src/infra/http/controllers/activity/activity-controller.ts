@@ -26,6 +26,7 @@ import { DeleteGitConnectionUseCase } from "../../../../core/use-case/activity/d
 import { IngestActivityUseCase } from "../../../../core/use-case/activity/ingest-activity-use-case/ingest-activity.use-case.js";
 import { GetConnectionHealthUseCase } from "../../../../core/use-case/activity/get-connection-health-use-case/get-connection-health.use-case.js";
 import { PreviewActivityDigestUseCase } from "../../../../core/use-case/activity/preview-activity-digest-use-case/preview-activity-digest.use-case.js";
+import { toAsyncHook } from "../../to-async-hook.js";
 
 /**
  * The create response, and ONLY the create response.
@@ -42,6 +43,17 @@ const createGitConnectionSchemaOutput = gitConnectionSchema.extend({
   webhookSecret: z.string().nullable(),
 });
 
+/**
+ * Fastify's typed `preHandler` property resolves to the callback-style hook
+ * signature (`(request, reply, done) => void`), never the promise-returning
+ * one — `preHandlerMetaHookHandler`'s `Return` generic always defaults to
+ * `void` at that property, regardless of how the guard function passed in is
+ * itself typed. Adapting an async guard to the callback form here keeps the
+ * guard itself a plain `async` function with no behaviour change: a
+ * rejection becomes `done(error)`, which Fastify routes to the same error
+ * handler an async hook's rejection would.
+ */
+
 export class ActivityController {
   static handle(server: FastifyInstance) {
     const app = server.withTypeProvider<ZodTypeProvider>();
@@ -50,7 +62,7 @@ export class ActivityController {
       "/me/connections",
       {
         // `authGuard`, NOT `apiAccessGuard`. See the POST below.
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Activity"],
           summary: "List the current user's activity connections",
@@ -84,7 +96,7 @@ export class ActivityController {
          * could quietly re-classify an employer's work as personal and publish
          * it. Only the human, in a real session, decides what is connected.
          */
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Activity"],
           summary: "Connect an activity source (human sessions only)",
@@ -131,7 +143,7 @@ export class ActivityController {
     app.patch(
       "/me/connections/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Activity"],
           summary: "Update an activity connection (human sessions only)",
@@ -180,7 +192,7 @@ export class ActivityController {
     app.delete(
       "/me/connections/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Activity"],
           summary: "Disconnect an activity source (human sessions only)",
@@ -216,7 +228,7 @@ export class ActivityController {
         // JWT ONLY, like the rest of the connections surface: health reveals
         // whether a connection id is live, which is exactly the reconnaissance
         // a leaked `activity:write` token should not be able to do.
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Activity"],
           summary: "Ingestion health of one connection (human sessions only)",
@@ -251,7 +263,7 @@ export class ActivityController {
         // JWT ONLY for the same reason as /health, plus one of its own: the
         // preview renders redacted work activity as prose, and that text is
         // for the owner's eyes in a real session, not for a token.
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Activity"],
           summary:
@@ -292,7 +304,7 @@ export class ActivityController {
          * capability the user opts into by connecting a source; a token that
          * can append can also write plausible fabricated history.
          */
-        preHandler: apiAccessGuard("activity:write"),
+        preHandler: toAsyncHook(apiAccessGuard("activity:write")),
         schema: {
           tags: ["Activity"],
           summary: "Append a batch of developer activity",
@@ -311,10 +323,7 @@ export class ActivityController {
           },
         },
       },
-      async (
-        request: FastifyRequest<{ Body: IngestActivityInput }>,
-        reply,
-      ) => {
+      async (request: FastifyRequest<{ Body: IngestActivityInput }>, reply) => {
         const ingestActivityUseCase = resolve<IngestActivityUseCase>(
           TOKENS.IngestActivityUseCase,
         );

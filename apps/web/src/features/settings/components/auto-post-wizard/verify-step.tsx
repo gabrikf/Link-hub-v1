@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { FiCheckCircle, FiHelpCircle, FiLoader } from "react-icons/fi";
 import { BADGE } from "../../../../shared-components/surface";
-import type { WizardSourceKey } from "./wizard-shared";
+import type { WizardSourceKey } from "./wizard-vocabulary";
 
 /**
  * The trust moment. Never a dead spinner: while listening there is an animated
@@ -26,7 +26,7 @@ function getRecoveryGuidance(
   };
 }
 
-function ListeningPanel({ instruction }: { instruction: string }) {
+function ListeningPanel({ instruction }: Readonly<{ instruction: string }>) {
   const { t } = useTranslation();
   return (
     // `role="status"` (implicit polite live region): the flip from listening
@@ -54,7 +54,7 @@ function ListeningPanel({ instruction }: { instruction: string }) {
   );
 }
 
-function SuccessPanel({ children }: { children: React.ReactNode }) {
+function SuccessPanel({ children }: Readonly<{ children: React.ReactNode }>) {
   const { t } = useTranslation();
   return (
     <div
@@ -79,7 +79,7 @@ function SuccessPanel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function RecoveryPanel({ guidance }: { guidance: string }) {
+function RecoveryPanel({ guidance }: Readonly<{ guidance: string }>) {
   const { t } = useTranslation();
   return (
     // Appears on a timer, not a click — same announce-or-be-missed rule.
@@ -101,10 +101,18 @@ function RecoveryPanel({ guidance }: { guidance: string }) {
 /** Shared 60s "show recovery guidance" timer. */
 function useRecoveryTimer(active: boolean) {
   const [waitedLong, setWaitedLong] = useState(false);
+  // Each listening run gets its own fresh 60s wait. Resetting during render
+  // rather than from the effect keeps the reset in the same commit as the
+  // change that caused it — see "adjusting state when a prop changes" in
+  // https://react.dev/learn/you-might-not-need-an-effect.
+  const [trackedActive, setTrackedActive] = useState(active);
+  if (trackedActive !== active) {
+    setTrackedActive(active);
+    setWaitedLong(false);
+  }
 
   useEffect(() => {
     if (!active) {
-      setWaitedLong(false);
       return;
     }
     const timer = window.setTimeout(
@@ -121,11 +129,11 @@ export function ConnectionVerifyBody({
   sourceKey,
   health,
   isError,
-}: {
+}: Readonly<{
   sourceKey: Exclude<WizardSourceKey, "mcp">;
   health: GitConnectionHealth | undefined;
   isError: boolean;
-}) {
+}>) {
   const { t } = useTranslation();
   const isConnected = (health?.totalEvents ?? 0) > 0;
   const waitedLong = useRecoveryTimer(!isConnected);
@@ -157,7 +165,9 @@ export function ConnectionVerifyBody({
   );
 }
 
-export function McpVerifyBody({ detectedPost }: { detectedPost: Post | null }) {
+export function McpVerifyBody({
+  detectedPost,
+}: Readonly<{ detectedPost: Post | null }>) {
   const { t } = useTranslation();
   const waitedLong = useRecoveryTimer(detectedPost === null);
 

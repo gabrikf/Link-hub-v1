@@ -60,7 +60,8 @@ export async function runHookCli(
         configPath: value(args, "config"),
       }),
     );
-    console.log(`\n${SETTINGS_SNIPPET_NOTES.map((n) => `# ${n}`).join("\n")}`);
+    const notes = SETTINGS_SNIPPET_NOTES.map((n) => `# ${n}`).join("\n");
+    console.log(`\n${notes}`);
     return 0;
   }
 
@@ -89,7 +90,8 @@ function parsePayload(stdinText: string): Record<string, unknown> | null {
   if (!trimmed) return null;
   try {
     const parsed: unknown = JSON.parse(trimmed);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return null;
     return parsed as Record<string, unknown>;
   } catch {
     return null;

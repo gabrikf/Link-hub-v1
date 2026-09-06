@@ -6,6 +6,7 @@ import { selectMatchingAccount } from "../../../../core/entity/user/select-match
 import { IUsersRepository } from "../../../../core/repositories/user/user-repository.js";
 import { db } from "../index.js";
 import { users } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 /**
  * The email half of a lookup, matched the way `normalizeEmail` defines it: one
@@ -263,7 +264,7 @@ export class DrizzleUserRepository implements IUsersRepository {
 
   async create(user: UserEntity): Promise<UserEntity> {
     // Map entity fields (camelCase) to database fields (snake_case)
-    const [createdUser] = await db
+    const insertedRows = await db
       .insert(users)
       .values({
         id: user.id,
@@ -296,6 +297,8 @@ export class DrizzleUserRepository implements IUsersRepository {
         updatedAt: user.updatedAt,
       })
       .returning();
+
+    const createdUser = requireReturnedRow(insertedRows, "insert into users");
 
     // Map database fields back to entity fields
     return new UserEntity({

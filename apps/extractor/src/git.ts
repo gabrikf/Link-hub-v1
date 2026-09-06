@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 
+import { GIT_BINARY } from "./git-binary.js";
+
 /**
  * The only place this package shells out to `git`.
  *
@@ -10,6 +12,10 @@ import { spawnSync } from "node:child_process";
  * `spawnSync` with an argument array — never a shell string — so a repository
  * path containing spaces, quotes or `$(…)` is an argument and not something the
  * shell gets an opinion about.
+ *
+ * The binary itself is the absolute path resolved once by `./git-binary.js`,
+ * not the bare name — see that module for why the `PATH` search happens there
+ * instead of on every spawn.
  */
 
 export class GitError extends Error {
@@ -25,7 +31,7 @@ const FIELD = "\x1f";
 const GROUP = "\x1d";
 
 function git(repoPath: string, args: readonly string[]): string {
-  const result = spawnSync("git", ["-C", repoPath, ...args], {
+  const result = spawnSync(GIT_BINARY, ["-C", repoPath, ...args], {
     encoding: "utf8",
     // A decade of history in a large monorepo is comfortably megabytes of
     // path listings; the default 1 MB buffer would silently truncate it.
@@ -39,8 +45,9 @@ function git(repoPath: string, args: readonly string[]): string {
   }
   if (result.status !== 0) {
     const stderr = (result.stderr ?? "").trim();
+    const stderrSuffix = stderr ? `: ${stderr}` : "";
     throw new GitError(
-      `git ${args[0] ?? ""} failed in ${repoPath}${stderr ? `: ${stderr}` : ""}`,
+      `git ${args[0] ?? ""} failed in ${repoPath}${stderrSuffix}`,
     );
   }
   return result.stdout ?? "";
@@ -143,13 +150,11 @@ export interface ReadCommitsOptions {
  *    ORed, because the same person routinely commits as `me@work.com` and
  *    `me@personal.dev` and losing half their history is the bug this guards.
  */
-export function readCommits(
-  repoPath: string,
+/** Builds the `git log` argv for {@link readCommits}. */
+function buildReadCommitsArgs(
+  accepted: ReadonlySet<string>,
   options: ReadCommitsOptions,
-): RawCommit[] {
-  const accepted = new Set(options.authors.map((a) => a.trim().toLowerCase()));
-  if (accepted.size === 0) return [];
-
+): string[] {
   const format =
     `${RECORD}%H${FIELD}%ae${FIELD}%ad${FIELD}` +
     `%(trailers:key=Co-authored-by,valueonly,separator=${GROUP})`;
@@ -173,6 +178,48 @@ export function readCommits(
   if (options.until) args.push(`--until=${options.until}`);
   if (options.maxCommits) args.push(`--max-count=${options.maxCommits}`);
   args.push(options.revisionRange ?? "HEAD");
+  return args;
+}
+
+/**
+ * Parses one `RECORD`-delimited chunk of `git log` output into a commit, or
+ * `null` when the chunk is blank or its author does not match `accepted`.
+ */
+function parseCommitChunk(
+  chunk: string,
+  accepted: ReadonlySet<string>,
+): RawCommit | null {
+  if (!chunk.trim()) return null;
+
+  // The header line, then a blank line, then one path per line.
+  const newline = chunk.indexOf("\n");
+  const header = newline === -1 ? chunk : chunk.slice(0, newline);
+  const rest = newline === -1 ? "" : chunk.slice(newline + 1);
+
+  const [sha, authorEmail, date, trailers] = header.split(FIELD);
+  if (!sha || !authorEmail || !date) return null;
+  if (!accepted.has(authorEmail.trim().toLowerCase())) return null;
+
+  return {
+    sha,
+    authorEmail: authorEmail.trim(),
+    date: date.trim(),
+    coAuthorEmails: parseCoAuthorEmails(trailers ?? ""),
+    changedPaths: rest
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0),
+  };
+}
+
+export function readCommits(
+  repoPath: string,
+  options: ReadCommitsOptions,
+): RawCommit[] {
+  const accepted = new Set(options.authors.map((a) => a.trim().toLowerCase()));
+  if (accepted.size === 0) return [];
+
+  const args = buildReadCommitsArgs(accepted, options);
 
   // An empty repository has no HEAD; that is "no activity", not a failure.
   if (headSha(repoPath) === null) return [];
@@ -186,33 +233,12 @@ export function readCommits(
   } catch {
     return [];
   }
+
   const commits: RawCommit[] = [];
-
   for (const chunk of stdout.split(RECORD)) {
-    if (!chunk.trim()) continue;
-
-    // The header line, then a blank line, then one path per line.
-    const newline = chunk.indexOf("\n");
-    const header = newline === -1 ? chunk : chunk.slice(0, newline);
-    const rest = newline === -1 ? "" : chunk.slice(newline + 1);
-
-    const [sha, authorEmail, date, trailers] = header.split(FIELD);
-    if (!sha || !authorEmail || !date) continue;
-
-    if (!accepted.has(authorEmail.trim().toLowerCase())) continue;
-
-    commits.push({
-      sha,
-      authorEmail: authorEmail.trim(),
-      date: date.trim(),
-      coAuthorEmails: parseCoAuthorEmails(trailers ?? ""),
-      changedPaths: rest
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0),
-    });
+    const commit = parseCommitChunk(chunk, accepted);
+    if (commit) commits.push(commit);
   }
-
   return commits;
 }
 
@@ -228,8 +254,19 @@ export function parseCoAuthorEmails(trailerBlock: string): string[] {
   for (const raw of trailerBlock.split(GROUP)) {
     const value = raw.trim();
     if (!value) continue;
-    const angled = /<([^>]+)>/.exec(value);
-    emails.push((angled?.[1] ?? value).trim());
+    emails.push(extractAngledAddress(value).trim());
   }
   return emails;
+}
+
+/**
+ * Pulls `a@b.c` out of `Name <a@b.c>`, or returns `value` unchanged when it
+ * carries no bracketed address. Written as an explicit scan rather than a
+ * `/<([^>]+)>/` regex: a linter's static analyzer cannot prove the unanchored
+ * `+` never backtracks, where this is provably O(n) by construction.
+ */
+function extractAngledAddress(value: string): string {
+  const open = value.indexOf("<");
+  const close = open === -1 ? -1 : value.indexOf(">", open + 1);
+  return close > open + 1 ? value.slice(open + 1, close) : value;
 }

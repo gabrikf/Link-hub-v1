@@ -12,7 +12,10 @@ describe("UpdateUserPreferencesUseCase", () => {
     useCase = new UpdateUserPreferencesUseCase(repository);
   });
 
-  async function seed(language: "en-US" | "pt-BR" | "es-ES" | null, theme: "light" | "dark" | "system") {
+  async function seed(
+    language: "en-US" | "pt-BR" | "es-ES" | null,
+    theme: "light" | "dark" | "system",
+  ) {
     await repository.save(
       new UserPreferencesEntity({
         userId: "user-1",
@@ -67,7 +70,10 @@ describe("UpdateUserPreferencesUseCase", () => {
 
     const result = await useCase.execute({ userId: "user-1", theme: "system" });
 
-    expect(Object.keys(result).sort()).toEqual(["language", "theme"]);
+    expect(Object.keys(result).sort((a, b) => a.localeCompare(b))).toEqual([
+      "language",
+      "theme",
+    ]);
     expect(result.language).toBe("en-US");
   });
 

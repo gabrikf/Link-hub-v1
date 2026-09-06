@@ -8,12 +8,12 @@ import * as Switch from "@radix-ui/react-switch";
 import { getLinkIconOption } from "../../../lib/link-icons";
 import { Button } from "../../../shared-components/button";
 
-type SortableLinkItemProps = {
+type SortableLinkItemProps = Readonly<{
   link: LinkResponse;
   onToggleVisibility: (linkId: string, isPublic: boolean) => void;
   onEdit: (link: LinkResponse) => void;
   onDelete: (linkId: string) => void;
-};
+}>;
 
 export function SortableLinkItem({
   link,
@@ -95,7 +95,9 @@ export function SortableLinkItem({
           >
             <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white transition-transform duration-150 data-[state=checked]:translate-x-4.5 dark:bg-zinc-900" />
           </Switch.Root>
-          <span>{link.isPublic ? t("common.visible") : t("common.hidden")}</span>
+          <span>
+            {link.isPublic ? t("common.visible") : t("common.hidden")}
+          </span>
         </label>
 
         <Button
@@ -115,7 +117,9 @@ export function SortableLinkItem({
           size="icon"
           fullWidth={false}
           shouldHaveConfirmation
-          confirmationTitle={t("links.deleteConfirmTitle", { title: link.title })}
+          confirmationTitle={t("links.deleteConfirmTitle", {
+            title: link.title,
+          })}
           confirmationDescription={t("links.deleteConfirmBody", {
             url: link.url,
           })}

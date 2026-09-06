@@ -111,6 +111,29 @@ vite_google_client_id = "000000000000-placeholderplaceholderplaceholder.apps.goo
 # backups_bucket_name = "crafthub-backups"   # precisa bater com RCLONE_BUCKET em scripts/backup.sh
 # r2_backups_location_hint = "weur"          # servidor em Nuremberg; dump e dados ficam na Europa
 
+# --- Vigia do backup (obrigatório) --------------------------------------------------
+# Para onde vai o alerta quando o backup falhar ou parar de acontecer. Sem default de
+# propósito: vigia sem destinatário parece configurado e não é.
+backup_alert_email = "voce@example.com"
+#
+# A chave do Resend NÃO vem daqui. Ela é segredo e vai por ambiente, junto dos tokens:
+#     export TF_VAR_resend_api_key="$RESEND_API_KEY"
+#
+# backup_watchdog_cron              = "30 5 * * *"   # UTC, ~2h depois do backup das 03:17
+# backup_watchdog_max_age_hours     = 24             # 4..25; ver a aritmética em variables.tf
+# backup_watchdog_min_bytes         = 20000
+# backup_watchdog_heartbeat_weekday = "1"            # "0".."6" (segunda = 1)
+#
+# O "" desliga o batimento — e desligar o batimento desliga o único sinal de que o vigia
+# está vivo. A partir daí, NÃO receber e-mail não quer dizer que o backup está bem: quer
+# dizer que você não sabe. Nada falha e nada avisa no plan; o worker é que passa a gritar
+# em toda execução, com um console.warn e com `thresholds.heartbeatDisabled: true` no
+# marcador (`rclone cat r2:crafthub-backups/watchdog/last-run.json`). Se usar, marque na
+# agenda quando religar.
+#
+# Não existe variável para o endereço da VPS: o worker recebe o comando de ssh já pronto,
+# montado com o IP que está no state (hcloud_server.main.ipv4_address).
+
 # tfstate_bucket_name = "crafthub-tfstate"   # precisa bater com o backend em versions.tf
 # r2_location_hint    = "enam"
 

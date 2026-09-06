@@ -11,10 +11,11 @@ export class InMemoryJwtProvider implements IJwtProvider {
 
   async verify(token: string): Promise<object | null> {
     // For testing purposes, extract payload from our test token format
-    const match = token.match(/^test_token_\d+_(.+)$/);
-    if (match) {
+    const encodedPayload = /^test_token_\d+_(.+)$/.exec(token)?.[1];
+    if (encodedPayload !== undefined) {
       try {
-        return JSON.parse(match[1]);
+        const payload: unknown = JSON.parse(encodedPayload);
+        return typeof payload === "object" && payload !== null ? payload : null;
       } catch {
         return null;
       }

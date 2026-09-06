@@ -101,12 +101,12 @@ export function EnforcementGrid() {
   );
 }
 
-type ExampleCardProps = {
+type ExampleCardProps = Readonly<{
   tone: "weak" | "strong";
   title: string;
   caption: string;
   children: ReactNode;
-};
+}>;
 
 export function ExampleCard({
   tone,

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import fastify, { FastifyServerOptions } from "fastify";
 import { trace } from "@opentelemetry/api";
-import database from "./pluguins/database.js";
+import database from "./plugins/database.js";
 import fastifyCors from "@fastify/cors";
 import fastifyCookie from "@fastify/cookie";
 import fastifyHelmet from "@fastify/helmet";
@@ -29,9 +29,16 @@ import {
   structuredLoggingEnabled,
   telemetryConfig,
 } from "../config/app-config.js";
-import { closeObservableMetrics, registerObservableMetrics } from "../observability/observable-metrics.js";
+import {
+  closeObservableMetrics,
+  registerObservableMetrics,
+} from "../observability/observable-metrics.js";
 import { flushSentry, initSentry } from "../observability/sentry.js";
-import { closeRedis, getRedis, isRedisConfigured } from "../redis/redis-client.js";
+import {
+  closeRedis,
+  getRedis,
+  isRedisConfigured,
+} from "../redis/redis-client.js";
 import { BaseError } from "../../core/errors/index.js";
 
 // Initialize the DI container
@@ -43,14 +50,12 @@ setupContainer();
  * `logger: false` outside production is deliberate: pino's JSON firehose in
  * front of `tsx watch` makes the local terminal unreadable, and the whole point
  * of this pass was to change nothing about `npm run dev`.
+ *
+ * Whether logging is on at all is decided at the call site, not in here, so
+ * this function has exactly one thing to say: what the options look like when
+ * it is.
  */
-function loggerOptions(): FastifyServerOptions["logger"] {
-  // Shared predicate: `global-error-handler.ts` reads the same function to
-  // decide whether `request.log` goes anywhere, so the two can never drift.
-  if (!structuredLoggingEnabled()) {
-    return false;
-  }
-
+function structuredLoggerOptions(): FastifyServerOptions["logger"] {
   return {
     level: process.env.LOG_LEVEL ?? "info",
     /**
@@ -71,7 +76,9 @@ function loggerOptions(): FastifyServerOptions["logger"] {
 }
 
 const serverOptions: FastifyServerOptions = {
-  logger: loggerOptions(),
+  // Shared predicate: `global-error-handler.ts` reads the same function to
+  // decide whether `request.log` goes anywhere, so the two can never drift.
+  logger: structuredLoggingEnabled() ? structuredLoggerOptions() : false,
   /**
    * Makes `request.ip` the real client rather than Caddy's container address.
    * Without it the per-IP rate limit below is a single global bucket — see the
@@ -173,9 +180,7 @@ if (rateLimit.enabled) {
      */
     allowList: (request) => request.url === "/health",
     errorResponseBuilder: (_request, context) =>
-      new TooManyRequestsError(
-        `Too many requests. Retry in ${context.after}.`,
-      ),
+      new TooManyRequestsError(`Too many requests. Retry in ${context.after}.`),
   });
 }
 

@@ -79,7 +79,9 @@ describe("InMemoryResumeSearchRepository — filter conformance", () => {
       "profileTextContains",
     ];
 
-    expect([...IN_MEMORY_SUPPORTED_FILTERS].sort()).toEqual(declared.sort());
+    expect(
+      [...IN_MEMORY_SUPPORTED_FILTERS].sort((a, b) => a.localeCompare(b)),
+    ).toEqual([...declared].sort((a, b) => a.localeCompare(b)));
   });
 
   it("actually filters on every supported key", async () => {

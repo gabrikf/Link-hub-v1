@@ -84,9 +84,9 @@ describe("GetMyResumeUseCase", () => {
 
     expect(result.headlineTitle).toBe("Fullstack Engineer");
     expect(result.skills).toHaveLength(1);
-    expect(result.skills[0].skillName).toBe("TypeScript");
+    expect(result.skills[0]?.skillName).toBe("TypeScript");
     expect(result.titles).toHaveLength(1);
-    expect(result.titles[0].titleName).toBe("Tech Lead");
+    expect(result.titles[0]?.titleName).toBe("Tech Lead");
   });
 
   it("should throw when resume is not found", async () => {

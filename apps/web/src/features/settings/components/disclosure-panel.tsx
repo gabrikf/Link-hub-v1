@@ -2,7 +2,7 @@ import {
   AGENT_DISCLOSURE_LEVELS,
   type AgentDisclosureLevel,
 } from "@repo/schemas";
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertTriangle,
@@ -51,7 +51,12 @@ type LevelCardProps = {
  * two cannot drift because one is derived from the other, and rendering the
  * English half would put untranslated prose on a Portuguese screen.
  */
-function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
+function LevelCard({
+  level,
+  isSelected,
+  isSaving,
+  onSelect,
+}: Readonly<LevelCardProps>) {
   const { t } = useTranslation();
   const descriptionId = `disclosure-level-${level.value}-description`;
   const levelName = t(`enum.disclosureLevel.${level.value}`);
@@ -157,7 +162,9 @@ function LevelCard({ level, isSelected, isSaving, onSelect }: LevelCardProps) {
  * Everything here is enforced server-side, not merely passed to the model as
  * advice, which is why the copy is allowed to promise rather than hedge.
  */
-export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
+export function DisclosurePanel({
+  enabled = true,
+}: Readonly<{ enabled?: boolean }>) {
   const { t } = useTranslation();
   const policyQuery = useAgentPolicy(enabled);
   const workExperiencesQuery = useWorkExperiencesForPolicy(enabled);
@@ -171,9 +178,19 @@ export function DisclosurePanel({ enabled = true }: { enabled?: boolean }) {
   const blockedTerms = useMemo(() => policy?.blockedTerms ?? [], [policy]);
 
   // Clear a stale validation message when the server state changes underneath.
-  useEffect(() => {
+  //
+  // Adjusted during render rather than in an effect: the message is derived
+  // from a list the server owns, so an effect would paint one frame of a
+  // contradiction — "That term is already blocked." over a list that no longer
+  // blocks it — before clearing it. See
+  // https://react.dev/learn/you-might-not-need-an-effect
+  const [lastSeenBlockedTerms, setLastSeenBlockedTerms] =
+    useState(blockedTerms);
+
+  if (lastSeenBlockedTerms !== blockedTerms) {
+    setLastSeenBlockedTerms(blockedTerms);
     setTermError(null);
-  }, [blockedTerms]);
+  }
 
   const overrideByRole = useMemo(() => {
     const map = new Map<string, AgentDisclosureLevel>();

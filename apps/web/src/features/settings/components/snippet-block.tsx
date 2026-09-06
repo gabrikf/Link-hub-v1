@@ -18,7 +18,7 @@ export type Snippet = {
   code: string;
 };
 
-export function SnippetBlock({ snippet }: { snippet: Snippet }) {
+export function SnippetBlock({ snippet }: Readonly<{ snippet: Snippet }>) {
   const { t } = useTranslation();
   const { copied, copy } = useClipboard();
 
@@ -37,7 +37,9 @@ export function SnippetBlock({ snippet }: { snippet: Snippet }) {
           aria-label={t("settings.snippet.copyTarget", {
             target: snippet.target,
           })}
-          onClick={() => copy(snippet.code)}
+          onClick={() => {
+            void copy(snippet.code);
+          }}
         >
           {copied ? (
             <FiCheck className="h-3.5 w-3.5" aria-hidden="true" />

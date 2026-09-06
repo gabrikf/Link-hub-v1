@@ -34,20 +34,30 @@ describe("ListMyPostsUseCase", () => {
     await postsRepository.create(published);
     await postsRepository.create(draft);
 
-    const result = await sut.execute({ userId: "user-1", limit: 20, offset: 0 });
+    const result = await sut.execute({
+      userId: "user-1",
+      limit: 20,
+      offset: 0,
+    });
 
     expect(result).toHaveLength(2);
-    expect(result.map((p) => p.status).sort()).toEqual(["draft", "published"]);
+    expect(
+      result.map((p) => p.status).sort((a, b) => a.localeCompare(b)),
+    ).toEqual(["draft", "published"]);
   });
 
   it("only returns posts belonging to the requested user", async () => {
     await seedPost("user-1", "mine", new Date("2024-01-01"));
     await seedPost("user-2", "theirs", new Date("2024-01-02"));
 
-    const result = await sut.execute({ userId: "user-1", limit: 20, offset: 0 });
+    const result = await sut.execute({
+      userId: "user-1",
+      limit: 20,
+      offset: 0,
+    });
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.body).toBe("mine");
+    expect(result[0]?.body).toBe("mine");
   });
 
   it("respects the limit (page size)", async () => {
@@ -71,13 +81,17 @@ describe("ListMyPostsUseCase", () => {
 
     // Newest first is c, b, a — offset 2 skips c, b leaving a.
     expect(result).toHaveLength(1);
-    expect(result[0]!.body).toBe("a");
+    expect(result[0]?.body).toBe("a");
   });
 
   it("returns an empty list when the offset is past the end", async () => {
     await seedPost("user-1", "a", new Date("2024-01-01"));
 
-    const result = await sut.execute({ userId: "user-1", limit: 20, offset: 50 });
+    const result = await sut.execute({
+      userId: "user-1",
+      limit: 20,
+      offset: 50,
+    });
 
     expect(result).toEqual([]);
   });

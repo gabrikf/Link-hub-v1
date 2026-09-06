@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { SURFACE } from "../../../shared-components/surface";
 import { FiBriefcase, FiCalendar, FiMapPin } from "react-icons/fi";
 import { LoadingLabel } from "../../../shared-components/skeleton";
-import { Markdown } from "../../posts/lib/markdown";
+import { Markdown } from "../../posts/components/markdown";
 import {
   formatWorkDateRange,
   formatWorkLocation,
@@ -28,7 +28,7 @@ type WorkExperienceView = {
   mainStack: string[];
 };
 
-type WorkHistoryReadOnlyProps = {
+type WorkHistoryReadOnlyProps = Readonly<{
   workExperiences: WorkExperienceView[];
   isLoading?: boolean;
   title?: string;
@@ -41,7 +41,7 @@ type WorkHistoryReadOnlyProps = {
    * reading as a different material in dark mode.
    */
   surfaceClassName?: string;
-};
+}>;
 
 export function WorkHistoryReadOnly({
   workExperiences,
@@ -92,7 +92,7 @@ export function WorkHistoryReadOnly({
   );
 }
 
-function WorkHistoryItem({ item }: { item: WorkExperienceView }) {
+function WorkHistoryItem({ item }: Readonly<{ item: WorkExperienceView }>) {
   const { t } = useTranslation();
   const dateRange = formatWorkDateRange(
     item.startDate,

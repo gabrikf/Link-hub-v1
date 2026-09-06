@@ -311,7 +311,7 @@ A short file that defines, unambiguously:
 | **States** | every possible state of each entity and what the UI shows in each — **including the ones the design did not draw** |
 | **Business rules** | numbered (BR-01, BR-02…), each testable, each referenced by an acceptance criterion |
 | **Permissions** | who sees, who edits, what happens to someone who cannot — including whether the route is public (`/$username`) or session-gated |
-| **Copy** | the user-visible strings this feature introduces. **CraftHub has no i18n yet** — user-visible strings are hardcoded English. The `i18n` skill documents the planned setup; **a spec must not invent `t()` calls.** Listing the copy here still matters: it is what makes the strings reviewable and, later, extractable. |
+| **Copy** | the user-visible strings this feature introduces, as `t()` keys with their `en-US` values. CraftHub ships three locales, so every string in this table becomes a key in `pt-BR.json`, `en-US.json` and `es-ES.json` in the same commit. Name keys by meaning, never by location, and search the locale files for the TEXT before inventing a key. |
 
 **Why it exists:** ambiguity of definition is what makes an agent (and a junior dev) invent. If "published block" is not defined, each screen implements it differently — and that is an inconsistency bug.
 
@@ -391,7 +391,7 @@ If the dev asks for adjustments, apply them and present again.
 - "Profile block editor" → `profile-block-editor`
 - "Agent disclosure settings" → `agent-disclosure-settings`
 
-Every file, variable, component, hook, type and test name is in **English** — the whole repo is English, including user-visible copy, because there is no i18n layer. File naming is `kebab-case` throughout, in both `apps/web` and `apps/api`.
+Every file, variable, component, hook, type and test name is in **English**, and `en-US` is the source language for copy — but user-visible copy reaches the screen through `t()`, in three locales. File naming is `kebab-case` throughout, in both `apps/web` and `apps/api`.
 
 Examples:
 - Component file: `profile-block-editor.tsx`
@@ -454,6 +454,6 @@ Whenever a resource has a browser URL, present it as a clickable markdown link:
 | Web dev server | `npm run dev:web` → `http://localhost:5173` |
 | Local infra | `bash db-manage.sh start` (Postgres 5432, Redis 6379) |
 | Design language | `DESIGN.md` at the repo root + `apps/web/src/shared-components/surface.ts` |
-| i18n | none — hardcoded English; see the `i18n` skill for the plan; do not invent `t()` |
+| i18n | react-i18next, three locales in `apps/web/src/i18n/locales/`; every string through `t()`; the `i18n` skill is the contract |
 | Default branch | `main`; PRs via the `gh` CLI |
 | Execution skill | `#spec-implement` |

@@ -48,6 +48,43 @@ export class ArgError extends Error {
   }
 }
 
+/**
+ * Parses one `-x` / `--name[=value]` token at `argv[index]`, pushing into
+ * `options` or `booleans` as appropriate. Returns how many EXTRA tokens (0 or
+ * 1) were consumed from `argv` as this option's value, for the caller to add
+ * to its loop index.
+ */
+function consumeOption(
+  argv: readonly string[],
+  index: number,
+  push: (key: string, value: string) => void,
+  booleans: Set<string>,
+): number {
+  const token = argv[index] as string;
+  const raw = token.replace(/^--?/, "");
+  const [namePart, inlineValue] = splitOnce(raw, "=");
+  const name = SHORT_ALIASES[namePart] ?? namePart;
+
+  if (VALUE_OPTIONS.has(name)) {
+    if (inlineValue !== undefined) {
+      push(name, inlineValue);
+      return 0;
+    }
+    const next = argv[index + 1];
+    if (next === undefined || (next.startsWith("-") && next !== "-")) {
+      throw new ArgError(`--${name} needs a value.`);
+    }
+    push(name, next);
+    return 1;
+  }
+
+  if (inlineValue !== undefined) {
+    throw new ArgError(`--${name} is a flag and does not take a value.`);
+  }
+  booleans.add(name);
+  return 0;
+}
+
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   const positionals: string[] = [];
   const options = new Map<string, string[]>();
@@ -73,28 +110,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       continue;
     }
 
-    const raw = token.replace(/^--?/, "");
-    const [namePart, inlineValue] = splitOnce(raw, "=");
-    const name = SHORT_ALIASES[namePart] ?? namePart;
-
-    if (VALUE_OPTIONS.has(name)) {
-      if (inlineValue !== undefined) {
-        push(name, inlineValue);
-        continue;
-      }
-      const next = argv[i + 1];
-      if (next === undefined || (next.startsWith("-") && next !== "-")) {
-        throw new ArgError(`--${name} needs a value.`);
-      }
-      push(name, next);
-      i += 1;
-      continue;
-    }
-
-    if (inlineValue !== undefined) {
-      throw new ArgError(`--${name} is a flag and does not take a value.`);
-    }
-    booleans.add(name);
+    i += consumeOption(argv, i, push, booleans);
   }
 
   return {

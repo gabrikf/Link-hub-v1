@@ -3,6 +3,7 @@ import { LinkEntity } from "../../../../core/entity/link/link-entity.js";
 import { ILinksRepository } from "../../../../core/repositories/link/link-repository.js";
 import { db } from "../index.js";
 import { links } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 export class DrizzleLinksRepository implements ILinksRepository {
   async findById(id: string): Promise<LinkEntity | null> {
@@ -83,7 +84,7 @@ export class DrizzleLinksRepository implements ILinksRepository {
   }
 
   async create(link: LinkEntity): Promise<LinkEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(links)
       .values({
         id: link.id,
@@ -97,6 +98,8 @@ export class DrizzleLinksRepository implements ILinksRepository {
         updatedAt: link.updatedAt,
       })
       .returning();
+
+    const created = requireReturnedRow(insertedRows, "insert into links");
 
     return new LinkEntity({
       id: created.id,

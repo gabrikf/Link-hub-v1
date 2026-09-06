@@ -6,7 +6,8 @@ import {
   type PostStatus,
   type UpdatePostInput,
 } from "@repo/schemas";
-import { useEffect, useState } from "react";
+import type { TFunction } from "i18next";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiEye, FiEyeOff, FiPlus, FiTrash2 } from "react-icons/fi";
 import { reportError } from "../../../lib/report-error";
@@ -14,57 +15,66 @@ import { Button } from "../../../shared-components/button";
 import { Dialog } from "../../../shared-components/dialog";
 import { FileUpload } from "../../../shared-components/file-upload";
 import { Input } from "../../../shared-components/input";
-import { Markdown } from "../lib/markdown";
+import { Markdown } from "./markdown";
 import { TagInput } from "./tag-input";
 
-type PostComposerDialogProps = {
+type PostComposerDialogProps = Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialPost?: Post | null;
   isSubmitting?: boolean;
   onSubmit: (input: CreatePostInput | UpdatePostInput) => Promise<void> | void;
-};
+}>;
+
+type PostComposerFormProps = Omit<PostComposerDialogProps, "open">;
 
 const EMPTY_IMAGE_ROW = "";
 
-export function PostComposerDialog({
-  open,
+/** The message shown when a save fails: the server's own message if it sent one, else a generic retry prompt. */
+function resolveSaveErrorMessage(
+  cause: unknown,
+  isEditing: boolean,
+  t: TFunction,
+): string {
+  if (cause instanceof Error && cause.message) {
+    return cause.message;
+  }
+  return isEditing ? t("posts.saveFailedRetry") : t("posts.publishFailedRetry");
+}
+
+/**
+ * The composer fields live here, not on the dialog, and this form is mounted
+ * only while the dialog is open. Every open therefore starts from `initialPost`
+ * by construction, instead of an effect copying props into state afterwards.
+ */
+function PostComposerForm({
   onOpenChange,
   initialPost,
   isSubmitting = false,
   onSubmit,
-}: PostComposerDialogProps) {
+}: PostComposerFormProps) {
   const { t } = useTranslation();
   const isEditing = Boolean(initialPost);
 
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [coverImageUrl, setCoverImageUrl] = useState("");
-  const [images, setImages] = useState<string[]>([EMPTY_IMAGE_ROW]);
-  const [tags, setTags] = useState<string[]>([]);
-  const [externalUrl, setExternalUrl] = useState("");
-  const [status, setStatus] = useState<PostStatus>("published");
+  const [title, setTitle] = useState(initialPost?.title ?? "");
+  const [body, setBody] = useState(initialPost?.body ?? "");
+  const [coverImageUrl, setCoverImageUrl] = useState(
+    initialPost?.coverImageUrl ?? "",
+  );
+  const [images, setImages] = useState<string[]>(() =>
+    initialPost?.images && initialPost.images.length > 0
+      ? [...initialPost.images]
+      : [EMPTY_IMAGE_ROW],
+  );
+  const [tags, setTags] = useState<string[]>(() => initialPost?.tags ?? []);
+  const [externalUrl, setExternalUrl] = useState(
+    initialPost?.externalUrl ?? "",
+  );
+  const [status, setStatus] = useState<PostStatus>(
+    initialPost?.status ?? "published",
+  );
   const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    setTitle(initialPost?.title ?? "");
-    setBody(initialPost?.body ?? "");
-    setCoverImageUrl(initialPost?.coverImageUrl ?? "");
-    setImages(
-      initialPost?.images && initialPost.images.length > 0
-        ? [...initialPost.images]
-        : [EMPTY_IMAGE_ROW],
-    );
-    setTags(initialPost?.tags ?? []);
-    setExternalUrl(initialPost?.externalUrl ?? "");
-    setStatus(initialPost?.status ?? "published");
-    setShowPreview(false);
-    setError(null);
-  }, [open, initialPost]);
 
   // A post waiting for review can only move forward to "published" (the server
   // rejects `pending_review -> draft`), so "draft" is not offered for one.
@@ -120,13 +130,7 @@ export function PostComposerDialog({
         action: isEditing ? "posts.update" : "posts.create",
         extra: { status },
       });
-      setError(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : isEditing
-            ? t("posts.saveFailedRetry")
-            : t("posts.publishFailedRetry"),
-      );
+      setError(resolveSaveErrorMessage(cause, isEditing, t));
       return;
     }
 
@@ -134,186 +138,207 @@ export function PostComposerDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={isEditing ? t("posts.editPost") : t("posts.writeAPost")}
-      contentClassName="max-w-2xl max-h-[90svh]"
-    >
-      <div className="space-y-4">
-        <Input
-          id="post-title"
-          label={t("common.titleOptional")}
-          value={title}
-          maxLength={160}
-          placeholder={t("posts.headlinePlaceholder")}
-          onChange={(event) => setTitle(event.target.value)}
-        />
+    <div className="space-y-4">
+      <Input
+        id="post-title"
+        label={t("common.titleOptional")}
+        value={title}
+        maxLength={160}
+        placeholder={t("posts.headlinePlaceholder")}
+        onChange={(event) => setTitle(event.target.value)}
+      />
 
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <label
-              htmlFor="post-body"
-              className="text-sm text-zinc-700 dark:text-zinc-300"
-            >
-              {t("posts.bodyMarkdown")}
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowPreview((value) => !value)}
-              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-500/10"
-            >
-              {showPreview ? (
-                <>
-                  <FiEyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t("common.edit")}
-                </>
-              ) : (
-                <>
-                  <FiEye className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t("common.preview")}
-                </>
-              )}
-            </button>
-          </div>
-          {showPreview ? (
-            <div className="min-h-[10rem] rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-              {body.trim() ? (
-                <Markdown>{body}</Markdown>
-              ) : (
-                <p className="text-sm text-zinc-400">
-                  {t("posts.nothingToPreview")}
-                </p>
-              )}
-            </div>
-          ) : (
-            <textarea
-              id="post-body"
-              value={body}
-              rows={10}
-              placeholder={t("posts.bodyPlaceholder")}
-              onChange={(event) => setBody(event.target.value)}
-              className="w-full resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-            />
-          )}
-        </div>
-
-        <FileUpload
-          label={t("posts.coverImageOptional")}
-          aspect="cover"
-          value={coverImageUrl.trim() || null}
-          onChange={(url) => setCoverImageUrl(url ?? "")}
-        />
-
-        <div className="space-y-2">
-          <span className="block text-sm text-zinc-700 dark:text-zinc-300">
-            {t("posts.inlineImagesOptional")}
-          </span>
-          {images.map((url, index) => (
-            <div key={index} className="flex items-start gap-2">
-              <div className="flex-1">
-                <FileUpload
-                  aspect="cover"
-                  value={url.trim() || null}
-                  onChange={(next) => updateImage(index, next ?? "")}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="icon"
-                size="icon"
-                fullWidth={false}
-                aria-label={t("image.removeImageNumber", { index: index + 1 })}
-                disabled={images.length === 1}
-                onClick={() => removeImage(index)}
-              >
-                <FiTrash2 className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            fullWidth={false}
-            onClick={addImage}
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <label
+            htmlFor="post-body"
+            className="text-sm text-zinc-700 dark:text-zinc-300"
           >
-            <FiPlus className="h-4 w-4" aria-hidden="true" />
-            {t("common.addImage")}
-          </Button>
+            {t("posts.bodyMarkdown")}
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowPreview((value) => !value)}
+            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-500/10"
+          >
+            {showPreview ? (
+              <>
+                <FiEyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("common.edit")}
+              </>
+            ) : (
+              <>
+                <FiEye className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("common.preview")}
+              </>
+            )}
+          </button>
         </div>
+        {showPreview ? (
+          <div className="min-h-[10rem] rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            {body.trim() ? (
+              <Markdown>{body}</Markdown>
+            ) : (
+              <p className="text-sm text-zinc-400">
+                {t("posts.nothingToPreview")}
+              </p>
+            )}
+          </div>
+        ) : (
+          <textarea
+            id="post-body"
+            value={body}
+            rows={10}
+            placeholder={t("posts.bodyPlaceholder")}
+            onChange={(event) => setBody(event.target.value)}
+            className="w-full resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          />
+        )}
+      </div>
 
-        <TagInput
-          id="post-tags"
-          label={t("posts.tags")}
-          value={tags}
-          onChange={setTags}
-        />
+      <FileUpload
+        label={t("posts.coverImageOptional")}
+        aspect="cover"
+        value={coverImageUrl.trim() || null}
+        onChange={(url) => setCoverImageUrl(url ?? "")}
+      />
 
-        <Input
-          id="post-external"
-          label={t("posts.externalLinkOptional")}
-          value={externalUrl}
-          placeholder={t("common.urlPlaceholder")}
-          onChange={(event) => setExternalUrl(event.target.value)}
-        />
+      <div className="space-y-2">
+        <span className="block text-sm text-zinc-700 dark:text-zinc-300">
+          {t("posts.inlineImagesOptional")}
+        </span>
+        {images.map((url, index) => (
+          <div key={index} className="flex items-start gap-2">
+            <div className="flex-1">
+              <FileUpload
+                aspect="cover"
+                value={url.trim() || null}
+                onChange={(next) => updateImage(index, next ?? "")}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="icon"
+              size="icon"
+              fullWidth={false}
+              aria-label={t("image.removeImageNumber", { index: index + 1 })}
+              disabled={images.length === 1}
+              onClick={() => removeImage(index)}
+            >
+              <FiTrash2 className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          fullWidth={false}
+          onClick={addImage}
+        >
+          <FiPlus className="h-4 w-4" aria-hidden="true" />
+          {t("common.addImage")}
+        </Button>
+      </div>
 
-        <div>
-          <span className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300">
-            {t("common.status")}
-          </span>
-          <div className="flex gap-2">
-            {statusOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setStatus(option)}
-                className={[
-                  "flex-1 rounded-md border px-3 py-2 text-sm font-medium capitalize transition",
-                  status === option
-                    ? "border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-500/60 dark:bg-violet-500/10 dark:text-violet-200"
-                    : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800",
-                ].join(" ")}
-              >
-                {/* Renders the raw wire value. Deliberately left untranslated:
+      <TagInput
+        id="post-tags"
+        label={t("posts.tags")}
+        value={tags}
+        onChange={setTags}
+      />
+
+      <Input
+        id="post-external"
+        label={t("posts.externalLinkOptional")}
+        value={externalUrl}
+        placeholder={t("common.urlPlaceholder")}
+        onChange={(event) => setExternalUrl(event.target.value)}
+      />
+
+      <div>
+        <span className="mb-1 block text-sm text-zinc-700 dark:text-zinc-300">
+          {t("common.status")}
+        </span>
+        <div className="flex gap-2">
+          {statusOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setStatus(option)}
+              className={[
+                "flex-1 rounded-md border px-3 py-2 text-sm font-medium capitalize transition",
+                status === option
+                  ? "border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-500/60 dark:bg-violet-500/10 dark:text-violet-200"
+                  : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800",
+              ].join(" ")}
+            >
+              {/* Renders the raw wire value. Deliberately left untranslated:
                     it is an expression, not a string literal, so it sits
                     outside this migration's string-swap scope, and the one
                     test that drives this control asserts the lowercase English
                     name. Tracked in the handover notes. */}
-                {option.replace("_", " ")}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {error ? (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            fullWidth={false}
-            onClick={() => onOpenChange(false)}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button
-            type="button"
-            fullWidth={false}
-            isLoading={isSubmitting}
-            loadingLabel={
-              isEditing ? t("common.saving") : t("common.publishing")
-            }
-            onClick={handleSave}
-          >
-            {isEditing ? t("common.saveChanges") : t("common.publish")}
-          </Button>
+              {option.replace("_", " ")}
+            </button>
+          ))}
         </div>
       </div>
+
+      {error ? (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          fullWidth={false}
+          onClick={() => onOpenChange(false)}
+        >
+          {t("common.cancel")}
+        </Button>
+        <Button
+          type="button"
+          fullWidth={false}
+          isLoading={isSubmitting}
+          loadingLabel={isEditing ? t("common.saving") : t("common.publishing")}
+          onClick={() => {
+            void handleSave();
+          }}
+        >
+          {isEditing ? t("common.saveChanges") : t("common.publish")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function PostComposerDialog({
+  open,
+  onOpenChange,
+  initialPost,
+  isSubmitting = false,
+  onSubmit,
+}: PostComposerDialogProps) {
+  const { t } = useTranslation();
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={initialPost ? t("posts.editPost") : t("posts.writeAPost")}
+      contentClassName="max-w-2xl max-h-[90svh]"
+    >
+      {open ? (
+        <PostComposerForm
+          onOpenChange={onOpenChange}
+          initialPost={initialPost}
+          isSubmitting={isSubmitting}
+          onSubmit={onSubmit}
+        />
+      ) : null}
     </Dialog>
   );
 }

@@ -72,7 +72,7 @@ describe("ResendVerificationUseCase", () => {
     expect(mailProvider.sent).toHaveLength(1);
     expect(mailProvider.lastMessage()?.to).toBe(EMAIL);
     expect(tokenRepository.count()).toBe(1);
-    expect(tokenRepository.getAll()[0].userId).toBe(user.id);
+    expect(tokenRepository.getAll()[0]?.userId).toBe(user.id);
   });
 
   it("says nothing about an address that has no account", async () => {

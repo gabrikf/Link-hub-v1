@@ -26,7 +26,8 @@
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "lint": "eslint ."
   },
   "keywords": [
     "crafthub",
@@ -41,10 +42,12 @@
     "zod": "^4.1.1"
   },
   "devDependencies": {
+    "@repo/eslint-config": "*",
     "@repo/schemas": "*",
     "@repo/typescript-config": "*",
     "@types/node": "^24.3.0",
     "esbuild": "^0.25.9",
+    "eslint": "^9.39.4",
     "tsx": "^4.20.5",
     "typescript": "5.9.2",
     "vitest": "^3.2.4"

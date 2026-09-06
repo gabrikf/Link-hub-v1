@@ -32,7 +32,7 @@ import { LanguageToggle } from "./language-toggle";
 import { FOCUS_RING_FIELD, FOCUS_RING_PAGE } from "./surface";
 import { ThemeToggle } from "./theme-toggle";
 
-type TopBarNavProps = {
+type TopBarNavProps = Readonly<{
   /**
    * The theme actually painted. Owned by `App`, which also owns the stored
    * preference (`"system"` included) — see `theme-toggle.tsx` for why the state
@@ -40,7 +40,7 @@ type TopBarNavProps = {
    */
   theme: Theme;
   onToggleTheme: () => void;
-};
+}>;
 
 type NavItem = {
   key: string;
@@ -132,7 +132,7 @@ function sheetLinkClasses(isActive: boolean): string {
 }
 
 /** Heading over a group of controls inside the sheet. */
-function MenuSectionLabel({ children }: { children: string }) {
+function MenuSectionLabel({ children }: Readonly<{ children: string }>) {
   return (
     <p className="px-1 pb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
       {children}
@@ -147,7 +147,7 @@ function MenuSectionLabel({ children }: { children: string }) {
  * `Link` types its destination against the route tree — the two call sites
  * below pass different literals and both stay checked.
  */
-function BrandMark({ brandName }: { brandName: string }) {
+function BrandMark({ brandName }: Readonly<{ brandName: string }>) {
   return (
     <>
       <BrandLogo className="h-8 w-8 shrink-0 transition-transform duration-150 group-hover:scale-105 motion-reduce:transition-none" />
@@ -169,10 +169,10 @@ const BRAND_LINK = `group inline-flex shrink-0 items-center gap-2 rounded-full p
 function NavTooltip({
   label,
   children,
-}: {
+}: Readonly<{
   label: string;
   children: ReactElement<{ "aria-describedby"?: string }>;
-}) {
+}>) {
   const tooltipId = useId();
   return (
     <div className="group relative flex">
@@ -421,7 +421,7 @@ export function TopBarNav({ theme, onToggleTheme }: TopBarNavProps) {
   const logout = () => {
     setIsMobileMenuOpen(false);
     signOut();
-    navigate({ to: "/" });
+    void navigate({ to: "/" });
   };
 
   const navItems: NavItem[] = [

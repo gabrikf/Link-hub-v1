@@ -103,7 +103,8 @@ export class CraftHubApiClient {
     if (params.limit !== undefined) query.set("limit", String(params.limit));
     if (params.offset !== undefined) query.set("offset", String(params.offset));
     const qs = query.toString();
-    return this.request<Post[]>("GET", `/me/posts${qs ? `?${qs}` : ""}`);
+    const suffix = qs ? `?${qs}` : "";
+    return this.request<Post[]>("GET", `/me/posts${suffix}`);
   }
 
   getPost(id: string): Promise<Post> {

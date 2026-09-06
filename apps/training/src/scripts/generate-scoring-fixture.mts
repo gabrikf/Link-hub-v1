@@ -14,7 +14,6 @@ import "@tensorflow/tfjs-node";
 import * as tf from "@tensorflow/tfjs";
 import path from "node:path";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import {
   PREPROCESSING_VERSION,
   preprocessingConfigSchema,
@@ -26,9 +25,6 @@ import {
   fixturePath,
   modelsDir,
 } from "../lib/scoring-fixture.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-void __dirname;
 
 const version = (
   JSON.parse(await readFile(path.join(modelsDir, "latest.json"), "utf-8")) as {

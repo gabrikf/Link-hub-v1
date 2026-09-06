@@ -46,7 +46,7 @@ describe("GetMeProfileUseCase", () => {
     expect(result.description).toBe("Building products");
     expect(result.userPhoto).toBe("https://example.com/avatar.jpg");
     expect(result.links).toHaveLength(1);
-    expect(result.links[0].id).toBe(link.id);
+    expect(result.links[0]?.id).toBe(link.id);
   });
 
   it("throws when user does not exist", async () => {

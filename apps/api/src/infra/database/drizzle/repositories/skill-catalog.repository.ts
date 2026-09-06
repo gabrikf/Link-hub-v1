@@ -3,6 +3,7 @@ import { SkillCatalogEntity } from "../../../../core/entity/skill-catalog/skill-
 import { ISkillCatalogRepository } from "../../../../core/repositories/skill-catalog/skill-catalog-repository.js";
 import { db } from "../index.js";
 import { skillsCatalog } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 export class DrizzleSkillCatalogRepository implements ISkillCatalogRepository {
   async findById(id: string): Promise<SkillCatalogEntity | null> {
@@ -61,7 +62,7 @@ export class DrizzleSkillCatalogRepository implements ISkillCatalogRepository {
     isDefault: boolean;
     createdByUserId: string | null;
   }): Promise<SkillCatalogEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(skillsCatalog)
       .values({
         name: input.name,
@@ -71,7 +72,9 @@ export class DrizzleSkillCatalogRepository implements ISkillCatalogRepository {
       })
       .returning();
 
-    return this.toEntity(created);
+    return this.toEntity(
+      requireReturnedRow(insertedRows, "insert into skillsCatalog"),
+    );
   }
 
   async createMany(

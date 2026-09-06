@@ -52,9 +52,9 @@ describe("imagePlacementSchema", () => {
   });
 
   it("rejects a percentage outside 0-100", () => {
-    expect(imagePlacementSchema.safeParse({ x: -1, y: 50, scale: 1 }).success).toBe(
-      false,
-    );
+    expect(
+      imagePlacementSchema.safeParse({ x: -1, y: 50, scale: 1 }).success,
+    ).toBe(false);
     expect(
       imagePlacementSchema.safeParse({ x: 101, y: 50, scale: 1 }).success,
     ).toBe(false);
@@ -72,7 +72,9 @@ describe("imagePlacementSchema", () => {
   });
 
   it("requires all three values — a partial focal point is not a focal point", () => {
-    expect(imagePlacementSchema.safeParse({ x: 50, y: 50 }).success).toBe(false);
+    expect(imagePlacementSchema.safeParse({ x: 50, y: 50 }).success).toBe(
+      false,
+    );
   });
 
   it("CENTERED_IMAGE_PLACEMENT is itself valid", () => {
@@ -181,7 +183,12 @@ describe("the profile contract carries the appearance", () => {
   });
 
   it("defaults the appearance for a payload written before the field existed", () => {
-    const { appearance: _dropped, ...legacy } = capturedProfilePayload;
+    const { appearance, ...legacy } = capturedProfilePayload;
+    // The split itself is worth asserting: the fixture must really carry the
+    // field, and `legacy` must really be missing it, or the defaulting below
+    // would pass for the wrong reason.
+    expect(appearance).toBeDefined();
+    expect("appearance" in legacy).toBe(false);
     expect(profileSchema.parse(legacy).appearance).toEqual(
       DEFAULT_PROFILE_APPEARANCE,
     );
@@ -192,7 +199,9 @@ describe("the profile contract carries the appearance", () => {
       username: "mariana",
       appearance: capturedProfilePayload.appearance,
     });
-    expect(withAppearance.appearance).toEqual(capturedProfilePayload.appearance);
+    expect(withAppearance.appearance).toEqual(
+      capturedProfilePayload.appearance,
+    );
 
     // `undefined` has to survive as `undefined` — it is what the use case reads
     // as "leave the stored appearance alone".

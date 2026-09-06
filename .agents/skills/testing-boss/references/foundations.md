@@ -36,7 +36,7 @@ Force a one-sentence invariant before any test code. Example invariants:
 
 A fuzzy invariant ("the form works", "the discount applies correctly") guarantees a fuzzy test. The skill rejects test creation until the invariant fits one sentence with concrete nouns.
 
-The user's project doctrine (CLAUDE.md, MOST_CRITICAL section) requires this explicitly: *"Before adding, moving, or expanding any test, identify the invariant, the owning layer, and the existing canonical suite for that layer."*
+State it directly, because there is no authority to appeal to here: before adding, moving or expanding any test, name the invariant, the layer that owns it, and the suite that layer already has. This repo's `AGENTS.md` says the same thing more briefly — write a test when the work is a business rule, is reused, or can be expressed as one — and `apps/api/AGENTS.md` and `apps/web/AGENTS.md` say which suite owns which layer.
 
 ## Principle 2 — Push every test to the lowest layer that can detect the failure
 

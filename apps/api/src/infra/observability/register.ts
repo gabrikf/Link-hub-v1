@@ -21,12 +21,41 @@
  * production API into a crash-loop the moment OTEL_EXPORTER_OTLP_ENDPOINT was
  * first set — six minutes of 503 from a change that only added an env var.
  *
- * WHAT LEAVING IT OFF COSTS: distributed traces, and nothing else. The five
- * instrumentations that need module patching (http, fastify, pg, ioredis,
- * undici) produce spans. Every metric the dashboards in `infra/grafana` query
- * is recorded by hand in `metrics.ts`, and RuntimeNodeInstrumentation reads
+ * WHAT LEAVING IT OFF COSTS: request traces and the pino log bridge, and
+ * nothing else. Every metric the dashboards in `infra/grafana` query is
+ * recorded by hand in `metrics.ts`, and RuntimeNodeInstrumentation reads
  * `perf_hooks` instead of patching modules — so the dashboards and the runtime
  * metrics are unaffected by this switch.
+ *
+ * "THE INSTRUMENTATIONS THAT NEED MODULE PATCHING" IS THREE, NOT FIVE. This
+ * comment said five (http, fastify, pg, ioredis, undici) until 2026-09-05 and
+ * two of those were wrong: `@opentelemetry/instrumentation-pg` was removed that
+ * day because it patches node-postgres and this app talks to Postgres through
+ * `postgres.js`, and `@opentelemetry/instrumentation-fastify` was replaced by
+ * `@fastify/otel`, whose `init()` returns no module definitions — it registers
+ * through the `fastify.initialization` diagnostics_channel instead. Re-derived
+ * from `otel.ts` and its dependencies rather than from memory, the ones that
+ * actually rewrite a module at import time are:
+ *
+ *   http     -> patches `http` and `https`     (spans)
+ *   ioredis  -> patches `ioredis`              (spans)
+ *   pino     -> patches `pino`                 (log records, not spans)
+ *
+ * The gate in `otel.ts` also holds `@fastify/otel` and undici, both of which
+ * return nothing from `init()` and work through `diagnostics_channel`; they
+ * would function with this hook off. They are gated with the rest deliberately,
+ * so this one switch keeps meaning exactly "no request spans" rather than
+ * quietly changing what lands in Tempo on the next deploy — `otel.ts` says why
+ * at the call site.
+ *
+ * WHAT TURNING IT ON DOES NOT BUY YOU: DATABASE SPANS. There are none, and
+ * there never were. Nothing in this app instruments a query, drizzle's own
+ * `tracer.startActiveSpan` is dead code in the published build (`tracing.js`
+ * declares `let otel;` and never assigns it, so its guard always short-
+ * circuits — checked in 0.44.4, unchanged in 0.45.2), and the `pg`
+ * instrumentation that used to sit in the list matched no module. A slow query
+ * appears only as unexplained time inside the fastify handler span with nothing
+ * underneath it. Do not read a flat waterfall as "the database is fine".
  *
  * `openai` v5 deleted `_shims`, and this repo is now on v7, so the original
  * crash is gone. This was verified properly rather than assumed: the built app

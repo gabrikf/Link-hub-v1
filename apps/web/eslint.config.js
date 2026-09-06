@@ -1,23 +1,12 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import { config } from "@repo/eslint-config/react";
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      tseslint.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-    },
-  },
-])
+/**
+ * Syntactic lint for `apps/web`. This is the config `npm run lint` uses, and it is
+ * expected to be GREEN across the whole repo — if it is red, something is
+ * broken now, not owed.
+ *
+ * The type-aware rules live in `eslint.typed.config.js` beside this file. They
+ * are five times slower and carry a recorded backlog, so they run through
+ * `scripts/guardrails/lint-changed.mjs` against a ratchet rather than here.
+ */
+export default [...config];

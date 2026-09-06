@@ -8,6 +8,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../../../test-support/assert-defined";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -167,8 +168,9 @@ describe("ProfileLayoutPage on a phone", () => {
     expect(
       screen.getByRole("heading", { name: "Always visible" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Show tabs on my profile" }))
-      .toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Show tabs on my profile" }),
+    ).toBeInTheDocument();
     expect(container.textContent ?? "").not.toMatch(/larger screen/i);
   });
 
@@ -181,7 +183,10 @@ describe("ProfileLayoutPage on a phone", () => {
       "aria-pressed",
       "true",
     );
-    expect(viewportButton("PC layout")).toHaveAttribute("aria-pressed", "false");
+    expect(viewportButton("PC layout")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("still opens on the PC layout on a wide screen", async () => {
@@ -238,9 +243,8 @@ describe("ProfileLayoutPage on a phone", () => {
     const { container } = renderPage();
     await settle(container);
 
-    const describedBy = viewportButton("PC layout").getAttribute(
-      "aria-describedby",
-    );
+    const describedBy =
+      viewportButton("PC layout").getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
 
     const explanation = describedBy
@@ -260,9 +264,7 @@ describe("ProfileLayoutPage on a phone", () => {
 
     expect(viewportButton("PC layout")).toBeEnabled();
     expect(viewportButton("Mobile layout")).toBeEnabled();
-    expect(viewportButton("PC layout")).not.toHaveAttribute(
-      "aria-describedby",
-    );
+    expect(viewportButton("PC layout")).not.toHaveAttribute("aria-describedby");
     expect(container.textContent ?? "").not.toMatch(
       /open the studio on a computer/i,
     );
@@ -317,9 +319,11 @@ describe("ProfileLayoutPage on a phone", () => {
     // array it was handed and nothing is persisted.
     // The first of the tab zone's two text blocks — the one with a neighbour
     // below it to swap with.
-    await userEvent.click(
-      screen.getAllByRole("button", { name: "Move Text down" })[0]!,
-    );
+    const [moveDown] = screen.getAllByRole("button", {
+      name: "Move Text down",
+    });
+    assertDefined(moveDown, "the first 'Move Text down' button");
+    await userEvent.click(moveDown);
 
     await waitFor(
       () => {
@@ -354,9 +358,11 @@ describe("ProfileLayoutPage on a phone", () => {
 
     // The first of the tab zone's two text blocks — the one with a neighbour
     // below it to swap with.
-    await userEvent.click(
-      screen.getAllByRole("button", { name: "Move Text down" })[0]!,
-    );
+    const [moveDown] = screen.getAllByRole("button", {
+      name: "Move Text down",
+    });
+    assertDefined(moveDown, "the first 'Move Text down' button");
+    await userEvent.click(moveDown);
 
     await waitFor(
       () => {

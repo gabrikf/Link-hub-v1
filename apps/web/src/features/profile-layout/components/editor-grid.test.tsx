@@ -1,8 +1,10 @@
 import type { ProfileBlock } from "@repo/schemas";
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../../../test-support/assert-defined";
 import { PROFILE_CANVAS_WIDTH, type GridLayoutItem } from "../grid-utils";
-import { EditorGrid, ensureProcessShim } from "./editor-grid";
+import { ensureProcessShim } from "../process-shim";
+import { EditorGrid } from "./editor-grid";
 
 /**
  * react-grid-layout bundles react-draggable, whose `log()` reads
@@ -106,7 +108,9 @@ describe("EditorGrid vertical compaction", () => {
     // The compacted geometry is reported back so it can be persisted — this is
     // how legacy layouts containing holes get migrated on first open.
     expect(onChange).toHaveBeenCalledTimes(1);
-    const reported = onChange.mock.calls[0][0] as GridLayoutItem[];
+    const [firstCall] = onChange.mock.calls;
+    assertDefined(firstCall, "the first onChange call");
+    const reported = firstCall[0] as GridLayoutItem[];
     expect(reported.find((item) => item.i === "b")?.y).toBe(2);
 
     // ...and it is rendered packed: the hole is gone, b sits right under a.

@@ -19,7 +19,7 @@ import { FOCUS_RING_PAGE } from "./surface";
  * the only other consumer. A provider plus a hook plus a module would be three
  * new moving parts to move a value across one edge that already exists.
  */
-type ThemeToggleProps = {
+type ThemeToggleProps = Readonly<{
   /**
    * The theme actually on screen — never the stored preference, which may be
    * `"system"` and cannot be painted.
@@ -34,7 +34,7 @@ type ThemeToggleProps = {
    * other controls and is not on a screen a user opened to change a setting.
    */
   variant?: "bar" | "menu";
-};
+}>;
 
 export function ThemeToggle({
   theme,

@@ -10,6 +10,7 @@ import { InMemoryUnitOfWork } from "../../../providers/unit-of-work/in-memory-un
 import { InMemoryUsersRepository } from "../../../repositories/user/in-memory-users-repository.js";
 import { UserEntity } from "../../../entity/user/user-entity.js";
 import { GetLayoutUseCase } from "./get-layout.use-case.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 // Derived rather than hard-coded so adding a default block is a one-line change
 // in the schema package, not a hunt through the layout tests.
@@ -105,8 +106,12 @@ describe("GetLayoutUseCase", () => {
       "user-1",
       "mobile",
     );
-    const pcGroups = pcBlocks.map((block) => block.groupId).sort();
-    const mobileGroups = mobileBlocks.map((block) => block.groupId).sort();
+    const pcGroups = pcBlocks
+      .map((block) => block.groupId)
+      .sort((a, b) => a.localeCompare(b));
+    const mobileGroups = mobileBlocks
+      .map((block) => block.groupId)
+      .sort((a, b) => a.localeCompare(b));
     expect(pcGroups).toEqual(mobileGroups);
   });
 
@@ -189,7 +194,10 @@ describe("GetLayoutUseCase", () => {
 
       for (const viewport of ["pc", "mobile"] as const) {
         expect(layout[viewport].tabs).toHaveLength(1);
-        const tabId = layout[viewport].tabs[0]!.id;
+        const tabId = expectDefined(
+          layout[viewport].tabs[0],
+          `the single ${viewport} tab`,
+        ).id;
         const inTab = layout[viewport].blocks.filter(
           (block) => !block.pinnedAllTabs && block.tabId === tabId,
         );

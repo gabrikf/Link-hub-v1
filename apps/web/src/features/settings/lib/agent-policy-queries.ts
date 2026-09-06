@@ -41,9 +41,8 @@ export function useWorkExperiencesForPolicy(enabled = true) {
 
 function useInvalidatePolicy() {
   const queryClient = useQueryClient();
-  return () => {
+  return () =>
     queryClient.invalidateQueries({ queryKey: agentPolicyQueryKeys.policy });
-  };
 }
 
 export function useUpdateAgentPolicy() {

@@ -114,7 +114,9 @@ describe("resolveDisclosureCompanies", () => {
 describe("findDisclosureViolations", () => {
   it("matches on word boundaries, not substrings", () => {
     expect(findDisclosureViolations("A beautiful sunset", ["sun"])).toEqual([]);
-    expect(findDisclosureViolations("The sun is out", ["sun"])).toEqual(["sun"]);
+    expect(findDisclosureViolations("The sun is out", ["sun"])).toEqual([
+      "sun",
+    ]);
   });
 
   it("does not match a term glued to another word by a digit, but does match one separated by an underscore", () => {
@@ -124,7 +126,9 @@ describe("findDisclosureViolations", () => {
     // `my-sun-service` does. This assertion used to expect [] on both, which is
     // the leak in BUG-20260827-disclosure-underscore-slug written down as a test.
     expect(findDisclosureViolations("sun4life", ["sun"])).toEqual([]);
-    expect(findDisclosureViolations("my_sun_service", ["sun"])).toEqual(["sun"]);
+    expect(findDisclosureViolations("my_sun_service", ["sun"])).toEqual([
+      "sun",
+    ]);
   });
 
   it("matches case-insensitively but reports the canonical spelling", () => {
@@ -370,7 +374,9 @@ describe("redactText", () => {
       redactText("Notes: https://github.com/acme-corp-internal/ledger", [
         "Acme Corp",
       ]),
-    ).toBe(`Notes: https://github.com/${DISCLOSURE_PLACEHOLDER}-internal/ledger`);
+    ).toBe(
+      `Notes: https://github.com/${DISCLOSURE_PLACEHOLDER}-internal/ledger`,
+    );
   });
 
   it("returns an empty string for empty, null or undefined input", () => {
@@ -393,11 +399,11 @@ describe("resolveEffectiveLevel", () => {
 
   it("falls back to the account default when the role does not override", () => {
     expect(resolveEffectiveLevel("detailed", null)).toBe("detailed");
-    expect(resolveEffectiveLevel("detailed", undefined)).toBe("detailed");
+    expect(resolveEffectiveLevel("detailed")).toBe("detailed");
   });
 
   it("falls back to the strictest level when nothing is set at all", () => {
     expect(resolveEffectiveLevel(null, null)).toBe("summary");
-    expect(resolveEffectiveLevel(undefined, undefined)).toBe("summary");
+    expect(resolveEffectiveLevel(undefined)).toBe("summary");
   });
 });

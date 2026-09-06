@@ -17,7 +17,7 @@ import { isSafeHttpUrl } from "../lib/markdown";
  * This control is that single affordance: a small "Add link" that expands to
  * an inline URL field, never an editor.
  */
-export function AttachLinkControl({ post }: { post: Post }) {
+export function AttachLinkControl({ post }: { readonly post: Post }) {
   const { t } = useTranslation();
   const updatePost = useUpdatePost();
   const [editing, setEditing] = useState(false);
@@ -86,7 +86,7 @@ export function AttachLinkControl({ post }: { post: Post }) {
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
-            handleSave();
+            void handleSave();
           }
         }}
         className={`h-9 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${FOCUS_RING_FIELD}`}
@@ -97,7 +97,7 @@ export function AttachLinkControl({ post }: { post: Post }) {
         fullWidth={false}
         isLoading={updatePost.isPending}
         loadingLabel={t("common.saving")}
-        onClick={handleSave}
+        onClick={() => void handleSave()}
       >
         <FiCheck className="h-3.5 w-3.5" aria-hidden="true" />
         {t("common.save")}
@@ -113,7 +113,10 @@ export function AttachLinkControl({ post }: { post: Post }) {
         <FiX className="h-3.5 w-3.5" aria-hidden="true" />
       </Button>
       {error ? (
-        <p role="alert" className="w-full text-xs text-red-600 dark:text-red-400">
+        <p
+          role="alert"
+          className="w-full text-xs text-red-600 dark:text-red-400"
+        >
           {error}
         </p>
       ) : null}

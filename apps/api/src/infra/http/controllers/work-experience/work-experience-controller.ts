@@ -20,9 +20,10 @@ import { UpdateWorkExperienceUseCase } from "../../../../core/use-case/work-expe
 import { DeleteWorkExperienceUseCase } from "../../../../core/use-case/work-experiences/delete-work-experience-use-case/delete-work-experience.use-case.js";
 import { GetPublicWorkExperiencesByUsernameUseCase } from "../../../../core/use-case/work-experiences/get-public-work-experiences-by-username-use-case/get-public-work-experiences-by-username.use-case.js";
 import { SetWorkExperienceDisclosureUseCase } from "../../../../core/use-case/agent-policy/set-work-experience-disclosure-use-case/set-work-experience-disclosure.use-case.js";
+import { toAsyncHook } from "../../to-async-hook.js";
 
 const workExperienceIdParamsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 /**
@@ -45,7 +46,7 @@ export class WorkExperienceController {
     app.get(
       "/me/work-experiences",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Work Experience"],
           summary: "List current user work experiences",
@@ -72,7 +73,7 @@ export class WorkExperienceController {
     app.post(
       "/me/work-experiences",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Work Experience"],
           summary: "Create a work experience",
@@ -109,7 +110,7 @@ export class WorkExperienceController {
     app.put(
       "/me/work-experiences/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Work Experience"],
           summary: "Update a work experience",
@@ -152,7 +153,7 @@ export class WorkExperienceController {
     app.delete(
       "/me/work-experiences/:id",
       {
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Work Experience"],
           summary: "Delete a work experience",
@@ -168,10 +169,7 @@ export class WorkExperienceController {
           },
         },
       },
-      async (
-        request: FastifyRequest<{ Params: { id: string } }>,
-        reply,
-      ) => {
+      async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
         const deleteWorkExperienceUseCase =
           resolve<DeleteWorkExperienceUseCase>(
             TOKENS.DeleteWorkExperienceUseCase,
@@ -191,7 +189,7 @@ export class WorkExperienceController {
       {
         // `authGuard`, not `apiAccessGuard`: an agent must never be able to
         // relax the rule that constrains what it may say about this employer.
-        preHandler: authGuard,
+        preHandler: toAsyncHook(authGuard),
         schema: {
           tags: ["Work Experience"],
           summary:

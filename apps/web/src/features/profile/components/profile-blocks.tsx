@@ -37,7 +37,7 @@ import {
   SkeletonText,
 } from "../../../shared-components/skeleton";
 import {
-  getButtonIcon,
+  getButtonIconOption,
   resolveAccentColor,
 } from "../../profile-layout/button-icons";
 import {
@@ -46,7 +46,8 @@ import {
   GRID_ROW_HEIGHT,
   PROFILE_CANVAS_WIDTH,
 } from "../../profile-layout/grid-utils";
-import { Markdown, markdownExcerpt } from "../../posts/lib/markdown";
+import { Markdown } from "../../posts/components/markdown";
+import { markdownExcerpt } from "../../posts/lib/markdown";
 import { formatPostDate, SOURCE_META } from "../../posts/lib/post-format";
 import { ResumeReadOnlyCard } from "../../resume/components/resume-read-only-card";
 import { WorkHistoryReadOnly } from "../../work-history/components/work-history-read-only";
@@ -122,16 +123,17 @@ type ProfileBlocksProps = {
 
 /** Extract a YouTube video id from common URL shapes. */
 function parseYouTubeId(url: string): string | null {
-  const match = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/,
-  );
-  return match ? match[1] : null;
+  const match =
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/.exec(
+      url,
+    );
+  return match?.[1] ?? null;
 }
 
 /** Extract a Vimeo video id from a Vimeo URL. */
 function parseVimeoId(url: string): string | null {
-  const match = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  return match ? match[1] : null;
+  const match = /vimeo\.com\/(?:video\/)?(\d+)/.exec(url);
+  return match?.[1] ?? null;
 }
 
 export function ProfileBlocks({
@@ -146,7 +148,7 @@ export function ProfileBlocks({
   linksLoading = false,
   variant = "full",
   tabsEnabled = true,
-}: ProfileBlocksProps) {
+}: Readonly<ProfileBlocksProps>) {
   const { t } = useTranslation();
   const isPreview = variant === "preview";
   const cols = GRID_COLUMNS[viewport];
@@ -250,170 +252,14 @@ export function ProfileBlocks({
     switch (block.kind) {
       case "header":
         return (
-          <header className="flex flex-col items-center gap-4 text-center">
-            <div className="anim-glow-pulse anim-scale-in rounded-full">
-              <Avatar
-                name={profile.name}
-                imageUrl={profile.userPhoto}
-                size={isPreview ? 64 : 92}
-                className="shadow-lg ring-2 ring-[var(--profile-accent-ring)]"
-              />
-            </div>
-
-            {/*
-              `w-full` + `max-w-full` are load-bearing, not decoration.
-              This div is a BLOCK child of a `flex flex-col items-center`
-              header, so `align-items: center` sized it to fit-content — 419px
-              inside a 293px header at 375px, clipped ~63px off BOTH ends with
-              no scrollbar. And because the `h1` is `inline-flex` at max-content,
-              `scrollWidth > clientWidth` was false, so `truncate` never fired.
-              `min-w-0` is inert here: this is max-content cross-axis sizing,
-              not flex shrink.
-            */}
-            <div
-              className="anim-fade-up w-full min-w-0 text-center"
-              style={{ animationDelay: "0.06s" }}
-            >
-              <h1 className="inline-flex max-w-full items-center gap-2 text-2xl font-bold tracking-tight">
-                <FiUser
-                  className="h-5 w-5"
-                  style={{ color: "var(--profile-accent-fg)" }}
-                />
-                <span className="truncate">{profile.name}</span>
-              </h1>
-              <p className={onPhoto ? STRONG_META : "text-zinc-600 dark:text-zinc-400"}>
-                @{profile.username}
-              </p>
-              {profile.description ? (
-                <p
-                  className={`mx-auto mt-2 max-w-xl text-sm leading-relaxed ${
-                    // `zinc-300` measures 4.42:1 against the worst composite a
-                    // frosted card allows, i.e. just under AA — one step is all
-                    // it needs, and only when there is a photo underneath.
-                    onPhoto ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-700 dark:text-zinc-300"
-                  }`}
-                >
-                  {profile.description}
-                </p>
-              ) : (
-                <p
-                  className={`mt-2 text-sm ${onPhoto ? STRONG_META : "text-zinc-500 dark:text-zinc-400"}`}
-                >
-                  {t("profile.noDescription")}
-                </p>
-              )}
-              {/*
-                Location lives HERE — after the description, before the links —
-                rather than in the cover chip it used to share with the role.
-                On the cover it had to compete with the photograph and with the
-                avatar for the same lower edge, which is what made that chip 65%
-                of the card wide at 375px.
-
-                `text-zinc-500 dark:text-zinc-400` is a deliberate mid-grey: it
-                reads as metadata next to the near-black description without
-                fading out. Measured against the card it actually sits on it is
-                4.83:1 on white, 4.63:1 on the `zinc-50` end of the card
-                gradient, and 6.9:1 on `zinc-900` — AA at every point, including
-                for `text-xs`, which is below the large-text exemption.
-
-                Those measurements are against a SOLID card, which is why this
-                switches to `STRONG_META` when the card is frosted over a
-                photograph: at 4.83:1 there is no headroom to spend on
-                translucency, and the worst case falls to 2.6:1.
-
-                Renders nothing at all when there is no location: no reserved
-                row, no empty pill.
-              */}
-              {profile.location?.trim() ? (
-                <p
-                  data-testid="profile-location"
-                  className={`mt-2 flex items-center justify-center gap-1.5 text-xs ${
-                    onPhoto ? STRONG_META : "text-zinc-500 dark:text-zinc-400"
-                  }`}
-                >
-                  <FiMapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-                  {/* The icon is decorative, so the field needs a name of its
-                      own for a screen reader reading the line out of context. */}
-                  <span className="sr-only">{t("common.location")}</span>
-                  <span>{profile.location}</span>
-                </p>
-              ) : null}
-            </div>
-          </header>
+          <HeaderBlock
+            profile={profile}
+            isPreview={isPreview}
+            onPhoto={onPhoto}
+          />
         );
       case "links":
-        return (
-          <div className="space-y-3">
-            {linksLoading ? (
-              <>
-                <LoadingLabel>{t("dashboard.loadingLinks")}</LoadingLabel>
-                <ProfileLinksSkeleton />
-              </>
-            ) : links.length > 0 ? (
-              links.map((link, index) => {
-                const selectedIcon = getLinkIconOption(link.icon);
-
-                return (
-                  <a
-                    key={link.id}
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ animationDelay: `${0.15 + index * 0.07}s` }}
-                    className={`anim-fade-up accent-card group block p-4 text-left transition duration-300 hover:-translate-y-0.5 ${SURFACE_PROFILE}`}
-                  >
-                    {/*
-                      `flex`, not `inline-flex`. An inline-flex box is sized
-                      shrink-to-fit, so with an unbreakable title its width was
-                      max-content and it simply ran past the card — the `truncate`
-                      on the title span never engaged, because the span's flex
-                      container was already as wide as the text. The card shell's
-                      `overflow-hidden` then swallowed the tail with no ellipsis
-                      and no scrollbar, which is the exact silent-clipping bug the
-                      profile `<h1>` was fixed for. Block-level `flex` gets the
-                      anchor's width, `min-w-0` lets the title shrink inside it,
-                      and `shrink-0` keeps the two icons at full size.
-                    */}
-                    <p className="flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
-                      <span
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full shadow-sm"
-                        style={{
-                          color: selectedIcon?.color,
-                          background:
-                            selectedIcon?.backgroundColor ??
-                            "linear-gradient(135deg, #0EA5E9, #14B8A6)",
-                        }}
-                      >
-                        {selectedIcon ? (
-                          <selectedIcon.Icon
-                            className="h-3.5 w-3.5"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <FiLink2
-                            className="h-3.5 w-3.5 text-white"
-                            aria-hidden="true"
-                          />
-                        )}
-                      </span>
-                      <span className="min-w-0 truncate">{link.title}</span>
-                      <FiExternalLink className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
-                    </p>
-                    <p className="mt-1 truncate text-sm text-zinc-600 dark:text-zinc-400">
-                      {link.url}
-                    </p>
-                  </a>
-                );
-              })
-            ) : (
-              <div
-                className={`px-4 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400 ${SURFACE_EMPTY}`}
-              >
-                {t("profile.noLinks")}
-              </div>
-            )}
-          </div>
-        );
+        return <LinksBlock links={links} linksLoading={linksLoading} />;
       // Both of these are shared with the dashboard, so they default to the
       // dashboard material. Passing `SURFACE_PROFILE` keeps them from reading as
       // a different material than their sibling blocks in this grid.
@@ -588,7 +434,208 @@ export function ProfileBlocks({
   );
 }
 
-function TextBlock({ config }: { config: TextBlockConfig | null }) {
+/**
+ * The profile identity block: avatar, name, @handle, description and the
+ * optional location line.
+ *
+ * A module-level component rather than a branch of `renderBlock`, so it sits
+ * alongside `TextBlock`/`VideoBlock`/`ImageBlock` — the same shape the other
+ * block kinds already use — and keeps the switch readable.
+ */
+function HeaderBlock({
+  profile,
+  isPreview,
+  onPhoto,
+}: Readonly<{
+  profile: ProfileHeaderView;
+  isPreview: boolean;
+  onPhoto: boolean;
+}>) {
+  const { t } = useTranslation();
+
+  return (
+    <header className="flex flex-col items-center gap-4 text-center">
+      <div className="anim-glow-pulse anim-scale-in rounded-full">
+        <Avatar
+          name={profile.name}
+          imageUrl={profile.userPhoto}
+          size={isPreview ? 64 : 92}
+          className="shadow-lg ring-2 ring-[var(--profile-accent-ring)]"
+        />
+      </div>
+
+      {/*
+        `w-full` + `max-w-full` are load-bearing, not decoration.
+        This div is a BLOCK child of a `flex flex-col items-center`
+        header, so `align-items: center` sized it to fit-content — 419px
+        inside a 293px header at 375px, clipped ~63px off BOTH ends with
+        no scrollbar. And because the `h1` is `inline-flex` at max-content,
+        `scrollWidth > clientWidth` was false, so `truncate` never fired.
+        `min-w-0` is inert here: this is max-content cross-axis sizing,
+        not flex shrink.
+      */}
+      <div
+        className="anim-fade-up w-full min-w-0 text-center"
+        style={{ animationDelay: "0.06s" }}
+      >
+        <h1 className="inline-flex max-w-full items-center gap-2 text-2xl font-bold tracking-tight">
+          <FiUser
+            className="h-5 w-5"
+            style={{ color: "var(--profile-accent-fg)" }}
+          />
+          <span className="truncate">{profile.name}</span>
+        </h1>
+        <p
+          className={onPhoto ? STRONG_META : "text-zinc-600 dark:text-zinc-400"}
+        >
+          @{profile.username}
+        </p>
+        {profile.description ? (
+          <p
+            className={`mx-auto mt-2 max-w-xl text-sm leading-relaxed ${
+              // `zinc-300` measures 4.42:1 against the worst composite a
+              // frosted card allows, i.e. just under AA — one step is all
+              // it needs, and only when there is a photo underneath.
+              onPhoto
+                ? "text-zinc-700 dark:text-zinc-200"
+                : "text-zinc-700 dark:text-zinc-300"
+            }`}
+          >
+            {profile.description}
+          </p>
+        ) : (
+          <p
+            className={`mt-2 text-sm ${onPhoto ? STRONG_META : "text-zinc-500 dark:text-zinc-400"}`}
+          >
+            {t("profile.noDescription")}
+          </p>
+        )}
+        {/*
+          Location lives HERE — after the description, before the links —
+          rather than in the cover chip it used to share with the role.
+          On the cover it had to compete with the photograph and with the
+          avatar for the same lower edge, which is what made that chip 65%
+          of the card wide at 375px.
+
+          `text-zinc-500 dark:text-zinc-400` is a deliberate mid-grey: it
+          reads as metadata next to the near-black description without
+          fading out. Measured against the card it actually sits on it is
+          4.83:1 on white, 4.63:1 on the `zinc-50` end of the card
+          gradient, and 6.9:1 on `zinc-900` — AA at every point, including
+          for `text-xs`, which is below the large-text exemption.
+
+          Those measurements are against a SOLID card, which is why this
+          switches to `STRONG_META` when the card is frosted over a
+          photograph: at 4.83:1 there is no headroom to spend on
+          translucency, and the worst case falls to 2.6:1.
+
+          Renders nothing at all when there is no location: no reserved
+          row, no empty pill.
+          */}
+        {profile.location?.trim() ? (
+          <p
+            data-testid="profile-location"
+            className={`mt-2 flex items-center justify-center gap-1.5 text-xs ${
+              onPhoto ? STRONG_META : "text-zinc-500 dark:text-zinc-400"
+            }`}
+          >
+            <FiMapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+            {/* The icon is decorative, so the field needs a name of its
+                own for a screen reader reading the line out of context. */}
+            <span className="sr-only">{t("common.location")}</span>
+            <span>{profile.location}</span>
+          </p>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+/** The link list block: loading skeleton, the links themselves, or the empty card. */
+function LinksBlock({
+  links,
+  linksLoading,
+}: Readonly<{
+  links: LinkResponse[];
+  linksLoading: boolean;
+}>) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-3">
+      {linksLoading ? (
+        <>
+          <LoadingLabel>{t("dashboard.loadingLinks")}</LoadingLabel>
+          <ProfileLinksSkeleton />
+        </>
+      ) : links.length > 0 ? (
+        links.map((link, index) => {
+          const selectedIcon = getLinkIconOption(link.icon);
+
+          return (
+            <a
+              key={link.id}
+              href={link.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ animationDelay: `${0.15 + index * 0.07}s` }}
+              className={`anim-fade-up accent-card group block p-4 text-left transition duration-300 hover:-translate-y-0.5 ${SURFACE_PROFILE}`}
+            >
+              {/*
+                `flex`, not `inline-flex`. An inline-flex box is sized
+                shrink-to-fit, so with an unbreakable title its width was
+                max-content and it simply ran past the card — the `truncate`
+                on the title span never engaged, because the span's flex
+                container was already as wide as the text. The card shell's
+                `overflow-hidden` then swallowed the tail with no ellipsis
+                and no scrollbar, which is the exact silent-clipping bug the
+                profile `<h1>` was fixed for. Block-level `flex` gets the
+                anchor's width, `min-w-0` lets the title shrink inside it,
+                and `shrink-0` keeps the two icons at full size.
+                */}
+              <p className="flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100">
+                <span
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full shadow-sm"
+                  style={{
+                    color: selectedIcon?.color,
+                    background:
+                      selectedIcon?.backgroundColor ??
+                      "linear-gradient(135deg, #0EA5E9, #14B8A6)",
+                  }}
+                >
+                  {selectedIcon ? (
+                    <selectedIcon.Icon
+                      className="h-3.5 w-3.5"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <FiLink2
+                      className="h-3.5 w-3.5 text-white"
+                      aria-hidden="true"
+                    />
+                  )}
+                </span>
+                <span className="min-w-0 truncate">{link.title}</span>
+                <FiExternalLink className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
+              </p>
+              <p className="mt-1 truncate text-sm text-zinc-600 dark:text-zinc-400">
+                {link.url}
+              </p>
+            </a>
+          );
+        })
+      ) : (
+        <div
+          className={`px-4 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400 ${SURFACE_EMPTY}`}
+        >
+          {t("profile.noLinks")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TextBlock({ config }: Readonly<{ config: TextBlockConfig | null }>) {
   if (!config) {
     return null;
   }
@@ -609,7 +656,7 @@ function TextBlock({ config }: { config: TextBlockConfig | null }) {
   );
 }
 
-function VideoBlock({ config }: { config: VideoBlockConfig | null }) {
+function VideoBlock({ config }: Readonly<{ config: VideoBlockConfig | null }>) {
   const { t } = useTranslation();
   if (!config) {
     return null;
@@ -663,8 +710,9 @@ function VideoBlock({ config }: { config: VideoBlockConfig | null }) {
   );
 }
 
-function ImageBlock({ config }: { config: ImageBlockConfig | null }) {
-  if (!config || config.images.length === 0) {
+function ImageBlock({ config }: Readonly<{ config: ImageBlockConfig | null }>) {
+  const firstImage = config?.images[0];
+  if (!config || !firstImage) {
     return null;
   }
 
@@ -694,8 +742,8 @@ function ImageBlock({ config }: { config: ImageBlockConfig | null }) {
         </div>
       ) : (
         <img
-          src={config.images[0].url}
-          alt={config.images[0].alt ?? ""}
+          src={firstImage.url}
+          alt={firstImage.alt ?? ""}
           loading="lazy"
           className="w-full rounded-xl object-cover"
         />
@@ -709,13 +757,15 @@ function safeHttpUrl(url: string): string | undefined {
   return /^https?:\/\//i.test(url.trim()) ? url : undefined;
 }
 
-function ButtonBlock({ config }: { config: ButtonBlockConfig | null }) {
+function ButtonBlock({
+  config,
+}: Readonly<{ config: ButtonBlockConfig | null }>) {
   if (!config) {
     return null;
   }
 
   const accent = resolveAccentColor(config.accent);
-  const Icon = getButtonIcon(config.icon);
+  const selectedIcon = getButtonIconOption(config.icon);
   const href = safeHttpUrl(config.url);
 
   if (!href) {
@@ -730,7 +780,9 @@ function ButtonBlock({ config }: { config: ButtonBlockConfig | null }) {
       style={{ backgroundColor: accent }}
       className="anim-fade-up accent-glow flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-center text-sm font-semibold text-white shadow-sm transition duration-300 hover:-translate-y-0.5"
     >
-      {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+      {selectedIcon ? (
+        <selectedIcon.Icon className="h-4 w-4" aria-hidden="true" />
+      ) : null}
       <span className="truncate">{config.label}</span>
     </a>
   );
@@ -748,10 +800,10 @@ function ButtonBlock({ config }: { config: ButtonBlockConfig | null }) {
 function PostsBlockSkeleton({
   layout,
   count,
-}: {
+}: Readonly<{
   layout: "list" | "grid";
   count: number;
-}) {
+}>) {
   return (
     <div
       className={
@@ -781,10 +833,10 @@ function PostsBlockSkeleton({
 function PostsBlock({
   username,
   config,
-}: {
+}: Readonly<{
   username: string;
   config: PostsBlockConfig | null;
-}) {
+}>) {
   const { t } = useTranslation();
   const limit = config?.limit ?? 5;
   const layout = config?.layout ?? "list";

@@ -20,10 +20,84 @@ export class OAuthSignInUseCase {
   ) {}
 
   private createLoginFromEmail(email: string): string {
-    return email
-      .split("@")[0]
-      .replace(/[^a-zA-Z0-9_.-]/g, "")
-      .toLowerCase();
+    // `split` always yields at least one element, so the default never fires —
+    // it is how that is stated to the compiler without asserting it.
+    const [localPart = ""] = email.split("@");
+
+    return localPart.replace(/[^a-zA-Z0-9_.-]/g, "").toLowerCase();
+  }
+
+  /**
+   * Builds a brand-new local user record from the OAuth profile, with a
+   * random (never used) password and a login derived from the email —
+   * disambiguated with a short suffix if that login is already taken.
+   */
+  private async createUserFromOAuthProfile(
+    data: IOAuthSignInUseCaseInput,
+  ): Promise<UserEntity> {
+    const generatedPassword = crypto.randomUUID();
+    const passwordHash = await this.hashProvider.hash(generatedPassword);
+    const baseLogin = this.createLoginFromEmail(data.email);
+    let login = baseLogin.length > 0 ? baseLogin : `user-${Date.now()}`;
+
+    const existingLogin = await this.usersRepository.findByEmailOrLogin(login);
+    if (existingLogin) {
+      login = `${login}-${crypto.randomUUID().slice(0, 8)}`;
+    }
+
+    return this.usersRepository.create(
+      UserEntity.create({
+        email: data.email,
+        login,
+        name: data.name,
+        password: passwordHash,
+        avatarUrl: data.avatarUrl,
+        description: null,
+        googleId: data.provider === "google" ? data.providerAccountId : null,
+        // Verified at creation: the guard at the top of `execute` already
+        // refused a provider profile whose email was not confirmed, so the
+        // provider has proved control of this mailbox. Sending our own
+        // verification email on top of that would be asking the user to
+        // prove something we already know.
+        emailVerifiedAt: new Date(),
+      }),
+    );
+  }
+
+  /**
+   * Finds the user this OAuth profile belongs to by email, creating one if
+   * this is its first sign-in, then makes sure the provider account itself is
+   * on file. Extracted out of `execute` purely to keep that function's
+   * cognitive complexity down — behaviour is unchanged.
+   */
+  private async findOrCreateUserForOAuthAccount(
+    data: IOAuthSignInUseCaseInput,
+  ): Promise<{ user: UserEntity; isNewUser: boolean }> {
+    let user = await this.usersRepository.findByEmail(data.email);
+    let isNewUser = false;
+
+    if (!user) {
+      isNewUser = true;
+      user = await this.createUserFromOAuthProfile(data);
+    }
+
+    const userProviderAccount =
+      await this.oauthAccountRepository.findByUserAndProvider(
+        user.id,
+        data.provider,
+      );
+
+    if (!userProviderAccount) {
+      await this.oauthAccountRepository.create(
+        OAuthAccountEntity.create({
+          userId: user.id,
+          provider: data.provider,
+          providerAccountId: data.providerAccountId,
+        }),
+      );
+    }
+
+    return { user, isNewUser };
   }
 
   async execute(input: IOAuthSignInUseCaseInput) {
@@ -55,56 +129,9 @@ export class OAuthSignInUseCase {
     let isNewUser = false;
 
     if (!user) {
-      user = await this.usersRepository.findByEmail(data.email);
-
-      if (!user) {
-        isNewUser = true;
-        const generatedPassword = crypto.randomUUID();
-        const passwordHash = await this.hashProvider.hash(generatedPassword);
-        const baseLogin = this.createLoginFromEmail(data.email);
-        let login = baseLogin.length > 0 ? baseLogin : `user-${Date.now()}`;
-
-        const existingLogin =
-          await this.usersRepository.findByEmailOrLogin(login);
-        if (existingLogin) {
-          login = `${login}-${crypto.randomUUID().slice(0, 8)}`;
-        }
-
-        user = await this.usersRepository.create(
-          UserEntity.create({
-            email: data.email,
-            login,
-            name: data.name,
-            password: passwordHash,
-            avatarUrl: data.avatarUrl,
-            description: null,
-            googleId:
-              data.provider === "google" ? data.providerAccountId : null,
-            // Verified at creation: the guard at the top of this method already
-            // refused a provider profile whose email was not confirmed, so the
-            // provider has proved control of this mailbox. Sending our own
-            // verification email on top of that would be asking the user to
-            // prove something we already know.
-            emailVerifiedAt: new Date(),
-          }),
-        );
-      }
-
-      const userProviderAccount =
-        await this.oauthAccountRepository.findByUserAndProvider(
-          user.id,
-          data.provider,
-        );
-
-      if (!userProviderAccount) {
-        await this.oauthAccountRepository.create(
-          OAuthAccountEntity.create({
-            userId: user.id,
-            provider: data.provider,
-            providerAccountId: data.providerAccountId,
-          }),
-        );
-      }
+      const found = await this.findOrCreateUserForOAuthAccount(data);
+      user = found.user;
+      isNewUser = found.isNewUser;
     }
 
     user.name = data.name;

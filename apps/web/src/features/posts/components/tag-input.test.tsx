@@ -4,7 +4,9 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { TagInput } from "./tag-input";
 
-function ControlledTagInput({ initial = [] }: { initial?: string[] }) {
+function ControlledTagInput({
+  initial = [],
+}: Readonly<{ initial?: string[] }>) {
   const [tags, setTags] = useState<string[]>(initial);
   return <TagInput id="tags" label="Tags" value={tags} onChange={setTags} />;
 }

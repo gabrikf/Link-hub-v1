@@ -3,6 +3,7 @@ import { PasswordResetTokenEntity } from "../../../../core/entity/password-reset
 import { IPasswordResetTokenRepository } from "../../../../core/repositories/password-reset-token/password-reset-token-repository.js";
 import { db } from "../index.js";
 import { passwordResetTokens } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 type PasswordResetTokenRow = typeof passwordResetTokens.$inferSelect;
 
@@ -25,7 +26,7 @@ export class DrizzlePasswordResetTokenRepository
   async create(
     token: PasswordResetTokenEntity,
   ): Promise<PasswordResetTokenEntity> {
-    const [created] = await db
+    const insertedRows = await db
       .insert(passwordResetTokens)
       .values({
         id: token.id,
@@ -38,7 +39,9 @@ export class DrizzlePasswordResetTokenRepository
       })
       .returning();
 
-    return toEntity(created);
+    return toEntity(
+      requireReturnedRow(insertedRows, "insert into passwordResetTokens"),
+    );
   }
 
   async findByTokenHash(

@@ -321,9 +321,14 @@ describe("create_post", () => {
 
     expect(Object.hasOwn(result, "isError")).toBe(false);
     expect(textOf(result)).toBe(
-      ["Post created ✅", "id: abc", "title: T", "status: published", "source: mcp", "tags: ts"].join(
-        "\n",
-      ),
+      [
+        "Post created ✅",
+        "id: abc",
+        "title: T",
+        "status: published",
+        "source: mcp",
+        "tags: ts",
+      ].join("\n"),
     );
   });
 
@@ -345,7 +350,9 @@ describe("create_post", () => {
 
     expect(description).toContain("DISCLOSURE POLICY: ");
     expect(description).toContain('the user\'s level is "summary" (Summary)');
-    expect(description).toContain("YOU MUST NOT SAY: Employer and client names");
+    expect(description).toContain(
+      "YOU MUST NOT SAY: Employer and client names",
+    );
     expect(description).toContain("call get_work_context");
   });
 
@@ -398,14 +405,9 @@ describe("create_commit_summary_post", () => {
 
     await host.call("create_commit_summary_post", { summary: "s" });
 
-    expect(Object.keys(createdPayload(stub)).sort()).toEqual([
-      "body",
-      "metadata",
-      "source",
-      "status",
-      "tags",
-      "title",
-    ]);
+    expect(
+      Object.keys(createdPayload(stub)).sort((a, b) => a.localeCompare(b)),
+    ).toEqual(["body", "metadata", "source", "status", "tags", "title"]);
   });
 
   it.each([
@@ -779,7 +781,10 @@ describe("list_my_posts", () => {
     // The client drops undefined values from the query string, so the api's own
     // defaults (limit 20, offset 0) apply.
     const [params] = firstArg(stub.listPosts.mock.calls);
-    expect(Object.keys(params).sort()).toEqual(["limit", "offset"]);
+    expect(Object.keys(params).sort((a, b) => a.localeCompare(b))).toEqual([
+      "limit",
+      "offset",
+    ]);
     expect(params.limit).toBeUndefined();
     expect(params.offset).toBeUndefined();
   });
@@ -832,7 +837,9 @@ describe("get_disclosure_policy", () => {
     const text = textOf(await host.call("get_disclosure_policy", {}));
 
     expect(text).toContain("# Disclosure level: `detailed` — Detailed");
-    expect(text).toContain("## You may say\n\n- Everything allowed at Summary level");
+    expect(text).toContain(
+      "## You may say\n\n- Everything allowed at Summary level",
+    );
     expect(text).toContain("## You must not say\n\n- Internal repository");
     expect(text).toContain("rejected with HTTP 400 naming the term");
   });
@@ -888,14 +895,18 @@ describe("get_disclosure_policy", () => {
     expect(Object.hasOwn(result, "isError")).toBe(false);
     expect(text).toContain("# Disclosure level: `summary` — Summary");
     expect(text).toContain("the STRICTEST level is assumed");
-    expect(text).toContain("Reason: Your token is missing the profile:read scope");
+    expect(text).toContain(
+      "Reason: Your token is missing the profile:read scope",
+    );
   });
 
   it("CHARACTERIZATION: a failed live read also discards the startup blocked terms", async () => {
     const { host, stub } = setup(
       makeDisclosure("full", { blockedTerms: ["Acme Financial"] }),
     );
-    stub.getAgentPolicy.mockRejectedValueOnce(new CraftHubApiError("boom", 500));
+    stub.getAgentPolicy.mockRejectedValueOnce(
+      new CraftHubApiError("boom", 500),
+    );
 
     const text = textOf(await host.call("get_disclosure_policy", {}));
 

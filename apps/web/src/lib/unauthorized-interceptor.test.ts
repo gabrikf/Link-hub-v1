@@ -1,5 +1,6 @@
 import { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../test-support/assert-defined";
 import type { AuthTokens } from "./auth-tokens";
 import {
   createSessionRefresher,
@@ -30,13 +31,13 @@ const axiosErrorWithStatus = (
   status: number,
   config: RetriableRequestConfig = { url: "/me" },
 ): AxiosError => {
-  const error = new AxiosError(
-    "boom",
-    undefined,
-    config as never,
-    undefined,
-    { status, data: {}, statusText: "", headers: {}, config } as never,
-  );
+  const error = new AxiosError("boom", undefined, config as never, undefined, {
+    status,
+    data: {},
+    statusText: "",
+    headers: {},
+    config,
+  } as never);
 
   return error;
 };
@@ -168,19 +169,23 @@ describe("createUnauthorizedHandler", () => {
       headers: AxiosHeaders.from({ "X-Trace": "keep-me" }),
     };
 
-    await expect(
-      handler()(axiosErrorWithStatus(401, config)),
-    ).resolves.toEqual(okResponse());
+    await expect(handler()(axiosErrorWithStatus(401, config))).resolves.toEqual(
+      okResponse(),
+    );
 
     expect(onSessionExpired).not.toHaveBeenCalled();
     expect(replay).toHaveBeenCalledTimes(1);
 
-    const replayed = replay.mock.calls[0][0] as RetriableRequestConfig;
+    const [firstReplayCall] = replay.mock.calls;
+    assertDefined(firstReplayCall, "the first replayed request");
+    const replayed = firstReplayCall[0] as RetriableRequestConfig;
     expect(replayed.url).toBe("/me");
     expect(replayed.hasRetriedAfterRefresh).toBe(true);
 
     const headers = AxiosHeaders.from(replayed.headers as AxiosHeaders);
-    expect(headers.get("Authorization")).toBe(`Bearer ${NEXT_TOKENS.accessToken}`);
+    expect(headers.get("Authorization")).toBe(
+      `Bearer ${NEXT_TOKENS.accessToken}`,
+    );
     expect(headers.get("x-refresh-token")).toBe(NEXT_TOKENS.refreshToken);
     // A caller's own headers survive the replay.
     expect(headers.get("X-Trace")).toBe("keep-me");

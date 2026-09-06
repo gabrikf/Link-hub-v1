@@ -1,0 +1,133 @@
+{
+  "_why": "The claim ledger matches a claim against a sliding window of the harness. A rule that moved AND was reworded can fail that match while being perfectly present \u2014 and a claim that was deliberately deleted because it was FALSE should not be reported as a loss at all. Both need an answer that a reviewer can check in seconds, not a promise that somebody was careful. Every entry below is verified mechanically by claim-ledger.mjs: a `relocated` entry fails unless `contains` is really present in `to`, and a `corrected` entry fails unless `evidence` really exists. Padding this file with a bogus row breaks the build.",
+  "relocated": [
+    {
+      "id": "C005",
+      "to": ".claude/CLAUDE.md",
+      "contains": "real content lives in the tool-neutral",
+      "note": "reworded in place"
+    },
+    {
+      "id": "C057",
+      "to": "AGENTS.md",
+      "contains": "is prescriptive",
+      "note": "root keeps the mandate; apps/web keeps the constants"
+    },
+    {
+      "id": "C071",
+      "to": ".agents/skills/i18n/SKILL.md",
+      "contains": "three locales",
+      "note": "the 30-line root i18n section moved to the skill per the plan's move map"
+    },
+    {
+      "id": "C074",
+      "to": ".agents/skills/i18n/SKILL.md",
+      "contains": "mirrors `lib/theme.ts`",
+      "note": "same move"
+    },
+    {
+      "id": "C075",
+      "to": ".agents/skills/i18n/SKILL.md",
+      "contains": "before adding a key",
+      "note": "same move; also restated in apps/web/AGENTS.md"
+    },
+    {
+      "id": "C078",
+      "to": ".agents/skills/i18n/SKILL.md",
+      "contains": "Never concatenate a sentence from fragments",
+      "note": "same rule, the skill's wording"
+    },
+    {
+      "id": "C084",
+      "to": ".agents/skills/i18n/SKILL.md",
+      "contains": "sub-second",
+      "note": "the gate-runs-both-halves fact, with the skill's deeper reasoning around it"
+    },
+    {
+      "id": "C087",
+      "to": "docs/mcp-servers.md",
+      "contains": "CRAFTHUB_PROD_DATABASE_URI",
+      "note": "root keeps the one safety rule in the MCP table; setup lives here"
+    },
+    {
+      "id": "C088",
+      "to": "docs/mcp-servers.md",
+      "contains": "service-account token",
+      "note": "same"
+    },
+    {
+      "id": "C117",
+      "to": "apps/api/AGENTS.md",
+      "contains": "Pattern-matching the neighbours",
+      "note": "compressed, same rule"
+    },
+    {
+      "id": "C157",
+      "to": "apps/api/AGENTS.md",
+      "contains": "S3-compatible",
+      "note": "compressed, same rule"
+    },
+    {
+      "id": "C164",
+      "to": "apps/api/AGENTS.md",
+      "contains": "loopback address",
+      "note": "compressed, same rule"
+    },
+    {
+      "id": "C210",
+      "to": "apps/web/AGENTS.md",
+      "contains": "post-composer-dialog.tsx",
+      "note": "folded into the feature-folders paragraph"
+    },
+    {
+      "id": "C243",
+      "to": "apps/web/AGENTS.md",
+      "contains": "unit-test the geometry",
+      "note": "compressed, same rule"
+    },
+    {
+      "id": "C914",
+      "to": ".agents/skills/spec-implement/SKILL.md",
+      "contains": "shared local Postgres/Redis",
+      "note": "stayed in SKILL.md; the surrounding worktree detail moved to references/execution-strategy.md"
+    },
+    {
+      "id": "C920",
+      "to": ".agents/skills/spec-implement/references/execution-strategy.md",
+      "contains": "git worktree remove",
+      "note": "the step became the Cleanup block"
+    },
+    {
+      "id": "C003",
+      "to": "docs/harness/agent-harness.md",
+      "contains": "symlink, so Claude Code reads the same bytes",
+      "note": "the symlink-aliasing explanation moved from the HTML comment to the harness doc"
+    }
+  ],
+  "corrected": [
+    {
+      "id": "C585",
+      "was": "qa-execution/SKILL.md: 'There is no i18n. <html lang=\"en\">, every user-visible string is hardcoded English.'",
+      "why": "False. The app ships react-i18next with three locales and two gate checks; the rule told QA to skip a live guardrail.",
+      "evidence": "apps/web/src/i18n/locales/pt-BR.json"
+    },
+    {
+      "id": "C675",
+      "was": "qa-report/SKILL.md: 'i18n \u2014 the planned internationalisation setup. CraftHub has none today.'",
+      "why": "False, same reason.",
+      "evidence": "apps/web/src/i18n/locales/es-ES.json"
+    },
+    {
+      "id": "C792",
+      "was": "spec-implement/SKILL.md: 'No i18n. User-visible strings are hardcoded English... do not invent t() calls.'",
+      "why": "False, and it instructed implementers to write raw strings the raw-string gate then rejects.",
+      "evidence": "scripts/guardrails/i18n-raw-strings.mjs"
+    },
+    {
+      "id": "C848",
+      "was": "spec-implement/SKILL.md: 'No invented t() calls, no new locale file, no translation helper'",
+      "why": "False, same reason.",
+      "evidence": "apps/web/src/i18n/locales/en-US.json"
+    }
+  ]
+}

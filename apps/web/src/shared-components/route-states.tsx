@@ -16,7 +16,7 @@ import { FOCUS_RING_PAGE, SURFACE } from "./surface";
  * installs the only React error boundary in the tree.
  */
 
-function RouteShell({ children }: { children: React.ReactNode }) {
+function RouteShell({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col items-center px-4 py-16">
       <div className={`${SURFACE} anim-fade-up w-full p-8 text-center`}>
@@ -26,7 +26,7 @@ function RouteShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function RouteErrorState({ error }: { error?: Error }) {
+export function RouteErrorState({ error }: Readonly<{ error?: Error }>) {
   const { t } = useTranslation();
   // Message only in dev — a stack trace or an internal path means nothing to a
   // user and can leak API shape.
@@ -117,9 +117,9 @@ export function RouteNotFound() {
  */
 export function RoutePending({
   labelKey = "notFound.loadingPage",
-}: {
+}: Readonly<{
   labelKey?: "notFound.loadingPage" | "common.loadingApp";
-}) {
+}>) {
   const { t } = useTranslation();
   return (
     <div

@@ -74,8 +74,8 @@ function resolveWindow(period?: string): Window {
 
   const range = raw.split("..");
   if (range.length === 2 && range[0]?.trim() && range[1]?.trim()) {
-    const from = range[0]!.trim();
-    const to = range[1]!.trim();
+    const from = range[0].trim();
+    const to = range[1].trim();
     return {
       label: `${from} → ${to}`,
       establish: `The window is the explicit range **${from} → ${to}**. Add \`--since="${from}" --until="${to}"\` to every \`git log\` below; that pair replaces \`<START>\` everywhere. If those look like git refs rather than dates, use \`git log ${from}..${to}\` instead.`,

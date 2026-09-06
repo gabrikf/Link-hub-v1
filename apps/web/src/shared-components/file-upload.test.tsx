@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { assertDefined } from "../test-support/assert-defined";
 import { FileUpload } from "./file-upload";
 import { getCroppedImg } from "../lib/crop-image";
 import { uploadImage } from "../lib/upload-api";
@@ -68,7 +69,9 @@ describe("FileUpload", () => {
     const badFile = makeFile("resume.pdf", "application/pdf", 1024);
     fireEvent.change(fileInput(), { target: { files: [badFile] } });
 
-    expect(await screen.findByText(/unsupported file type/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/unsupported file type/i),
+    ).toBeInTheDocument();
     expect(uploadImageMock).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -93,10 +96,9 @@ describe("FileUpload", () => {
 
     await screen.findByText(/unsupported file type/i);
     // The interactive control reflects the invalid state.
-    expect(screen.getByRole("button", { name: /upload avatar/i })).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: /upload avatar/i }),
+    ).toHaveAttribute("aria-invalid", "true");
   });
 
   it("uploads a valid image and surfaces the resulting url", async () => {
@@ -194,7 +196,12 @@ describe("FileUpload cropToCircle", () => {
 
   it("opens the cropper and uploads nothing until the crop is confirmed", () => {
     render(
-      <FileUpload label="Avatar" cropToCircle value={null} onChange={vi.fn()} />,
+      <FileUpload
+        label="Avatar"
+        cropToCircle
+        value={null}
+        onChange={vi.fn()}
+      />,
     );
 
     fireEvent.change(fileInput(), {
@@ -209,7 +216,12 @@ describe("FileUpload cropToCircle", () => {
     uploadImageMock.mockResolvedValue("https://cdn.example.com/cropped.webp");
     const onChange = vi.fn();
     render(
-      <FileUpload label="Avatar" cropToCircle value={null} onChange={onChange} />,
+      <FileUpload
+        label="Avatar"
+        cropToCircle
+        value={null}
+        onChange={onChange}
+      />,
     );
 
     const original = makeFile("a.png", "image/png", 1024);
@@ -223,14 +235,21 @@ describe("FileUpload cropToCircle", () => {
     );
     // Identity, not deep equality: vitest compares two `File`s structurally and
     // would happily call these interchangeable.
-    expect(uploadImageMock.mock.calls[0][0]).toBe(croppedFile);
-    expect(uploadImageMock.mock.calls[0][0]).not.toBe(original);
+    const [firstUploadCall] = uploadImageMock.mock.calls;
+    assertDefined(firstUploadCall, "the first uploadImage call");
+    expect(firstUploadCall[0]).toBe(croppedFile);
+    expect(firstUploadCall[0]).not.toBe(original);
     expect(getCroppedImgMock).toHaveBeenCalledTimes(1);
   });
 
   it("closes the cropper and uploads nothing on cancel", async () => {
     render(
-      <FileUpload label="Avatar" cropToCircle value={null} onChange={vi.fn()} />,
+      <FileUpload
+        label="Avatar"
+        cropToCircle
+        value={null}
+        onChange={vi.fn()}
+      />,
     );
 
     fireEvent.change(fileInput(), {
@@ -247,7 +266,12 @@ describe("FileUpload cropToCircle", () => {
 
   it("resets the input on cancel so re-picking the same file still fires change", () => {
     render(
-      <FileUpload label="Avatar" cropToCircle value={null} onChange={vi.fn()} />,
+      <FileUpload
+        label="Avatar"
+        cropToCircle
+        value={null}
+        onChange={vi.fn()}
+      />,
     );
 
     const input = fileInput();
@@ -263,7 +287,12 @@ describe("FileUpload cropToCircle", () => {
 
   it("rejects an oversized file BEFORE decoding it in the cropper", async () => {
     render(
-      <FileUpload label="Avatar" cropToCircle value={null} onChange={vi.fn()} />,
+      <FileUpload
+        label="Avatar"
+        cropToCircle
+        value={null}
+        onChange={vi.fn()}
+      />,
     );
 
     fireEvent.change(fileInput(), {
@@ -418,7 +447,12 @@ describe("FileUpload — repositionable tile", () => {
   it("never opens the editor when the caller did not ask for placement", async () => {
     uploadImageMock.mockResolvedValue("https://cdn.example.com/banner.png");
     render(
-      <FileUpload label="Banner" aspect="banner" value={null} onChange={vi.fn()} />,
+      <FileUpload
+        label="Banner"
+        aspect="banner"
+        value={null}
+        onChange={vi.fn()}
+      />,
     );
 
     fireEvent.change(fileInput(), {
@@ -426,7 +460,9 @@ describe("FileUpload — repositionable tile", () => {
     });
 
     await waitFor(() => expect(uploadImageMock).toHaveBeenCalled());
-    expect(screen.queryByTestId("image-position-frame")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("image-position-frame"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps a Reposition control on the tile long after the upload", () => {

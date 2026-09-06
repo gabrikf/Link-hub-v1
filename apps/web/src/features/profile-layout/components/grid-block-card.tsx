@@ -19,7 +19,7 @@ import { Button } from "../../../shared-components/button";
 import { FOCUS_RING } from "../../../shared-components/surface";
 import { getBlockMeta } from "../block-meta";
 
-type GridBlockCardProps = {
+type GridBlockCardProps = Readonly<{
   block: ProfileBlock;
   onToggleVisibility: (block: ProfileBlock, isVisible: boolean) => void;
   onEdit: (block: ProfileBlock) => void;
@@ -48,7 +48,7 @@ type GridBlockCardProps = {
    * card already drags and the eight resize handles are precise.
    */
   showTouchControls?: boolean;
-};
+}>;
 
 const isCustom = (block: ProfileBlock) =>
   (CUSTOM_BLOCK_KINDS as readonly string[]).includes(block.kind);

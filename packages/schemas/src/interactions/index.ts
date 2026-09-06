@@ -26,10 +26,7 @@ export const INTERACTION_LABEL_WEIGHTS = {
   CONTACT_CLICK: 1.0,
   PROFILE_VIEW: 0.35,
   NOT_RELEVANT: -1.0,
-} as const satisfies Record<
-  z.infer<typeof interactionTypeSchema>,
-  number
->;
+} as const satisfies Record<z.infer<typeof interactionTypeSchema>, number>;
 
 /** Interaction score that maps to label 1.0. */
 export const INTERACTION_LABEL_SATURATION = 2;
@@ -67,7 +64,7 @@ export const querySnapshotSchema = z.object({
 });
 
 export const createInteractionInputSchema = z.object({
-  resumeId: z.string().uuid(),
+  resumeId: z.uuid(),
   interactionType: interactionTypeSchema,
   queryText: z.string().trim().min(1).max(1000).nullable().optional(),
   semanticSimilarity: z.number().min(-1).max(1).nullable().optional(),
@@ -89,9 +86,9 @@ export const createInteractionInputSchema = z.object({
 });
 
 export const interactionSchema = z.object({
-  id: z.string().uuid(),
-  resumeId: z.string().uuid(),
-  recruiterId: z.string().uuid(),
+  id: z.uuid(),
+  resumeId: z.uuid(),
+  recruiterId: z.uuid(),
   interactionType: interactionTypeSchema,
   queryText: z.string().nullable(),
   semanticSimilarity: z.number().nullable(),

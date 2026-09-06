@@ -3,10 +3,11 @@ import { OAuthAccountEntity } from "../../../../core/entity/oauth-account/oauth-
 import { IOAuthAccountRepository } from "../../../../core/repositories/oauth-account/oauth-account-repository.js";
 import { db } from "../index.js";
 import { oauthAccounts } from "../schema.js";
+import { requireReturnedRow } from "../returned-row.js";
 
 export class DrizzleOAuthAccountRepository implements IOAuthAccountRepository {
   async create(oauthAccount: OAuthAccountEntity): Promise<OAuthAccountEntity> {
-    const [createdOAuthAccount] = await db
+    const insertedRows = await db
       .insert(oauthAccounts)
       .values({
         id: oauthAccount.id,
@@ -17,6 +18,11 @@ export class DrizzleOAuthAccountRepository implements IOAuthAccountRepository {
         updatedAt: oauthAccount.updatedAt,
       })
       .returning();
+
+    const createdOAuthAccount = requireReturnedRow(
+      insertedRows,
+      "insert into oauthAccounts",
+    );
 
     return new OAuthAccountEntity({
       id: createdOAuthAccount.id,

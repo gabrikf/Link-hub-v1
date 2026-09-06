@@ -19,7 +19,7 @@ import type {
 
 export type { LinkFormValues, LinkIconSelectOption };
 
-type DashboardLinkFormProps = {
+type DashboardLinkFormProps = Readonly<{
   register: UseFormRegister<LinkFormValues>;
   control: Control<LinkFormValues>;
   handleSubmit: UseFormHandleSubmit<LinkFormValues>;
@@ -29,7 +29,7 @@ type DashboardLinkFormProps = {
   isEditing: boolean;
   onCancel: () => void;
   linkIconOptions: LinkIconSelectOption[];
-};
+}>;
 
 export function DashboardLinkForm({
   register,
@@ -47,7 +47,9 @@ export function DashboardLinkForm({
   return (
     <form
       className={`grid gap-3 p-4 ${SURFACE_INSET}`}
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={(event) => {
+        void handleSubmit(onSubmit)(event);
+      }}
       noValidate
     >
       <Input

@@ -58,24 +58,24 @@ const workExperienceFields = {
 };
 
 function refineWorkDates(
-  value: { startDate?: string | null; endDate?: string | null; isCurrent?: boolean },
+  value: {
+    startDate?: string | null;
+    endDate?: string | null;
+    isCurrent?: boolean;
+  },
   context: z.RefinementCtx,
 ) {
   if (value.isCurrent && value.endDate) {
     context.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "A current role can't have an end date",
       path: ["endDate"],
     });
   }
 
-  if (
-    value.startDate &&
-    value.endDate &&
-    value.startDate > value.endDate
-  ) {
+  if (value.startDate && value.endDate && value.startDate > value.endDate) {
     context.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "Start date must be before the end date",
       path: ["endDate"],
     });

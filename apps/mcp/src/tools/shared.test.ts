@@ -125,16 +125,23 @@ describe("runTool", () => {
   });
 
   it("stringifies a non-Error throw", async () => {
+    // Deliberately not an `Error`. A tool callback is arbitrary JavaScript and
+    // may throw any value at all, which is the whole point of `runTool`'s
+    // catch — so the thrown value is typed the way the catch sees it.
+    const nonError: unknown = "kaboom";
+
     const result = await runTool(async () => {
-      throw "kaboom";
+      throw nonError;
     });
 
     expect(textOf(result)).toBe("Unexpected error: kaboom");
   });
 
   it("stringifies a thrown object rather than crashing the session", async () => {
+    const thrownObject: unknown = { code: 500 };
+
     const result = await runTool(async () => {
-      throw { code: 500 };
+      throw thrownObject;
     });
 
     expect(textOf(result)).toBe("Unexpected error: [object Object]");

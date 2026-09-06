@@ -110,7 +110,11 @@ describe("AvatarCropper visibility", () => {
 
   it("opens a modal dialog once a file is picked", () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -123,7 +127,11 @@ describe("AvatarCropper saving", () => {
     cropperStub.emitsCropArea = false;
 
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     expect(saveButton()).toBeDisabled();
@@ -131,7 +139,11 @@ describe("AvatarCropper saving", () => {
 
   it("enables Save once the cropper reports a non-empty area", () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     expect(saveButton()).toBeEnabled();
@@ -160,14 +172,18 @@ describe("AvatarCropper saving", () => {
 
   it("passes the current rotation through to the rasteriser", async () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /rotate 90/i }));
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(getCroppedImgMock).toHaveBeenCalled());
-    expect(getCroppedImgMock.mock.calls[0][2]).toBe(90);
+    expect(getCroppedImgMock.mock.calls[0]?.[2]).toBe(90);
   });
 
   it("surfaces a crop failure as an alert and does not call onCropped", async () => {
@@ -175,7 +191,11 @@ describe("AvatarCropper saving", () => {
     const onCropped = vi.fn();
 
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={onCropped} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={onCropped}
+      />,
     );
 
     fireEvent.click(saveButton());
@@ -223,7 +243,11 @@ describe("AvatarCropper cancelling", () => {
 describe("AvatarCropper object-URL lifecycle", () => {
   it("revokes the object URL on unmount", () => {
     const { unmount } = render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     expect(revokeObjectURL).not.toHaveBeenCalled();
@@ -258,7 +282,11 @@ describe("AvatarCropper object-URL lifecycle", () => {
 describe("AvatarCropper crop frame", () => {
   it("locks a circular 1:1 frame the image cannot be panned out of", () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     const cropper = screen.getByTestId("cropper");
@@ -270,7 +298,11 @@ describe("AvatarCropper crop frame", () => {
 
   it("zooms with the scroll wheel / pinch as well as the slider", () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     expect(screen.getByTestId("cropper")).toHaveAttribute(
@@ -281,7 +313,11 @@ describe("AvatarCropper crop frame", () => {
 
   it("hands the zoomed crop rectangle straight to the rasteriser", async () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     fireEvent.change(screen.getByRole("slider", { name: "Zoom" }), {
@@ -292,7 +328,7 @@ describe("AvatarCropper crop frame", () => {
     // The reported area is in SOURCE pixels; it must reach `getCroppedImg`
     // untouched, since that is the only place it gets scaled.
     await waitFor(() =>
-      expect(getCroppedImgMock.mock.calls[0][1]).toEqual({
+      expect(getCroppedImgMock.mock.calls[0]?.[1]).toEqual({
         x: 12,
         y: 34,
         width: 400,
@@ -307,7 +343,11 @@ describe("AvatarCropper controls", () => {
 
   it("drives zoom from the range input", () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     expect(screen.getByTestId("cropper")).toHaveAttribute("data-zoom", "1");
@@ -320,7 +360,11 @@ describe("AvatarCropper controls", () => {
 
   it("steps zoom with the icon buttons and clamps at the ends", () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     // Already at minZoom, so zooming out is not an available action.
@@ -335,7 +379,11 @@ describe("AvatarCropper controls", () => {
 
   it("advances rotation by 90° and wraps back to 0", () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     const rotate = screen.getByRole("button", { name: /rotate 90/i });
@@ -356,7 +404,11 @@ describe("AvatarCropper controls", () => {
 
   it("clamps a wheel/pinch zoom that overshoots either end", () => {
     render(
-      <AvatarCropper file={makeFile()} onCancel={vi.fn()} onCropped={vi.fn()} />,
+      <AvatarCropper
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropped={vi.fn()}
+      />,
     );
 
     fireEvent.click(

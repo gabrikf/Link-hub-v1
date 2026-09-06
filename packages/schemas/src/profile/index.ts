@@ -288,7 +288,7 @@ export const updateProfileSchemaOutput = z.object({
   persona: personaSchema.nullable(),
   personaOther: z.string().nullable(),
   appearance: storedProfileAppearanceSchema.default(DEFAULT_PROFILE_APPEARANCE),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 export type ProfileResponse = z.infer<typeof profileSchema>;

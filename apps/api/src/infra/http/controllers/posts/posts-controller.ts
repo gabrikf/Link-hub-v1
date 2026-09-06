@@ -23,6 +23,7 @@ import { GetPostUseCase } from "../../../../core/use-case/posts/get-post-use-cas
 import { UpdatePostUseCase } from "../../../../core/use-case/posts/update-post-use-case/update-post.use-case.js";
 import { DeletePostUseCase } from "../../../../core/use-case/posts/delete-post-use-case/delete-post.use-case.js";
 import { ApprovePostUseCase } from "../../../../core/use-case/posts/approve-post-use-case/approve-post.use-case.js";
+import { toAsyncHook } from "../../to-async-hook.js";
 
 /**
  * Attributes a post to one of the author's roles, so the disclosure policy can
@@ -34,7 +35,6 @@ import { ApprovePostUseCase } from "../../../../core/use-case/posts/approve-post
  */
 const workExperienceIdField = {
   workExperienceId: z
-    .string()
     .uuid()
     .nullable()
     .optional()
@@ -74,7 +74,7 @@ export class PostsController {
     app.get(
       "/me/posts",
       {
-        preHandler: apiAccessGuard("posts:read"),
+        preHandler: toAsyncHook(apiAccessGuard("posts:read")),
         schema: {
           tags: ["Posts"],
           summary: "List current user posts",
@@ -106,7 +106,7 @@ export class PostsController {
     app.get(
       "/me/posts/:id",
       {
-        preHandler: apiAccessGuard("posts:read"),
+        preHandler: toAsyncHook(apiAccessGuard("posts:read")),
         schema: {
           tags: ["Posts"],
           summary: "Get current user post by id",
@@ -137,7 +137,7 @@ export class PostsController {
     app.post(
       "/me/posts",
       {
-        preHandler: apiAccessGuard("posts:write"),
+        preHandler: toAsyncHook(apiAccessGuard("posts:write")),
         schema: {
           tags: ["Posts"],
           summary: "Create a post",
@@ -181,7 +181,7 @@ export class PostsController {
     app.patch(
       "/me/posts/:id",
       {
-        preHandler: apiAccessGuard("posts:write"),
+        preHandler: toAsyncHook(apiAccessGuard("posts:write")),
         schema: {
           tags: ["Posts"],
           summary: "Update a post",
@@ -226,7 +226,7 @@ export class PostsController {
     app.post(
       "/me/posts/:id/approve",
       {
-        preHandler: apiAccessGuard("posts:write"),
+        preHandler: toAsyncHook(apiAccessGuard("posts:write")),
         schema: {
           tags: ["Posts"],
           summary: "Approve a post awaiting review",
@@ -269,7 +269,7 @@ export class PostsController {
     app.delete(
       "/me/posts/:id",
       {
-        preHandler: apiAccessGuard("posts:write"),
+        preHandler: toAsyncHook(apiAccessGuard("posts:write")),
         schema: {
           tags: ["Posts"],
           summary: "Delete a post",

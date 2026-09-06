@@ -1,6 +1,6 @@
 ---
 name: spec-implement
-description: Use when IMPLEMENTING a CraftHub spec produced by #spec-writer. Reads the spec in docs/specs/[feature]/, plans the execution (sequential, or parallel via worktrees/subagents), implements task by task with continuous harness verification against this repo's real commands (build:schemas, check-types, lint-changed, vitest, visual scenarios), and delivers code ready for a GitHub PR. Supports --all-default.
+description: "Use when IMPLEMENTING a CraftHub spec produced by the spec-writer skill. Reads the spec in docs/specs/[feature]/, plans the execution (sequential, or parallel via worktrees/subagents), implements task by task with continuous harness verification against this repo's real commands (build:schemas, check-types, lint-changed, vitest, visual scenarios), and delivers code ready for a GitHub PR. Supports --all-default."
 ---
 
 ## Spec Implement — From Spec to Finished Code
@@ -8,6 +8,7 @@ description: Use when IMPLEMENTING a CraftHub spec produced by #spec-writer. Rea
 This skill **implements** a spec produced by `#spec-writer`. The goal: read the spec plus its harness, plan the most efficient execution strategy (speed and safety), execute task by task with continuous verification, and deliver code ready for a pull request.
 
 **Principles:**
+
 - **The spec is the source of truth** — implement exactly what is specified, nothing more
 - **The harness is the guardrail** — verify after every task, never advance on a failure
 - **Pixel-perfect** — UI faithful to the design, expressed in Tailwind 4 and the `DESIGN.md` language
@@ -25,6 +26,7 @@ If the user types `--all-default` at any point, ask:
 > Are you sure you want to enter all-default mode?
 
 If confirmed, keep it until the end. In this mode:
+
 - **Ask no questions** — run every phase automatically.
 - Always take the documented default; where there is none, take the most efficient option.
 - Report every step (action + decision) without waiting for a reply.
@@ -39,6 +41,7 @@ If confirmed, keep it until the end. In this mode:
 Ask (if not supplied):
 
 > Which spec should I implement?
+>
 > - **1** — list the specs available under `docs/specs/`
 > - Or give the path: `docs/specs/[feature-name]/`
 
@@ -87,6 +90,7 @@ Analyse the tasks and choose the **execution strategy**. See [references/executi
 #### 1.1: Dependency analysis
 
 Read `tasks.md` and identify:
+
 - **Root tasks** — no dependencies (can start immediately, after G0)
 - **Sequential tasks** — depend on earlier ones
 - **Parallelisable tasks** — independent of each other (disjoint files)
@@ -94,46 +98,14 @@ Read `tasks.md` and identify:
 
 #### 1.2: Strategy choice
 
-| Scenario | Strategy | Rationale |
-|---------|-----------|---------------|
-| ≤5 tasks, small feature | **Sequential, single branch** | Least overhead, most control |
-| 6-10 tasks, independent groups | **Sequential, single branch, grouped commits** | Commits organised by group |
-| >10 tasks, 3+ independent groups | **Parallel worktrees** | Maximum speed with isolation |
-| Complex coordination | **Subagents (max 3)** | Delegation with isolation |
-
-**Default:** for most features here, **sequential on a single branch** is the most efficient — it avoids merge/rebase overhead, keeps context, and the harness runs directly.
-
-**Parallel worktrees** only when:
-- There are 3+ task groups with zero shared files
-- The feature is large (>10 tasks)
-- The dev confirmed they want parallelism
+**Default:** for most features here, **sequential on a single branch** is the most efficient — it avoids merge/rebase overhead, keeps context, and the harness runs directly. **Parallel worktrees** only when there are 3+ task groups with zero shared files, the feature is large (>10 tasks), and the dev confirmed they want parallelism. Full scenario table, per-strategy tradeoffs and the decision flow: [references/execution-strategy.md](references/execution-strategy.md).
 
 #### 1.3: Present the plan
 
-> **Execution plan — [feature-name]**
->
-> **Strategy:** [sequential | parallel-worktrees | subagents]
-> **Branch:** `feat/[feature-name]` from `main`
-> **Tasks:** N total, M groups
-> **G0:** [endpoints to probe, or "n/a — contracts inferred"]
->
-> **Order:**
-> 1. G0: endpoint liveness probe (blocking)
-> 2. [Group 1]: Task 1, 2 (contract + hooks)
-> 3. [Group 2]: Task 3, 4, 5 (UI)
-> 4. [Group 3]: Task 6 (tests)
->
-> **Planned commits:**
-> - `feat: add [resource] schema and contract test`
-> - `feat: add [resource] query hook`
-> - `feat: add [feature] page and route`
-> - `feat: add [feature] form`
-> - `test: cover [feature] business rules and variants`
->
-> Approve and start?
-> - **1** — yes, implement
-> - **2** — adjust (say what)
-> - **3** — use parallel worktrees (if applicable)
+Present the plan (strategy, branch, task order, G0 scope, planned commits) and
+wait for approval before writing any code — this is a hard stop. Use the exact
+message shape in [references/templates.md](references/templates.md#execution-plan-message-phase-13),
+filling in the brackets; do not invent a different shape on the spot.
 
 ---
 
@@ -174,36 +146,15 @@ Seed users if you need them: `bash db-manage.sh seed-all` — recruiter `recruit
 
 **Run this before writing a single line of UI against any endpoint someone claims already exists.** Do not skip it because the route "obviously" works. Two traps make a dead route look alive here:
 
-- **Dual registration.** Every module in `apps/api` is registered **twice** — at the bare path and under `/api/v1`. A route can be live at one and 404 at the other.
-- **The dev-server proxy.** A request routed through the web dev server at `http://localhost:5173` can come back as the SPA's `index.html` with HTTP 200. **A 200 is not proof of an endpoint.** Probe port 3333 directly.
+- **Dual registration.** Every module in `apps/api` is registered **twice** — at the bare path and under `/api/v1`. A route can be live at one and 404 at the other. Probe **both**.
+- **The dev-server proxy.** A request routed through the web dev server at `http://localhost:5173` can come back as the SPA's `index.html` with HTTP 200. **A 200 is not proof of an endpoint.** Probe port **3333 directly**.
 
-```bash
-# 0. Is the API up at all?
-curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:3333/health
-
-# 1. What does Swagger actually declare? (the authoritative route list)
-curl -sS http://localhost:3333/docs/json | jq -r '.paths | keys[]' | grep -i '<resource>'
-
-# 2. Probe BOTH registrations and demand real JSON
-for base in "http://localhost:3333" "http://localhost:3333/api/v1"; do
-  echo "--- $base/<resource>"
-  curl -sS -D- -o /tmp/probe-body.json \
-       -H 'Accept: application/json' \
-       -H "Authorization: Bearer $TOKEN" \
-       "$base/<resource>" \
-    | grep -iE '^(HTTP/|content-type:)'
-  jq -e . /tmp/probe-body.json >/dev/null \
-    && echo "OK: body is valid JSON" \
-    || echo "BLOCKED: body is not JSON — this route is not live"
-done
-
-# 3. Freeze the real payload as the fixture
-cp /tmp/probe-body.json docs/specs/[feature]/contracts/fixtures/<endpoint>.example.json
-```
+Freeze the real response body as the fixture in `contracts/fixtures/` once it passes. The full probe script — health check, Swagger cross-check, dual-registration loop, fixture freeze — is at [references/verification.md](references/verification.md#level-0-the-g0-gate-before-any-dependent-task); run it verbatim before writing any UI against the endpoint.
 
 **Pass** requires all four: 2xx status, `content-type: application/json`, a body that parses as JSON, and a body the schema in `contracts/` accepts.
 
 **On failure, BLOCK.** Do not start any dependent UI task. Report which of the four demands failed and on which registration, then either:
+
 - the route is genuinely not live → flip that contract to `Provenance: INFERRED / Status: PENDING`, drive the hook from the mock, and add the validation task; or
 - the route is live on the other registration → correct the spec's §6.2 table and proceed.
 
@@ -256,6 +207,7 @@ For each task, run the cycle:
 #### 3.2: Implement
 
 Implement strictly according to:
+
 - **`AGENTS.md`** (root, plus the per-workspace files) — structure, naming, conventions
 - **The component map** — `shared-components/` and the Radix primitives first
 - **`DESIGN.md`** — violet/zinc palette, `SURFACE*` constants, button hierarchy, focus rings. Zero hardcoded hex.
@@ -263,15 +215,16 @@ Implement strictly according to:
 - **Context7** — consult it for external libraries (TanStack Query/Router, zod, react-hook-form, Drizzle, Fastify) to use current APIs
 
 **Implementation rules:**
+
 - One file at a time — write it complete, not partial
 - Types first — always type before use; `z.infer`, never a parallel hand-written interface
 - Hooks separated — logic never inside JSX
 - Focused components — one component, one responsibility
 - Typed props — an exported type per component
-- **No i18n.** User-visible strings are hardcoded English, matching the copy table in `definitions.md`. The `i18n` skill documents the future plan — **do not invent `t()` calls** or a locale file.
+- **Every user-visible string goes through `t()`**, with the key added to all three locale files in `apps/web/src/i18n/locales/` in the same commit. The copy table in `definitions.md` is what those keys say in `en-US`. Search the locale files for the TEXT before adding a key. The `i18n` skill is the contract.
 - **Mock flow** — where the spec marks an endpoint as not live, drive the hook from a local mock (an MSW handler or a typed stub in the feature's `lib/`), seeded from the "full" fixture. Check what neighbouring features already do before introducing a new mocking mechanism. Never silently skip an unready endpoint — mock it so the UI works end to end.
-- **Never edit `packages/schemas/src/**` or `apps/*/src/**` outside the files the task names.** If a task needs a file it does not list, stop and say so.
-- Do not touch the known, deliberate debt: `packages/ui` (dead scaffolding), the pre-existing eslint backlog, `apps/mcp` having no tests, `eslint-plugin-only-warn`, the `pluguins/` typo directory.
+- **Never edit `packages/schemas/src/**`or`apps/\*/src/**` outside the files the task names.** If a task needs a file it does not list, stop and say so.
+- Do not touch the known, deliberate debt — it is listed in `docs/harness/known-debt.md`, and fixing an item is its own task with its own review.
 
 #### 3.3: Verify (after every task)
 
@@ -285,28 +238,23 @@ npx vitest related <changed-file> --run     # only the suites touching what you 
 ```
 
 **On failure:**
+
 1. Identify the error
 2. Fix it (without changing scope)
 3. Re-verify
 4. Repeat until green — **max 3 cycles**, then stop and escalate with a diagnosis
 
-**Feature sensors, also per task where they apply:**
+**Feature sensors, also per task where they apply** — full detail, code patterns and rationale for each in [references/verification.md](references/verification.md) (Levels 2-6):
 
-- **Contract sensor** — `.parse()` the **REAL captured payload** from `contracts/fixtures/` through the schema in `packages/schemas/src/<module>/`. A fixture you hand-wrote agrees with the code you hand-wrote; it proves nothing.
-- **Schema ⟷ UI sensor, per applicable mode/tab** — two halves, both required:
-  1. the real payload parses through the zod schema;
-  2. a UI test renders the component from **that same parsed fixture**, not a separate hand-written object.
-
-  Plus the field-coverage assertion: **every required field of the schema has a mounted input in every mode/tab where it applies**, per the task's field table. A required field with no input in the mode that requires it is a dead Save button by construction — the form can never validate, and clicking around will not tell you which field is missing.
-- **Variant matrix** — a table-driven test over every row of `variants.md`, plus the unknown-variant case (renders an "unsupported" notice, never a crash, never a blank screen).
-- **Write-landed check for mutations** — after an action that writes, query the target table through **postgres-mcp** (restricted, pointed only at the local dev database) by a correlation id from the response, and assert the row landed with the expected values. A 200 is not proof of persistence.
+- **Contract sensor** — `.parse()` the REAL captured payload through the schema in `packages/schemas/src/<module>/`. A hand-written fixture proves nothing.
+- **Schema ⟷ UI sensor, per applicable mode/tab** — the real payload parses through the zod schema, AND a UI test renders from that same parsed fixture. Plus field coverage: every required field has a mounted input in every mode/tab where it applies, per the task's field table.
+- **Variant matrix** — a table-driven test over every row of `variants.md`, plus the unknown-variant case (renders "unsupported", never a crash, never a blank screen).
+- **Write-landed check for mutations** — after a write, query the target table through **postgres-mcp** (restricted, local dev database only) by a correlation id from the response, and assert the row landed with the expected values. A 200 is not proof of persistence.
 
 **Visual verification (mandatory when the task produces UI) — per delivery, script-first:**
 
 1. Keep **one scenario for the feature** at `scripts/visual/scenarios/[feature].scenario.mjs` and add this task's states to it: loading, empty, error, filled, each variant, each mode/tab from `variants.md`, modal/drawer open, and both colour schemes if the surface constants are involved
-2. Run it in one command:
-   `node scripts/visual/run.mjs scripts/visual/scenarios/[feature].scenario.mjs`
-   (one browser launch, one authed session, every state in sequence)
+2. Run it in one command — one browser launch, one authed session, every state in sequence: `node scripts/visual/run.mjs scripts/visual/scenarios/[feature].scenario.mjs`
 3. Compare each screenshot against the design in `design/` and the FB-02 checklist — layout, spacing, typography, colour tokens, components, states, focus rings, dark mode
 4. Read the console + network gate the run prints: zero React errors/warnings, zero unexpected 4xx/5xx, no request loops
 5. List each difference concretely ("title is 24px in the design, renders at 16px"), fix the cause, and **re-run the scenario** until the list is empty
@@ -321,14 +269,7 @@ git add [the task's files]
 git commit -m "[type]: [description]"
 ```
 
-Conventional Commits, in **English** (the whole repo is English). Let the pre-push/Stop-hook gate run — `node scripts/guardrails/pre-push.mjs` is the same script husky runs. `--no-verify` only when the hook fails for something **demonstrably unrelated** to the task (and say so in chat); never as a default.
-
-Commit types by task:
-- Contract/schema → `feat: add [resource] schema`
-- Hook/API → `feat: add [resource] query hook`
-- UI → `feat: add [component/screen]`
-- Form → `feat: add [action] form`
-- Tests → `test: cover [feature]`
+Conventional Commits, in **English** (the whole repo is English) — commit type by task (schema, hook, UI, form, tests) is tabulated in [references/execution-strategy.md](references/execution-strategy.md). Let the pre-push/Stop-hook gate run — `node scripts/guardrails/pre-push.mjs` is the same script husky runs. **There is no sanctioned `--no-verify`**: a red gate goes to the `guardrails-repair` skill, which covers the environmental causes that most often look unrelated.
 
 #### 3.5: Next task
 
@@ -360,15 +301,7 @@ npm run test --workspace=@repo/schemas
 npm run test:coverage                 # ratchet — floors may only go UP
 ```
 
-**Note on the suites that need real infrastructure** — they hang for 60-90s rather than failing fast when it is missing, so bring it up or expect the wait:
-- Need docker Postgres/pgvector (`bash db-manage.sh start`):
-  `apps/api/src/infra/di/container-wiring.test.ts`,
-  `apps/api/src/infra/database/drizzle/search-indexes.e2e.test.ts`,
-  `apps/api/src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts`
-- Need a funded `OPENAI_API_KEY` (excluded from CI by name):
-  `apps/api/src/infra/http/controllers/resume/test/search.e2e.test.ts`,
-  `apps/api/src/infra/http/controllers/resume/test/search-boundaries.e2e.test.ts`,
-  `apps/api/src/infra/database/drizzle/search-indexes.e2e.test.ts`
+**Some of these suites need real infrastructure and hang for 60-90s rather than failing fast when it is missing** — bring it up (`bash db-manage.sh start` for docker Postgres/pgvector, a funded `OPENAI_API_KEY` for the live-embedding suites) or expect the wait. The exact file list is in [references/verification.md](references/verification.md) (Level 1, "Beware the slow suites").
 
 #### 4.2: Acceptance criteria
 
@@ -392,22 +325,16 @@ A final pass with the whole feature assembled:
 
 #### 4.3.1: Shared-code impact check
 
-If the feature changed anything in `apps/web/src/shared-components/`, `apps/web/src/lib/`, `packages/schemas/src/`, or `apps/api/src/infra/di/container.ts`, do this before closing:
-
-1. Map the consumers (grep the import). **`packages/schemas` is consumed by api, web, mcp, extractor and training** — a change there reaches all five.
-2. Group them by **usage shape** (distinct combination of props/variants)
-3. Assess the blast radius of each change (new required prop, changed default, DOM/class changes, hook return shape, event signature, removed prop/export, a schema field made stricter)
-4. Fix the broken consumers **in this same PR** — or preserve compatibility with an opt-in prop whose default keeps current behaviour
-5. Screenshot one screen per usage shape, before × after: a shape that should not have changed and did is a regression — fix it now
-6. Hand the dev **one screen per usage shape** (route + how to get there + props exercised + what to look at) — never the full list of screens sharing the same props
+If the feature changed anything in `apps/web/src/shared-components/`, `apps/web/src/lib/`, `packages/schemas/src/`, or `apps/api/src/infra/di/container.ts`, run the full procedure — map consumers, group by usage shape, assess blast radius, fix in-PR, screenshot before×after, hand the dev one screen per shape — in [references/verification.md](references/verification.md#shared-code-impact-check) before closing. `packages/schemas` alone is consumed by api, web, mcp, extractor and training.
 
 #### 4.4: Copy check
 
-There is no i18n and no locale parity to verify. `node scripts/guardrails/i18n-parity.mjs` exists but is a **no-op until locales exist** — running it proves nothing today.
+Run `npm run i18n:check` — parity (same key set in all three locales, no empty values) and raw strings (no visible text outside `t()`, every key resolves in `en-US.json`). Both are sub-second and both run in the gate.
 
-Check instead:
-- Every user-visible string matches the copy table in `definitions.md`
-- No invented `t()` calls, no new locale file, no translation helper
+Check as well:
+
+- Every `en-US` value matches the copy table in `definitions.md`
+- Keys are named by meaning, not by location, and every new key exists in all three files
 - No leftover placeholder or lorem text
 - No raw enum value or id leaking where a human-readable label belongs
 
@@ -454,61 +381,11 @@ Edit `docs/specs/[feature]/SPEC.md` — change the status from "Ready" to "Done"
 
 Generate/update `docs/specs/[feature]/IMPLEMENTATION-STATUS.md`: what was implemented per delivery/group, what is still pending (and why), and every decision from `decisions.md` that reality contradicted — **re-stamped as SUPERSEDED with a one-line reason**, never edited away or deleted.
 
-This file is what makes it safe to pick the feature back up in a fresh session. Without it, the next session has the code but not the reasoning, and re-derives the same wrong turns.
-
-```markdown
-# Implementation Status — [feature]
-
-## Delivered
-| Group | Tasks | Commit(s) | Verified by |
-|---|---|---|---|
-
-## Pending
-| Item | Why | Blocking? |
-|---|---|---|
-
-## Superseded decisions
-| ID | Original decision | What reality showed |
-|---|---|---|
-```
+This file is what makes it safe to pick the feature back up in a fresh session. Without it, the next session has the code but not the reasoning, and re-derives the same wrong turns. Template: [references/templates.md](references/templates.md#implementation-status-document-phase-51).
 
 #### 5.2: Present the result
 
-> **Implementation complete — [feature-name]**
->
-> **Harness:**
-> - `pre-push.mjs` — green
-> - `check-types` — zero errors
-> - Tests — [N] passing ([M] new)
-> - `lint-changed` — zero new findings
-> - Coverage ratchet — no package below its floor
-> - G0 — [endpoints probed, real payloads frozen | n/a, contracts inferred]
-> - Contract sensor — real payload parses through `@repo/schemas`
-> - Schema ⟷ UI — [N] modes/tabs verified, every required field mounted
-> - Visual scenario — [N] screens × [M] states, no open diff
-> - Console and network — clean
-> - Acceptance criteria — all verified
->
-> **Commits:** [N] on branch `feat/[feature-name]`
->
-> **Files created/modified:**
-> - [list]
->
-> **How to test:**
-> - `bash db-manage.sh start && npm run dev:api && npm run dev:web`
-> - [http://localhost:5173/[route]](http://localhost:5173/[route])
-> - Sign in as `recruiter.seed@crafthub.local` / `12345678` (or a `seed-*` candidate)
-> - Actions to try: [list]
->
-> **Screens you need to check** (one per usage shape — only if shared code changed):
->
-> | Screen | Route | Shape (props) | What to look at |
-> |---|---|---|---|
->
-> **Next:**
-> - **1** — push and open the PR
-> - **2** — review before finalising
-> - **3** — implement adjustments
+Present a summary covering: harness results (pre-push, check-types, tests, lint, coverage, G0, contract sensor, schema⟷UI sensor, visual scenario, console/network), commits made, files created/modified, how to test (start commands, route, seeded account, actions to try), and — only if shared code changed — one screen per usage shape to check. Close with numbered next-step options (push and open the PR / review first / implement adjustments). Use the exact message shape in [references/templates.md](references/templates.md#present-the-result-message-phase-52).
 
 #### 5.3: Push and PR
 
@@ -539,81 +416,23 @@ The spec folder is the feature's **persistent context** — it is what makes con
 5. **Closing the cycle:** update `IMPLEMENTATION-STATUS.md`, mark the findings resolved in
    `qa-findings.md`, and re-stamp as **SUPERSEDED** any decision reality contradicted.
 
-`qa-findings.md` template:
-
-```markdown
-# QA Findings — [feature]
-
-## F-01: [short title]
-- **Route:** /[route]
-- **Steps:** 1. ... 2. ... 3. ...
-- **Expected:** ...
-- **Observed:** ...
-- **Evidence:** [screenshot path / console output]
-- **Type:** defect | adjustment
-- **Status:** open | fixed (commit [sha]) | won't fix (reason)
-```
+`qa-findings.md` template: [references/templates.md](references/templates.md#qa-findings-document-phase-6).
 
 ---
 
 ### Strategy: Parallel Worktrees (when applicable)
 
-If Phase 1 selected the parallel strategy:
-
-#### Worktree setup
-
-```bash
-git worktree add ../crafthub-wt-1 -b feat/[feature]-group-1
-git worktree add ../crafthub-wt-2 -b feat/[feature]-group-2
-```
-
-Each worktree needs its own `npm install` and its own `npm run build:schemas` — the workspace symlinks and the built `dist/` do not carry across.
-
-#### Parallel execution
-
-- Dispatch **subagents** (max 3), each in its own worktree
-- Each subagent implements one group of tasks
-- Each worktree runs its own dev servers on distinct ports
-
-| Group | Worktree | Web port | API port | Branch |
-|-------|----------|-------|--------|--------|
-| 1 | `../crafthub-wt-1` | 5174 | 3334 | `feat/[feature]-group-1` |
-| 2 | `../crafthub-wt-2` | 5175 | 3335 | `feat/[feature]-group-2` |
-| main | repo root | 5173 | 3333 | `feat/[feature]` (integration) |
-
-Only one worktree at a time may hold the shared local Postgres/Redis. Groups that need the database must either be serialised or given their own database.
-
-#### Sequential merge
-
-1. Merge group 1 → the feature's main branch
-2. Resolve conflicts (if any)
-3. Merge group 2 → the feature's main branch
-4. Resolve conflicts (if any)
-5. Run the full harness on the integrated branch
-6. Clean up the worktrees
-
-**Rule:** merge always sequentially, never in parallel. Resolve conflicts one group at a time.
-
-#### Cleanup
-
-```bash
-git worktree remove ../crafthub-wt-1
-git worktree remove ../crafthub-wt-2
-```
+If Phase 1 selected the parallel strategy: worktree setup and bootstrap, the
+dev-server port table, the mandatory sequential-merge order, and cleanup are
+all in [references/execution-strategy.md](references/execution-strategy.md#3-parallel-worktrees-for-large-features).
+Follow it exactly — **merge always sequentially, never in parallel**, and only
+one worktree at a time may hold the shared local Postgres/Redis.
 
 ---
 
 ### Rule: Pixel-Perfect
 
-The supplied design is the visual reference. The implementation should be as faithful as possible:
-
-1. **Spacing** — the Tailwind scale
-2. **Colours** — the `DESIGN.md` violet/zinc tokens and the `SURFACE*` constants from `surface.ts`; never a hardcoded hex
-3. **Typography** — the Tailwind scale, weights per `DESIGN.md`
-4. **Icons** — `react-icons`, the Feather `fi` set
-5. **Components** — `shared-components/` and the Radix primitives first; raw HTML only when no equivalent exists
-6. **Dark mode** — real, and carried by the surface constants; check both schemes
-7. **Focus rings** — per `DESIGN.md`, on every interactive element
+The supplied design is the visual reference. The implementation should be as faithful as possible — spacing (Tailwind scale), colours (`DESIGN.md` violet/zinc tokens and `SURFACE*` constants, never a hardcoded hex), typography, icons (`react-icons` Feather `fi`), components (`shared-components/`/Radix first), dark mode and focus rings. The full checklist to run against a screenshot is [references/verification.md](references/verification.md#level-7-visual-per-delivery-after-ui-tasks) (Level 7).
 
 If the design needs something the primitives cannot do → build a reusable component with Tailwind, following `DESIGN.md`.
 
@@ -626,6 +445,7 @@ If the design needs something the primitives cannot do → build a reusable comp
 The design often shows the **whole application shell** — top bar, nav, layout wrapper, and other components that **already exist**.
 
 **Do not touch existing components.** Implement only what is new:
+
 - Design shows the top bar (`top-bar-nav.tsx`) → it already exists, ignore it
 - Design shows the dashboard layout wrapper → already exists, ignore it
 - Design shows avatar/button/input primitives → already in `shared-components/`, reuse, do not restyle
@@ -640,7 +460,7 @@ If a shared component genuinely must change, the spec must say so, and §4.3.1 a
 
 ### Rule: English Everywhere
 
-Every file, variable, component, hook, type and test name is in English. User-visible copy is English too — there is no i18n layer. File naming is `kebab-case` throughout. Commit messages follow Conventional Commits in English.
+Every file, variable, component, hook, type and test name is in English, and so are the `en-US` values — but user-visible copy reaches the screen through `t()`, in three locales. File naming is `kebab-case` throughout. Commit messages follow Conventional Commits in English.
 
 ---
 
@@ -668,29 +488,12 @@ If something ought to exist but is not in the spec → stop and ask the dev.
 
 ### Rule: Clickable Links
 
-| Resource | Format |
-|---------|---------|
-| Spec | `[SPEC.md](docs/specs/[feature]/SPEC.md)` |
-| GitHub issue/PR | `[#123](https://github.com/<owner>/<repo>/pull/123)` — read `git remote -v` |
-| Swagger | `[/docs](http://localhost:3333/docs)` |
-| Local screen | `[http://localhost:5173/route](http://localhost:5173/route)` |
+Format spec, PR, Swagger and local-screen links consistently — the table is
+in [references/quick-reference.md](references/quick-reference.md#clickable-links).
 
 ---
 
 ### Quick reference
 
-| Parameter | Value |
-|-----------|-------|
-| Input | `docs/specs/[feature-name]/` (from `#spec-writer`) |
-| Branch pattern | `feat/[feature-name]` from `main` |
-| Commits | Conventional Commits in English, one per task or group |
-| Verification | The harness (`harness.md`) after every task |
-| One-shot gate | `node scripts/guardrails/pre-push.mjs` |
-| Contract package | `@repo/schemas` — build it first with `npm run build:schemas` |
-| Design language | `DESIGN.md` + `apps/web/src/shared-components/surface.ts` |
-| i18n | none — hardcoded English; see the `i18n` skill; do not invent `t()` |
-| Visual gate | `node scripts/visual/run.mjs scripts/visual/scenarios/<name>.scenario.mjs` |
-| API / Web | `http://localhost:3333` (`/docs`, `/health`) / `http://localhost:5173` |
-| Delivery | `gh pr create --base main` |
-| Max parallel worktrees | 3 |
-| Max subagents | 3 |
+Parameters (input path, branch pattern, gates, ports, i18n, delivery) are
+tabulated in [references/quick-reference.md](references/quick-reference.md#parameters).

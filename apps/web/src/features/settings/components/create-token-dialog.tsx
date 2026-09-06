@@ -50,7 +50,7 @@ export function CreateTokenDialog({
   open,
   onOpenChange,
   onCreated,
-}: CreateTokenDialogProps) {
+}: Readonly<CreateTokenDialogProps>) {
   const { t } = useTranslation();
   const createToken = useCreateToken();
   const { copied, copy } = useClipboard();
@@ -89,7 +89,7 @@ export function CreateTokenDialog({
     );
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setNameError(null);
@@ -153,7 +153,9 @@ export function CreateTokenDialog({
                 variant={copied ? "soft" : "primary"}
                 fullWidth={false}
                 className="shrink-0"
-                onClick={() => copy(created.token)}
+                onClick={() => {
+                  void copy(created.token);
+                }}
               >
                 {copied ? (
                   <FiCheck className="h-4 w-4" aria-hidden="true" />
@@ -194,7 +196,12 @@ export function CreateTokenDialog({
       description={t("settings.createToken.intro")}
       contentClassName="max-w-lg"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        onSubmit={(event) => {
+          void handleSubmit(event);
+        }}
+        className="space-y-4"
+      >
         <Input
           id={NAME_FIELD_ID}
           label={t("common.name")}

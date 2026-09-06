@@ -57,7 +57,7 @@ describe("ListPublicPostsUseCase", () => {
     });
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.body).toBe("published post");
+    expect(result[0]?.body).toBe("published post");
     expect(result.every((p) => p.status === "published")).toBe(true);
   });
 
@@ -90,7 +90,7 @@ describe("ListPublicPostsUseCase", () => {
     });
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.body).toBe("approved post");
+    expect(result[0]?.body).toBe("approved post");
     expect(result.some((p) => p.status === "pending_review")).toBe(false);
   });
 
@@ -122,7 +122,7 @@ describe("ListPublicPostsUseCase", () => {
     });
 
     expect(result).toHaveLength(1);
-    expect(result[0]!.body).toBe("author published");
+    expect(result[0]?.body).toBe("author published");
   });
 
   it("respects limit and offset over published posts", async () => {

@@ -69,12 +69,7 @@ export function VerifyEmailPage() {
    * Every refetch trigger is off for the same reason: this answer must never be
    * asked for twice.
    */
-  const {
-    data,
-    isPending,
-    isError,
-    error,
-  } = useQuery({
+  const { data, isPending, isError, error } = useQuery({
     queryKey: ["verify-email", token],
     queryFn: () => verifyEmailRequest({ token }),
     enabled: token.length > 0,
@@ -106,10 +101,12 @@ export function VerifyEmailPage() {
       refreshToken: data.refreshToken,
     });
     setUserInfo(data.user);
-    navigate({ to: "/dashboard" });
+    void navigate({ to: "/dashboard" });
   }, [data, navigate, setUserInfo]);
 
-  const goToSignIn = () => navigate({ to: "/" });
+  const goToSignIn = () => {
+    void navigate({ to: "/" });
+  };
 
   /* ── Missing or blank token ─────────────────────────────────────────── */
   if (!token) {
@@ -162,7 +159,8 @@ export function VerifyEmailPage() {
     <AuthShell>
       <VerifyEmailFailure
         message={
-          isError && !isApiErrorCode(error, API_ERROR_CODE.invalidVerificationToken)
+          isError &&
+          !isApiErrorCode(error, API_ERROR_CODE.invalidVerificationToken)
             ? error.message
             : t("auth.verificationLinkInvalid")
         }
@@ -176,8 +174,8 @@ function VerifyEmailFailure({
   message,
   onBackToSignIn,
 }: {
-  message: string;
-  onBackToSignIn: () => void;
+  readonly message: string;
+  readonly onBackToSignIn: () => void;
 }) {
   const { t } = useTranslation();
 

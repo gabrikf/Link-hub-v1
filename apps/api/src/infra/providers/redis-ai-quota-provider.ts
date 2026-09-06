@@ -161,11 +161,15 @@ function failOpen(limit: number, resetAt: Date): AiQuotaConsumption {
 function readIncrementedValue(
   results: Array<[Error | null, unknown]> | null,
 ): number | null {
-  if (!results || results.length === 0) {
+  // Subsumes the old `!results || results.length === 0` test, and gives the
+  // tuple a destructurable type instead of `[Error | null, unknown] | undefined`.
+  const firstResult = results?.[0];
+
+  if (!firstResult) {
     return null;
   }
 
-  const [error, value] = results[0];
+  const [error, value] = firstResult;
 
   if (error || typeof value !== "number") {
     return null;

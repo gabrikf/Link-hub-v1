@@ -7,6 +7,7 @@ import {
   deriveCandidateEvidence,
   hasPublishableEvidence,
 } from "./candidate-evidence.js";
+import { expectDefined } from "../../../../test-support/expect-defined.js";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const CONNECTION_ID = "22222222-2222-4222-8222-222222222222";
@@ -69,7 +70,10 @@ describe("deriveCandidateEvidence — third-party warranted work", () => {
       }),
     ];
 
-    const claim = deriveCandidateEvidence(events, WINDOW).thirdPartyWarrantedWork;
+    const claim = deriveCandidateEvidence(
+      events,
+      WINDOW,
+    ).thirdPartyWarrantedWork;
 
     expect(claim?.mergedChangeCount).toBe(3);
     // THE de-duplication that makes this claim hard to inflate: five approval
@@ -124,7 +128,9 @@ describe("deriveCandidateEvidence — review given to others", () => {
   it("ignores a 'review_submitted' on the user's own work", () => {
     // `actorIsOwner: true` on a submitted review means the user reviewed their
     // own change, which is not mentoring and is trivially self-issued.
-    const events = [makeEvent({ kind: "review_submitted", actorIsOwner: true })];
+    const events = [
+      makeEvent({ kind: "review_submitted", actorIsOwner: true }),
+    ];
 
     expect(deriveCandidateEvidence(events, WINDOW).reviewGiven).toBeNull();
   });
@@ -150,10 +156,11 @@ describe("deriveCandidateEvidence — month density per technology", () => {
       makeEvent({ occurredOn: "2026-03-02", technologies: ["TypeScript"] }),
     ];
 
-    const [claim] = deriveCandidateEvidence(
+    const [densityClaim] = deriveCandidateEvidence(
       events,
       longWindow,
     ).technologyMonthDensity;
+    const claim = expectDefined(densityClaim, "the month-density claim");
 
     // Four events, two months. This is the difference between a density claim
     // and the event count it deliberately replaces.
@@ -171,14 +178,20 @@ describe("deriveCandidateEvidence — month density per technology", () => {
 
     expect(
       deriveCandidateEvidence(events, longWindow).technologyMonthDensity[0]
-        .activeMonths,
+        ?.activeMonths,
     ).toBe(1);
   });
 
   it("orders technologies by density, then alphabetically, so a post is reproducible", () => {
     const events = [
-      makeEvent({ occurredOn: "2026-01-05", technologies: ["TypeScript", "Go", "Rust"] }),
-      makeEvent({ occurredOn: "2026-02-05", technologies: ["TypeScript", "Go"] }),
+      makeEvent({
+        occurredOn: "2026-01-05",
+        technologies: ["TypeScript", "Go", "Rust"],
+      }),
+      makeEvent({
+        occurredOn: "2026-02-05",
+        technologies: ["TypeScript", "Go"],
+      }),
       makeEvent({ occurredOn: "2026-03-05", technologies: ["TypeScript"] }),
     ];
 
@@ -235,7 +248,9 @@ describe("deriveCandidateEvidence — sustained engagement", () => {
       makeEvent({ occurredOn: "2026-01-06", repoFingerprint: REPO_B }),
     ];
 
-    expect(deriveCandidateEvidence(events, window).sustainedEngagement).toBeNull();
+    expect(
+      deriveCandidateEvidence(events, window).sustainedEngagement,
+    ).toBeNull();
   });
 });
 
@@ -352,7 +367,13 @@ describe("deriveCandidateEvidence — identity leakage", () => {
 
     const serialized = JSON.stringify(deriveCandidateEvidence(events, WINDOW));
 
-    for (const fingerprint of [REPO_A, REPO_B, REVIEWER_1, REVIEWER_2, REVIEWER_3]) {
+    for (const fingerprint of [
+      REPO_A,
+      REPO_B,
+      REVIEWER_1,
+      REVIEWER_2,
+      REVIEWER_3,
+    ]) {
       expect(serialized).not.toContain(fingerprint);
     }
   });

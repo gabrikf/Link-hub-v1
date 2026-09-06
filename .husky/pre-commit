@@ -1,0 +1,5 @@
+# Format the staged files, autofix what eslint can, and refuse what is left.
+# See scripts/guardrails/pre-commit.mjs for why this is not just a small
+# pre-push. Budget is a couple of seconds; if it grows, cut what it runs
+# rather than deleting the hook.
+node scripts/guardrails/pre-commit.mjs

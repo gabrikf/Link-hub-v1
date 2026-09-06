@@ -5,7 +5,7 @@ import {
 import { PlacedImage } from "../../../shared-components/placed-image";
 import { safeImageUrl } from "./profile-theme";
 
-type ProfileBackgroundProps = {
+type ProfileBackgroundProps = Readonly<{
   imageUrl: string | null | undefined;
   appearance: ProfileAppearance | null | undefined;
   /**
@@ -21,7 +21,7 @@ type ProfileBackgroundProps = {
    * preview card, and a fixed layer would escape it and cover the editor.
    */
   className?: string;
-};
+}>;
 
 /**
  * The optional full-bleed photograph behind a profile.
