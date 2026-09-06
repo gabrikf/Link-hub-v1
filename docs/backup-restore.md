@@ -26,17 +26,17 @@ O passo 1 do Cenário A existe só por causa disso. Ele custa 10 segundos.
 
 ## Antes de tudo: os fatos que você vai precisar
 
-| | |
-|---|---|
-| VPS | `ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy` |
-| App | `/srv/crafthub` |
-| Container do banco | `crafthub-postgres` |
-| Usuário / banco | `crafthub_user` / `crafthub` |
-| Bucket dos backups | `crafthub-backups`, prefixo `postgres/` |
-| Remote rclone | `r2` (config em `~/.config/rclone/rclone.conf` do usuário `deploy`) |
-| Nome dos objetos | `crafthub-<AAAA-MM-DD>T<HH-MM-SS>Z.sql.gz` |
-| Quando o cron roda | 04:17 UTC, diariamente |
-| Retenção | 30 dias (script) / 45 dias (regra do bucket) |
+|                    |                                                                     |
+| ------------------ | ------------------------------------------------------------------- |
+| VPS                | `ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy`                    |
+| App                | `/srv/crafthub`                                                     |
+| Container do banco | `crafthub-postgres`                                                 |
+| Usuário / banco    | `crafthub_user` / `crafthub`                                        |
+| Bucket dos backups | `crafthub-backups`, prefixo `postgres/`                             |
+| Remote rclone      | `r2` (config em `~/.config/rclone/rclone.conf` do usuário `deploy`) |
+| Nome dos objetos   | `crafthub-<AAAA-MM-DD>T<HH-MM-SS>Z.sql.gz`                          |
+| Quando o cron roda | 04:17 UTC, diariamente (⚠️ backup.sh documenta 03:17 — ver abaixo)  |
+| Retenção           | 30 dias (script) / 45 dias (regra do bucket)                        |
 
 ---
 
@@ -294,6 +294,81 @@ Ele olha o **arquivo no bucket**, não o código de saída do script — porque 
 script saiu com 0 sem ter subido nada, e um alerta baseado em "terminou bem" teria dito
 que estava tudo certo.
 
+A regra que ele segue: **não conseguir conferir nunca vira "está tudo bem"**. Listagem que
+falha, binding de limite ausente ou não-numérico, e carimbo de data no futuro são todos
+ALERTA — não silêncio. Um vigia que se cala quando não consegue olhar é pior que nenhum,
+porque fabrica confiança. Isso está coberto por testes:
+
+```bash
+npx vitest run --root infra/cloudflare/backup-watchdog
+```
+
+> **Atenção:** esses testes NÃO rodam em `npm run guardrails` nem no CI hoje — este
+> diretório não é um workspace npm e os dois iteram workspaces via turbo. Rode-os à mão
+> ao mexer no worker. O cabeçalho de `worker.test.mjs` diz o que falta para automatizar.
+
+> ⚠️ **O horário do backup está contraditório no repositório.** A tabela acima diz
+> 04:17 UTC; o cabeçalho de `scripts/backup.sh` documenta `17 3 * * *` (03:17 UTC).
+> Só o crontab da VPS decide. Resolva com `ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy
+'crontab -l'` e corrija o perdedor. O limite de 24h do vigia funciona nos dois casos
+> (backup saudável tem 1,3h ou 2,3h; um dia perdido tem 25,3h ou 26,3h), mas se você
+> mexer no horário do backup ou no do vigia, refaça a conta em `variables.tf`.
+
+### Como implantar (ainda NÃO está no ar)
+
+O Terraform não é aplicado por CI — `.github/workflows/deploy.yml` só imprime instruções
+de `terraform output`. Este vigia sobe por `terraform apply` à mão, e enquanto isso não
+acontecer **nada quebra**: ele é monitoramento aditivo, não está no caminho de nenhuma
+requisição, e o backup noturno continua rodando exatamente como hoje. O que você não tem,
+enquanto ele não subir, é o aviso de que o backup parou.
+
+Duas variáveis NOVAS são obrigatórias e não têm default. Sem elas, **qualquer**
+`terraform plan` neste diretório passa a falhar, inclusive para mudanças que não têm nada
+a ver com backup:
+
+| Variável             | De onde vem                                              | Onde colocar                    |
+| -------------------- | -------------------------------------------------------- | ------------------------------- |
+| `backup_alert_email` | você decide — o e-mail que recebe o alerta               | `terraform.tfvars` (gitignored) |
+| `resend_api_key`     | painel do Resend → API Keys → chave com "Sending access" | ambiente, **nunca** no tfvars   |
+
+O `CLOUDFLARE_API_TOKEN` também precisa da permissão **"Workers Scripts: Edit"**, que em
+2026-08-29 ele não tinha (a API devolvia 403). Painel da Cloudflare → My Profile → API
+Tokens → editar o token → Permissions → Account · Workers Scripts · Edit.
+
+```bash
+cd infra/terraform/envs/prod
+
+# 1. os segredos, por ambiente (o resend_api_key NÃO vai para o tfvars)
+export TF_VAR_resend_api_key="$RESEND_API_KEY"
+export CLOUDFLARE_API_TOKEN=...   # com Workers Scripts: Edit
+export HCLOUD_TOKEN=...
+
+# 2. o destinatário, no tfvars
+echo 'backup_alert_email = "voce@example.com"' >> terraform.tfvars
+
+# 3. init (backend R2), plan, e só então apply
+terraform init -backend-config=backend.hcl
+terraform plan  -target=cloudflare_workers_script.backup_watchdog \
+                -target=cloudflare_workers_cron_trigger.backup_watchdog
+terraform apply -target=cloudflare_workers_script.backup_watchdog \
+                -target=cloudflare_workers_cron_trigger.backup_watchdog
+```
+
+O `-target` é para a primeira subida: ele isola o vigia do resto do plan, que hoje pode
+carregar diffs de outras coisas. Depois de aplicado, rode um `terraform apply` normal para
+reconciliar o state inteiro.
+
+**Prova de que subiu**, sem esperar até amanhã: force a execução do cron no painel
+(Workers → `crafthub-backup-watchdog` → Settings → Trigger Events → Cron → _Run_), ou
+simplesmente confira o marcador depois do primeiro 05:30 UTC:
+
+```bash
+rclone cat r2:crafthub-backups/watchdog/last-run.json
+```
+
+Se `checkedAt` for de hoje, ele está vivo. Se o e-mail de segunda-feira chegar, o canal de
+alerta também está.
+
 ### Recebi "[CraftHub] BACKUP COM PROBLEMA"
 
 O e-mail traz o motivo e a idade do backup mais recente. O primeiro comando é sempre:
@@ -318,13 +393,29 @@ Toda segunda-feira ele manda "[CraftHub] backup ok (batimento semanal)". **Se es
 parar de chegar, quem caiu foi o vigia** — e o silêncio dele não quer dizer que o backup
 está bem.
 
-Para conferir a qualquer momento, sem painel:
+Para conferir a qualquer momento, sem painel. **Rode da SUA máquina, não da VPS** — o
+cenário inteiro que justifica o vigia é a VPS estar fora do ar, e um comando de auditoria
+que depende dela não serve exatamente no dia em que você precisa dele:
+
+```bash
+rclone cat r2:crafthub-backups/watchdog/last-run.json
+```
+
+Isso exige um remote `r2` no seu rclone local (mesmas credenciais do `rclone.conf` da VPS
+— `terraform output r2_backups_access_key_id` e `r2_backups_secret_access_key`). Se você
+ainda não configurou, o caminho pela VPS continua valendo enquanto ela estiver de pé:
 
 ```bash
 ssh deploy@2.28.64.43 -i ~/.ssh/linkhub_deploy 'rclone cat r2:crafthub-backups/watchdog/last-run.json'
 ```
 
-Ele grava esse marcador em toda execução. `checkedAt` velho = vigia parado.
+Ele grava esse marcador em toda execução. `checkedAt` velho = vigia parado. `healthy:
+false` com `backupCount: null` = ele rodou mas **não conseguiu listar** o bucket — o que
+não é a mesma coisa que "não há backups".
+
+Os logs do Worker (`console.log` do status a cada execução) ficam no painel da Cloudflare
+com observability ligada, mas **só por 3 dias** no plano free. O marcador no R2 é a
+memória longa; o log é para a última madrugada.
 
 ### O que o vigia NÃO faz
 

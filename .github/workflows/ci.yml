@@ -343,3 +343,11 @@ jobs:
 
       - name: Test — every other workspace
         run: npx turbo run test '--filter=!api'
+
+      # `infra/` is not an npm workspace, so turbo never sees it and neither the
+      # gate nor the step above would run this. Without this step the backup
+      # watchdog's 30 tests exist but never execute in CI — and a watchdog whose
+      # tests do not run is the same class of problem as the watchdog bug they
+      # were written to catch: something that looks covered and is not.
+      - name: Test — infra workers
+        run: npm run test:infra

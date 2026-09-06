@@ -36,6 +36,7 @@
     "db:seed:fresh": "bash db-manage.sh reseed-real",
     "-- TESTING --": "",
     "test:api": "npm run test --workspace=api",
+    "test:infra": "vitest run --root infra/cloudflare/backup-watchdog",
     "test:extractor": "npm run test --workspace=extractor",
     "test:watch": "npm run test --workspace=api -- --watch",
     "test:coverage": "turbo run test:coverage",

@@ -119,10 +119,13 @@ backup_alert_email = "voce@example.com"
 # A chave do Resend NÃO vem daqui. Ela é segredo e vai por ambiente, junto dos tokens:
 #     export TF_VAR_resend_api_key="$RESEND_API_KEY"
 #
-# backup_watchdog_cron              = "30 5 * * *"   # UTC, ~1h depois do backup
-# backup_watchdog_max_age_hours     = 24             # ver a aritmética em variables.tf
+# backup_watchdog_cron              = "30 5 * * *"   # UTC, ~2h depois do backup das 03:17
+# backup_watchdog_max_age_hours     = 24             # 4..25; ver a aritmética em variables.tf
 # backup_watchdog_min_bytes         = 20000
-# backup_watchdog_heartbeat_weekday = "1"            # segunda; "" desliga
+# backup_watchdog_heartbeat_weekday = "1"            # "0".."6" (segunda = 1); "" desliga
+#
+# Não existe variável para o endereço da VPS: o worker recebe o comando de ssh já pronto,
+# montado com o IP que está no state (hcloud_server.main.ipv4_address).
 
 # tfstate_bucket_name = "crafthub-tfstate"   # precisa bater com o backend em versions.tf
 # r2_location_hint    = "enam"

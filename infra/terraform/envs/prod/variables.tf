@@ -311,28 +311,46 @@ variable "resend_api_key" {
 }
 
 variable "backup_watchdog_cron" {
-  description = "Quando o vigia roda, em cron UTC. O default é 05:30, cerca de uma hora depois do backup das 04:17 — margem suficiente para um dump lento sem esperar o dia inteiro para saber."
+  description = "Quando o vigia roda, em cron UTC. O default é 05:30, duas horas depois do backup das 03:17 (o horário que scripts/backup.sh documenta no crontab) — margem de sobra para um dump lento sem esperar o dia inteiro para saber."
   type        = string
   default     = "30 5 * * *"
+
+  validation {
+    condition     = can(regex("^[^ ]+ [^ ]+ [^ ]+ [^ ]+ [^ ]+$", trimspace(var.backup_watchdog_cron)))
+    error_message = "backup_watchdog_cron precisa ter os cinco campos de um cron (ex.: \"30 5 * * *\")."
+  }
 }
 
 variable "backup_watchdog_max_age_hours" {
   description = <<-EOT
     Idade máxima aceitável do backup mais recente, em horas.
 
-    A ARITMÉTICA IMPORTA, e é onde este alerta seria inútil sem parecer:
-    com o backup às 04:17 e o vigia às 05:30, um backup saudável tem ~1,2h quando é
-    olhado. Se o backup de hoje falhar, o mais recente passa a ser o de ontem: ~25,2h.
-    Um limite de 26h (que parece o "óbvio" de um ciclo diário) NÃO dispararia — só
-    depois de DOIS dias perdidos, com ~49h. O limite tem que ficar acima de 1,2 e
-    abaixo de 25,2. 24 fica confortavelmente no meio.
+    A ARITMÉTICA IMPORTA, e é onde este alerta seria inútil sem parecer.
+
+    O REPOSITÓRIO SE CONTRADIZ SOBRE O HORÁRIO DO BACKUP, e isso não foi resolvido aqui
+    porque só o crontab da VPS decide: o cabeçalho de scripts/backup.sh documenta
+    03:17 UTC; a tabela de fatos de docs/backup-restore.md diz 04:17 UTC. Confira com
+    `ssh deploy@<vps> crontab -l` e acerte o perdedor.
+
+    Com o vigia às 05:30, os dois casos dão:
+      - backup 03:17 → saudável ~2,3h; um dia perdido ~26,3h
+      - backup 04:17 → saudável ~1,3h; um dia perdido ~25,3h
+
+    O limite precisa ficar acima da idade saudável e abaixo da idade de "um dia
+    perdido", com folga dos dois lados. 24 satisfaz as duas leituras. Um limite de 26h
+    (o "óbvio" de um ciclo diário) NÃO satisfaz nenhuma das duas, e um de 30h só
+    dispararia depois de DOIS dias perdidos.
+
+    SE VOCÊ MUDAR UM DOS DOIS HORÁRIOS, refaça esta conta. Um limite abaixo da idade
+    saudável alarma todo santo dia até alguém desligar o alerta; um acima da idade de
+    "um dia perdido" nunca dispara e parece configurado.
   EOT
   type        = number
   default     = 24
 
   validation {
-    condition     = var.backup_watchdog_max_age_hours > 2 && var.backup_watchdog_max_age_hours < 25
-    error_message = "backup_watchdog_max_age_hours deve ficar entre 2 e 25 (exclusive). Acima de 25 o alerta deixa de pegar um único dia perdido, que é justamente o caso que ele existe para pegar."
+    condition     = var.backup_watchdog_max_age_hours >= 4 && var.backup_watchdog_max_age_hours <= 25
+    error_message = "backup_watchdog_max_age_hours deve ficar entre 4 e 25. Abaixo de 4 o alerta dispara contra um backup saudável (1,3h a 2,3h de idade quando o vigia olha) e vira ruído; acima de 25 ele deixa de pegar um único dia perdido (25,3h a 26,3h), que é justamente o caso que ele existe para pegar."
   }
 }
 
@@ -340,6 +358,11 @@ variable "backup_watchdog_min_bytes" {
   description = "Tamanho mínimo aceitável do backup mais recente. Em 2026-08-29 o dump comprimido tinha ~40.760 bytes; 20.000 é metade disso, folgado para o banco crescer e apertado o bastante para pegar um dump truncado. É independente do MIN_DUMP_BYTES do script, que só protege quando o script roda."
   type        = number
   default     = 20000
+
+  validation {
+    condition     = var.backup_watchdog_min_bytes > 0
+    error_message = "backup_watchdog_min_bytes precisa ser positivo. Zero desliga a checagem de dump truncado sem dizer que desligou — e o worker passa a recusar o valor em tempo de execução, alertando, em vez de fingir saúde."
+  }
 }
 
 variable "backup_watchdog_heartbeat_weekday" {
@@ -350,9 +373,19 @@ variable "backup_watchdog_heartbeat_weekday" {
     Existe porque um vigia morto é tão silencioso quanto um backup saudável. Sem o
     batimento, você não teria como distinguir "nada de errado" de "ninguém olhando" —
     que é exatamente o problema que este Worker veio resolver, um nível acima.
+
+    A validação abaixo existe porque "3" e "" são configurações, e "quarta" é um erro
+    de digitação que desligaria o batimento em silêncio. O worker também recusa o valor
+    em tempo de execução e ALERTA — mas falhar no plan é mais barato que descobrir pelo
+    e-mail que deixou de chegar.
   EOT
   type        = string
   default     = "1"
+
+  validation {
+    condition     = contains(["", "0", "1", "2", "3", "4", "5", "6"], var.backup_watchdog_heartbeat_weekday)
+    error_message = "backup_watchdog_heartbeat_weekday precisa ser \"0\"(domingo) a \"6\"(sábado), ou \"\" para desligar o batimento."
+  }
 }
 
 variable "tfstate_bucket_name" {

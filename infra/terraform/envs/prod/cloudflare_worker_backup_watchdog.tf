@@ -19,8 +19,23 @@
 # POR QUE ELE NÃO MORA NA VPS:
 # o cenário que justifica ter backup é a VPS morrer. Vigia hospedado nela morre junto.
 #
-# CUSTO: zero. Cron trigger e R2 binding cabem no plano free de Workers, a leitura diária
-# é uma operação de classe B, e o Resend dá 100 e-mails/dia — este manda no máximo um.
+# CUSTO: zero, e as contas estão aqui para poderem ser conferidas em vez de acreditadas.
+#
+#   - Workers Free: 100.000 requisições/DIA e 10 ms de CPU por invocação. Este Worker é
+#     invocado 1x/dia (~31/mês) e o trabalho é um list, um put e um POST — milissegundos.
+#   - Cron Triggers: o plano Free permite 5 por conta. Este usa 1.
+#   - R2: `list()` e `put()` são operações de CLASSE A (não B — LIST não é leitura barata
+#     no tabelamento do R2). São 2 por execução = ~62/mês, contra 1.000.000/mês de free
+#     tier. Storage: o marcador tem ~600 bytes.
+#   - Workers Logs: Free dá 200.000 eventos/dia com retenção de 3 DIAS. Este Worker
+#     escreve 1 linha por execução, então o teto não é problema — mas a retenção é o
+#     motivo de o status também ir para o R2 como `watchdog/last-run.json`, que não
+#     expira em 3 dias.
+#   - Resend: 100 e-mails/dia no free tier. Este manda no MÁXIMO um por dia (alerta ou
+#     batimento, nunca os dois).
+#
+# Nada disso encosta em nenhum limite. O custo mensal é R$ 0,00 e continua zero mesmo se
+# o alerta disparar todo dia.
 #
 # PRÉ-REQUISITO: o CLOUDFLARE_API_TOKEN precisa de "Workers Scripts: Edit". Sem isso a
 # API devolve 403 e o apply falha neste recurso. Confirmado em 2026-08-29: o token da
@@ -77,7 +92,25 @@ resource "cloudflare_workers_script" "backup_watchdog" {
       name = "HEARTBEAT_WEEKDAY"
       text = var.backup_watchdog_heartbeat_weekday
     },
+    {
+      # O primeiro comando do runbook, montado com o IP REAL do servidor no state em vez
+      # de um literal dentro do worker.js. O IP muda quando o servidor é recriado, e um
+      # e-mail de emergência que manda você para o endereço errado custa os minutos em
+      # que ele mais importa. O worker sabe funcionar sem este binding: nesse caso o
+      # e-mail aponta para docs/production-inventory.md em vez de inventar um endereço.
+      type = "plain_text"
+      name = "RUNBOOK_SSH"
+      text = "ssh deploy@${hcloud_server.main.ipv4_address} -i ~/.ssh/linkhub_deploy"
+    },
   ]
+
+  # O worker registra o status apurado com console.log em TODA execução, e essa linha é
+  # a única prova do que ele viu quando o e-mail não chega. Sem observability ligada ela
+  # só existe enquanto alguém estiver com um `wrangler tail` aberto — ou seja, nunca,
+  # justamente na madrugada em que interessa.
+  observability = {
+    enabled = true
+  }
 }
 
 resource "cloudflare_workers_cron_trigger" "backup_watchdog" {
