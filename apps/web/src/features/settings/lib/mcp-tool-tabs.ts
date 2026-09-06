@@ -13,24 +13,22 @@ import type { Snippet } from "../components/snippet-block";
  * outside this file imports it directly.
  */
 
-// The MCP server is NOT published to npm — it is run locally from the built
-// entry point in this monorepo (see apps/mcp/README.md). Users first build it
-// with `npm run build --workspace=mcp`, which produces apps/mcp/dist/index.js,
-// then point their client at that absolute path via `node`.
-//
-// We can't know the user's checkout location from the browser, so the JSON
-// snippets carry this placeholder — but PATH_COMMAND below prints the real
-// value in one copy-paste, and the Claude Code CLI snippet resolves it inline
-// so that path never has to be typed by hand at all.
-export const MCP_ENTRY = "/absolute/path/to/crafthub/apps/mcp/dist/index.js";
+// The MCP server ships on npm as `crafthub-mcp`, so every snippet below is
+// zero-install: the host spawns `npx`, npm fetches the package on first run and
+// caches it. There is deliberately nothing for the user to clone, build or
+// path-resolve — this panel is read by developers who signed up to have their
+// agent post for them, not by contributors to this repo.
+export const MCP_PACKAGE = "crafthub-mcp";
 
-/** Resolves the repo root from anywhere inside the checkout. */
-export const ENTRY_SHELL_EXPR =
-  '"$(git rev-parse --show-toplevel)/apps/mcp/dist/index.js"';
+// Pinned to `@latest` rather than a version this page would have to keep in
+// step with the registry: the server and the API are released together, and a
+// stale copy in the npx cache is the failure this avoids. `-y` skips npx's
+// install prompt, which has no stdin to answer it inside an MCP host.
+export const MCP_SPEC = `${MCP_PACKAGE}@latest`;
 
-export const BUILD_COMMAND = "npm run build --workspace=mcp";
+export const MCP_COMMAND = "npx";
 
-export const PATH_COMMAND = `echo ${ENTRY_SHELL_EXPR}`;
+export const MCP_ARGS = ["-y", MCP_SPEC];
 
 export const TOKEN_PLACEHOLDER = "lh_pat_xxxxxxxxxxxxxxxxxxxxxxxx";
 
@@ -61,43 +59,22 @@ export function buildTabs(
   apiUrl: string,
   token: string,
 ): ToolTab[] {
-  // Shared stdio server block: `node <absolute path to built entry>` with the
-  // API URL + token in env. Mirrors apps/mcp/README.md exactly.
+  // Shared stdio server block: `npx -y crafthub-mcp@latest` with the API URL +
+  // token in env. Mirrors apps/mcp/README.md exactly.
   const mcpServerBlock = {
-    command: "node",
-    args: [MCP_ENTRY],
+    command: MCP_COMMAND,
+    args: MCP_ARGS,
     env: {
       CRAFTHUB_API_URL: apiUrl,
       CRAFTHUB_API_TOKEN: token,
     },
   };
 
-  const claudeDesktopConfig = JSON.stringify(
-    { mcpServers: { crafthub: mcpServerBlock } },
-    null,
-    2,
-  );
-
-  // Project-scoped `.mcp.json` lives at the repo root, so a repo-relative path
-  // works and needs no editing at all. Mirrors apps/mcp/README.md.
-  const mcpJson = JSON.stringify(
-    {
-      mcpServers: {
-        crafthub: {
-          command: "node",
-          args: ["./apps/mcp/dist/index.js"],
-          env: {
-            CRAFTHUB_API_URL: apiUrl,
-            CRAFTHUB_API_TOKEN: token,
-          },
-        },
-      },
-    },
-    null,
-    2,
-  );
-
-  const cursorJson = JSON.stringify(
+  // Claude Desktop's `claude_desktop_config.json`, Claude Code's project-scoped
+  // `.mcp.json` and Cursor's `.cursor/mcp.json` all take this exact document —
+  // once the command is `npx` there is no per-host path left to differ. Only VS
+  // Code needs its own shape (`servers`, plus an explicit `type`).
+  const mcpServersJson = JSON.stringify(
     { mcpServers: { crafthub: mcpServerBlock } },
     null,
     2,
@@ -108,8 +85,8 @@ export function buildTabs(
       servers: {
         crafthub: {
           type: "stdio",
-          command: "node",
-          args: [MCP_ENTRY],
+          command: MCP_COMMAND,
+          args: MCP_ARGS,
           env: {
             CRAFTHUB_API_URL: apiUrl,
             CRAFTHUB_API_TOKEN: token,
@@ -121,13 +98,12 @@ export function buildTabs(
     2,
   );
 
-  // Resolves the entry path inline, so this one is genuinely zero-edit: copy,
-  // paste, run from anywhere inside the repo.
+  // Genuinely zero-edit: copy, paste, run from anywhere.
   const claudeCodeCli = [
     `claude mcp add crafthub \\`,
     `  --env CRAFTHUB_API_URL=${apiUrl} \\`,
     `  --env CRAFTHUB_API_TOKEN=${token} \\`,
-    `  -- node ${ENTRY_SHELL_EXPR}`,
+    `  -- ${MCP_COMMAND} ${MCP_ARGS.join(" ")}`,
   ].join("\n");
 
   return [
@@ -138,7 +114,7 @@ export function buildTabs(
         {
           target: "claude_desktop_config.json",
           language: "json",
-          code: claudeDesktopConfig,
+          code: mcpServersJson,
         },
       ],
       verify: [
@@ -167,7 +143,7 @@ export function buildTabs(
         {
           target: t("settings.mcp.claudeCodeProject"),
           language: "json",
-          code: mcpJson,
+          code: mcpServersJson,
         },
       ],
       verify: [
@@ -186,7 +162,7 @@ export function buildTabs(
         {
           target: ".cursor/mcp.json",
           language: "json",
-          code: cursorJson,
+          code: mcpServersJson,
         },
       ],
       verify: [
@@ -224,7 +200,7 @@ export function buildTabs(
         {
           target: t("settings.mcp.othersConfig"),
           language: "json",
-          code: claudeDesktopConfig,
+          code: mcpServersJson,
         },
       ],
       verify: [

@@ -1,29 +1,18 @@
 import { useMemo, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { Trans, useTranslation } from "react-i18next";
-import {
-  FiCheck,
-  FiChevronDown,
-  FiGitCommit,
-  FiTerminal,
-  FiZap,
-} from "react-icons/fi";
+import { FiCheck, FiGitCommit, FiTerminal, FiZap } from "react-icons/fi";
 import { FOCUS_RING, SURFACE_GLASS } from "../../../shared-components/surface";
 import { CONNECT_PANEL_ID, resolveApiUrl } from "../lib/mcp-config";
 // Host tabs and snippet builders are shared with the auto-post wizard's MCP
 // path — one definition, two surfaces.
 import {
-  BUILD_COMMAND,
   buildTabs,
-  PATH_COMMAND,
   PROMPT_NAME,
   TOKEN_PLACEHOLDER,
 } from "../lib/mcp-tool-tabs";
 import { DISCLOSURE_PANEL_ID } from "./disclosure-panel";
 import { EnforcementGrid, ExamplePostsGrid } from "./safety-explainers";
-// Shared with the activity-connections panel, which needs the same copyable
-// block for webhook URLs, one-time secrets and the Claude Code hook.
-import { SnippetBlock } from "./snippet-block";
 import { ToolTabs } from "./tool-tabs";
 
 type StepProps = Readonly<{
@@ -138,44 +127,6 @@ export function ConnectPanel({ token }: ConnectPanelProps) {
           />
         </p>
       )}
-
-      {/* The MCP server is not on npm yet, so the only way to run it today is
-          from a checkout. That is fine for contributors and impossible for the
-          developer who signed up to have their agent post for them — and as a
-          numbered step 1 it read as mandatory setup they simply could not do.
-          Folded into an opt-in disclosure until the package is published. */}
-      <details className="group mt-6 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/60">
-        <summary
-          className={`flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200 ${FOCUS_RING} rounded-md`}
-        >
-          <FiTerminal className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {t("settings.connect.localBuildTitle")}
-          <FiChevronDown
-            className="ml-auto h-4 w-4 shrink-0 transition group-open:rotate-180"
-            aria-hidden="true"
-          />
-        </summary>
-
-        <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-          {t("settings.connect.localBuildBody")}
-        </p>
-        <div className="mt-3 space-y-3">
-          <SnippetBlock
-            snippet={{
-              target: t("settings.connect.terminalBuildOnce"),
-              language: "bash",
-              code: BUILD_COMMAND,
-            }}
-          />
-          <SnippetBlock
-            snippet={{
-              target: t("settings.connect.terminalPrintPath"),
-              language: "bash",
-              code: PATH_COMMAND,
-            }}
-          />
-        </div>
-      </details>
 
       <Step index={1} title={t("settings.connect.addToTool")}>
         <ToolTabs tabs={tabs} idPrefix="connect" />

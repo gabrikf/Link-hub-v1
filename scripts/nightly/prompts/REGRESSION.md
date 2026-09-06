@@ -6,25 +6,29 @@ tree is better than you found it and not merely different.
 ### Do this
 
 1. **The full gate**, recorded verbatim:
+
    ```bash
    npm run build:schemas
    node scripts/guardrails/pre-push.mjs
    ```
+
    Note which lanes it says it skipped and why. A narrowed run that announces
    what it narrowed is honest; a narrowed run reported as "all green" is a lie.
 
 2. **The whole e2e suite**, both projects:
+
    ```bash
    npx playwright test --project=desktop --reporter=list
    npx playwright test --project=mobile --reporter=list
    ```
 
 3. **The unit and integration suites**, per workspace:
+
    ```bash
    npm run test --workspace=api
    npm run test --workspace=web
    npm run test --workspace=@repo/schemas
-   npm run test --workspace=extractor
+   npm run test --workspace=crafthub-extract
    ```
 
 4. **Compare against the BOOTSTRAP baseline in MEMORY.md.** This is the whole
@@ -59,6 +63,7 @@ the baseline-vs-now comparison as a table. Update each `QUEUE.fixed[]` entry wit
 ```bash
 node scripts/nightly/state.mjs set next_phase '"REPORT"'
 ```
+
 Legal: `REPORT` (clean), `TRIAGE` (you found a regression — it must be triaged
 and fixed before the report), `FIX` (a regression is obvious and already
 claimed).

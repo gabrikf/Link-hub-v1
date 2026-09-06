@@ -22,16 +22,16 @@ have already read.
 These are the claims. Each one has a test, and each one is checkable by hand in
 about thirty seconds.
 
-| Guarantee | Check it |
-| --- | --- |
-| Repo names, remotes and paths never leave your machine — only a sha-256 fingerprint does | `grep -i your-repo-name crafthub-activity.json` |
+| Guarantee                                                                                                                                                                        | Check it                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Repo names, remotes and paths never leave your machine — only a sha-256 fingerprint does                                                                                         | `grep -i your-repo-name crafthub-activity.json`                     |
 | Commit messages are never sent — in fact they are **never read**. The extractor asks git for `%(trailers:key=Co-authored-by)`, not `%B`, so the message never enters the process | `grep -i 'some words from a commit message' crafthub-activity.json` |
-| File paths and diffs are never sent; a changeset becomes a set of technology tags and a file count | `grep -i AcmeInvoiceService crafthub-activity.json` |
-| Collaborators' emails are hashed before they touch a file | `grep -i @your-company.com crafthub-activity.json` |
-| Dates only — never an hour, never a timezone offset. A profile cannot show when you sleep | `grep -E '[0-9]{2}:[0-9]{2}' crafthub-activity.json` |
-| Branch names, issue keys and customer names are never collected at all | open the file; every event has six fields |
-| Nothing is uploaded by `extract` | run it with your network off — it works |
-| Re-running is a no-op, not a duplicate | run it twice, `diff` the two files |
+| File paths and diffs are never sent; a changeset becomes a set of technology tags and a file count                                                                               | `grep -i AcmeInvoiceService crafthub-activity.json`                 |
+| Collaborators' emails are hashed before they touch a file                                                                                                                        | `grep -i @your-company.com crafthub-activity.json`                  |
+| Dates only — never an hour, never a timezone offset. A profile cannot show when you sleep                                                                                        | `grep -E '[0-9]{2}:[0-9]{2}' crafthub-activity.json`                |
+| Branch names, issue keys and customer names are never collected at all                                                                                                           | open the file; every event has six fields                           |
+| Nothing is uploaded by `extract`                                                                                                                                                 | run it with your network off — it works                             |
+| Re-running is a no-op, not a duplicate                                                                                                                                           | run it twice, `diff` the two files                                  |
 
 The last one is worth doing. Two runs over the same history produce
 **byte-identical** files, so a `diff` that shows nothing is a real result.
@@ -56,7 +56,7 @@ rejects anything in a fingerprint field that is not 64 hex characters, so a
 clear-text identity cannot be stored even if this tool had a bug — but the
 promise here is stronger: it never gets that far.
 
-### Technology tags come from what *you changed*
+### Technology tags come from what _you changed_
 
 A competitor once ranked people in the top few percent of languages they had
 never written, because it measured the bytes in a repository instead of the
@@ -75,10 +75,17 @@ credits TypeScript. Only.
 
 ## Install
 
+Nothing to install — `npx` fetches it on first use and caches it:
+
 ```bash
-npm install                          # from the monorepo root
-npm run build:extractor
-npm link --workspace=extractor       # optional: puts both commands on PATH
+npx crafthub-extract ~/code/my-repo
+```
+
+Or put both commands on your PATH, which the Claude Code hook needs since a
+hook command is spawned without a shell that knows about `npx`:
+
+```bash
+npm install -g crafthub-extract      # provides crafthub-extract + crafthub-hook
 ```
 
 Set up auth. Extraction needs neither of these — only uploading does:
@@ -88,7 +95,7 @@ export CRAFTHUB_API_TOKEN='lh_pat_…'  # Settings → Personal access tokens
 export CRAFTHUB_API_URL='http://localhost:3333'   # default
 ```
 
-The token needs the **`activity:write`** scope, which is *not* granted by
+The token needs the **`activity:write`** scope, which is _not_ granted by
 default — a token you minted for the MCP server will not have it. A 403 says so
 explicitly.
 
@@ -148,7 +155,9 @@ crafthub-hook print-settings
     "Stop": [
       {
         "matcher": "",
-        "hooks": [{ "type": "command", "command": "crafthub-hook stop", "timeout": 5 }]
+        "hooks": [
+          { "type": "command", "command": "crafthub-hook stop", "timeout": 5 }
+        ]
       }
     ],
     "SessionEnd": [
@@ -228,9 +237,31 @@ for the prose and fails if it appears.
 ## Development
 
 ```bash
-npm run test --workspace=extractor
-npm run check-types --workspace=extractor
+npm run test --workspace=crafthub-extract
+npm run check-types --workspace=crafthub-extract
 ```
+
+`npm run build` type-checks the shipping surface and then bundles all three
+entry points with esbuild — `@repo/schemas` is inlined, so the published
+tarball depends only on zod and never on this monorepo. To publish a release,
+bump `version` in `package.json`, then from the repo root:
+
+```bash
+npm run publish:extractor
+```
+
+The npm account needs **two-factor authentication enabled**; without it the
+registry answers `403` _after_ building and printing a perfectly good tarball.
+If npm asks for a one-time code, pass it through with `--`:
+
+```bash
+npm run publish:extractor -- --otp=123456
+```
+
+Or publish from CI with no OTP at all: **Actions → Publish → Run workflow**,
+pick the package. That path uses npm trusted publishing (OIDC), so there is no
+token in the repo and no one-time code to type — see
+`.github/workflows/publish.yml` for the one-time npmjs.com setup it needs.
 
 Tests build throwaway git repositories in temp directories — nothing reads this
 repository's own history. The privacy tests work by planting confidential

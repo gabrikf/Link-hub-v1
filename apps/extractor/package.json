@@ -1,5 +1,5 @@
 {
-  "name": "extractor",
+  "name": "crafthub-extract",
   "version": "1.0.0",
   "description": "CraftHub local activity extractor — turns local git history and Claude Code sessions into hashed, aggregated activity metadata you review before anything is uploaded.",
   "main": "dist/index.js",
@@ -8,14 +8,25 @@
     "crafthub-extract": "dist/bin/crafthub-extract.js",
     "crafthub-hook": "dist/bin/crafthub-hook.js"
   },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://crafthub.dev",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "tsc -p tsconfig.build.json --watch",
-    "build": "tsc -p tsconfig.build.json",
+    "dev": "esbuild src/index.ts src/bin/crafthub-extract.ts src/bin/crafthub-hook.ts --bundle --platform=node --target=node20 --format=esm --external:zod --outbase=src --outdir=dist --watch",
+    "build": "tsc --noEmit -p tsconfig.build.json && rm -rf dist && esbuild src/index.ts src/bin/crafthub-extract.ts src/bin/crafthub-hook.ts --bundle --platform=node --target=node20 --format=esm --external:zod --outbase=src --outdir=dist && chmod +x dist/bin/crafthub-extract.js dist/bin/crafthub-hook.js",
     "start": "node dist/bin/crafthub-extract.js",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run build",
     "lint": "eslint ."
   },
   "keywords": [
@@ -25,16 +36,17 @@
     "claude-code",
     "hooks"
   ],
-  "author": "",
+  "author": "gabrikf",
   "license": "ISC",
   "dependencies": {
-    "@repo/schemas": "*",
     "zod": "^4.1.1"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",
+    "@repo/schemas": "*",
     "@repo/typescript-config": "*",
     "@types/node": "^24.3.0",
+    "esbuild": "^0.25.9",
     "eslint": "^9.39.4",
     "tsx": "^4.20.5",
     "typescript": "5.9.2",
